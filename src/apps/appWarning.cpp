@@ -66,4 +66,5 @@ void AppWarning::setup()
         return;
     }
     appManager.noDeepSleep = false;
+    appManager.nextWakeup = 10;
 }

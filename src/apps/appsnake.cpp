@@ -148,15 +148,15 @@ void Appsnake::drawGame() {
 
 
 
-  u8g2Fonts.setCursor(147, 15);
+  u8g2Fonts.setCursor(228, 15);
   u8g2Fonts.print("最高:");
-  u8g2Fonts.setCursor(174, 15);
+  u8g2Fonts.setCursor(270, 15);
   u8g2Fonts.print(highscore);
 
-  u8g2Fonts.setCursor(50, 15);
+  u8g2Fonts.setCursor(109, 15);
   u8g2Fonts.print("LiClock-贪吃蛇");
 
-  display.drawRoundRect(0, 21, 200, 200 - 26, 2, GxEPD_BLACK);
+  display.drawRoundRect(4, 21, 288, 102, 2, GxEPD_BLACK);
 
   //Serial.println(score);
 
@@ -195,7 +195,7 @@ void Appsnake::moveSnake() {
     // 蛇头撞墙
     zhuangqiang();
     // 等待按键输入
-    while (digitalRead(PIN_BUTTONR) == 0 && digitalRead(PIN_BUTTONL) == 0 && digitalRead(PIN_BUTTONC) == 0) {
+    while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
       delay(50);
     }
 
@@ -209,7 +209,7 @@ void Appsnake::moveSnake() {
       Serial.println("吃自己了！！！！！！！！");
       chiziij();
       // 等待按键输入
-      while (digitalRead(PIN_BUTTONR) == 0 && digitalRead(PIN_BUTTONL) == 0 && digitalRead(PIN_BUTTONC) == 0) {
+      while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
         delay(50);
       }
 
@@ -231,14 +231,14 @@ void Appsnake::moveSnake() {
 void Appsnake::zhuangqiang() {
 
   display.fillScreen(GxEPD_WHITE);
-  u8g2Fonts.setCursor(40, 85);
+  u8g2Fonts.setCursor(80, 59);
   u8g2Fonts.print("怎么玩的，别往墙上撞啊!");
   if (score > highscore) {
     highscore = score;
     saveHighscore();
-    u8g2Fonts.setCursor(8, 100);
+    u8g2Fonts.setCursor(61, 75);
     u8g2Fonts.print("但是恭喜获得新纪录：最高分");
-    u8g2Fonts.setCursor(80, 115);
+    u8g2Fonts.setCursor(218, 75);
     u8g2Fonts.print(highscore);
   }
   display.display(true);
@@ -246,14 +246,14 @@ void Appsnake::zhuangqiang() {
 
 void Appsnake::chiziij() {
   display.fillScreen(GxEPD_WHITE);
-  u8g2Fonts.setCursor(40, 85);
+  u8g2Fonts.setCursor(80, 59);
   u8g2Fonts.print("吃食物啊，吃自己干嘛!");
   if (score > highscore) {
     highscore = score;
     saveHighscore();
-    u8g2Fonts.setCursor(8, 100);
+    u8g2Fonts.setCursor(61, 75);
     u8g2Fonts.print("但是恭喜获得新纪录：最高分");
-    u8g2Fonts.setCursor(80, 115);
+    u8g2Fonts.setCursor(218, 75);
     u8g2Fonts.print(highscore);
   }
 
@@ -330,12 +330,12 @@ void Appsnake::setup()
     display.fillScreen(GxEPD_WHITE);
     logoY += moveStep;
     //display.drawInvertedBitmap(logoX, logoY, logo, 143, 66, GxEPD_BLACK);
-    u8g2Fonts.setCursor(44, logoY + 80);
+    u8g2Fonts.setCursor(88, logoY);
     u8g2Fonts.print("按任意按键开始游戏");
     display.display();
 
     // 等待按键输入
-    while (digitalRead(PIN_BUTTONR) == 0 && digitalRead(PIN_BUTTONL) == 0 && digitalRead(PIN_BUTTONC) == 0) {
+    while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
         delay(50);
     }
     display.fillScreen(GxEPD_WHITE);
@@ -345,9 +345,9 @@ void Appsnake::setup()
     while(end == false)
     {
         a++;
-        if(digitalRead(PIN_BUTTONR) == 1){changeR();}
-        if(digitalRead(PIN_BUTTONL) == 1){changeL();}
-        if(digitalRead(PIN_BUTTONC) == 1){menu();}
+        if(hal.btnr.isPressing()){changeR();}
+        if(hal.btnl.isPressing()){changeL();}
+        if(hal.btnc.isPressing()){menu();}
         if(a > 20){a = 0;display.display();}
         if (millis() - moveTimer > moveInterval) {
             moveTimer = millis();

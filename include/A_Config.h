@@ -8,6 +8,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <TJpg_Decoder.h>
 #include "qrcode.h"
 #include <esp_sntp.h>
 #include <Fonts/FreeSans18pt7b.h>
@@ -58,6 +59,7 @@
 #define TFmode "1"
 #define autontpsync "0"
 #define WeatherClocksource "0"
+#define Text "/dat/Bytes.bin"
 typedef struct
 {
     const uint8_t *data;
@@ -80,6 +82,7 @@ void refreshIPV6Addr();
 extern DynamicJsonDocument config;
 extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
+extern TJpg_Decoder TJpgDec;
 
 extern bool force_full_update;
 extern int part_refresh_count;

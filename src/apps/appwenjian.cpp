@@ -1,5 +1,18 @@
 #include "AppManager.h"
 
+static const uint8_t wenjianimg[] = {
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x3f, 0x00, 0x00,
+   0x08, 0x40, 0x00, 0x00, 0x08, 0x80, 0x00, 0x00, 0xf8, 0xff, 0xff, 0x3f,
+   0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20,
+   0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20,
+   0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20,
+   0x08, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00, 0x20, 0x88, 0xff, 0xff, 0x20,
+   0x88, 0x00, 0x80, 0x20, 0x88, 0xfc, 0x9f, 0x20, 0x88, 0x04, 0x90, 0x20,
+   0x88, 0x04, 0x90, 0x20, 0xf8, 0xff, 0xff, 0x3f, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
 //#define wprintf(fmt, ...) printf("[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
 #define LOG(fmt, ...) \
   do { \
@@ -91,20 +104,20 @@ private:
         bool end = false;
         while (1)
         {
-            if (digitalRead(PIN_BUTTONR) == 1) {
+            if (hal.btnr.isPressing()) {
                 currentPage++;
                 if (currentPage >= totalPages) {
                     currentPage = totalPages - 1;
                 }
                 displayPage(file, currentPage);
             }
-            if (digitalRead(PIN_BUTTONL) == 1) {
+            if (hal.btnl.isPressing()) {
                 currentPage--;
                 if (currentPage < 0) {
                     currentPage = 0;
                 }
                 displayPage(file, currentPage);
-            }if (digitalRead(PIN_BUTTONC) == 1) {
+            }if (hal.btnc.isPressing()) {
                 static const menu_item appMenu_main[] = {
                     {NULL, "返回"},
                     {NULL, "退出"},
@@ -155,7 +168,7 @@ public:
         name = "wenjian";
         title = "文件管理";
         description = "文件管理器";
-        image = NULL;
+        image = wenjianimg;
         peripherals_requested = PERIPHERALS_SD_BIT;
         _showInList = true;
     }
@@ -176,6 +189,7 @@ public:
 static Appwenjian wenjian;
 
 const char *directoryname;
+time_t LastWrite_time = 0;
 String toApp = "";
 bool hasToApp = false;
 
@@ -196,7 +210,7 @@ int Appwenjian::getFileSize(const char* filePath, bool fromTF)
         F_LOG("无法打开文件%s\n",filePath);
         return 0;
     }
-    
+    LastWrite_time = file.getLastWrite();
     fileSize = file.size();
     
     file.close();
@@ -219,22 +233,41 @@ void AppInstaller::loadApp(const String path) // 加载TF卡App
 
 void Appwenjian::setup() 
 {
-    char buf[60];
+    fanhui:
+    filename = GUI::fileDialog("文件管理", false, NULL, NULL);
+    float a;
+    if (strncmp(filename, "/sd/", 4) == 0) {
+        a = (float)getFileSize(filename,true);
+    } 
+    else if (strncmp(filename, "/littlefs/", 10) == 0) {
+        a = getFileSize(filename,false);
+    }
+    struct tm *filetimeinfo; 
+    filetimeinfo = localtime(&LastWrite_time);
+    char Str[128];
+    if (a <= 1024){
+        sprintf(Str, "大小 %dBytes %d.%d.%d %d:%d", (int)a, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min); 
+    }else if (a <= 1024 * 1024){
+        sprintf(Str, "大小 %.2fKB %d.%d.%d %d:%d", a / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }else if (a <= 1024 * 1024 * 1024){
+        sprintf(Str, "大小 %.2fMB %d.%d.%d %d:%d", a / 1024.0 / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }else{
+        sprintf(Str, "大小 %.2fGB %d.%d.%d %d:%d", a / 1024.0 / 1024.0 / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }
+    char buf[64];
     static const menu_item appMenu_main[] = {
     {NULL, "返回"},
     {NULL, "新建"},
     {NULL, "复制文件"},
     {NULL, "重命名"},
-    {NULL, "删除文件"},
-    {NULL, "文件大小"},
+    {NULL, "删除"},
+    {NULL, Str},
     {NULL, "打开"},
     {NULL, "退出"},
     {NULL, buf},
     {NULL, NULL},
     };
-    fanhui:
     int res = 0;
-    filename = GUI::fileDialog("文件管理", false, NULL, NULL);
     while (hasToApp == false)
     {
         sprintf(buf,"文件系统:%d/%d|%dkB",LittleFS.usedBytes()/1024, LittleFS.totalBytes() / 1024,(LittleFS.totalBytes() - LittleFS.usedBytes()) / 1024);
@@ -519,7 +552,7 @@ void Appwenjian::openfile()
     {
         buzzer.playFile(filename);
         display.display(false); // 全局刷新一次
-        while (digitalRead(PIN_BUTTONC) == 0 && digitalRead(PIN_BUTTONL) == 0 && digitalRead(PIN_BUTTONR) == 0 && buzzer.hasNote())
+        while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing() && buzzer.hasNote())
         {
             delay(100);
         }
@@ -577,13 +610,35 @@ void Appwenjian::openfile()
         }
         while (1)
         {
-            if(digitalRead(PIN_BUTTONR) == 1)
+            if(hal.btnr.isPressing())
             {
                 appManager.noDeepSleep = false;
                 hal.powerOff(false);
                 esp_deep_sleep_start();
             }
-            if(digitalRead(PIN_BUTTONC) == 1)
+            if(hal.btnc.isPressing())
+            {
+                break;
+            }
+            delay(100);
+        }
+    }else if(strcmp(houzhui, "JPG") == 0 || strcmp(houzhui, "jpg") == 0){
+        display.clearScreen();
+        if (strncmp(filename, "/sd/", 4) == 0) {
+            GUI::drawJPG(remove_path_prefix(filename,"/sd"), SD);
+        } 
+        else if (strncmp(filename, "/littlefs/", 10) == 0) {
+            GUI::drawJPG(remove_path_prefix(filename,"/littlefs"), LittleFS);
+        }
+        while (1)
+        {
+            if(hal.btnr.isPressing())
+            {
+                appManager.noDeepSleep = false;
+                hal.powerOff(false);
+                esp_deep_sleep_start();
+            }
+            if(hal.btnc.isPressing())
             {
                 break;
             }

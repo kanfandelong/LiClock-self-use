@@ -56,66 +56,49 @@ namespace GUI
             u8g2Fonts.print(title);
         }
     }
-uint16_t read16(File& f)
-{
-  // BMP数据存储在little endian中，与Arduino相同。
-  uint16_t result;
-  ((uint8_t *)&result)[0] = f.read(); // LSB 最低有效位 最右侧
-  ((uint8_t *)&result)[1] = f.read(); // MSB 最高有效位 最左侧
-  return result;
-}
+    uint16_t read16(File& f)
+    {
+      // BMP数据存储在little endian中，与Arduino相同。
+        uint16_t result;
+        ((uint8_t *)&result)[0] = f.read(); // LSB 最低有效位 最右侧
+        ((uint8_t *)&result)[1] = f.read(); // MSB 最高有效位 最左侧
+        return result;
+    }
 
-uint32_t read32(File& f)
-{
-  // BMP数据存储在little endian中，与Arduino相同。
-  uint32_t result;
-  ((uint8_t *)&result)[0] = f.read(); // LSB
-  ((uint8_t *)&result)[1] = f.read();
-  ((uint8_t *)&result)[2] = f.read();
-  ((uint8_t *)&result)[3] = f.read(); // MSB
-  return result;
-}
+    uint32_t read32(File& f)
+    {
+        // BMP数据存储在little endian中，与Arduino相同。
+        uint32_t result;
+        ((uint8_t *)&result)[0] = f.read(); // LSB
+        ((uint8_t *)&result)[1] = f.read();
+        ((uint8_t *)&result)[2] = f.read();
+        ((uint8_t *)&result)[3] = f.read(); // MSB
+        return result;
+    }
 
-uint8_t colorThresholdLimit(uint8_t val1, int8_t val2) // 颜色阈值限制
-{
-  int16_t val1_int = val1;
-  int16_t val2_int = val2;
-  int16_t tmp = val1_int + val2_int;
-  int16_t out = 0;
-  //Serial.print("val1_int:" + String(val1_int)); Serial.print(" val2_int:" + String(val2_int)); Serial.println(" tmp:" + String(tmp));
-  if (tmp > 255) return 255;
-  else if (tmp < 0) return 0;
-  else return tmp;
-  return 0;
-}
-
-void display_partialLine(uint8_t line, String zf) //发送局部刷新的显示信息到屏幕,带居中
-{
-  //u8g2Fonts.setFont(chinese_gb2312);
-  const char *character = zf.c_str();                            // String转换char
-  uint16_t zf_width = u8g2Fonts.getUTF8Width(character);         // 获取字符的像素长度
-  uint16_t x = (display.width() / 2) - (zf_width / 2);           // 计算字符居中的X坐标（屏幕宽度/2-字符宽度/2）
-  display.setPartialWindow(0, line * 16, display.width(), 16);   // 整行刷新
-  display.firstPage();
-  do
-  {
-    u8g2Fonts.setCursor(x, line * 16 + 13);
-    u8g2Fonts.print(character);
-  }
-  while (display.nextPage());
-  display.powerOff(); //关闭屏幕电源
-  //display.hibernate();
-}
-void BW_refresh() //黑白刷新一次
-{
-  display.init(0, 0, 10, 1);
-  display.fillScreen(GxEPD_BLACK);  // 填充屏幕
-  display.display(1);         // 显示缓冲内容到屏幕，用于全屏缓冲
-  //display.clearScreen(); //清屏
-  display.fillScreen(GxEPD_WHITE);
-  display.display(1);
-}
-
+    uint8_t colorThresholdLimit(uint8_t val1, int8_t val2) // 颜色阈值限制
+    {
+        int16_t val1_int = val1;
+        int16_t val2_int = val2;
+        int16_t tmp = val1_int + val2_int;
+        int16_t out = 0;
+        //Serial.print("val1_int:" + String(val1_int)); Serial.print(" val2_int:" + String(val2_int)); Serial.println(" tmp:" + String(tmp));
+        if (tmp > 255) return 255;
+        else if (tmp < 0) return 0;
+        else return tmp;
+        return 0;
+    }
+    //val1附近的像素，val2误差
+    uint8_t colorThresholdLimit_jpg(uint8_t val1, int8_t val2) // 颜色阈值限制
+    {
+        int16_t val1_int = val1;
+        int16_t val2_int = val2;
+        int16_t tmp = val1_int + val2_int;
+        if (tmp > 255) return 255;
+        else if (tmp < 0) return 0;
+        else return tmp;
+        return 0;
+    }
     ////////////////////////////////////标准对话框
 
     void msgbox(const char *title, const char *msg)
@@ -833,117 +816,117 @@ void BW_refresh() //黑白刷新一次
             if ((planes == 1) && ((format == 0) || (format == 3))) // 处理未压缩，565同样
             {
               // BMP行填充为4字节边界（如果需要）
-              uint32_t rowSize = (width * depth / 8 + 3) & ~3;
-      if (depth < 8) rowSize = ((width * depth + 8 - depth) / 8 + 3) & ~3;
-      if (height < 0)
-      {
-        height = -height;
-        flip = false;
-      }
-      uint16_t w = width;
-      uint16_t h = height;
-      if ((x + w - 1) >= display.width())  w = display.width()  - x;
-      if ((y + h - 1) >= display.height()) h = display.height() - y;
-      if (w <= max_row_width) //直接绘图处理
-      {
-        valid = true;
-        uint8_t bitmask = 0xFF;
-        uint8_t bitshift = 8 - depth;
-        uint16_t red, green, blue;
-        bool whitish, colored;
-        if (depth == 1) with_color = false;
-        if (depth <= 8) //8位颜色及以下使用调色板,如不使用有些图会翻转颜色
-        {
-          Serial.print("depth:"); Serial.print(depth);
-          if (depth < 8) bitmask >>= depth;
-          //file.seek(54); //调色板始终 @ 54
-          file.seek(imageOffset - (4 << depth)); // 54表示常规，diff表示颜色重要
-          for (uint16_t pn = 0; pn < (1 << depth); pn++)
-          {
-            blue  = file.read();
-            green = file.read();
-            red   = file.read();
-            file.read();
-            whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
-            colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0)); // 红色还是黄色？
-            if (0 == pn % 8) mono_palette_buffer[pn / 8] = 0;
-            mono_palette_buffer[pn / 8] |= whitish << pn % 8;
-            if (0 == pn % 8) color_palette_buffer[pn / 8] = 0;
-            color_palette_buffer[pn / 8] |= colored << pn % 8;
-            rgb_palette_buffer[pn] = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
-          }
-        }
-        //display.init(0, 0, 10, 1);
-        if (partial_update) display.setPartialWindow(x, y, w, h);
-        else display.setFullWindow();
+                uint32_t rowSize = (width * depth / 8 + 3) & ~3;
+                if (depth < 8) rowSize = ((width * depth + 8 - depth) / 8 + 3) & ~3;
+                if (height < 0)
+                {
+                    height = -height;
+                    flip = false;
+                }
+                uint16_t w = width;
+                uint16_t h = height;
+                if ((x + w - 1) >= display.width())  w = display.width()  - x;
+                if ((y + h - 1) >= display.height()) h = display.height() - y;
+                if (w <= max_row_width) //直接绘图处理
+                {
+                    valid = true;
+                    uint8_t bitmask = 0xFF;
+                    uint8_t bitshift = 8 - depth;
+                    uint16_t red, green, blue;
+                    bool whitish, colored;
+                    if (depth == 1) with_color = false;
+                    if (depth <= 8) //8位颜色及以下使用调色板,如不使用有些图会翻转颜色
+                    {
+                        Serial.print("depth:"); Serial.print(depth);
+                        if (depth < 8) bitmask >>= depth;
+                            //file.seek(54); //调色板始终 @ 54
+                        file.seek(imageOffset - (4 << depth)); // 54表示常规，diff表示颜色重要
+                        for (uint16_t pn = 0; pn < (1 << depth); pn++)
+                        {
+                            blue  = file.read();
+                            green = file.read();
+                            red   = file.read();
+                            file.read();
+                            whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
+                            colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0)); // 红色还是黄色？
+                            if (0 == pn % 8) mono_palette_buffer[pn / 8] = 0;
+                            mono_palette_buffer[pn / 8] |= whitish << pn % 8;
+                            if (0 == pn % 8) color_palette_buffer[pn / 8] = 0;
+                            color_palette_buffer[pn / 8] |= colored << pn % 8;
+                            rgb_palette_buffer[pn] = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
+                        }
+                    }
+                    //display.init(0, 0, 10, 1);
+                    if (partial_update) display.setPartialWindow(x, y, w, h);
+                    else display.setFullWindow();
 
-        display.firstPage();
-        do
-        {
-          if (overwrite) display.fillScreen(GxEPD_WHITE);
-          uint32_t rowPosition = flip ? imageOffset + (height - h) * rowSize : imageOffset;
-          for (uint16_t row = 0; row < h; row++, rowPosition += rowSize) // 对于每条线
-          {
-            uint32_t in_remain = rowSize;
-            uint32_t in_idx = 0;
-            uint32_t in_bytes = 0;
-            uint8_t in_byte = 0; // for depth <= 8
-            uint8_t in_bits = 0; // for depth <= 8
-            int16_t color = GxEPD_WHITE;
-            file.seek(rowPosition);
-            for (uint16_t col = 0; col < w; col++) // 对于每个像素 //width 修补 w
-            {
-              // 是时候读取更多像素数据了？
-              if (in_idx >= in_bytes) // 好的，24位也完全匹配（大小是3的倍数）
-              {
-                in_bytes = file.read(input_buffer, in_remain > sizeof(input_buffer) ? sizeof(input_buffer) : in_remain);
-                in_remain -= in_bytes;
-                in_idx = 0;
-              }
-              switch (depth) //深度 //gray = (0.114*Blue+0.587*Green+0.299*Red)
-              {
-                case 24:
-                  blue = input_buffer[in_idx++];   // 蓝
-                  green = input_buffer[in_idx++];  // 绿
-                  red = input_buffer[in_idx++];    // 红
-                  // whitish = 发白的
-                  // whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80);
-                  // colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0));                // 红色还是黄色？ colored = 有色的
-                  // color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3); // color = 颜色
-                  // color = 0.114 * float(blue) + 0.587 * float(green) + 0.299 * float(red); //灰度转换
-                  color = (114 * blue + 587 * green + 299 * red + 500) / 1000; //灰度转换
-                  break;
-                case 16:
-                  {
-                    uint8_t lsb = input_buffer[in_idx++];
-                    uint8_t msb = input_buffer[in_idx++];
-                    if (format == 0) // 555
+                    display.firstPage();
+                    do
                     {
-                      blue  = (lsb & 0x1F) << 3;
-                      green = ((msb & 0x03) << 6) | ((lsb & 0xE0) >> 2);
-                      red   = (msb & 0x7C) << 1;
-                      //color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
-                      color = (114 * blue + 587 * green + 299 * red + 500) / 1000; //灰度转换
-                    }
-                    else // 565
-                    {
-                      blue  = (lsb & 0x1F) << 3;
-                      green = ((msb & 0x07) << 5) | ((lsb & 0xE0) >> 3);
-                      red   = (msb & 0xF8);
-                      //color = (msb << 8) | lsb;
-                      color = (114 * blue + 587 * green + 299 * red + 500) / 1000; //灰度转换
-                    }
-                    //whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
-                    //colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0)); // 微红或微黄?
-                  }
-                  break;
-                case 1:
-                case 4:
-                  {
-                    if (0 == in_bits)
-                    {
-                      in_byte = input_buffer[in_idx++];
-                      in_bits = 8;
+                        if (overwrite) display.fillScreen(GxEPD_WHITE);
+                        uint32_t rowPosition = flip ? imageOffset + (height - h) * rowSize : imageOffset;
+                        for (uint16_t row = 0; row < h; row++, rowPosition += rowSize) // 对于每条线
+                        {
+                            uint32_t in_remain = rowSize;
+                            uint32_t in_idx = 0;
+                            uint32_t in_bytes = 0;
+                            uint8_t in_byte = 0; // for depth <= 8
+                            uint8_t in_bits = 0; // for depth <= 8
+                            int16_t color = GxEPD_WHITE;
+                            file.seek(rowPosition);
+                            for (uint16_t col = 0; col < w; col++) // 对于每个像素 //width 修补 w
+                            {
+                                // 是时候读取更多像素数据了？
+                                if (in_idx >= in_bytes) // 好的，24位也完全匹配（大小是3的倍数）
+                                {
+                                    in_bytes = file.read(input_buffer, in_remain > sizeof(input_buffer) ? sizeof(input_buffer) : in_remain);
+                                    in_remain -= in_bytes;
+                                    in_idx = 0;
+                                }
+                                switch (depth) //深度 //gray = (0.114*Blue+0.587*Green+0.299*Red)
+                                {
+                                    case 24:
+                                        blue = input_buffer[in_idx++];   // 蓝
+                                        green = input_buffer[in_idx++];  // 绿
+                                        red = input_buffer[in_idx++];    // 红
+                                        // whitish = 发白的
+                                        // whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80);
+                                        // colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0));                // 红色还是黄色？ colored = 有色的
+                                        // color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3); // color = 颜色
+                                        // color = 0.114 * float(blue) + 0.587 * float(green) + 0.299 * float(red); //灰度转换
+                                        color = (114 * blue + 587 * green + 299 * red + 500) / 1000; //灰度转换
+                                    break;
+                                    case 16:
+                                    {
+                                        uint8_t lsb = input_buffer[in_idx++];
+                                        uint8_t msb = input_buffer[in_idx++];
+                                        if (format == 0) // 555
+                                        {
+                                            blue  = (lsb & 0x1F) << 3;
+                                            green = ((msb & 0x03) << 6) | ((lsb & 0xE0) >> 2);
+                                            red   = (msb & 0x7C) << 1;
+                                            //color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
+                                            color = (114 * blue + 587 * green + 299 * red + 500) / 1000; //灰度转换
+                                        }
+                                        else // 565
+                                        {
+                                            blue  = (lsb & 0x1F) << 3;
+                                            green = ((msb & 0x07) << 5) | ((lsb & 0xE0) >> 3);
+                                            red   = (msb & 0xF8);
+                                            //color = (msb << 8) | lsb;
+                                            color = (114 * blue + 587 * green + 299 * red + 500) / 1000; //灰度转换
+                                        }
+                                        //whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
+                                        //colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0)); // 微红或微黄?
+                                    }
+                                    break;
+                                    case 1:
+                                    case 4:
+                                    {
+                                        if (0 == in_bits)
+                                        {
+                                            in_byte = input_buffer[in_idx++];
+                                            in_bits = 8;
                     }
                     uint16_t pn = (in_byte >> bitshift) & bitmask;
                     whitish = mono_palette_buffer[pn / 8] & (0x1 << pn % 8);
@@ -1066,4 +1049,198 @@ void BW_refresh() //黑白刷新一次
     return;
   }
     }
+    
+    uint16_t jpgWidth, jpgHeight; // 记录当前JPG的宽高
+    uint8_t (*bmp8)[16 + 1];      // 创建像素抖动缓存二维数组（先不定长度），JPG最大的输出区块16+1行缓存（缓存上一次的最后一行）
+    uint16_t blockCount_x = 0;    // x轴区块计数
+    boolean FirstLineJitterStatus = 1;  // 首行抖动状态 1-可以抖动 0-已抖动过
+    boolean getXYstate = 1;             // 获取绘制像素点XY像素初始坐标
+
+    void drawJPG(String name, FS fs)
+    {
+  //数值初始化
+  FirstLineJitterStatus = 1;  // 第一行抖动状态
+  getXYstate = 1;             // 获取绘制像素点XY像素初始坐标
+  blockCount_x = 0;           // X轴区块计数
+  jpgWidth = 0;
+  jpgHeight = 0;
+
+  //获取jpeg的宽度和高度（以像素为单位）
+  TJpgDec.getFsJpgSize(&jpgWidth, &jpgHeight, name, fs);
+  Serial.print("jpgWidth = "); Serial.print(jpgWidth); Serial.print(", jpgHeight = "); Serial.println(jpgHeight);
+
+  //设置屏幕方向
+  //display.setRotation(ScreenOrientation); // 用户方向
+  //if (jpgWidth != jpgHeight) display.setRotation(jpgWidth > jpgHeight ? 3 : 0);
+
+  //设置缩放 1-2-4-8
+  uint16_t scale = 1;
+  for (scale = 1; scale <= 8; scale <<= 1)
+  {
+    if (jpgWidth <= display.width() * scale && jpgHeight <= display.height() * scale)
+    {
+      if (scale > 1)
+      {
+        scale = scale >> 1; // 屏幕太小，缩得比屏幕小就看不清了，回到上一个缩放
+      }
+      break;
+    }
+  }
+  if (scale > 8) scale = 8; //至多8倍缩放
+  TJpgDec.setJpgScale(scale);
+
+  Serial.print("scale:"); Serial.println(scale);
+
+  // 重新计算缩放后的长宽
+  jpgWidth = jpgWidth / scale;
+  jpgHeight = jpgHeight / scale;
+
+  //创建指定长度的二维数值，必须在drawFsJpg之前,getFsJpgSize和重新计算缩放后的长宽之后
+  bmp8 = new uint8_t[jpgWidth][16 + 1];
+
+  //自动居中
+  int32_t x_center = (display.width() / 2) - (jpgWidth / 2);
+  int32_t y_center = (display.height() / 2) - (jpgHeight / 2);
+  Serial.print("x_center:"); Serial.println(x_center);
+  Serial.print("y_center:"); Serial.println(y_center);
+
+  //display.init(0, 0, 10, 1);
+  //display.setFullWindow();
+  display.firstPage();
+  do
+  {
+    uint8_t error;
+    error = TJpgDec.drawFsJpg(x_center, y_center, name, fs); // 发送文件和坐标
+    String str = "";
+    if (error == 1)      str = "被输出功能中断";                                     //Interrupted by output function 
+    else if (error == 2) str = "设备错误或输入流的错误终止";                          //Device error or wrong termination of input stream 
+    else if (error == 3) str = "映像的内存池不足";                                   //Insufficient memory pool for the image 
+    else if (error == 4) str = "流输入缓冲区不足";                                   //Insufficient stream input buffer 
+    else if (error == 5) str = "参数错误";                                          //Parameter error 
+    else if (error == 6) str = "数据格式错误（可能是损坏的数据）";                    //Data format error (may be broken data) 
+    else if (error == 7) str = "格式正确但不受支持";                                 //Right format but not supported 
+    else if (error == 8) str = "不支持JPEG标准";                                    //Not supported JPEG standard 
+    if (error != 0)
+    {
+      //display_partialLine(3, str);
+      //display_partialLine(5, name);
+      char buf[256];
+      sprintf(buf, "文件%s\n错误原因:%s", name.c_str(), str.c_str());
+      msgbox("JPG解码库错误", buf);
+    }
+    Serial.println("error:" + String(error) + " " + str);
+    Serial.println("");
+  } while (display.nextPage());
+
+  display.powerOff(); //关闭屏幕电源
+
+  delete[] bmp8;//释放内存
+}
+int16_t x_p = 0;                    // 绘制像素点的x轴坐标
+int16_t y_p = 0;                    // 绘制像素点的y轴坐标
+int16_t x_start;                    // 绘制像素点的x轴坐标初始值记录
+int16_t y_start;                    // 绘制像素点的y轴坐标初始值记录
+bool epd_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint8_t* bitmap)
+{
+  //Serial.print("x:"); Serial.println(x);
+  //Serial.print("y:"); Serial.println(y);
+  //Serial.print("w:"); Serial.println(w);
+  //Serial.print("h:"); Serial.println(h);
+  // Serial.println(" ");
+
+  yield();
+  // 绘制像素点的 x y从哪里开始
+  if (getXYstate)
+  {
+    getXYstate = 0;
+    x_start = x;
+    y_start = y;
+    x_p = x;
+    y_p = y;
+  }
+
+  for (int16_t j = 0; j < h; j++, y++) //y轴
+  {
+    int16_t x1 = abs(x_start - x); //计算bmp8的x坐标
+    int16_t y1 = j; //计算bmp8的y坐标
+    if (FirstLineJitterStatus == 0) y1 += 1; //第一次之后从1行开始
+
+    for (int16_t i = 0; i < w; i++, x1++) //x轴
+    {
+      uint32_t xh = j * w + i;
+      uint8_t num = bitmap[xh];
+      bmp8[x1][y1] = num;
+    }
+  }
+
+  //y轴区块计数
+  blockCount_x += w;
+  //**** 区块已达到x轴边界，开始抖动和绘制图像
+  if (blockCount_x >= jpgWidth)
+  {
+    blockCount_x = 0;
+
+    //**** 抖动
+    int err;
+    uint8_t y_max; //抖动多少行，第一次0123456 之后12345678
+    if (FirstLineJitterStatus) y_max = h - 2;  //首次0123456
+    else                       y_max = h - 1;  //非首次01234567
+
+    //到了最后一行吧剩余的行也一起抖动
+    if (y == jpgHeight + y_start) y_max = h - 1;
+
+    for (uint16_t y = 0; y <= y_max; y++) // height width
+    {
+      for (uint16_t x = 0; x < jpgWidth; x++)
+      {
+        if (bmp8[x][y] > 127) {
+          err = bmp8[x][y] - 255;
+          bmp8[x][y] = 255;
+        } else {
+          err = bmp8[x][y] - 0;
+          bmp8[x][y] = 0;
+        }
+        if (x != jpgWidth - 1)  bmp8[x + 1][y + 0] = colorThresholdLimit_jpg(bmp8[x + 1][y + 0] , (err * 7) / 16);
+        if (x != 0)             bmp8[x - 1][y + 1] = colorThresholdLimit_jpg(bmp8[x - 1][y + 1] , (err * 3) / 16);
+        if (1)                  bmp8[x + 0][y + 1] = colorThresholdLimit_jpg(bmp8[x + 0][y + 1] , (err * 5) / 16);
+        if (x != jpgWidth - 1)  bmp8[x + 1][y + 1] = colorThresholdLimit_jpg(bmp8[x + 1][y + 1] , (err * 1) / 16);
+      }
+    }//像素抖动结束
+
+    uint16_t y_p_max; // 绘制多少行
+    if (FirstLineJitterStatus) y_p_max = h - 2; // 首次只到6行 0123456
+    else                       y_p_max = h - 1;  // 8-1=7  01234567
+
+    //到了最后一行吧剩余的行也一起绘制
+    if (y == jpgHeight + y_start)
+    {
+      y_p_max += (jpgHeight + y_start - 1) - (y_p + y_p_max); //127-（119+7）
+    }
+
+    for (uint16_t y1 = 0; y1 <= y_p_max; y1++, y_p++)
+    {
+      x_p = x_start; //回到初始位置
+      for (uint16_t x1 = 0; x1 < jpgWidth; x1++, x_p++)
+      {
+        display.drawPixel(x_p, y_p, bmp8[x1][y1]);
+      }
+    }
+
+    //倒数第1行移动到第1行
+    if (FirstLineJitterStatus) //第一次
+    {
+      for (uint16_t x = 0; x < jpgWidth; x++)
+        bmp8[x][0] = bmp8[x][h - 1];
+    }
+    else //第一次之后
+    {
+      for (uint16_t x = 0; x < jpgWidth; x++)
+        bmp8[x][0] = bmp8[x][h];
+    }
+    FirstLineJitterStatus = 0; //第一次抖动结束
+  }
+  // 返回1以解码下一个块
+  return 1;
+}
+
 } // namespace GUI

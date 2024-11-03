@@ -229,7 +229,7 @@ bool AppEBook::indexFile()
         fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
     } else {
         fseek(currentFileHandle, 0, SEEK_SET); // 如果不是 BOM 头，回到文件开头
-    }
+    } 
     int m=hal.timeinfo.tm_min;
     int s=hal.timeinfo.tm_sec;
     while (true)
@@ -245,6 +245,9 @@ bool AppEBook::indexFile()
             break;
         }
         offset++;
+        if (c == '\r'){
+            goto start;
+        }
         while (c == '\n' && x == 0 && y == 0)
             goto start;
         int utf_bytes = 0;
@@ -318,6 +321,14 @@ bool AppEBook::indexFile()
             }else{
                 r_flag = true;
             }
+            uint32_t offsetall = 0;
+            offsetall = ftell(currentFileHandle);
+            char r = fgetc(currentFileHandle);
+            if (r == '\r'){
+                offset++;
+            }else{
+                fseek(currentFileHandle, offsetall, SEEK_SET);
+            }
         }
         else if (x + add_pending >= 294)
         {
@@ -334,6 +345,7 @@ bool AppEBook::indexFile()
             x = 0;
             y = 0;
             uint32_t pageOffset = offset - utf_bytes - 1;
+            //uint32_t pageOffset = offset - utf_bytes;
             fwrite(&pageOffset, 4, 1, indexFileHandle);
         }
         if(off == 50000)
@@ -448,6 +460,7 @@ void AppEBook::drawCurrentPage()
 {
     uint32_t offsetall = 0;
     offsetall = ftell(currentFileHandle);
+    if (offsetall == 0){
     uint8_t buffer[3];
     buffer[0] = fgetc(currentFileHandle);
     buffer[1] = fgetc(currentFileHandle);
@@ -458,7 +471,7 @@ void AppEBook::drawCurrentPage()
         fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
     } else {
         fseek(currentFileHandle, offsetall, SEEK_SET); // 如果不是 BOM 头，回到文件开头
-    }
+    } }
     int16_t x = 0, y = 0;
     int c;
     bool r_flag = false;
@@ -477,6 +490,9 @@ void AppEBook::drawCurrentPage()
         {
             __eof = true;
             break;
+        }
+        if (c == '\r'){
+            goto start;
         }
         while (c == '\n' && x == 0 && y == 0)
             goto start;
@@ -540,6 +556,12 @@ void AppEBook::drawCurrentPage()
             if (c != '\r'){
                 r_flag = true;
             }
+            uint32_t offsetall = 0;
+            offsetall = ftell(currentFileHandle);
+            char r = fgetc(currentFileHandle);
+            if (r != '\r'){
+                fseek(currentFileHandle, offsetall, SEEK_SET);
+            }
         }
         else if (x + add_pending >= 294)
         {
@@ -557,7 +579,7 @@ void AppEBook::drawCurrentPage()
                 break;
             }
         }
-        if (c != '\n')
+        if (c != '\n' && c != '\r')
         {
             u8g2Fonts.setCursor(x, y + 13);
             x += add_pending;

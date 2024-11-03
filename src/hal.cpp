@@ -422,8 +422,8 @@ bool HAL::init()
     {
         bool cpuset = setCpuFrequencyMhz(date);
         Serial.begin(115200);
-        ESP_LOGI("hal", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
-        if(cpuset){Serial.print("ok\n");}
+        ESP_LOGI("HAL", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
+        if(cpuset){ESP_LOGI("HAL","ok");}
         else {ESP_LOGI("hal", "err");}
     }
 
@@ -507,6 +507,7 @@ bool HAL::init()
     peripherals.init();
     weather.begin();
     buzzer.init();
+    TJpgDec.setCallback(GUI::epd_output);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     if (initial == false && timeerr == false)
     {

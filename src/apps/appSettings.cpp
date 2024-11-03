@@ -33,8 +33,8 @@ static const menu_item settings_menu_time[] =
         {NULL, "手动触发NTP"},
         {NULL, "时间同步间隔设置"},
         {NULL, "RTC线性偏移修正"},
-        {NULL, "在复位为“power on”时自动对时"},
         {NULL, "离线模式"},
+        {NULL, "在复位为“power on”时自动对时"},
         {NULL, NULL},
 };
 static const menu_item settings_menu_network[] =
@@ -163,7 +163,7 @@ void AppSettings::setup()
             u8g2Fonts.setCursor(5,90);
             u8g2Fonts.printf("可用空间：%.2fMB",cardSizetotal - cardSizeuse);
             display.display();
-            while (digitalRead(PIN_BUTTONL) == 0 & digitalRead(PIN_BUTTONR) == 0 & digitalRead(PIN_BUTTONC) == 0)
+            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing())
             {
                 delay(1000);
             }
@@ -192,7 +192,7 @@ void AppSettings::setup()
             u8g2Fonts.printf("作者:小李电子实验室 chip model:%s", ESP.getChipModel());
             u8g2Fonts.drawUTF8(5,120,"开源程序网址:https://github.com/diylxy/LiClock");
             display.display();
-            while (digitalRead(PIN_BUTTONC) == 0 && digitalRead(PIN_BUTTONL) == 0 && digitalRead(PIN_BUTTONR) == 0)
+            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing())
             {
                 delay(1000);
             }
