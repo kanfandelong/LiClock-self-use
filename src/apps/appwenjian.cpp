@@ -235,6 +235,11 @@ void Appwenjian::setup()
 {
     fanhui:
     filename = GUI::fileDialog("文件管理", false, NULL, NULL);
+    if (filename == NULL)
+    {
+        goto fanhui;
+    }
+    GUI::info_msgbox("提示", "正在获取文件信息...");
     float a;
     if (strncmp(filename, "/sd/", 4) == 0) {
         a = (float)getFileSize(filename,true);
@@ -671,7 +676,7 @@ void Appwenjian::selctwenjianjia()
         }
         file = root.openNextFile();
     }
-
+    GUI::info_msgbox("提示", "正在创建文件夹列表...");
     while (file)
     {
         String name = file.name();

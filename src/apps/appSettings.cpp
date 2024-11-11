@@ -163,9 +163,8 @@ void AppSettings::setup()
             u8g2Fonts.setCursor(5,90);
             u8g2Fonts.printf("可用空间：%.2fMB",cardSizetotal - cardSizeuse);
             display.display();
-            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing())
-            {
-                delay(1000);
+            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+                delay(100);
             }
             }
             break;
@@ -192,9 +191,8 @@ void AppSettings::setup()
             u8g2Fonts.printf("作者:小李电子实验室 chip model:%s", ESP.getChipModel());
             u8g2Fonts.drawUTF8(5,120,"开源程序网址:https://github.com/diylxy/LiClock");
             display.display();
-            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing())
-            {
-                delay(1000);
+            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+                delay(100);
             }
         }
         break;

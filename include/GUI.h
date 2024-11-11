@@ -13,6 +13,7 @@ namespace GUI
     void autoIndentDraw(const char *str, int max_x, int start_x = 2);
     void drawWindowsWithTitle(const char *title = NULL, int16_t x = 0, int16_t y = 0, int16_t w = 296, int16_t h = 128);
     void msgbox(const char *title, const char *msg);
+    void info_msgbox(const char *title, const char *msg);
     bool msgbox_yn(const char *title, const char *msg, const char *yes = NULL, const char *no = NULL);
     int msgbox_number(const char *title, uint16_t digits, int pre_value); // 注意digits，1表示一位，2表示两位，程序中减一
     void drawKeyboard(int selectedRow, int selectedCol);

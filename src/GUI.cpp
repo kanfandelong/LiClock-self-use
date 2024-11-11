@@ -128,9 +128,25 @@ namespace GUI
             if (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
                 break;
             delay(10);
-        }
+        } 
         pop_buffer();
         hal.unhookButton();
+    }
+    void info_msgbox(const char *title, const char *msg)
+    {
+        // 160*100窗口，圆角5
+        constexpr int start_x = (296 - 160) / 2;
+        constexpr int start_y = (128 - 96) / 2;
+        push_buffer();
+        drawWindowsWithTitle(title, start_x, start_y, 160, 96);
+        // 内容
+        if (msg)
+        {
+            u8g2Fonts.setCursor(start_x + 5, start_y + 28);
+            autoIndentDraw(msg, start_x + 160 - 5, start_x + 5);
+        }
+        display.displayWindow(start_x, start_y, 160, 96);
+        pop_buffer();
     }
     bool msgbox_yn(const char *title, const char *msg, const char *yes, const char *no)
     {
@@ -161,18 +177,19 @@ namespace GUI
         display.displayWindow(start_x, start_y, 160, 96);
         while (1)
         {
+            delay(10);
             if (hal.btnr.isPressing())
             {
                 result = true;
                 break;
             }
-            if (hal.btnl.isPressing())
+            else if (hal.btnl.isPressing())
             {
                 result = false;
                 break;
             }
-            delay(10);
         }
+        
         pop_buffer();
         hal.unhookButton();
         return result;
@@ -396,10 +413,7 @@ namespace GUI
         drawKeyboard(selectedRow, selectedCol);
 
         while (true) {
-            int buttonL = digitalRead(PIN_BUTTONL);
-            int buttonC = digitalRead(PIN_BUTTONC);
-            int buttonR = digitalRead(PIN_BUTTONR);
-            if (buttonL == LOW) {
+            if (hal.btnl.isPressing()) {
                 if (selectedCol > 0) {
                     selectedCol--;
                 } else if (selectedRow > 0) {
@@ -410,7 +424,7 @@ namespace GUI
                     selectedCol = numCols - 1;
                 }
                 drawKeyboard(selectedRow, selectedCol);
-            } else if (buttonR == LOW) {
+            } else if (hal.btnr.isPressing()) {
                 if (selectedCol < numCols - 1) {
                     selectedCol++;
                 } else if (selectedRow < numRows - 1) {
@@ -421,7 +435,7 @@ namespace GUI
                     selectedCol = 0;
                 }
                 drawKeyboard(selectedRow, selectedCol);
-            } else if (buttonC == LOW) {
+            } else if (hal.btnc.isPressing()) {
                 // 按下中央按钮时的操作
                 if (selectedRow == 0 && selectedCol == 10) { // 删除键
                     if (cursorPosition > 0) {
@@ -454,6 +468,7 @@ namespace GUI
                 display.display(true); // 更新文本框内容
             }
             //delay(200); // 适当延迟，避免重复输入
+            delay(10);
         }
         pop_buffer();
         hal.unhookButton();

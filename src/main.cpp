@@ -26,18 +26,15 @@ void setup()
         NTPSync();
     }
     int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
-    if(hal.VCC < 3400)
+    char buf[128];
+    if(hal.VCC < 3500)
     {
-        display.fillScreen(GxEPD_WHITE);
-        u8g2Fonts.setCursor(1, 80);
-        u8g2Fonts.printf("ESP32供电电压低!\n");
-        //u8g2Fonts.printf("当前电压:%d mV\n",hal.VIN);
-        u8g2Fonts.printf("LDO输入电压:%d mV\n",hal.VCC);
-        if(hal.VCC < auto_sleep_mv)u8g2Fonts.printf("ESP32进入deepsleep!\n");
-        display.display();
+        sprintf(buf, "电池电压低！\n当前电压为：%d mV\n请连接充电器！", hal.VCC);
+        GUI::info_msgbox("提示", buf);
     }
     if(hal.VCC < auto_sleep_mv)
     {
+        sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
         hal.powerOff(false);
     }
 

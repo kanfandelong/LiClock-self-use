@@ -533,7 +533,7 @@ void AppEBook::drawCurrentPage()
             }
             else
             {
-                Serial.println("非预期的UTF8编码");
+                GUI::info_msgbox("错误", "绘制文本时索引错误，可能文件非UTF-8编码");
                 F_LOG("绘制文本时索引错误，可能文件非UTF-8编码");
                 break;
             }

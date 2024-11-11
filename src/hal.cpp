@@ -672,6 +672,14 @@ void HAL::update(void)
     adc = analogRead(PIN_ADC);
     adc = adc * pref.getInt("ppc",7230) / 4096;
     VCC = adc;
+    int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
+    char buf[128];
+    if(hal.VCC < auto_sleep_mv)
+    {
+        sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
+        GUI::info_msgbox("警告", buf);
+        hal.powerOff(false);
+    }
     if (adc > 4400)
     {
         USBPluggedIn = true;

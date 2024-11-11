@@ -298,11 +298,9 @@ void Appsnake::menu()
         case 0:
             break;
         case 1:
+            saveHighscore();
             end = true;
             appManager.goBack();
-            break;
-        case 2:
-            saveHighscore();
             break;
         default:
             break;
@@ -336,7 +334,7 @@ void Appsnake::setup()
 
     // 等待按键输入
     while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
-        delay(50);
+      delay(100);
     }
     display.fillScreen(GxEPD_WHITE);
     spawnFood();
@@ -353,6 +351,6 @@ void Appsnake::setup()
             moveTimer = millis();
             moveSnake();
         }
+        delay(10);
     }
-
 }
