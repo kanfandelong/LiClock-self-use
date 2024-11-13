@@ -115,7 +115,13 @@ void AppEBook::setup()
             appManager.goBack();
     }
     gotoPage(currentPage);
-    if (hal.btnl.isPressing())
+    //if (hal.btnl.isPressing())
+    if (hal.btnc.isPressing())
+    {   
+        openMenu();
+        gotoPage(currentPage);
+    }
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
     {
         Serial.println("左键按下");
         if (currentPage == 0)
@@ -133,7 +139,7 @@ void AppEBook::setup()
             page_changed = true;
         }
     }
-    else if (hal.btnr.isPressing())
+    else if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1)
     {
         Serial.println("右键按下");
         if (gotoPage(currentPage + 1) == false)
@@ -161,10 +167,6 @@ void AppEBook::setup()
         {
             page_changed = true;
         }
-    }else if (hal.btnc.isPressing())
-    {   
-        openMenu();
-        gotoPage(currentPage);
     }
     if (page_changed == true)
     {
@@ -177,10 +179,6 @@ void AppEBook::setup()
         // 打开菜单
         openMenu();
         display.display(true);
-    }
-    while (hal.btnl.isPressing() || hal.btnr.isPressing())
-    {
-        delay(10);
     }
     appManager.noDeepSleep = false;
     appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;

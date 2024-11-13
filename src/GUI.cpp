@@ -114,8 +114,8 @@ namespace GUI
         // 内容
         if (msg)
         {
-            u8g2Fonts.setCursor(start_x + 5, start_y + 28);
-            autoIndentDraw(msg, start_x + 160 - 5, start_x + 5);
+            u8g2Fonts.setCursor(start_x + 2, start_y + 28);
+            autoIndentDraw(msg, start_x + 160 - 2, start_x + 2);
         }
         // 按钮
         display.drawRoundRect(start_x + 85, start_y + 96 - 20, 70, 15, 3, 0);
@@ -142,8 +142,8 @@ namespace GUI
         // 内容
         if (msg)
         {
-            u8g2Fonts.setCursor(start_x + 5, start_y + 28);
-            autoIndentDraw(msg, start_x + 160 - 5, start_x + 5);
+            u8g2Fonts.setCursor(start_x + 2, start_y + 28);
+            autoIndentDraw(msg, start_x + 160 - 2, start_x + 2);
         }
         display.displayWindow(start_x, start_y, 160, 96);
         pop_buffer();
@@ -163,8 +163,8 @@ namespace GUI
         push_buffer();
         drawWindowsWithTitle(title, start_x, start_y, 160, 96);
         // 内容
-        u8g2Fonts.setCursor(start_x + 5, start_y + 28);
-        autoIndentDraw(msg, start_x + 160 - 5, start_x + 5);
+        u8g2Fonts.setCursor(start_x + 2, start_y + 28);
+        autoIndentDraw(msg, start_x + 160 - 2, start_x + 2);
         // 按钮
         display.drawRoundRect(start_x + 5, start_y + 96 - 20, 70, 15, 3, 0);
         display.drawRoundRect(start_x + 85, start_y + 96 - 20, 70, 15, 3, 0);

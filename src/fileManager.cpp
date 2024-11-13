@@ -79,6 +79,8 @@ namespace GUI
     {
         // 首先选择文件系统
         bool useSD = false;
+        bool TF_freq_UP = false;
+        bool TF_freq_UP_failed = false;
         if (isApp == false)
         {
             if (peripherals.isSDLoaded())
@@ -120,29 +122,38 @@ namespace GUI
             total_entries = 1;
             if (useSD)
             {
-                SD.end();
-                if(SD.begin(PIN_SD_CS, SDSPI, 10000000) == false)
-                {
+                if(TF_freq_UP == false){
+                    SD.end();
                     delay(100);
-                    if(SD.begin(PIN_SD_CS, SDSPI, 10000000) == false)
-                    {
-                        Serial.println("[文件] SD卡未挂载");
-                        F_LOG("提高TF卡时钟频率至10Mhz尝试失败，回退至用户设定的时钟频率");
-                        uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 20000000);
-                        if(SD.begin(PIN_SD_CS, SDSPI, freq) ==false){
+                    if(SD.begin(PIN_SD_CS, SDSPI, 10000000) == false && TF_freq_UP_failed == false)
+                    {    
+                        if(SD.begin(PIN_SD_CS, SDSPI, 10000000) == false)
+                        {
                             Serial.println("[文件] SD卡未挂载");
-                            msgbox("提示", "TF卡无法挂载，请检查TF卡是否插入，TF卡是否损坏，TF卡是否接触不良，或者设定较低的时钟频率。");
-                            return NULL;
+                            F_LOG("提高TF卡时钟频率至10Mhz尝试失败，回退至用户设定的时钟频率");
+                            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 20000000);
+                            if(SD.begin(PIN_SD_CS, SDSPI, freq) ==false){
+                                Serial.println("[文件] SD卡未挂载");
+                                msgbox("提示", "TF卡无法挂载，请检查TF卡是否插入，TF卡是否损坏，TF卡是否接触不良，或者设定较低的时钟频率。");
+                                return NULL;
+                            }else{
+                                F_LOG("TF卡时钟频率成功回退至%dKhz", freq/1000);
+                                root = SD.open(cwd);
+                                TF_freq_UP = true;
+                                TF_freq_UP_failed = true;
+                            }
                         }else{
-                            F_LOG("TF卡时钟频率成功回退至%dKhz", freq/1000);
+                            F_LOG("TF卡时钟频率提高至10Mhz");
                             root = SD.open(cwd);
+                            TF_freq_UP = true;
                         }
                     }else{
                         F_LOG("TF卡时钟频率提高至10Mhz");
                         root = SD.open(cwd);
+                        TF_freq_UP = true;
                     }
-                }else{
-                    F_LOG("提高TF卡时钟频率至10Mhz");
+                }
+                else{
                     root = SD.open(cwd);
                 }
             }

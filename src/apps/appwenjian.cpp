@@ -252,12 +252,12 @@ void Appwenjian::setup()
     char Str[128];
     if (a <= 1024){
         sprintf(Str, "大小 %dBytes %d.%d.%d %d:%d", (int)a, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min); 
-    }else if (a <= 1024 * 1024){
+    }else if (a <= 1048576){
         sprintf(Str, "大小 %.2fKB %d.%d.%d %d:%d", a / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
-    }else if (a <= 1024 * 1024 * 1024){
-        sprintf(Str, "大小 %.2fMB %d.%d.%d %d:%d", a / 1024.0 / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }else if (a <= 1073741824){
+        sprintf(Str, "大小 %.2fMB %d.%d.%d %d:%d", a / 1048576.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
     }else{
-        sprintf(Str, "大小 %.2fGB %d.%d.%d %d:%d", a / 1024.0 / 1024.0 / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+        sprintf(Str, "大小 %.2fGB %d.%d.%d %d:%d", a / 1073741824.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
     }
     char buf[64];
     static const menu_item appMenu_main[] = {
