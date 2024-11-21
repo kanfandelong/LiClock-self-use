@@ -22,6 +22,7 @@ void setup()
     esp_reset_reason_t reset_reason = esp_reset_reason();
     if(reset_reason == ESP_RST_POWERON)
     {
+        GUI::info_msgbox("提示", "正在对时...");
         hal.autoConnectWiFi();
         NTPSync();
     }

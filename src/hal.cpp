@@ -77,13 +77,16 @@ void HAL::getTime()
     if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-        timeinfo.tm_year = peripherals.rtc.getYear() + 2000;
-        timeinfo.tm_mon = peripherals.rtc.getMonth();
+        timeinfo.tm_year = peripherals.rtc.getYear() + 100;
+        timeinfo.tm_mon = peripherals.rtc.getMonth() - 1;
         timeinfo.tm_mday = peripherals.rtc.getDate();
         timeinfo.tm_hour = peripherals.rtc.getHour();
         timeinfo.tm_min = peripherals.rtc.getMinute();
         timeinfo.tm_sec = peripherals.rtc.getSecond();
-        timeinfo.tm_wday = peripherals.rtc.getDoW() - 1;
+        if (peripherals.rtc.getDoW() == 7)
+            timeinfo.tm_wday = 0;
+        else
+            timeinfo.tm_wday = peripherals.rtc.getDoW();
         now = mktime(&timeinfo);
         xSemaphoreGive(peripherals.i2cMutex);
     }
@@ -356,6 +359,27 @@ void refresh_partition_table()
         }
         ESP.restart();
     }
+}
+#include "TinyGPSPlus.h"
+extern TinyGPSPlus gps;
+extern RTC_DATA_ATTR bool has_buffer;
+void hal_buffer_handler(void *){
+    while(1)
+    {
+        if (has_buffer)
+        {
+            while(Serial1.available())
+            {
+                gps.encode(Serial1.read());
+            }
+        }else
+        {
+            delay(20);
+        }
+    }
+}
+void HAL::task_buffer_handler(){
+    xTaskCreatePinnedToCore(hal_buffer_handler, "hal_buffer_handler", 8192, NULL, 5, NULL, 0);
 }
 bool HAL::init()
 {

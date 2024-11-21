@@ -85,14 +85,16 @@ void NTPSync()
         tm t;
         localtime_r(&timenow, &t);
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-        peripherals.rtc.setDoW(t.tm_wday + 1);
-        peripherals.rtc.setYear(t.tm_year - 2000);
-        peripherals.rtc.setMonth(t.tm_mon);
+        //peripherals.rtc.setYear(t.tm_year + 1900 - 2000);
+        peripherals.rtc.setYear(t.tm_year - 100);
+        peripherals.rtc.setMonth(t.tm_mon + 1);
         peripherals.rtc.setDate(t.tm_mday);
+        peripherals.rtc.setDoW(t.tm_wday);
         peripherals.rtc.setHour(t.tm_hour);
         peripherals.rtc.setMinute(t.tm_min);
         peripherals.rtc.setSecond(t.tm_sec);
         xSemaphoreGive(peripherals.i2cMutex);
+        //Serial.printf("%d.%d.%d %d %d:%d:%d\n", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_wday, t.tm_hour, t.tm_min, t.tm_sec);
     }
     time_t now;
 

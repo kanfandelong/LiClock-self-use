@@ -3,6 +3,11 @@
 namespace GUI
 {
     int last_buffer_idx = 0;
+    /**
+     * @brief  确认按键的按下情况
+     * @param btn GPIO引脚号
+     * @return bool  true:长按，false:非长按
+     */
     bool waitLongPress(int btn) // 检查长按，如果是长按则返回true
     {
         for (int16_t i = 0; i < hal.pref.getInt("lpt", 25); ++i)
@@ -14,6 +19,12 @@ namespace GUI
         return true;
     }
     // 自动换行
+    /**
+     * @brief  自动换行文本显示函数
+     * @param str 需要显示的文本
+     * @param max_x 最大的X坐标
+     * @param start_x 起始X坐标
+     */
     void autoIndentDraw(const char *str, int max_x, int start_x)
     {
         while (*str)
@@ -39,6 +50,14 @@ namespace GUI
     {
         display.swapBuffer(last_buffer_idx);
     }
+    /**
+     * @brief  绘制带标题的窗口
+     * @param title 标题文本
+     * @param x 窗口x坐标（左上角）
+     * @param y 窗口y坐标（左上角）
+     * @param w 窗口宽度
+     * @param h 窗口高度
+     */
     void drawWindowsWithTitle(const char *title, int16_t x, int16_t y, int16_t w, int16_t h)
     {
         int16_t wchar;
@@ -100,7 +119,11 @@ namespace GUI
         return 0;
     }
     ////////////////////////////////////标准对话框
-
+    /**
+     * @brief  消息显示（带确认）GUI  
+     * @param title 窗口标题
+     * @param msg  消息内容
+     */
     void msgbox(const char *title, const char *msg)
     {
         // 160*100窗口，圆角5
@@ -132,6 +155,11 @@ namespace GUI
         pop_buffer();
         hal.unhookButton();
     }
+    /**
+     * @brief  消息显示GUI  
+     * @param title 窗口标题
+     * @param msg  消息内容
+     */
     void info_msgbox(const char *title, const char *msg)
     {
         // 160*100窗口，圆角5
@@ -148,6 +176,14 @@ namespace GUI
         display.displayWindow(start_x, start_y, 160, 96);
         pop_buffer();
     }
+    /**
+    * @brief  选择GUI  
+    * @param title 窗口标题
+    * @param msg  消息内容
+    * @param yes 右按钮文本
+    * @param no 左按钮文本
+    * @return bool  true:左键，false:右键
+    */
     bool msgbox_yn(const char *title, const char *msg, const char *yes, const char *no)
     {
         // 160*100窗口，圆角5
@@ -194,6 +230,14 @@ namespace GUI
         hal.unhookButton();
         return result;
     }
+    /**
+    * @brief  菜单GUI  
+    * @param title 窗口标题
+    * @param options 菜单选择列表及对应图标数组
+    * @param ico_w 图标宽度
+    * @param ico_h 图标高度
+    * @return int类型的选中的菜单项
+    */
     int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h)
     {
         constexpr int start_x = (296 - 200) / 2;
@@ -475,6 +519,13 @@ namespace GUI
         display.display();
         return inputBuffer;
     }    
+    /**
+     * @brief 数字输入GUI
+     * @param title 标题
+     * @param digits 输入位数
+     * @param pre_value 预设值
+     * @return int 返回输入的数字
+     */
     int msgbox_number(const char *title, uint16_t digits, int pre_value) // 注意digits，1表示一位，2表示两位，程序中减一
     {
         constexpr int window_w = 120;

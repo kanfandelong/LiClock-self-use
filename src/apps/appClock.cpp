@@ -200,6 +200,7 @@ void AppClock::setup()
                 appManager.noDeepSleep = false;
                 appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
                 Serial.println("Finished part");
+                //Serial.printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
                 return;
             }
         }
@@ -237,5 +238,6 @@ void AppClock::setup()
     appManager.noDeepSleep = false;
     appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
     Serial.println("Finished full");
+    //Serial.printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
     return;
 }

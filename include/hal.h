@@ -12,6 +12,7 @@ public:
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();
     void ReqWiFiConfig();
+    void task_buffer_handler();
     /**
      * @brief 初始化
      * @return true 需要全屏刷新

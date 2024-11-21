@@ -77,6 +77,7 @@ static const menu_item settings_menu_other[] =
         {NULL, "cpufreq set"},
         {NULL, "自动休眠电压"},
         {NULL, "长按时间"},
+        {NULL, "DS3231设置"},
         {NULL, NULL},
 };
 
@@ -106,6 +107,8 @@ public:
     int binToDec(int bin);
     int decToBin(int dec);
     void cheak_config(char *a);
+    void menu_SWQ();
+    void menu_DS3231();
 };
 static AppSettings app;
 
@@ -179,7 +182,7 @@ void AppSettings::setup()
             display.clearScreen();
             GUI::drawWindowsWithTitle("关于本设备", 0, 0, 296, 128);
             u8g2Fonts.setCursor(5,30);
-            u8g2Fonts.printf("设备名称:LiClock 版本:2.0.10.1 DS3231:%d.%d %d:%d:%d",Srtc.getMonth() + 1,Srtc.getDate(),Srtc.getHour(),Srtc.getMinute(),Srtc.getSecond());
+            u8g2Fonts.printf("设备名称:LiClock 版本:2.0.10.1 DS3231:%d.%d %d:%d:%d",Srtc.getMonth(),Srtc.getDate(),Srtc.getHour(),Srtc.getMinute(),Srtc.getSecond());
             u8g2Fonts.drawUTF8(5,45,"CPU:Xtensa@32-bit LX6 @0.24GHz X2+ULP");
             u8g2Fonts.setCursor(5,60);
             u8g2Fonts.printf("内存:520KB SRAM+16KB RTC SRAM   存储:%dMB",ESP.getFlashChipSize() / 1024 / 1024);
@@ -722,6 +725,9 @@ void AppSettings::menu_other()
                 hal.pref.putInt("lpt", long_pres_time / 10);
             }
             break;
+        case 14:
+            menu_DS3231();
+            break;
         default:
             break;
         }
@@ -779,4 +785,142 @@ void AppSettings::cheak_config(char *a)
             ESP.restart();
         }
     }
+}
+void AppSettings::menu_SWQ()
+{
+    static const menu_item settings_menu_DS3231_SWQ[] =
+    {
+        {NULL,"返回"},
+        {NULL,"使能设置"},
+        {NULL,"后备电源是否工作"},
+        {NULL,"频率设置"},
+        {NULL,NULL},
+    };
+                            int res = 0;
+                            bool end = false;
+                            res = GUI::menu("振荡器设置", settings_menu_DS3231_SWQ);
+                            bool tf;
+                            bool bat;
+                            byte frequency; 
+                            tf = hal.pref.getBool("tf", true);
+                            bat = hal.pref.getBool("bat", true);
+                            frequency = hal.pref.getInt("frequency", 0);
+                            switch (res)
+                            {
+                                case 0:
+                                    end = true;
+                                    break;
+                                case 1:
+                                    tf = GUI::msgbox_yn("使能设置","","开启","关闭");
+                                    hal.pref.putBool("tf", tf);
+                                    Srtc.enableOscillator(tf,bat,frequency);
+                                    break;
+                                case 2:
+                                    bat = GUI::msgbox_yn("后备电源是否工作","","开启","关闭");
+                                    hal.pref.putBool("bat", bat);
+                                    Srtc.enableOscillator(tf,bat,frequency);
+                                    break;
+                                case 3:
+                                    GUI::msgbox("提示","0 = 1HZ\n1 = 1024Hz\n2 = 4096Hz\n3 = 8192Hz ");
+                                    frequency = GUI::msgbox_number("输入频率代号",1,0);
+                                    hal.pref.putInt("frequency", frequency);
+                                    Srtc.enableOscillator(tf,bat,frequency);
+                                    break;
+                                default:
+                                    break;
+                            }
+                            
+}
+void AppSettings::menu_DS3231()
+{
+            static const menu_item settings_menu_DS3231[] =
+                {
+                    {NULL,"返回"},
+                    {NULL,"偏移量读取"},
+                    {NULL,"振荡器设置"},
+                    {NULL,"时间格式设置"},
+                    {NULL,"读取芯片温度"},
+                    {NULL,"读取当前时间"},
+                    {NULL,"振荡器停止标志"},
+                    {NULL,"完全手动设置时间"},
+                    {NULL,"32.786KHZ输出使能"},
+                    {NULL,NULL},
+            };
+            int res = 0;
+            bool end = false;
+            while (end == false)
+            {
+                res = GUI::menu("DS3231设置", settings_menu_DS3231);
+                switch (res)
+                {
+                    case 0:
+                        end = true;
+                        break;
+                    case 1:
+                        {
+                            int8_t offset=Srtc.readOffset();
+                            char buf[35];
+                            sprintf(buf,"1lsb=0.1ppm@25°C\n偏移量：%d",offset);
+                            GUI::msgbox("晶振偏移量",buf);
+                        }
+                        break;
+                    case 2:
+                        menu_SWQ();
+                        break;
+                    case 3:
+                        if(GUI::msgbox_yn("时间格式","","24h","12h"))
+                        {
+                            Srtc.setClockMode(false);
+                        }
+                        else
+                        {
+                            Srtc.setClockMode(true);
+                        }
+                        break;
+                    case 4:
+                        {
+                            float c=Srtc.getTemperature();
+                            char buf[30];
+                            sprintf(buf,"温度：%f℃",c);
+                            GUI::msgbox("芯片温度",buf);
+                        }
+                        break;
+                    case 5:
+                        {
+                            char buf[60];
+                            sprintf(buf, "20%d年%d月%d日 星期%d %d:%d:%d",Srtc.getYear(),Srtc.getMonth(),Srtc.getDate(),Srtc.getDoW(),Srtc.getHour(),Srtc.getMinute(),Srtc.getSecond());
+                            Serial.println(buf);
+                            GUI::msgbox("DS3231时间", buf);
+                        }
+                        break;
+                    case 6:
+                        {
+                            if(Srtc.oscillatorCheck())
+                            {
+                                GUI::msgbox("OSF标志","true\n震荡器未停止过\n时间正常");
+                            }
+                            else
+                            {
+                                GUI::msgbox("OSF标志","false\n振荡器停止过\n时间可能为错误");
+                            }
+                        }
+                        break;
+                    case 7:
+                        {
+                            Srtc.setSecond(GUI::msgbox_number("输入秒",2,0));
+                            Srtc.setMinute(GUI::msgbox_number("输入分",2,0));
+                            Srtc.setHour(GUI::msgbox_number("输入时",2,0));
+                            Srtc.setDoW(GUI::msgbox_number("输入星期",1,0));
+                            Srtc.setDate(GUI::msgbox_number("输入日",2,0));
+                            Srtc.setMonth(GUI::msgbox_number("输入月",2,0));
+                            Srtc.setYear(GUI::msgbox_number("输入年的后两位",2,0));
+                        }
+                        break;
+                    case 8:
+                        Srtc.enable32kHz(GUI::msgbox_yn("使能32.786KHZ","","开启","关闭"));
+                        break;
+                    default:
+                        break;
+                }
+            }
 }
