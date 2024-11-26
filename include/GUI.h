@@ -6,6 +6,12 @@ typedef struct
     const char *title;   // 标题
 } menu_item;
 
+typedef struct
+{
+    const bool select; // 是否显示复选框
+    const char *title;   // 标题
+} menu_select;
+
 namespace GUI
 {
     extern int last_buffer_idx;
@@ -20,6 +26,7 @@ namespace GUI
     const char* englishInput(const char *name = "");
     int msgbox_time(const char *title, int pre_value);
     int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8);
+    void select_menu(const char *title, const menu_select options[]);
     void drawLBM(int16_t x, int16_t y,const char *filename, uint16_t color);
     void drawBMP(FS *fs, const char *filename, bool partial_update = 1, bool overwrite = 0, int16_t x = 0, int16_t y = 0, bool with_color  = 1);
     void drawJPG(String name, FS fs);

@@ -27,10 +27,14 @@ public:
         _showInList = true;
         _reentrant = false;
     }
+    void set();
     void setup();
 };
 static AppWarning app;
 
+void AppWarning::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppWarning::setup()
 {
     if(hal.btnl.isPressing() || hal.btnr.isPressing() || hal.btnc.isPressing())

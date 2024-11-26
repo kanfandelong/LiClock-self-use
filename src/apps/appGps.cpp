@@ -3,6 +3,20 @@
 
 #define RXD_2 36
 #define TXD_2 32
+#define GPS_POWER TXD_2
+
+static const uint8_t gps_bits[] = {
+   0x00, 0xf0, 0x0f, 0x00, 0x00, 0xfc, 0x3f, 0x00, 0x00, 0x1e, 0x78, 0x00,
+   0x00, 0x0f, 0xe0, 0x00, 0x00, 0x07, 0xc0, 0x00, 0x80, 0xe3, 0xc7, 0x01,
+   0x80, 0xf1, 0x8f, 0x01, 0x80, 0x71, 0x8e, 0x01, 0x80, 0x31, 0x8c, 0x01,
+   0x80, 0x71, 0x8e, 0x81, 0x98, 0xf1, 0x8f, 0xf1, 0x9c, 0xe3, 0xc7, 0xfd,
+   0x8f, 0x03, 0xc0, 0xd9, 0x07, 0x03, 0xe0, 0xc0, 0x03, 0x07, 0xe0, 0xc0,
+   0x03, 0x0e, 0x70, 0xc0, 0x03, 0x0c, 0x38, 0xc0, 0x03, 0x1c, 0x1c, 0xc0,
+   0x03, 0x38, 0x1c, 0xc0, 0x03, 0x70, 0x0e, 0xc0, 0x03, 0xe0, 0x07, 0xc0,
+   0x03, 0xc0, 0x03, 0xc0, 0x03, 0x80, 0x01, 0xc0, 0x03, 0x00, 0x00, 0xc0,
+   0x03, 0x00, 0x00, 0xc0, 0x03, 0x00, 0x00, 0xc0, 0x03, 0x00, 0x00, 0xc0,
+   0x03, 0x0e, 0x00, 0xc0, 0xe3, 0xff, 0x00, 0xfc, 0xff, 0xff, 0xcf, 0x7f,
+   0x7f, 0xc0, 0xff, 0x0f, 0x07, 0x00, 0xfe, 0x00 };
 
 TinyGPSPlus gps;
 TinyGPSCustom numsv(gps, "GPGSV", 3);
@@ -21,6 +35,7 @@ static const menu_item menu_GPS[] =
     {NULL,"波特率"},
     {NULL,"接收机模式"},
     {NULL,"数据更新频率"},
+    {NULL,"接收机供电模式"},
     {NULL,NULL},
 };
 void buffer_handler(void *){
@@ -35,6 +50,9 @@ void buffer_handler(void *){
 }
 static void appgps_exit(){
     Serial1.end();
+    digitalWrite(GPS_POWER, LOW);
+    gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_0);
+    pinMode(GPS_POWER, INPUT);
 }
 void IRAM_ATTR RXD_interrupt(){
     if (Serial1.available())
@@ -56,8 +74,9 @@ public:
         name = "gps";
         title = "定位";
         description = "外接定位模块数据解析";
-        image = NULL;
+        image = gps_bits;
     }
+    void set();
     void GPS_restart();
     void GPS_band();
     void GPS_mode();
@@ -67,6 +86,9 @@ public:
     void setup();
 };
 static AppGps app;
+void AppGps::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 static const menu_item menu_GPS_reset[] =
 {
     {NULL,"返回"},
@@ -227,6 +249,19 @@ void AppGps::GPS_menu(){
         case 5:
             GPS_update_freq();
         break;
+        case 6:
+            if (GUI::msgbox_yn("接收机供电模式", "1.自供电\n2.由ESP32提供电源", "1", "2")){
+                hal.pref.putBool("gps_self_power", true);
+            }else{
+                hal.pref.putBool("gps_self_power", false);
+                Serial1.end();
+                Serial1.setPins(RXD_2, GPIO_NUM_NC);
+                Serial1.begin(hal.pref.getLong("gps_baud", 9600));
+                pinMode(GPS_POWER, OUTPUT);
+                gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_3);
+                digitalWrite(GPS_POWER, HIGH);
+            }
+        break;
         default:
             GUI::info_msgbox("警告", "非法的输入值");
         break;
@@ -262,8 +297,16 @@ void AppGps::setup(){
     display.clearScreen();
     GUI::drawWindowsWithTitle("定位系统信息");
     display.display();
-    Serial1.setPins(RXD_2 ,TXD_2);
-    Serial1.begin(hal.pref.getLong("gps_baud", 9600));
+    if (hal.pref.getBool("gps_self_power", true)){
+        Serial1.setPins(RXD_2 ,TXD_2);
+        Serial1.begin(hal.pref.getLong("gps_baud", 9600)); 
+    }else{
+        Serial1.setPins(RXD_2, GPIO_NUM_NC);
+        Serial1.begin(hal.pref.getLong("gps_baud", 9600));
+        pinMode(GPS_POWER, OUTPUT);
+        gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_3);
+        digitalWrite(GPS_POWER, HIGH);
+    }
     //attachInterrupt(digitalPinToInterrupt(RXD_2), RXD_interrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(PIN_BUTTONC), button_interrupt, FALLING);
     xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 8192, NULL, 5, NULL, 0);

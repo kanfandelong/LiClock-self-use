@@ -12,12 +12,16 @@ public:
         description = "AHT20示例App";
         image = NULL;
         peripherals_requested = PERIPHERALS_AHT20_BIT;
-        _showInList = true;
+        _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
     }
+    void set();
     void setup();
 };
 static AppDemoAHT20 app;
 
+void AppDemoAHT20::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppDemoAHT20::setup()
 {
     sensors_event_t humidity, temp;

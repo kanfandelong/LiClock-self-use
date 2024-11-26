@@ -126,8 +126,10 @@ void buildAppList(bool showHidden)
     {
         if (showHidden == false)
         {
+            appList[i]->set();
             if (appList[i]->_showInList == false)
             {
+                Serial.printf("APP名称:%s,是否显示:%s\n", appList[i]->title, appList[i]->_showInList ? "true" : "false");
                 continue;
             }
             if (peripherals.checkAvailable(appList[i]->peripherals_requested) != 0)

@@ -12,12 +12,16 @@ public:
         description = "模板";
         image = NULL;
         peripherals_requested = PERIPHERALS_BMP280_BIT;
-        _showInList = true;
+        _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
     }
+    void set();
     void setup();
 };
 static AppDemoBMP280 app;
 
+void AppDemoBMP280::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppDemoBMP280::setup()
 {
     char buf[70];

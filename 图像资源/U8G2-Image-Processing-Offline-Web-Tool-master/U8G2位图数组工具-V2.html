@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图像转换为 U8G2 位图数组</title>
+    <style>
+        #imageContainer {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        #originalImage, #processedImage {
+            max-width: 100%;
+            height: auto;
+            margin: 10px;
+        }
+        pre {
+            white-space: pre-wrap;
+        }
+        #threshold {
+            width: 300px;
+            margin: 10px 0;
+        }
+        button {
+            margin: 10px 0;
+        }
+        /* 添加版权信息样式 */
+        #footer {
+        background-color: #059898; /* 好看的青色背景 */
+        color: #f6f4f4; /* 白色字体 */
+        text-align: center;
+        padding: 10px 0;
+        font-size: 14px;
+        margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>图像转换为 U8G2 位图数组工具</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <br>
+    <label for="threshold">亮度阈值:</label>
+    <input type="range" id="threshold" min="0" max="255" value="128">
+    <span id="thresholdValue">128</span>
+    <br>
+    <button id="toggleEndianness">当前格式：小端（点击切换）</button>
+    <button id="toggleDithering">抖动算法：关闭（点击切换）</button>
+    <button id="copyButton">一键复制输出结果</button>
+    <span id="copyStatus" style="color: green; margin-left: 10px; display: none;">复制成功！</span>
+    <div id="imageContainer">
+        <div>
+            <h2>原始图像</h2>
+            <img id="originalImage" src="" alt="Original Image" />
+        </div>
+        <div>
+            <h2>处理后的图像</h2>
+            <img id="processedImage" src="" alt="Processed Image" />
+        </div>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <pre id="output"></pre>
+
+    <!-- 底部版权信息 -->
+    <div id="footer">
+        By 甘草酸不酸，本代码由 ChatGPT 生成
+    </div>
+
+    <script>
+        const thresholdInput = document.getElementById('threshold');
+        const thresholdValueDisplay = document.getElementById('thresholdValue');
+        const toggleEndiannessButton = document.getElementById('toggleEndianness');
+        const toggleDitheringButton = document.getElementById('toggleDithering');
+        const copyButton = document.getElementById('copyButton');
+        const copyStatus = document.getElementById('copyStatus');
+        let img, imageLoaded = false;
+        let isLittleEndian = true;
+        let useDithering = false;
+
+        thresholdInput.addEventListener('input', function() {
+            thresholdValueDisplay.textContent = thresholdInput.value;
+            if (imageLoaded) {
+                processImage();
+            }
+        });
+
+        toggleEndiannessButton.addEventListener('click', function() {
+            isLittleEndian = !isLittleEndian;
+            toggleEndiannessButton.textContent = isLittleEndian ? "当前格式：小端（点击切换）" : "当前格式：大端（点击切换）";
+            processImage();
+        });
+
+        toggleDitheringButton.addEventListener('click', function() {
+            useDithering = !useDithering;
+            toggleDitheringButton.textContent = useDithering ? "抖动算法：开启（点击切换）" : "抖动算法：关闭（点击切换）";
+            processImage();
+        });
+
+        copyButton.addEventListener('click', function() {
+            const outputText = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(outputText).then(() => {
+                copyStatus.style.display = 'inline';
+                setTimeout(() => {
+                    copyStatus.style.display = 'none';
+                }, 2000);
+            });
+        });
+
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img = new Image();
+                img.onload = function() {
+                    document.getElementById('originalImage').src = img.src;
+                    imageLoaded = true;
+                    processImage();
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+
+        function reverseBits(byte) {
+            let reversed = 0;
+            for (let i = 0; i < 8; i++) {
+                reversed = (reversed << 1) | (byte & 1);
+                byte >>= 1;
+            }
+            return reversed;
+        }
+
+        function applyDithering(imageData, width, height, threshold) {
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const index = (y * width + x) * 4;
+                    const oldPixel = (imageData[index] + imageData[index + 1] + imageData[index + 2]) / 3;
+                    const newPixel = oldPixel < threshold ? 0 : 255;
+                    const error = oldPixel - newPixel;
+
+                    imageData[index] = newPixel;
+                    imageData[index + 1] = newPixel;
+                    imageData[index + 2] = newPixel;
+
+                    if (x + 1 < width) {
+                        imageData[index + 4] += (error * 7) / 16;
+                    }
+                    if (y + 1 < height) {
+                        if (x > 0) {
+                            imageData[index + width * 4 - 4] += (error * 3) / 16;
+                        }
+                        imageData[index + width * 4] += (error * 5) / 16;
+                        if (x + 1 < width) {
+                            imageData[index + width * 4 + 4] += (error * 1) / 16;
+                        }
+                    }
+                }
+            }
+        }
+
+        function processImage() {
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            context.drawImage(img, 0, 0);
+
+            const imageData = context.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+            const threshold = parseInt(thresholdInput.value);
+
+            if (useDithering) {
+                applyDithering(data, img.width, img.height, threshold);
+            }
+
+            let bitmapArray = [];
+            for (let y = 0; y < img.height; y++) {
+                let byte = 0xFF; // 默认每个字节为白色（0xFF）
+                for (let x = 0; x < img.width; x++) {
+                    const index = (y * img.width + x) * 4;
+                    const brightness = (data[index] + data[index + 1] + data[index + 2]) / 3;
+                    
+                    if (brightness < threshold) {
+                        byte &= ~(1 << (7 - (x % 8))); // 设置为黑色（0），反转比特位
+                    }
+
+                    if (x % 8 === 7 || x === img.width - 1) {
+                        bitmapArray.push(isLittleEndian ? byte : reverseBits(byte));
+                        byte = 0xFF; // 重置为白色
+                    }
+                }
+            }
+
+            const sizeComment = `// 图片大小: ${img.width}x${img.height}\n`;
+            const output = sizeComment + 'const unsigned char bitmap[] = {' +
+                bitmapArray.map(byte => '0x' + byte.toString(16).padStart(2, '0')).join(', ') + '};';
+            document.getElementById('output').textContent = output;
+
+            const processedImageData = new Uint8ClampedArray(data.length);
+            for (let i = 0; i < data.length; i += 4) {
+                const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const value = brightness < threshold ? 0 : 255;
+                processedImageData[i] = value;
+                processedImageData[i + 1] = value;
+                processedImageData[i + 2] = value;
+                processedImageData[i + 3] = 255;
+            }
+            const processedImageDataObject = new ImageData(processedImageData, img.width, img.height);
+            context.putImageData(processedImageDataObject, 0, 0);
+            document.getElementById('processedImage').src = canvas.toDataURL();
+        }
+    </script>
+</body>
+</html>

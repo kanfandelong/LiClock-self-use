@@ -104,6 +104,26 @@ void HAL::getTime()
         localtime_r(&now, &timeinfo);
     }
 }
+#include <esp32\rom\sha.h>
+    char key[16];
+char* HAL::get_char_sha_key(const char *str){
+    SHA_CTX ctx;
+    uint8_t temp[32];
+    char hex_hash[65];  // 64 字节的十六进制字符串 + 1 字节的 null 终止符
+    ets_sha_enable();
+    ets_sha_init(&ctx);  // 初始化上下文
+    ets_sha_update(&ctx, SHA2_256, (const uint8_t *)str, strlen(str) * 8); // 更新哈希值
+    ets_sha_finish(&ctx, SHA2_256, temp); // 完成哈希计算
+    // 将哈希值转换为十六进制字符串
+    for (int j = 0; j < 32; j++) {
+        sprintf(hex_hash + j * 2, "%02x", temp[j]);
+    }
+    // 截取前 15 个字符作为 key
+    strncpy(key, hex_hash, 15);
+    key[15] = '\0';  // 确保字符串以 null 结尾
+    ets_sha_disable();
+    return key;
+}
 static void cheak_freq()
 {
     int freq = ESP.getCpuFreqMHz();

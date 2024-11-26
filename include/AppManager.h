@@ -20,6 +20,10 @@ public:
     bool _reentrant = true;                       // 阻止休眠后重新打开，用于某些只能运行一次的App或临时App对象
 
     /**
+     * @brief 设置APP的隐藏状态
+     */
+    virtual void set(){};
+    /**
      * @brief 初始化(App打开)
      */
     virtual void setup(){};

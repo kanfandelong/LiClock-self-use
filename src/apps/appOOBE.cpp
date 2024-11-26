@@ -1205,10 +1205,14 @@ public:
         _reentrant = false;
         _showInList = false;
     }
+    void set();
     void waitClick();
     void setup();
 };
 static AppOOBE app;
+void AppOOBE::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), false);
+}
 void AppOOBE::waitClick()
 {
     while (hal.btnl.isPressing() == false && hal.btnr.isPressing() == false && hal.btnc.isPressing() == false)

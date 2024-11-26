@@ -68,7 +68,7 @@ static const menu_item settings_menu_other[] =
         {NULL, "天气更新间隔"},
         {NULL, "立即更新天气"},
         {NULL, "主屏幕应用选择"},
-        {NULL, "已安装应用管理"},
+        {NULL, "应用管理"},
         {NULL, "TF加载方式"},
         {NULL, "恢复出厂设置"},
         {NULL, "格式化Littlefs"},
@@ -98,6 +98,7 @@ public:
         noDefaultEvent = true;
         peripherals_requested = PERIPHERALS_SD_BIT;
     }
+    void set();
     void setup();
     void menu_time();
     void menu_alarm();
@@ -111,7 +112,9 @@ public:
     void menu_DS3231();
 };
 static AppSettings app;
-
+void AppSettings::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppSettings::setup()
 {
     display.clearScreen();
@@ -734,17 +737,21 @@ void AppSettings::menu_other()
     }
 }
 int AppSettings::decToBin(int dec) {
-    int a = 0;
-    int binary = 0;
-    // 将十进制数转换为二进制数
-    while (dec > 0) {
-        int remainder = dec % 2;
-        binary = binary + (remainder * pow10(a)); // 将余数加到二进制数的前面
-        dec /= 2;
-        a++;
+    if (dec < 0 || dec > 255) {
+        GUI::info_msgbox("警告", "非法的输入值");
+        log_e("非法的输入值");
+        return 0;
     }
-
-    return binary;
+    int bin = 0;
+    int base = 1;
+    for (int i = 0; i < 8; ++i) {
+        if (dec & 1) { // 检查最低位是否为1
+            bin += base;
+        }
+        dec >>= 1; // 右移一位
+        base *= 10; // 更新权重
+    }
+    return bin;
 }
 // 将二进制数转换为十进制数
 int AppSettings::binToDec(int bin) {

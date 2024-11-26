@@ -1,5 +1,18 @@
 #include "AppManager.h"
 
+static const uint8_t APP_installer_bits[] = {
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x60, 0x00, 0xe0, 0x3f, 0xf0, 0x00,
+   0xf0, 0x7f, 0xf8, 0x01, 0xf0, 0x7f, 0xfc, 0x03, 0x70, 0x70, 0x9e, 0x07,
+   0x70, 0x70, 0x0f, 0x0f, 0x70, 0x70, 0x0f, 0x0f, 0x70, 0x70, 0x9e, 0x07,
+   0x70, 0x70, 0xfc, 0x03, 0xf0, 0x7f, 0xf8, 0x01, 0xf0, 0x7f, 0xf0, 0x00,
+   0xe0, 0x3f, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x3f, 0xfc, 0x07,
+   0xf0, 0x7f, 0xfe, 0x0f, 0xf0, 0x7f, 0xfe, 0x0f, 0x70, 0x70, 0x0e, 0x0e,
+   0x70, 0x70, 0x0e, 0x0e, 0x70, 0x70, 0x0e, 0x0e, 0x70, 0x70, 0x0e, 0x0e,
+   0x70, 0x70, 0x0e, 0x0e, 0xf0, 0x7f, 0xfe, 0x0f, 0xf0, 0x7f, 0xfe, 0x0f,
+   0xc0, 0x1f, 0xfc, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
 class AppInstaller : public AppBase
 {
 private:
@@ -10,10 +23,11 @@ public:
         name = "installer";
         title = "APP管理";
         description = "Lua应用管理器";
-        image = NULL;
+        image = APP_installer_bits;
         peripherals_requested = PERIPHERALS_SD_BIT;
         _showInList = true;
     }
+    void set();
     std::list<String> appNames;
     int getAppSize(const String path, bool fromTF = false);
     void getLocalApp();
@@ -29,6 +43,9 @@ static AppInstaller app;
 static LuaAppWrapper app_lua; // 用于临时启动TF卡应用
 bool file_exist(const char *path);
 
+void AppInstaller::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 int AppInstaller::getAppSize(const String path, bool fromTF)
 {
     std::list<String> filenames;
@@ -161,6 +178,7 @@ static const menu_item appMenu_main[] = {
     {NULL, "退出"},
     {NULL, "安装 App"},
     {NULL, "卸载 App"},
+    {NULL, "APP是否显示"},
     {NULL, "文件系统信息"},
     {NULL, NULL},
 };
@@ -198,6 +216,35 @@ void AppInstaller::setup()
             menu_local();
             break;
         case 3:
+            {
+                static const menu_select appMenu_select[] = {
+                    {false, "返回"},
+                    {true, "定位"},
+                    {true, "电源"},
+                    {true, "数据"},
+                    {true, "设置"},
+                    {true, "OOBE"},
+                    {true, "SGP30"},
+                    {true, "AHT20"},
+                    {true, "Debug"},
+                    {true, "BMP280"},
+                    {true, "蜂鸣器"},
+                    {true, "电子书"},
+                    {true, "贪吃蛇"},
+                    {true, "仅时钟"},
+                    {true, "天气时钟"},
+                    {true, "APP管理"},
+                    {true, "B站粉丝"},
+                    {true, "误差补偿"},
+                    {true, "天气预警"},
+                    {true, "网页配置"},
+                    {true, "文件管理"},
+                    {false, NULL},
+                };
+                GUI::select_menu("APP显示设置", appMenu_select);
+            }
+            break;
+        case 4:
         {
             char buf[40];
             sprintf(buf, "已用：%d%%\n总空间：%d kB", LittleFS.usedBytes() * 100 / LittleFS.totalBytes(), LittleFS.totalBytes() / 1024);

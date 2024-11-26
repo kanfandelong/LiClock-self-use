@@ -27,6 +27,7 @@ public:
         wakeupIO[1] = PIN_BUTTONR;
         noDefaultEvent = true;
     }
+    void set();
     void setup();
     //////////////////////////
     bool indexFile();
@@ -70,6 +71,9 @@ static void appebook_deepsleep()
         fclose(app.indexFileHandle);
         app.indexFileHandle = NULL;
     }
+}
+void AppEBook::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
 // 左键：上一页
 // 右键：下一页

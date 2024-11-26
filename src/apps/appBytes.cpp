@@ -38,6 +38,7 @@ public:
         _showInList = true;
         noDefaultEvent = true;
     }
+    void set();
     void setup();
     const char* remove_path_prefix(const char* path, const char* prefix);
     void init();
@@ -60,6 +61,9 @@ uint64_t shuliang;
 char *wen = (char *)"/appdat/Bytes.bin";
 const char *textname;
 
+void AppBytes::set() {
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 //初始化数据文件    
 void AppBytes::getVbat(File f)
 {

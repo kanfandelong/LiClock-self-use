@@ -25,10 +25,14 @@ public:
         _showInList = true;
         _reentrant = false;
     }
+    void set();
     void setup();
 };
 static AppWebserver app;
 
+void AppWebserver::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppWebserver::setup()
 {
     if (GUI::msgbox_yn("是否连接WiFi", "如果使用WiFi，选择“确定”如果使用SoftAP，选择“取消”", "WiFi(右)", "SoftAP(左)"))

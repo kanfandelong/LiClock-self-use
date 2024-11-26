@@ -9,6 +9,7 @@ public:
     void saveConfig();
     void loadConfig();
     void getTime();
+    char* get_char_sha_key(const char *str);
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();
     void ReqWiFiConfig();

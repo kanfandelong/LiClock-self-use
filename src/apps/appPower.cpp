@@ -25,10 +25,14 @@ public:
         _showInList = true;
         _reentrant = false;
     }
+    void set();
     void setup();
 };
 static AppPower app;
 extern char latest_appname[];
+void AppPower::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppPower::setup()
 {
     const menu_item menu[] = {

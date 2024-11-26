@@ -27,10 +27,13 @@ public:
         _showInList = false;
         _reentrant = false;
     }
+    void set();
     void setup();
 };
 static AppDebug app;
-
+void AppDebug::set(){  
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), false);
+}
 void AppDebug::setup()
 {
     alarms.alarm();

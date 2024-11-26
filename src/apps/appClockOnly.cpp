@@ -23,10 +23,14 @@ public:
         description = "仅时钟模式";
         image = clock_bits;
     }
+    void set();
     void setup();
 };
 static AppClockOnly app;
 extern const char *dayOfWeek[];
+void AppClockOnly::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppClockOnly::setup()
 {
     int w;

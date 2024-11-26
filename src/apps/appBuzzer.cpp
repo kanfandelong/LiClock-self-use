@@ -13,10 +13,14 @@ public:
         image = NULL;
         peripherals_requested = PERIPHERALS_SD_BIT;
     }
+    void set();
     void setup();
 };
 static AppBuzzer app;
 
+void AppBuzzer::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppBuzzer::setup()
 {
     while (1)

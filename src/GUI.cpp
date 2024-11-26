@@ -362,6 +362,180 @@ namespace GUI
         hal.unhookButton();
         return selected;
     }
+    #include <esp32/rom/sha.h>
+    static const uint8_t select_bits[] = {
+        0xfe, 0x07, 0x03, 0x0c, 0x01, 0x08, 0xf1, 0x08, 0xf9, 0x09, 0xf9, 0x09,
+        0xf9, 0x09, 0xf9, 0x09, 0xf1, 0x08, 0x01, 0x08, 0x03, 0x0c, 0xfe, 0x07 };
+    static const uint8_t no_select_bits[] = {
+        0xfe, 0x07, 0x03, 0x0c, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08,
+        0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x03, 0x0c, 0xfe, 0x07 };
+    
+    void sha256(const char *input, uint8_t output[32], SHA_CTX *ctx) {
+        ets_sha_init(ctx);  // 初始化上下文
+        ets_sha_update(ctx, SHA2_256, (const uint8_t *)input, strlen(input) * 8); // 更新哈希值
+        ets_sha_finish(ctx, SHA2_256, output); // 完成哈希计算
+    }
+    /**
+    * @brief 多项设置GUI  
+    * @param title 窗口标题
+    * @param options 菜单选择列表与是否显示复选框(bool表示是否显示复选框)
+    * @return int类型的选中的菜单项
+    */
+    void select_menu(const char *title, const menu_select options[])
+    {
+        uint8_t ico_h = 12, ico_w = 12;
+        constexpr int start_x = (296 - 200) / 2;
+        constexpr int start_y = (128 - 111) / 2; // 200*96
+        constexpr int number_of_items = 6;
+        constexpr int item_height = (96) / number_of_items; // 16
+        constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
+        int pageStart = 0;                                  // 屏幕顶部第一个
+        int selected = 0;
+        int total = 0;
+        int barHeight;
+        int barPos = 0;
+        bool updated = true;
+        bool hasIcon = true;
+        bool waitc = false;
+        while (options[total].title != NULL)
+        {
+            // 统计一共多少，顺便检查是否有图标
+            /* if (options[total].icon != NULL)
+                hasIcon = true; */
+            ++total;
+        }
+        char sha_option_key[total][16];
+        uint8_t temp[32];
+        char hex_hash[65];  // 64 字节的十六进制字符串 + 1 字节的 null 终止符
+        barHeight = number_of_items * 96 / total;
+        hal.hookButton();
+        push_buffer();
+        //通过sha256为每一个选项生成一个key，以便存储
+        int i = 0;
+        SHA_CTX ctx;
+        ets_sha_enable();
+        while (options[i].title != NULL)
+        {
+            sha256(options[i].title, temp, &ctx);
+            // 将哈希值转换为十六进制字符串
+            for (int j = 0; j < 32; j++) {
+                sprintf(hex_hash + j * 2, "%02x", temp[j]);
+            }
+            // 截取前 15 个字符作为 key
+            strncpy(sha_option_key[i], hex_hash, 15);
+            sha_option_key[i][15] = '\0';  // 确保字符串以 null 结尾
+            ++i;
+        }
+        ets_sha_disable();
+        while (1)
+        {
+            if (hal.btnl.isPressing())
+            {
+                delay(20);
+                if (hal.btnl.isPressing())
+                {
+                    if (selected == 0)
+                    {
+                        selected = total;
+                    }
+                    --selected;
+                    updated = true;
+                }
+            }
+
+            if (hal.btnr.isPressing())
+            {
+                delay(20);
+                if (hal.btnr.isPressing())
+                {
+                    ++selected;
+                    if (selected == total)
+                    {
+                        selected = 0;
+                    }
+                    updated = true;
+                }
+            }
+
+            if (hal.btnc.isPressing())
+            {
+                delay(20);
+                if (hal.btnc.isPressing())
+                {
+                    if (waitLongPress(PIN_BUTTONC) == true)
+                    {
+                        selected = 0;
+                        waitc = true;
+                        updated = true;
+                    }
+                    else
+                    {
+                        if (selected == 0){
+                            break;
+                        }else{
+                            hal.pref.putBool(sha_option_key[selected], !hal.pref.getBool(sha_option_key[selected], false));
+                            updated = true;
+                        }
+                        
+                    }
+                }
+            }
+
+            if (updated == true)
+            {
+                updated = false;
+                // 判断是否出界
+                if (selected < pageStart)
+                {
+                    pageStart = selected;
+                }
+                else if (selected >= pageStart + number_of_items)
+                {
+                    pageStart = selected - number_of_items + 1;
+                }
+                // 下面渲染菜单
+                drawWindowsWithTitle(title, start_x, start_y, 200, 111);
+                // 项目
+                int max_items = min(number_of_items, total);
+                for (int i = 0; i < max_items; ++i)
+                {
+                    int item_y = start_y + 15 + item_height * i;
+                    if (options[i + pageStart].select == true)
+                    {
+                        if (hal.pref.getBool(sha_option_key[i + pageStart])){
+                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, select_bits, ico_w, ico_h, 0);
+                        }else{
+                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, no_select_bits, ico_w, ico_h, 0);
+                        }
+                    }
+                    u8g2Fonts.drawUTF8(start_x + 5 + (options[i + pageStart].select ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
+                    if (selected == i + pageStart)
+                    {
+                        display.drawRoundRect(start_x + 3, item_y, 195 - 6, 15, 3, 0);
+                    }
+                }
+                // 滚动条
+                // 以Selected为基准
+                if (total > number_of_items)
+                {
+                    barPos = selected * (96 - barHeight) / total;
+                    display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
+                }
+                display.displayWindow(start_x, start_y, 200, 111);
+            }
+            if (waitc == true)
+            {
+                waitc = false;
+                while (hal.btnc.isPressing())
+                    delay(10);
+                delay(10);
+            }
+            delay(10);
+        }
+        pop_buffer();
+        hal.unhookButton();
+        //return selected;
+    }
     const int KEY_WIDTH  = 26;
     const int KEY_HEIGHT = 17;
 

@@ -27,6 +27,7 @@ public:
         image = RTCOffset_bits;
         _showInList = true;
     }
+    void set();
     void setup();
 };
 static AppRTCOffset app;
@@ -64,7 +65,9 @@ static void RTCOffsetTimer()
     }
     display.display();
 }
-
+void AppRTCOffset::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppRTCOffset::setup()
 {
     RTCOffsetTimer();

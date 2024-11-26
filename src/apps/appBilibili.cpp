@@ -11,8 +11,10 @@ public:
         name = "bilibili";
         title = "B站粉丝";
         description = "简易Bilibili粉丝数显示器";
+        _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
         image = NULL;
     }
+    void set();
     void setup();
 };
 static AppBilibili app;
@@ -247,7 +249,9 @@ static void updateInfo()
     u8g2Fonts.printf("粉丝数: %d\n", fans_now);
     display.display();
 }
-
+void AppBilibili::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
 void AppBilibili::setup()
 {
     Cookies = hal.pref.getString("cookies", "");

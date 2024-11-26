@@ -36,6 +36,7 @@ public:
         description = "默认主页应用";
         image = clock_cloud_bits;
     }
+    void set();
     void setup();
 
 private:
@@ -179,6 +180,9 @@ static RTC_DATA_ATTR uint8_t NTPCounter = 0;
 void appclock_wakeup()
 {
     app.setup();
+}
+void AppClock::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
 void AppClock::setup()
 {
