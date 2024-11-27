@@ -352,9 +352,9 @@ void Appwenjian::setup()
                     break;
                 }
                 display.clearScreen();
-                u8g2Fonts.setCursor(1,35);
                 unsigned int a = millis();
                 hal.copy(newfile,file);
+                u8g2Fonts.setCursor(1,65);
                 u8g2Fonts.printf("耗时:%dms",millis()-a);
                 display.display(true);
             } 
@@ -374,9 +374,9 @@ void Appwenjian::setup()
                    F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
                 }
                 display.clearScreen();
-                u8g2Fonts.setCursor(1,35);
                 unsigned int a = millis();
                 hal.copy(newfile,file);
+                u8g2Fonts.setCursor(1,65);
                 u8g2Fonts.printf("耗时:%dms",(millis()-a));
                 display.display(true);
             }

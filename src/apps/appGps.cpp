@@ -305,7 +305,7 @@ void AppGps::setup(){
         Serial1.begin(hal.pref.getLong("gps_baud", 9600));
         pinMode(GPS_POWER, OUTPUT);
         gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_3);
-        digitalWrite(GPS_POWER, HIGH);
+        digitalWrite(GPS_POWER, HIGH);   
     }
     //attachInterrupt(digitalPinToInterrupt(RXD_2), RXD_interrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(PIN_BUTTONC), button_interrupt, FALLING);

@@ -78,6 +78,7 @@ static const menu_item settings_menu_other[] =
         {NULL, "自动休眠电压"},
         {NULL, "长按时间"},
         {NULL, "DS3231设置"},
+        {NULL, "电子书txt解析代码设置"},
         {NULL, NULL},
 };
 
@@ -730,6 +731,19 @@ void AppSettings::menu_other()
             break;
         case 14:
             menu_DS3231();
+            break;
+        case 15:
+            {
+                static const menu_select ebook_set[] = {
+                    {false, "返回"},
+                    {true, "根据唤醒源翻页"},
+                    {true, "反色显示"},
+                    {true, "使用备选txt解析程序1"},
+                    {true, "甘草索引程序"},
+                    {false, NULL},
+                };
+                GUI::select_menu("电子书设置", ebook_set);
+            }
             break;
         default:
             break;

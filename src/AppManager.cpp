@@ -129,7 +129,7 @@ void buildAppList(bool showHidden)
             appList[i]->set();
             if (appList[i]->_showInList == false)
             {
-                Serial.printf("APP名称:%s,是否显示:%s\n", appList[i]->title, appList[i]->_showInList ? "true" : "false");
+                log_d("APP %s 已在APP列表中%s", appList[i]->title, appList[i]->_showInList ? "true" : "隐藏");
                 continue;
             }
             if (peripherals.checkAvailable(appList[i]->peripherals_requested) != 0)
@@ -139,6 +139,22 @@ void buildAppList(bool showHidden)
         }
         realAppList[realAppCount] = appList[i];
         realAppCount++;
+    }
+}
+void AppManager::App_Preferences_init()
+{
+    if (hal.pref.getBool("app_pref_init", false)){
+        return;
+    }else{
+        log_i("初始化APP隐藏控制参数");
+        for (int16_t i = 0; i < tail; i++)
+        {
+            appList[i]->set();
+            hal.pref.putBool(hal.get_char_sha_key(appList[i]->title), appList[i]->_showInList);
+            log_i("APP %s 状态:%s", appList[i]->title,  appList[i]->_showInList ? "显示在列表" : "隐藏");
+        }
+        hal.pref.putBool("app_pref_init", true);
+        log_i("APP隐藏控制参数初始化结束");
     }
 }
 // AppList每页11个，算左上角一个返回共12个

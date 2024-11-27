@@ -217,6 +217,7 @@ void AppInstaller::setup()
             break;
         case 3:
             {
+                appManager.App_Preferences_init();
                 static const menu_select appMenu_select[] = {
                     {false, "返回"},
                     {true, "定位"},

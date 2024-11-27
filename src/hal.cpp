@@ -618,7 +618,12 @@ static void set_sleep_set_gpio_interrupt()
     }
     else
     {
-        esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
+        if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true){
+            esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1);
+            esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH);
+        }else{
+            esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
+        }
     }
 }
 
@@ -859,24 +864,21 @@ void HAL::setWakeupIO(int io1, int io2)
 }
 void HAL::copy(File &newFile, File &file)
 {
-    #define LOG(fmt, ...) \
-    do { \
-        Serial.printf("[%s:%d] ", __FILE__, __LINE__); \
-        Serial.printf(fmt, ##__VA_ARGS__); \
-    } while (0)
-
-    LOG("开始文件复制\n");
+    log_i("开始文件复制");
 
     // 分配缓冲区内存
     const size_t bufferSize = 512;
     char *buf = (char *)malloc(bufferSize);
     if (!buf) {
-        LOG("\033[31m内存分配失败\033[32m\n");
+        log_e("内存分配失败");
         F_LOG("内存分配失败");
         ESP.restart();
     }
 
     int fileSize = file.size();
+    int fileSize_kb = fileSize / 1024;
+    char filename[256];
+    sprintf(filename, "%s", file.name());
     size_t bytesRead = 0;
     size_t totalBytesRead = 0;
     int progress = 0;
@@ -886,13 +888,13 @@ void HAL::copy(File &newFile, File &file)
         // 将缓冲区中的数据写入到目标文件中
         size_t bytesWritten = newFile.write((uint8_t *)buf, bytesRead);
         if (bytesWritten != bytesRead) {
-            LOG("\033[31m写入过程中出现错误\033[32m\n");
+            log_e("文件在写入过程中发生错误");
             for(int i = 0;i < 3;i++)
             {
                 buzzer.append(3000,200);
                 delay(350);
             }
-            GUI::msgbox("警告", "写入过程中出现错误,降低TF频率重试");
+            GUI::msgbox("警告", "写入过程中发生错误,请降低TF卡频率后重试");
             free(buf);
             return;
         }
@@ -903,7 +905,12 @@ void HAL::copy(File &newFile, File &file)
         
         // 如果进度有变化，则更新显示
         if (progress == lastProgress + 5) {
+            display.clearScreen();
             u8g2Fonts.setCursor(1, 20);
+            u8g2Fonts.printf("正在复制：%s", filename);
+            u8g2Fonts.setCursor(1, 35);
+            u8g2Fonts.printf("总计：%dKB 剩余：%dKB", fileSize_kb, (fileSize - totalBytesRead) / 1024);
+            u8g2Fonts.setCursor(1, 50);
             u8g2Fonts.printf("进度: %d%%", progress);
             display.display(true);
             lastProgress = progress;
@@ -912,17 +919,22 @@ void HAL::copy(File &newFile, File &file)
 
     // 确保显示最终完成的进度
     if (totalBytesRead == fileSize) { 
+        display.clearScreen();
         u8g2Fonts.setCursor(1, 20);
-        u8g2Fonts.printf("进度: 100%%");
+        u8g2Fonts.printf("复制完成：%s", filename);
+        u8g2Fonts.setCursor(1, 35);
+        u8g2Fonts.printf("总计：%dKB 剩余：%dKB", fileSize_kb, 0);
+        u8g2Fonts.setCursor(1, 50);
+        u8g2Fonts.printf("进度: 100%%", progress);
         display.display(true);
     } else {
-        LOG("\033[31m文件复制不完整\033[32m\n");
+        log_w("文件复制不完整");
     }
 
     // 释放缓冲区内存
     free(buf);
 
-    LOG("文件复制完成\n");
+    log_i("文件复制完成");
 }
 #include <stdio.h>
 #include <stdlib.h>

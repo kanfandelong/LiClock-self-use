@@ -82,6 +82,7 @@ public:
     void gotoAppBoot(const char *appName);
     bool recover(AppBase *home = NULL);
     void goBack();
+    void App_Preferences_init();
     void showAppList(int page);                    // 显示Applist
     AppBase *appSelector(bool showHidden = false); // 显示Applist并等待用户输入
     void update();

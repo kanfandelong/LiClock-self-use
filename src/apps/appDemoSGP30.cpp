@@ -21,7 +21,6 @@ public:
 static AppDemoSGP30 app;
 void AppDemoSGP30::set(){
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
-    Serial.printf("APP名称:%s,是否显示:%s\n", title, _showInList ? "true" : "false");
 }
 void AppDemoSGP30::setup()
 {
