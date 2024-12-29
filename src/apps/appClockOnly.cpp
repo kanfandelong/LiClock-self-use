@@ -60,7 +60,7 @@ void AppClockOnly::setup()
     // 电池
     display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
 
-    if (force_full_update || part_refresh_count > 20)
+    if (force_full_update || part_refresh_count > hal.pref.getInt("display_count", 15))
     {
         display.display(false);
         force_full_update = false;

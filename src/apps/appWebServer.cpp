@@ -46,9 +46,10 @@ void AppWebserver::setup()
         beginWebServer();
         u8g2Fonts.printf("请在浏览器中打开以下网址\n");
         u8g2Fonts.printf("http://%s\n", WiFi.localIP().toString().c_str());
-        u8g2Fonts.printf("Lua未运行时按左键重启\n");
+        u8g2Fonts.printf("Lua未运行时按左键关闭网页服务器\n");
         display.display(true);
-        while (1)
+        bool end = true;
+        while (end)
         {
             updateWebServer();
             if (LuaRunning)
@@ -56,7 +57,11 @@ void AppWebserver::setup()
             if (hal.btnl.isPressing())
             {
                 while(hal.btnl.isPressing())delay(20);
-                ESP.restart();
+                //ESP.restart();
+                server.end();
+                WiFi.disconnect(true);
+                end = false;
+                appManager.goBack();
                 break;
             }
         }

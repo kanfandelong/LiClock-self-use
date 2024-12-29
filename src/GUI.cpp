@@ -24,14 +24,15 @@ namespace GUI
      * @param str 需要显示的文本
      * @param max_x 最大的X坐标
      * @param start_x 起始X坐标
+     * @param fontsize 字体高度（每次换行增加的y坐标值）
      */
-    void autoIndentDraw(const char *str, int max_x, int start_x)
+    void autoIndentDraw(const char *str, int max_x, int start_x, int fontsize)
     {
         while (*str)
         {
-            if (u8g2Fonts.getCursorX() >= max_x || *str == '\n')
+            if ((max_x - u8g2Fonts.getCursorX()) < (fontsize - 1) || *str == '\n')
             {
-                u8g2Fonts.setCursor(start_x, u8g2Fonts.getCursorY() + 13);
+                u8g2Fonts.setCursor(start_x, u8g2Fonts.getCursorY() + fontsize);
             }
             if (*str != '\n')
             {
@@ -146,12 +147,15 @@ namespace GUI
         u8g2Fonts.setCursor(start_x + 85 + (70 - w) / 2, start_y + 96 - 20 + 12);
         u8g2Fonts.print("确定");
         display.displayWindow(start_x, start_y, 160, 96);
+        unsigned long start = millis();
         while (1)
         {
             if (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
                 break;
+            if (millis() - start > 30000)
+                hal.wait_input();
             delay(10);
-        } 
+        }
         pop_buffer();
         hal.unhookButton();
     }
@@ -159,12 +163,14 @@ namespace GUI
      * @brief  消息显示GUI  
      * @param title 窗口标题
      * @param msg  消息内容
+     * @param start_x 起始X坐标(左上角)
+     * @param start_y 起始Y坐标(左上角)
      */
-    void info_msgbox(const char *title, const char *msg)
+    void info_msgbox(const char *title, const char *msg, int start_x, int start_y)
     {
         // 160*100窗口，圆角5
-        constexpr int start_x = (296 - 160) / 2;
-        constexpr int start_y = (128 - 96) / 2;
+        //constexpr int start_x = (296 - 160) / 2;
+        //constexpr int start_y = (128 - 96) / 2;
         push_buffer();
         drawWindowsWithTitle(title, start_x, start_y, 160, 96);
         // 内容
@@ -211,9 +217,12 @@ namespace GUI
         u8g2Fonts.setCursor(start_x + 85 + (70 - w) / 2, start_y + 96 - 20 + 12);
         u8g2Fonts.print(yes);
         display.displayWindow(start_x, start_y, 160, 96);
+        unsigned long start = millis();
         while (1)
         {
             delay(10);
+            if (millis() - start > 30000)
+                hal.wait_input();
             if (hal.btnr.isPressing())
             {
                 result = true;
@@ -253,6 +262,7 @@ namespace GUI
         bool updated = true;
         bool hasIcon = false;
         bool waitc = false;
+        unsigned long wait_time = 0;
         while (options[total].title != NULL)
         {
             // 统计一共多少，顺便检查是否有图标
@@ -263,6 +273,7 @@ namespace GUI
         barHeight = number_of_items * 96 / total;
         hal.hookButton();
         push_buffer();
+        wait_time = millis();
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -277,6 +288,7 @@ namespace GUI
                     --selected;
                     updated = true;
                 }
+                wait_time = millis();
             }
 
             if (hal.btnr.isPressing())
@@ -291,6 +303,7 @@ namespace GUI
                     }
                     updated = true;
                 }
+                wait_time = millis();
             }
 
             if (hal.btnc.isPressing())
@@ -309,6 +322,7 @@ namespace GUI
                         break;
                     }
                 }
+                wait_time = millis();
             }
 
             if (updated == true)
@@ -348,6 +362,7 @@ namespace GUI
                     display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                 }
                 display.displayWindow(start_x, start_y, 200, 111);
+                yield();
             }
             if (waitc == true)
             {
@@ -357,6 +372,8 @@ namespace GUI
                 delay(10);
             }
             delay(10);
+            if (millis() - wait_time > 30000)
+                hal.wait_input();
         }
         pop_buffer();
         hal.unhookButton();
@@ -381,7 +398,7 @@ namespace GUI
     * @param options 菜单选择列表与是否显示复选框(bool表示是否显示复选框)
     * @return int类型的选中的菜单项
     */
-    void select_menu(const char *title, const menu_select options[])
+    int select_menu(const char *title, const menu_select options[])
     {
         uint8_t ico_h = 12, ico_w = 12;
         constexpr int start_x = (296 - 200) / 2;
@@ -397,6 +414,7 @@ namespace GUI
         bool updated = true;
         bool hasIcon = true;
         bool waitc = false;
+        unsigned long wait_time = 0;
         while (options[total].title != NULL)
         {
             // 统计一共多少，顺便检查是否有图标
@@ -427,6 +445,7 @@ namespace GUI
             ++i;
         }
         ets_sha_disable();
+        wait_time = millis();
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -441,6 +460,7 @@ namespace GUI
                     --selected;
                     updated = true;
                 }
+                wait_time = millis();
             }
 
             if (hal.btnr.isPressing())
@@ -455,6 +475,7 @@ namespace GUI
                     }
                     updated = true;
                 }
+                wait_time = millis();
             }
 
             if (hal.btnc.isPressing())
@@ -473,12 +494,17 @@ namespace GUI
                         if (selected == 0){
                             break;
                         }else{
-                            hal.pref.putBool(sha_option_key[selected], !hal.pref.getBool(sha_option_key[selected], false));
-                            updated = true;
+                            if (options[selected].select == false)
+                                break;
+                            else{
+                                hal.pref.putBool(sha_option_key[selected], !hal.pref.getBool(sha_option_key[selected], false));
+                                updated = true;
+                            }
                         }
                         
                     }
                 }
+                wait_time = millis();
             }
 
             if (updated == true)
@@ -522,6 +548,7 @@ namespace GUI
                     display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                 }
                 display.displayWindow(start_x, start_y, 200, 111);
+                yield();
             }
             if (waitc == true)
             {
@@ -531,10 +558,12 @@ namespace GUI
                 delay(10);
             }
             delay(10);
+            if (millis() - wait_time > 30000)
+                hal.wait_input();
         }
         pop_buffer();
         hal.unhookButton();
-        //return selected;
+        return selected;
     }
     const int KEY_WIDTH  = 26;
     const int KEY_HEIGHT = 17;
@@ -619,6 +648,7 @@ namespace GUI
     */
     const char * englishInput(const char *name){
         char* inputBuffer = new char[256];
+        unsigned long wait_time = 0;
         //sprintf(inputBuffer,"%s",name);
         display.fillRect(1, 1, 296 - 2, 43 - 2, GxEPD_WHITE);
         u8g2Fonts.drawUTF8(5,75,name);
@@ -642,6 +672,7 @@ namespace GUI
                     selectedCol = numCols - 1;
                 }
                 drawKeyboard(selectedRow, selectedCol);
+                wait_time = millis();
             } else if (hal.btnr.isPressing()) {
                 if (selectedCol < numCols - 1) {
                     selectedCol++;
@@ -653,6 +684,7 @@ namespace GUI
                     selectedCol = 0;
                 }
                 drawKeyboard(selectedRow, selectedCol);
+                wait_time = millis();
             } else if (hal.btnc.isPressing()) {
                 // 按下中央按钮时的操作
                 if (selectedRow == 0 && selectedCol == 10) { // 删除键
@@ -680,13 +712,16 @@ namespace GUI
                 u8g2Fonts.setCursor(5, 15); // 在文本框中绘制文本
                 u8g2Fonts.setForegroundColor(GxEPD_BLACK);
                 u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
-                autoIndentDraw(inputBuffer,190,5);
                 u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+                autoIndentDraw(inputBuffer,190,5);
                 u8g2Fonts.drawUTF8(5,40,name);
                 display.display(true); // 更新文本框内容
+                wait_time = millis();
             }
             //delay(200); // 适当延迟，避免重复输入
             delay(10);
+            if (millis() - wait_time > 30000)
+                hal.wait_input();
         }
         pop_buffer();
         hal.unhookButton();
@@ -710,6 +745,7 @@ namespace GUI
         constexpr int input_y = start_y + 18;
         constexpr int input_w = window_w - 10;
         constexpr int input_h = window_h - 18 - 3;
+        unsigned long wait_time = 0;
         if (digits <= 0)
             return 0;
         --digits;
@@ -729,6 +765,7 @@ namespace GUI
             }
         }
         bool changed = true;
+        wait_time = millis();
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -750,6 +787,7 @@ namespace GUI
                     currentNumber -= current_digit_10pow;
                 }
                 changed = true;
+                wait_time = millis();
             }
             else if (hal.btnr.isPressing())
             {
@@ -770,6 +808,7 @@ namespace GUI
                     currentNumber += current_digit_10pow;
                 }
                 changed = true;
+                wait_time = millis();
             }
             else if (hal.btnc.isPressing())
             {
@@ -777,11 +816,13 @@ namespace GUI
                 {
                     currentNumber = pre_value;
                     changed = true;
+
                 }
                 else
                 {
                     break;
                 }
+                wait_time = millis();
             }
             if (changed)
             {
@@ -824,6 +865,8 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
+            if (millis() - wait_time > 30000)
+                hal.wait_input();
         }
         pop_buffer();
         hal.unhookButton();
@@ -840,6 +883,7 @@ namespace GUI
         constexpr int input_y = start_y + 18;
         constexpr int input_w = window_w - 10;
         constexpr int input_h = window_h - 18 - 3;
+        unsigned long wait_time = 0;
         char timeBuffer[4];
         int16_t digit_add[4] = {1, 10, 60, 600};
         hal.hookButton();
@@ -847,6 +891,7 @@ namespace GUI
         uint8_t current_digit = 3;
         int current_value = pre_value;
         bool changed = true;
+        wait_time = millis();
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -872,6 +917,7 @@ namespace GUI
                     }
                 }
                 changed = true;
+                wait_time = millis();
             }
             else if (hal.btnr.isPressing())
             {
@@ -896,6 +942,7 @@ namespace GUI
                     }
                 }
                 changed = true;
+                wait_time = millis();
             }
             else if (hal.btnc.isPressing())
             {
@@ -908,6 +955,7 @@ namespace GUI
                 {
                     break;
                 }
+                wait_time = millis();
             }
             if (changed)
             {
@@ -934,6 +982,8 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
+            if (millis() - wait_time > 30000)
+                hal.wait_input();
         }
         pop_buffer();
         hal.unhookButton();

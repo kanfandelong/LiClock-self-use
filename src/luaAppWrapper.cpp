@@ -126,6 +126,7 @@ static void luawrapper_deepsleep()
 void LuaAppWrapper::setup()
 {
     setPath(path.c_str());
+    Serial.printf("pach:%s\n", path.c_str());
     closeLua();
     openLua();
     Serial.println("正在打开Lua APP");

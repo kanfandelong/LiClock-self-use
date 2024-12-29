@@ -1589,6 +1589,19 @@ Blockly.Blocks['common_analogread'] = {
   }
 };
 
+Blockly.Blocks['common_adc_bit'] = {
+  init: function() {
+    this.appendValueInput("bit")
+        .setCheck("Number")
+        .appendField("设置ADC位数为")
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour(15);
+ this.setTooltip("");
+ this.setHelpUrl("");
+  }
+};
+
 Blockly.Blocks['common_pinmode'] = {
   init: function() {
     this.appendValueInput("pin")
@@ -1596,7 +1609,7 @@ Blockly.Blocks['common_pinmode'] = {
         .appendField("设置");
     this.appendDummyInput()
         .appendField("管脚功能为")
-        .appendField(new Blockly.FieldDropdown([["输出","0x03"], ["输入上拉","0x05"], ["输入下拉","0x09"], ["开漏","0x10"], ["开漏输出","0x12"], ["模拟输出","0xC0"]]), "NAME");
+        .appendField(new Blockly.FieldDropdown([["输入","0x01"], ["输出","0x03"], ["输入上拉","0x05"], ["输入下拉","0x09"], ["开漏","0x10"], ["开漏输出","0x12"], ["启用上拉电阻","0x04"], ["启用下拉电阻","0x08"], ["模拟输出","0xC0"]]), "NAME");
     this.setInputsInline(true);
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);

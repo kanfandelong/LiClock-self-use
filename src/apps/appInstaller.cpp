@@ -220,6 +220,7 @@ void AppInstaller::setup()
                 appManager.App_Preferences_init();
                 static const menu_select appMenu_select[] = {
                     {false, "返回"},
+                    {true, "录音"},
                     {true, "定位"},
                     {true, "电源"},
                     {true, "数据"},

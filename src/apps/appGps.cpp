@@ -51,7 +51,7 @@ void buffer_handler(void *){
 static void appgps_exit(){
     Serial1.end();
     digitalWrite(GPS_POWER, LOW);
-    gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_0);
+    gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_DEFAULT);
     pinMode(GPS_POWER, INPUT);
 }
 void IRAM_ATTR RXD_interrupt(){
@@ -163,6 +163,7 @@ void AppGps::GPS_band(){
             Serial1.print("$PCAS01,5*15\r\n");
         break;
     }
+    Serial1.print("$PCAS00*01\r\n");
     hal.pref.putLong("gps_baud", band);
     Serial1.end();
     Serial1.setPins(RXD_2, TXD_2);

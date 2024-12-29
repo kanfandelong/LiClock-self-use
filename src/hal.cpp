@@ -48,6 +48,30 @@ void task_hal_update(void *)
         delay(20);
     }
 }
+void task_btn_buzzer(void *){
+    bool buz_l = false, buz_r = false, buz_c = false;
+    int buz_freq = hal.pref.getInt("btn_buz_freq", 150);
+    int buz_time = hal.pref.getInt("btn_buz_time", 100);
+    while(1){
+        if (hal.btnl.isPressing() && !buz_l){
+            buz_l = true;
+            buzzer.append(buz_freq, buz_time);
+        }else if (hal.btnr.isPressing() && !buz_r){
+            buz_r = true;
+            buzzer.append(buz_freq, buz_time);
+        }else if (hal.btnc.isPressing() && !buz_c){
+            buz_c = true;
+            buzzer.append(buz_freq, buz_time);
+        }
+        if (!hal.btnl.isPressing() && buz_l)
+            buz_l = false;
+        else if(!hal.btnr.isPressing() && buz_r)
+            buz_r = false;
+        if (!hal.btnc.isPressing() && buz_c)
+            buz_c = false;
+        delay(50);
+    }
+}
 void HAL::saveConfig()
 {
     File configFile = LittleFS.open("/System/config.json", "w");
@@ -74,7 +98,7 @@ void HAL::loadConfig()
 void HAL::getTime()
 {
     int64_t tmp;
-    if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT)
+    if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !dis_DS3231)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
         timeinfo.tm_year = peripherals.rtc.getYear() + 100;
@@ -106,6 +130,7 @@ void HAL::getTime()
 }
 #include <esp32\rom\sha.h>
     char key[16];
+    const char* ip;
 char* HAL::get_char_sha_key(const char *str){
     SHA_CTX ctx;
     uint8_t temp[32];
@@ -124,7 +149,96 @@ char* HAL::get_char_sha_key(const char *str){
     ets_sha_disable();
     return key;
 }
-static void cheak_freq()
+IPAddress HAL::getip(){
+    wifi_mode_t mode;
+    mode = WiFi.getMode();
+    if (mode == WIFI_MODE_STA){
+        return WiFi.localIP();
+    }else if (mode == WIFI_MODE_AP){
+        return WiFi.softAPIP();
+    }else{
+        return IPAddress(0, 0, 0, 0);
+    }
+}
+
+#define is_test 1
+#define url_is_test 0
+#define url_test "http://192.168.101.12:5500/firmware-info.json"
+#define url_firmware "https://kanfandelong.github.io/liclock-web-flash/firmware-info.json"
+const char* root_ca= \
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n" \
+"MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n" \
+"d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n" \
+"MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT\n" \
+"MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j\n" \
+"b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG\n" \
+"9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI\n" \
+"2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx\n" \
+"1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ\n" \
+"q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz\n" \
+"tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ\n" \
+"vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP\n" \
+"BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV\n" \
+"5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY\n" \
+"1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4\n" \
+"NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG\n" \
+"Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91\n" \
+"8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe\n" \
+"pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl\n" \
+"MrY=\n" \
+"-----END CERTIFICATE-----";
+
+bool HAL::cheak_firmware_update(){
+    if (autoConnectWiFi())
+        log_i("WiFi连接成功");
+    else
+        return false;
+    log_i("开始检查固件更新...");
+    if (!WiFi.isConnected())
+        return false;
+    HTTPClient http;
+    WiFiClient WiFiClientSecure;
+    http.setTimeout(20000); 
+    if (url_is_test)
+        http.begin((String)url_test);
+    else
+        http.begin((String)url_firmware, root_ca);
+    int httpCode = http.GET();
+    run:
+    if (httpCode == HTTP_CODE_OK){
+        DynamicJsonDocument doc(2048);
+        String http_str = http.getString();
+        deserializeJson(doc, http_str);
+        if (is_test)
+        {
+            log_i("正在写入固件版本检查文件...");
+            File f = LittleFS.open("/System/CFU.json", "w");
+            f.print(http_str);
+            f.close();
+        }
+    } else{
+        for (int i = 0; i < 5; i++)
+        {
+            log_e("连接失败, 正在重试...");
+            delay(1000);
+            httpCode = http.GET();
+            if (httpCode != HTTP_CODE_OK) {
+                log_e("请求失败, http code: %d, 重试次数: %d", httpCode, i + 1);
+                delay(1000); // 等待1秒后重试
+            }else
+                goto run;
+        }
+        
+        log_e("无法获取固件更新状态,http code:%d", httpCode);
+        return false;
+    }
+    http.end();
+    log_i("结束固件更新状态检查");
+    return true;
+}
+
+void HAL::cheak_freq()
 {
     int freq = ESP.getCpuFreqMHz();
     if (freq < 80){
@@ -141,7 +255,7 @@ static void cheak_freq()
 
 void HAL::WiFiConfigSmartConfig()
 {
-    ESP_LOGI("hal", "WiFiConfigManual\n");
+    ESP_LOGI("hal", "WiFiConfigManual");
     cheak_freq();
 #include "img_esptouch.h"
     display.fillScreen(GxEPD_WHITE);
@@ -182,7 +296,7 @@ void HAL::WiFiConfigSmartConfig()
 #include <DNSServer.h>
 void HAL::WiFiConfigManual()
 {
-    ESP_LOGI("hal", "WiFiConfigManual\n");
+    ESP_LOGI("hal", "WiFiConfigManual");
     cheak_freq();
     DNSServer dnsServer;
 #include "img_manual.h"
@@ -192,33 +306,68 @@ void HAL::WiFiConfigManual()
     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
     dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
     beginWebServer();
-    display.fillScreen(GxEPD_WHITE);
-    display.drawXBitmap(0, 0, wifi_manual_bits, 296, 128, GxEPD_BLACK);
     QRCode qrcode;
     uint8_t qrcodeData[qrcode_getBufferSize(7)];
-    qrcode_initText(&qrcode, qrcodeData, 6, 0, str.c_str());
-    Serial.println(qrcode.size);
-    for (uint8_t y = 0; y < qrcode.size; y++)
-    {
-        // Each horizontal module
-        for (uint8_t x = 0; x < qrcode.size; x++)
-        {
-            display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
-        }
-    }
-    display.setFont(&FreeSans9pt7b);
-    display.setCursor(192, 124);
-    display.print(passwd);
-    display.display();
     uint32_t last_millis = millis();
+    bool show_qr = false, show_ssid = false, have_station = false;
+    uint8_t StationNum = 0;
     while (1)
     {
         dnsServer.processNextRequest();
         updateWebServer();
         delay(5);
-        if (WiFi.softAPgetStationNum() == 0)
+        if (WiFi.softAPgetStationNum() > 0)
         {
             last_millis = millis();
+            if (!show_qr)
+            {
+                String str = "http://192.168.4.1";
+                display.fillScreen(GxEPD_WHITE);
+                //QRCode qrcode;
+                //uint8_t qrcodeData[qrcode_getBufferSize(7)];
+                qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
+                Serial.println(qrcode.size);
+                for (uint8_t y = 0; y < qrcode.size; y++)
+                {
+                    // Each horizontal module
+                    for (uint8_t x = 0; x < qrcode.size; x++)
+                    {
+                        display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
+                    }
+                }
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+                u8g2Fonts.setCursor(120, ((128 - (14 * 6)) / 2) + 14);
+                char buf[256];
+                sprintf(buf, "如果使用的是电脑或手机未跳转至配置界面(移动数据可能会干扰跳转),请扫描二维码打开配置界面或浏览器打开http://192.168.4.1");
+                GUI::autoIndentDraw(buf, 280, 120, 14);
+                display.display();
+                show_qr = true;
+                have_station = true;
+            }
+        }
+        if (WiFi.softAPgetStationNum() == 0 && have_station) {
+            show_qr = false;
+            show_ssid = false;
+            have_station = false;
+        }
+        if (!show_ssid){
+            display.fillScreen(GxEPD_WHITE);
+            display.drawXBitmap(0, 0, wifi_manual_bits, 296, 128, GxEPD_BLACK);
+            qrcode_initText(&qrcode, qrcodeData, 6, 0, str.c_str());
+            Serial.println(qrcode.size);
+            for (uint8_t y = 0; y < qrcode.size; y++)
+            {
+                // Each horizontal module
+                for (uint8_t x = 0; x < qrcode.size; x++)
+                {
+                    display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
+                }
+            }
+            display.setFont(&FreeSans9pt7b);
+            display.setCursor(192, 124);
+            display.print(passwd);
+            display.display();
+            show_ssid = true;
         }
         if (millis() - last_millis > 300000) // 10分钟超时
         {
@@ -237,6 +386,7 @@ void HAL::WiFiConfigManual()
         {
             while (hal.btnl.isPressing())
                 delay(20);
+            LittleFS.end();
             ESP.restart();
             break;
         }
@@ -401,6 +551,20 @@ void hal_buffer_handler(void *){
 void HAL::task_buffer_handler(){
     xTaskCreatePinnedToCore(hal_buffer_handler, "hal_buffer_handler", 8192, NULL, 5, NULL, 0);
 }
+void HAL::wait_input(){
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    if (hal.btn_activelow){
+        gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+        esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTONL, 0);
+        esp_sleep_enable_ext1_wakeup((1LL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ALL_LOW);
+    }else{
+        esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
+    }
+    log_i("进入lightsleep");
+    esp_light_sleep_start();
+}
+static const char esp_rst_str[12][64] = {"UNKNOWN_RESRT", "POWERON_RESET", "EXT_RESET", "SW_RESET", "PANIC_RESET", "INT_WDT_RESET", "TASK_WDT_RESET", "WDT_RESET", "DEEPSLEEP_RESET", "BROWNOUT_RESET", "SDIO_RESET"};
 bool HAL::init()
 {
     int16_t total_gnd = 0;
@@ -459,6 +623,7 @@ bool HAL::init()
     delta = pref.getInt("delta", 0);        // 这两次校准之间时钟偏差秒数，时钟时间-准确时间
     upint = pref.getInt("upint", 2 * 60);   // NTP同步间隔
     // 系统“自检”
+    dis_DS3231 = pref.getBool(get_char_sha_key("停用DS3231"), false);
 
     int date = pref.getInt("CpuFreq", 80);
     int freq = ESP.getCpuFreqMHz();
@@ -542,8 +707,9 @@ bool HAL::init()
         log_file.write(0xEF);
         log_file.write(0xBB);
         log_file.write(0xBF);
+        log_file.close();
     }
-    F_LOG("ESP32复位,原因:%d", esp_reset_reason());
+    F_LOG("ESP32复位,原因:%s", esp_rst_str[esp_reset_reason()]);
     if(esp_reset_reason() == ESP_RST_DEEPSLEEP){
         F_LOG("复位为DeepSleep,唤醒源:%d", esp_sleep_get_wakeup_cause());
     }
@@ -552,6 +718,8 @@ bool HAL::init()
     weather.begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
+    if (hal.pref.getBool(get_char_sha_key("按键音"), false))
+        xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     if (initial == false && timeerr == false)
     {
@@ -560,13 +728,13 @@ bool HAL::init()
     return true;
 }
 
-void HAL::autoConnectWiFi()
+bool HAL::autoConnectWiFi(bool need_wifi_config)
 {
-    ESP_LOGI("hal", "autoConnectWiFi\n");
+    log_i("hal", "autoConnectWiFi");
     cheak_freq();
     if (WiFi.isConnected())
     {
-        return;
+        return true;
     }
     // 下面连接WiFi
     if (config[PARAM_SSID] == "")
@@ -583,7 +751,10 @@ void HAL::autoConnectWiFi()
     {
         if (WiFi.waitForConnectResult(20000) != WL_CONNECTED)
         {
-            hal.ReqWiFiConfig();
+            if (need_wifi_config)
+                hal.ReqWiFiConfig();
+            else
+                return false;
         }
     }
     F_LOG("成功连接:%s", WiFi.SSID().c_str());
@@ -591,6 +762,7 @@ void HAL::autoConnectWiFi()
     F_LOG("MAC:%s", WiFi.macAddress().c_str());
     F_LOG("信号强度:%d", WiFi.RSSI());
     sntp_stop();
+    return true;
 }
 
 void HAL::searchWiFi()
@@ -609,7 +781,9 @@ void HAL::searchWiFi()
         }
     }
 }
-static void set_sleep_set_gpio_interrupt()
+
+extern RTC_DATA_ATTR bool ebook_run;
+void HAL::set_sleep_set_gpio_interrupt()
 {
     if (hal.btn_activelow)
     {
@@ -618,7 +792,7 @@ static void set_sleep_set_gpio_interrupt()
     }
     else
     {
-        if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true){
+        if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true && ebook_run == true){
             esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1);
             esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH);
         }else{
@@ -631,7 +805,7 @@ static void set_sleep_set_gpio_interrupt()
 static void pre_sleep()
 {
     peripherals.sleep();
-    set_sleep_set_gpio_interrupt();
+    hal.set_sleep_set_gpio_interrupt();
     display.hibernate();
     buzzer.waitForSleep();
     LittleFS.end();
@@ -862,7 +1036,7 @@ void HAL::setWakeupIO(int io1, int io2)
     _wakeupIO[0] = io1;
     _wakeupIO[1] = io2;
 }
-void HAL::copy(File &newFile, File &file)
+bool HAL::copy(File &newFile, File &file)
 {
     log_i("开始文件复制");
 
@@ -872,7 +1046,7 @@ void HAL::copy(File &newFile, File &file)
     if (!buf) {
         log_e("内存分配失败");
         F_LOG("内存分配失败");
-        ESP.restart();
+        return false;
     }
 
     int fileSize = file.size();
@@ -881,39 +1055,60 @@ void HAL::copy(File &newFile, File &file)
     sprintf(filename, "%s", file.name());
     size_t bytesRead = 0;
     size_t totalBytesRead = 0;
-    int progress = 0;
-    int lastProgress = -1;
-
+    float progress = 0.0;
+    unsigned long time = 0;
+    newFile.setBufferSize((size_t)8192); // 设置缓冲区大小为8KB
     while ((bytesRead = file.readBytes(buf, bufferSize)) > 0) {
         // 将缓冲区中的数据写入到目标文件中
         size_t bytesWritten = newFile.write((uint8_t *)buf, bytesRead);
         if (bytesWritten != bytesRead) {
             log_e("文件在写入过程中发生错误");
+            for(int i = 0;i < 3;i++){
+                newFile.seek(-bytesWritten,SeekCur);
+                bytesWritten = newFile.write((uint8_t *)buf, bytesRead);
+                log_e("尝试重新写入，bytesWritten = %d", bytesWritten);
+                if(bytesWritten == bytesRead){
+                    goto tray;
+                }
+            }
             for(int i = 0;i < 3;i++)
             {
                 buzzer.append(3000,200);
                 delay(350);
             }
-            GUI::msgbox("警告", "写入过程中发生错误,请降低TF卡频率后重试");
+            GUI::msgbox("警告", "写入过程中发生错误");
             free(buf);
-            return;
+            return false;
         }
+        tray:
         totalBytesRead += bytesRead;
-
         // 计算进度百分比
-        progress = (totalBytesRead * 100) / fileSize;
-        
         // 如果进度有变化，则更新显示
-        if (progress == lastProgress + 5) {
+        if (millis() - time >= 2000) {
+            progress = ((float)totalBytesRead * 100.0) / (float)fileSize;
             display.clearScreen();
             u8g2Fonts.setCursor(1, 20);
             u8g2Fonts.printf("正在复制：%s", filename);
             u8g2Fonts.setCursor(1, 35);
             u8g2Fonts.printf("总计：%dKB 剩余：%dKB", fileSize_kb, (fileSize - totalBytesRead) / 1024);
             u8g2Fonts.setCursor(1, 50);
-            u8g2Fonts.printf("进度: %d%%", progress);
+            u8g2Fonts.printf("进度: %0.2f%%", progress);
+            u8g2Fonts.setCursor(1, 65);
+            u8g2Fonts.printf("提示:长按左键中止复制");
+            u8g2Fonts.setCursor(1, 80);
+            u8g2Fonts.printf("提示:长按中键暂停，暂停后按任意键恢复复制");
             display.display(true);
-            lastProgress = progress;
+            time = millis();
+            newFile.flush();
+        }
+        if (GUI::waitLongPress(PIN_BUTTONL))
+            return false;
+        if (GUI::waitLongPress(PIN_BUTTONC)){
+            display.fillRect(0, 22, 296, 22, GxEPD_WHITE);
+            u8g2Fonts.setCursor(1, 20);
+            u8g2Fonts.printf("暂停复制：%s", filename);
+            display.display(true);
+            hal.wait_input();
         }
     }
 
@@ -929,12 +1124,15 @@ void HAL::copy(File &newFile, File &file)
         display.display(true);
     } else {
         log_w("文件复制不完整");
+        free(buf);
+        return false;
     }
-
     // 释放缓冲区内存
     free(buf);
-
     log_i("文件复制完成");
+    file.close();
+    newFile.close();
+    return true;
 }
 #include <stdio.h>
 #include <stdlib.h>
@@ -947,6 +1145,7 @@ void HAL::rm_rf(const char *path)
     struct dirent *entry;
     struct stat statbuf;
 
+    GUI::info_msgbox("提示", "正在删除文件夹...");
     // 打开目录
     if ((dp = opendir(path)) == NULL)
     {

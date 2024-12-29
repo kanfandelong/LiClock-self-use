@@ -51,11 +51,17 @@ public:
     char currentFilename[256];
     bool __eof = false;
     bool file_fs_sd = false;
+    bool exit_app = false;
+    bool need_deepsleep = false;
 };
 RTC_DATA_ATTR uint32_t currentPage = -1; // 0:第一页
+RTC_DATA_ATTR bool ebook_run = false;
+RTC_DATA_ATTR u8_t lightsleep_count = 0;
 static AppEBook app;
 static void appebook_exit()
 {
+    display.clearScreen();
+    display.display(true);
     if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"))){
         if (app.txtFile){
             app.txtFile.close();
@@ -81,6 +87,7 @@ static void appebook_exit()
     }
     hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
     Serial.printf("退出电子书，当前页：%d\n", currentPage);
+    ebook_run = false;
 }
 static void appebook_deepsleep()
 {
@@ -151,38 +158,40 @@ void AppEBook::setup()
             appManager.goBack();
     }
     gotoPage(currentPage);
+    if ((!file_fs_sd) && hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"))){
+        peripherals.tf_unload();
+    }
     //if (hal.btnl.isPressing())
-    if (hal.btnc.isPressing())
-    {   
-        openMenu();
-        gotoPage(currentPage);
-    }
-    if (hal.btnl.isPressing() || (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0))
+    bool while_run = true;
+    while (while_run)
     {
-        Serial.println("左键按下");
-        if (currentPage == 0)
-        {
-            GUI::msgbox("提示", "已经是第一页了");
+        if (hal.btnc.isPressing())
+        {   
+            openMenu();
             display.display(true);
         }
-        else if (gotoPage(currentPage - 1) == false)
+        if (hal.btnl.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) && ebook_run == true))
         {
-            GUI::msgbox("提示", "翻页发生错误");
-            display.display(true);
-        }
-        else
-        {
-            page_changed = true;
-        }
-    }
-    if (hal.btnr.isPressing() || (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1))
-    {
-        Serial.println("右键按下");
-        if (gotoPage(currentPage + 1) == false)
-        {
-            if (GUI::waitLongPress(PIN_BUTTONR))
+            if (currentPage == 0)
             {
-                Serial.println("长按右键");
+                GUI::msgbox("提示", "已经是第一页了");
+                display.display(true);
+            }
+            else if (gotoPage(currentPage - 1) == false)
+            {
+                GUI::msgbox("提示", "翻页发生错误");
+                display.display(true);
+            }
+            else
+            {
+                Serial.println("上一页");
+                page_changed = true;
+            }
+        }
+        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true))
+        {
+            if (GUI::waitLongPress(PIN_BUTTONR)){
+                Serial.println("打开菜单");
                 // 打开菜单
                 openMenu();
                 display.display(true);
@@ -190,31 +199,61 @@ void AppEBook::setup()
                 {
                     delay(10);
                 }
-                return;
-            }
-            else
-            {
-                GUI::msgbox("提示", "已经是最后一页了");
-                Serial.println("已经是最后一页了");
-                display.display(true);
+                //return;
+            }else{
+                if (gotoPage(currentPage + 1)){
+                    Serial.println("下一页");
+                    page_changed = true;
+                }else
+                {
+                    GUI::msgbox("提示", "已经是最后一页了");
+                    Serial.println("已经是最后一页了");
+                    display.display(true);
+                }
             }
         }
-        else
+        if (page_changed == true)
         {
-            page_changed = true;
+            page_changed = false;
+            drawCurrentPage();
         }
+        if (GUI::waitLongPress(PIN_BUTTONR))
+        {
+            Serial.println("打开菜单");
+            // 打开菜单
+            openMenu();
+            display.display(true);
+        }
+        yield();
+        if ((hal.pref.getBool(hal.get_char_sha_key("使用lightsleep")) || hal.pref.getBool(hal.get_char_sha_key("自动翻页"))) && exit_app == false){
+            if (hal.pref.getBool(hal.get_char_sha_key("自动翻页"))){
+                esp_sleep_enable_timer_wakeup(hal.pref.getInt("auto_page", 10) * 1000000UL);
+            }
+            if (hal.btn_activelow){
+                gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
+            }else{
+                if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true)
+                    gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL);
+            }
+            esp_sleep_enable_gpio_wakeup();
+            hal.set_sleep_set_gpio_interrupt();
+            log_i("进入lightsleep");
+            esp_light_sleep_start();
+            log_i("退出lightsleep");
+            lightsleep_count++;
+            if (lightsleep_count > 20){
+                need_deepsleep = true;
+                lightsleep_count = 0;
+            }
+        }
+        while_run = hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"));
+        if (exit_app || need_deepsleep){
+            need_deepsleep = false;
+            break;}
+        ebook_run = true;
     }
-    if (page_changed == true)
-    {
-        page_changed = false;
-        drawCurrentPage();
-    }
-    if (GUI::waitLongPress(PIN_BUTTONR))
-    {
-        Serial.println("长按右键");
-        // 打开菜单
-        openMenu();
-        display.display(true);
+    if (exit_app){
+        appManager.goBack();
     }
     appManager.noDeepSleep = false;
     appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
@@ -700,6 +739,16 @@ bool AppEBook::indexcode_3(){
   String yswz_str = "";        // 待写入的文件
   uint32_t txtTotalSize = txtFile.size();//记录该TXT文件的大小，插入到索引的倒数14-8位
   long begin = millis(), last;
+  if (indexesFile){
+    indexesFile.close();
+    if (file_fs_sd){
+        SD.remove(indexesName);
+        indexesFile = SD.open(indexesName, "a");
+    }else{
+        LittleFS.remove(indexesName);
+        indexesFile = LittleFS.open(indexesName, "a");
+    }
+  }
   while (txtFile.available())
   {
     if (line_old != line) //行首4个空格检测状态重置
@@ -825,7 +874,7 @@ bool AppEBook::indexcode_3(){
       asciiState = 1;
     }
 
-    uint16_t StringLength = en_count + (ch_count  * 12); //一个中文14个像素长度
+    uint16_t StringLength = en_count + (ch_count  * 12); //一个中文12个像素长度
 
     if (StringLength >= 260 && hskgState) //检测到行首的4个空格预计的长度再加长一点
     {
@@ -895,14 +944,14 @@ bool AppEBook::indexcode_3(){
         if (file_fs_sd){
             indexesFile = SD.open(indexesName, FILE_APPEND);
         }else{
-            indexesFile = LittleFS.open(indexesName, "a"); //在索引文件末尾追加内容
+            indexesFile = LittleFS.open(indexesName, "a");
         }
     }else{
         indexesFile.close();
         if (file_fs_sd){
             indexesFile = SD.open(indexesName, FILE_APPEND);
         }else{
-            indexesFile = LittleFS.open(indexesName, "a"); //在索引文件末尾追加内容
+            indexesFile = LittleFS.open(indexesName, "a");
         }
     }
     indexesFile.print(yswz_str + size_str + "0000000");
@@ -913,14 +962,14 @@ bool AppEBook::indexcode_3(){
         if (file_fs_sd){
             indexesFile = SD.open(indexesName, FILE_APPEND);
         }else{
-            indexesFile = LittleFS.open(indexesName, "a"); //在索引文件末尾追加内容
+            indexesFile = LittleFS.open(indexesName, "a");
         }
     }else{
         indexesFile.close();
         if (file_fs_sd){
             indexesFile = SD.open(indexesName, FILE_APPEND);
         }else{
-            indexesFile = LittleFS.open(indexesName, "a"); //在索引文件末尾追加内容
+            indexesFile = LittleFS.open(indexesName, "a");
         }
     }
     indexesFile.print(size_str + "0000000");
@@ -1039,13 +1088,18 @@ bool AppEBook::openFile(const char *filename)
             file_fs_sd = false;
             txtFile= LittleFS.open(remove_path_prefix(currentFilename, "/littlefs"));
             sprintf(indexesName, "%s.i", remove_path_prefix(currentFilename, "/littlefs"));
-            indexesFile = LittleFS.open(indexesName, "r");
+            indexesFile = LittleFS.open(indexesName);
         }else if(strncmp(currentFilename, "/sd/", 4) == 0){
             file_fs_sd = true;
             txtFile= SD.open(remove_path_prefix(currentFilename, "/sd")); 
             sprintf(indexesName, "%s.i", remove_path_prefix(currentFilename, "/sd"));
-            indexesFile = SD.open(indexesName, FILE_READ);
-        } 
+            indexesFile = SD.open(indexesName);
+        }  
+        if (!txtFile){
+            return false;
+        }if (!indexesFile)
+            if (!indexFile())
+                return false;
     }else{
         currentFileHandle = fopen(currentFilename, "rb");
         if (currentFileHandle == NULL)
@@ -1068,6 +1122,13 @@ bool AppEBook::openFile(const char *filename)
 bool AppEBook::gotoPage(uint32_t page)
 {
     if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"))){
+        if (!indexesFile){
+            if (file_fs_sd){
+                indexesFile = SD.open(indexesName, "r");
+            }else{
+                indexesFile = LittleFS.open(indexesName, "r");
+            }
+        }
         if (page == 0)
         {
             currentPage = 0;
@@ -1440,6 +1501,14 @@ bool AppEBook::draw_page3(){
     uint16_t ch_count = 0;   // 统计中文等 3个字节的字符
     uint8_t line_old = 0;    //记录旧行位置
     boolean hskgState = 1;   //行首4个空格检测 0-检测过 1-未检测
+    if (!txtFile){
+        if (file_fs_sd){
+            txtFile = SD.open(remove_path_prefix(currentFilename, "/sd")); 
+        }else{
+            txtFile = LittleFS.open(remove_path_prefix(currentFilename, "/littlefs"));
+        }
+        gotoPage(currentPage);
+    }
     while (line < 9)
     {
         if (line_old != line) //行首4个空格检测状态重置
@@ -1578,6 +1647,8 @@ bool AppEBook::draw_page3(){
         u8g2Fonts.setForegroundColor(GxEPD_WHITE);
     }else{
         display.clearScreen();
+        u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+        u8g2Fonts.setForegroundColor(GxEPD_BLACK);
     }
     for (uint8_t i = 0; i < 9; i++)
     {
@@ -1609,21 +1680,6 @@ bool AppEBook::draw_page3(){
         partcount = 0;
         display.display(false);
     }
-    //清空内容
-
-    //将当前页存入索引文件的末尾七位
-    uint32_t yswz_uint32 = currentPage + 1;
-    String yswz_str = "";
-    if (yswz_uint32 >= 1000000)     yswz_str += String(yswz_uint32);
-    else if (yswz_uint32 >= 100000) yswz_str += String("0") + String(yswz_uint32);
-    else if (yswz_uint32 >= 10000)  yswz_str += String("00") + String(yswz_uint32);
-    else if (yswz_uint32 >= 1000)   yswz_str += String("000") + String(yswz_uint32);
-    else if (yswz_uint32 >= 100)    yswz_str += String("0000") + String(yswz_uint32);
-    else if (yswz_uint32 >= 10)     yswz_str += String("00000") + String(yswz_uint32);
-    else                            yswz_str += String("000000") + String(yswz_uint32);
-
-    indexesFile.seek(7, SeekEnd); //从末尾开始偏移7位
-    indexesFile.print(yswz_str);  //写入数据
     return true;
 }
 void AppEBook::drawCurrentPage(){
@@ -1688,10 +1744,10 @@ void AppEBook::openMenu()
     case 0:
         break;
     case 1:
-        appManager.goBack();
-        return;
+        exit_app = true;
         break;
     case 2:
+        peripherals.load(PERIPHERALS_SD_BIT);
         if (openFile() == false)
         {
             GUI::msgbox("打开文件失败", currentFilename);
@@ -1709,6 +1765,7 @@ void AppEBook::openMenu()
         indexFile();
         gotoPage(0);
         drawCurrentPage();
+        need_deepsleep = true;
         break;
     case 4:
     {
@@ -1737,6 +1794,9 @@ void AppEBook::ebooksettings(){
     static const menu_select ebook_set[] = {
         {false, "返回"},
         {true, "根据唤醒源翻页"},
+        {true, "自动翻页"},
+        {false, "自动翻页延时"},
+        {true, "使用lightsleep"},
         {true, "反色显示"},
         {true, "使用备选txt解析程序1"},
         {true, "甘草索引程序"},
@@ -1744,7 +1804,22 @@ void AppEBook::ebooksettings(){
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
     bool code2 = hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"));
-    GUI::select_menu("电子书设置", ebook_set);
+    int res = 0;
+    bool end = false;
+    while (!end){
+        res = GUI::select_menu("电子书设置", ebook_set);
+        switch (res)
+        {
+            case 0:
+                end = true;
+                break;
+            case 3:
+                hal.pref.putInt("auto_page", GUI::msgbox_number("输入时长s", 5, hal.pref.getInt("auto_page", 10)));
+                break;
+            default:
+                break;
+        }
+    }
     if (code != hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"))){
         indexFile();
         gotoPage(0);

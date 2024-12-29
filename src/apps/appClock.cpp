@@ -195,7 +195,7 @@ void AppClock::setup()
         ++NTPCounter;
         if (NTPCounter < ntp_interval)
         {
-            if (force_full_update == false && part_refresh_count < 15)
+            if (force_full_update == false && part_refresh_count < hal.pref.getInt("display_count", 15))
             {
                 // 局部刷新
                 drawLayout();

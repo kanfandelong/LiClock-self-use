@@ -212,10 +212,10 @@ void Appsnake::moveSnake() {
     // 蛇头撞墙
     zhuangqiang();
     // 等待按键输入
-    while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+    /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
       delay(50);
-    }
-
+    } */
+    hal.wait_input();
     resetGame();
     return;
   }
@@ -226,10 +226,10 @@ void Appsnake::moveSnake() {
       Serial.println("吃自己了！！！！！！！！");
       chiziij();
       // 等待按键输入
-      while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+      /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
         delay(50);
-      }
-
+      }*/
+      hal.wait_input();
       resetGame();
       return;
     }
@@ -350,9 +350,10 @@ void Appsnake::setup()
     display.display();
 
     // 等待按键输入
-    while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+    /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
       delay(100);
-    }
+    } */
+    hal.wait_input();
     display.fillScreen(GxEPD_WHITE);
     spawnFood();
     resetGame();

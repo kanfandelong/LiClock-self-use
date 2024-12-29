@@ -24,10 +24,10 @@ void AppDemoSGP30::set(){
 }
 void AppDemoSGP30::setup()
 {
-    peripherals.load_append(PERIPHERALS_SGP30_BIT);
+    xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
     GUI::msgbox("提示","正在初始化传感器\n请耐心等待");
     display.display(true);
-    delay(40000);
+    delay(4000);
     uint16_t TVOC,eCO2,H2,Ethanol;
     peripherals.sgp.IAQmeasure();
     TVOC = peripherals.sgp.TVOC;
@@ -40,6 +40,7 @@ void AppDemoSGP30::setup()
     Serial.printf(datbuf);
     GUI::msgbox("传感器信息",datbuf);
     peripherals.sgp.softReset();
+    xSemaphoreGive(peripherals.i2cMutex);
     Serial.printf("软复位SGP30，以进入休眠");
     appManager.goBack();
 }

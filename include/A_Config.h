@@ -17,6 +17,9 @@
 #include <driver/rtc_io.h>
 #include <esp_netif.h>
 #include <LittleFS.h>
+
+#define code_version "2.0.10.9"
+
 #define SCREEN_WIDTH 296
 #define SCREEN_HEIGHT 128
 #define PIN_ADC 33
@@ -66,7 +69,8 @@ typedef struct
     uint16_t width;
     uint16_t height;
 } ico_desc;
-
+#include <ESPAsyncWebServer.h>
+extern AsyncWebServer server;
 extern float rain_data_raw[];
 extern int ydata[];
 extern const ico_desc weather_icons_day[];
@@ -78,8 +82,10 @@ extern esp_ip6_addr_t ipv6local;
 extern const char *ipv6_to_str(const esp_ip6_addr_t *addr);
 extern void enableIPv6();
 void refreshIPV6Addr();
+bool file_exist(const char *path);
 
 extern DynamicJsonDocument config;
+extern DynamicJsonDocument cfu;
 extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 extern TJpg_Decoder TJpgDec;

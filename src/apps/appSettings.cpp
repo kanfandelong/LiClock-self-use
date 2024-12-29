@@ -1,4 +1,5 @@
 #include "AppManager.h"
+#include <DNSServer.h>
 #include "DS3231.h"
 DS3231 Srtc;
 static const uint8_t settings_bits[] = {
@@ -21,21 +22,22 @@ static const menu_item settings_menu_main[] =
         {NULL, "闹钟设置"},
         {NULL, "网络设置"},
         {NULL, "重新扫描外设"},
-        {NULL, "SD卡信息"},
+        {NULL, "TF卡信息"},
         {NULL, "其它设置"},
         {NULL, "关于"},
         {NULL, NULL},
 };
 
-static const menu_item settings_menu_time[] =
+static const menu_select settings_menu_time[] =
     {
-        {NULL, "返回上一级"},
-        {NULL, "手动触发NTP"},
-        {NULL, "时间同步间隔设置"},
-        {NULL, "RTC线性偏移修正"},
-        {NULL, "离线模式"},
-        {NULL, "在复位为“power on”时自动对时"},
-        {NULL, NULL},
+        {false, "返回上一级"},
+        {false, "手动触发NTP"},
+        {false, "时间同步间隔设置"},
+        {false, "RTC线性偏移修正"},
+        {false, "离线模式"},
+        {false, "在复位为“power on”时自动对时"},
+        {true,  "停用DS3231"},
+        {false, NULL},
 };
 static const menu_item settings_menu_network[] =
     {
@@ -46,6 +48,8 @@ static const menu_item settings_menu_network[] =
         {NULL, "ESPNow设备扫描"},
         {NULL, "蓝牙扫描"},
         {NULL, "退出Bilibili账号"},
+        {NULL, "分享当前配置的WiFi"},
+        {NULL, "配置界面和Blockly"},
         {NULL, NULL},
 };
 
@@ -79,6 +83,9 @@ static const menu_item settings_menu_other[] =
         {NULL, "长按时间"},
         {NULL, "DS3231设置"},
         {NULL, "电子书txt解析代码设置"},
+        {NULL, "检查网页固件版本文件"},
+        {NULL, "按键音设置"},
+        {NULL, "屏幕全刷间隔"},
         {NULL, NULL},
 };
 
@@ -153,26 +160,54 @@ void AppSettings::setup()
             //SD卡信息
             {
             display.clearScreen();
-            GUI::drawWindowsWithTitle("SD卡信息",0,0,296,128);
+            GUI::drawWindowsWithTitle("TF卡信息",0,0,296,128);
+            display.display();
             //u8g2Fonts.setCursor(5,30);
             //u8g2Fonts.printf("类型：%s",SD.cardType());
-            u8g2Fonts.setCursor(5,30);
-            float cardSizeKB = (float)SD.cardSize() / 1024.0 / 1024.0;
-            u8g2Fonts.printf("大小：%uBytes %.2fMB ",SD.cardSize(),cardSizeKB);
-            u8g2Fonts.setCursor(5,45);
-            u8g2Fonts.printf("扇区数量：%u",SD.numSectors());
-            u8g2Fonts.setCursor(5,60);
-            u8g2Fonts.printf("扇区大小：%u Bytes",SD.sectorSize());
-            u8g2Fonts.setCursor(5,75);
-            float cardSizeuse = (float)SD.usedBytes() / 1024.0 / 1024.0;
-            float cardSizetotal = (float)SD.totalBytes() / 1024.0 / 1024.0;
-            u8g2Fonts.printf("空间使用:%d%%(%.2f/%.2f)MB",SD.usedBytes()*100/SD.totalBytes(),cardSizeuse,cardSizetotal);
-            u8g2Fonts.setCursor(5,90);
-            u8g2Fonts.printf("可用空间：%.2fMB",cardSizetotal - cardSizeuse);
-            display.display();
-            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
-                delay(100);
+            if (hal.TF_connected){
+                u8g2Fonts.setCursor(5,30);
+                float cardSizeMB = (float)SD.cardSize() / 1024.0 / 1024.0;
+                u8g2Fonts.printf("大小：%uBytes %.2fMB ",SD.cardSize(),cardSizeMB);
+                u8g2Fonts.setCursor(5,45);
+                u8g2Fonts.printf("扇区数量：%u",SD.numSectors());
+                u8g2Fonts.setCursor(5,60);
+                u8g2Fonts.printf("扇区大小：%u Bytes",SD.sectorSize());
+                u8g2Fonts.setCursor(5,75);
+                float cardSizeuse = (float)SD.usedBytes() / 1024.0 / 1024.0;
+                float cardSizetotal = (float)SD.totalBytes() / 1024.0 / 1024.0;
+                u8g2Fonts.printf("空间使用:%0.2f%%(%.2f/%.2f)MB", cardSizeuse * 100.0 / cardSizetotal, cardSizeuse, cardSizetotal);
+                u8g2Fonts.setCursor(5,90);
+                u8g2Fonts.printf("可用空间：%.2fMB", cardSizetotal - cardSizeuse);
+                u8g2Fonts.setCursor(5,105);
+                char tf_type[20];
+                sdcard_type_t tf_type_num = SD.cardType();
+                switch (tf_type_num)
+                {
+                    case CARD_NONE:
+                        sprintf(tf_type, "此卡类型字段为空");
+                        break;
+                    case CARD_MMC:
+                        sprintf(tf_type, "MMC卡");
+                        break;
+                    case CARD_SD:
+                        sprintf(tf_type, "SD卡");
+                        break;
+                    case CARD_SDHC:
+                        sprintf(tf_type, "SDHC卡");
+                        break;
+                    case CARD_UNKNOWN:
+                        sprintf(tf_type, "未知的卡类型");
+                        break;
+                }
+                u8g2Fonts.printf("TF卡类型:%s", tf_type);
+                display.display(true);
+            }else{
+                GUI::info_msgbox("提示", "未插入TF卡，无法显示信息");
             }
+            hal.wait_input();
+            /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+                delay(100);
+            } */
             }
             break;
         case 6:
@@ -181,26 +216,25 @@ void AppSettings::setup()
             break;
         case 7:
         {
-            display.display();
-            display.setFullWindow();
             display.clearScreen();
             GUI::drawWindowsWithTitle("关于本设备", 0, 0, 296, 128);
             u8g2Fonts.setCursor(5,30);
-            u8g2Fonts.printf("设备名称:LiClock 版本:2.0.10.1 DS3231:%d.%d %d:%d:%d",Srtc.getMonth(),Srtc.getDate(),Srtc.getHour(),Srtc.getMinute(),Srtc.getSecond());
+            u8g2Fonts.printf("设备名称:LiClock 版本:%s DS3231:%d.%d %d:%d:%d", code_version, Srtc.getMonth(), Srtc.getDate(), Srtc.getHour(), Srtc.getMinute(), Srtc.getSecond());
             u8g2Fonts.drawUTF8(5,45,"CPU:Xtensa@32-bit LX6 @0.24GHz X2+ULP");
             u8g2Fonts.setCursor(5,60);
             u8g2Fonts.printf("内存:520KB SRAM+16KB RTC SRAM   存储:%dMB",ESP.getFlashChipSize() / 1024 / 1024);
             u8g2Fonts.setCursor(5,75);
-            u8g2Fonts.printf("文件系统(已用/总空间):%d%% %d/%d kB", LittleFS.usedBytes() * 100 / LittleFS.totalBytes(),LittleFS.usedBytes()/1024, LittleFS.totalBytes() / 1024);
+            u8g2Fonts.printf("文件系统(已用/总空间):%d%% %d/%d kB", LittleFS.usedBytes() * 100 / LittleFS.totalBytes(), LittleFS.usedBytes()/1024, LittleFS.totalBytes() / 1024);
             u8g2Fonts.setCursor(5,90);
             u8g2Fonts.printf("屏幕类型:EPD  屏幕分辨率:296X128 CPU_freq:%uMHz", getCpuFrequencyMhz());
             u8g2Fonts.setCursor(5,105);
-            u8g2Fonts.printf("作者:小李电子实验室 chip model:%s", ESP.getChipModel());
-            u8g2Fonts.drawUTF8(5,120,"开源程序网址:https://github.com/diylxy/LiClock");
+            u8g2Fonts.printf("原作者:小李电子实验室 chip model:%s", ESP.getChipModel());
+            u8g2Fonts.drawUTF8(5,120,"原开源程序网址:https://github.com/diylxy/LiClock");
             display.display();
-            while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+            hal.wait_input();
+            /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
                 delay(100);
-            }
+            } */
         }
         break;
         default:
@@ -226,7 +260,7 @@ void AppSettings::menu_time()
     bool end = false;
     while (end == false && hasToApp == false)
     {
-        res = GUI::menu("时间设置", settings_menu_time);
+        res = GUI::select_menu("时间设置", settings_menu_time);
         switch (res)
         {
         case 0:
@@ -437,6 +471,7 @@ void AppSettings::menu_network()
 {
     int res = 0;
     bool end = false;
+    DNSServer dnsServer;
     while (end == false && hasToApp == false)
     {
         res = GUI::menu("网络设置", settings_menu_network);
@@ -489,7 +524,9 @@ void AppSettings::menu_network()
                     break;  
                 }     
                 
-            }}
+            }
+            WiFi.mode(WIFI_OFF);
+            }
             break;
         case 2:
             // ESPTouch配网
@@ -519,6 +556,104 @@ void AppSettings::menu_network()
             {
                 GUI::msgbox("提示", "Bilibili Cookies不存在");
                 break;
+            }
+            break;
+        case 7:
+            {
+                String ssid = config[PARAM_SSID].as<String>();
+                String pass = config[PARAM_PASS].as<String>();
+                String str = "WIFI:T:WPA2;S:" + ssid + ";P:" + pass + ";;";
+                display.fillScreen(GxEPD_WHITE);
+                QRCode qrcode;
+                uint8_t qrcodeData[qrcode_getBufferSize(7)];
+                qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
+                Serial.println(qrcode.size);
+                for (uint8_t y = 0; y < qrcode.size; y++)
+                {
+                    // Each horizontal module
+                    for (uint8_t x = 0; x < qrcode.size; x++)
+                    {
+                        display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
+                    }
+                }
+                u8g2Fonts.setFont(u8g2_font_wqy16_t_gb2312);
+                u8g2Fonts.setCursor(120, (128 - (17 * 2)) / 2);
+                char buf[50];
+                sprintf(buf, "扫描二维码以连接本机分享的WiFi");
+                GUI::autoIndentDraw(buf, 296, 120, 17);
+                display.display();
+                hal.wait_input();
+            }
+            break;
+        case 8:
+            {
+                String str1, str2;
+                bool wifi = hal.autoConnectWiFi(false);
+                if (wifi){
+                    beginWebServer();
+                    str1 = "http://" + WiFi.localIP().toString();
+                    str2 = "http://" + WiFi.localIP().toString() + "/blockly";
+                }else{
+                    hal.cheak_freq();
+                    String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
+                    String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;";
+                    WiFi.softAP("WeatherClock", passwd.c_str());
+                    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+                    dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
+                    beginWebServer();
+                    str1 = "http://192.168.4.1";
+                    str2 = "http://192.168.4.1/blockly";
+                }
+                display.fillScreen(GxEPD_WHITE);
+                QRCode qrcode1, qrcode2;
+                uint8_t qrcodeData[2][qrcode_getBufferSize(7)];
+                qrcode_initText(&qrcode1, qrcodeData[0], 6, 2, str1.c_str());
+                qrcode_initText(&qrcode2, qrcodeData[1], 6, 2, str2.c_str());
+                Serial.println(qrcode1.size);
+                Serial.println(qrcode2.size);
+                for (uint8_t y = 0; y < qrcode1.size; y++)
+                {
+                    // Each horizontal module
+                    for (uint8_t x = 0; x < qrcode1.size; x++)
+                    {
+                        display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode1, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
+                    }
+                }
+                for (uint8_t y = 0; y < qrcode2.size; y++)
+                {
+                    // Each horizontal module
+                    for (uint8_t x = 0; x < qrcode2.size; x++)
+                    {
+                        display.fillRect(2 * x + 196, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode2, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
+                    }
+                }
+                u8g2Fonts.setFont(u8g2_font_wqy16_t_gb2312);
+                char buf[2][32];
+                sprintf(buf[0], "网页配置界面");
+                sprintf(buf[1], "Blockly界面");
+                u8g2Fonts.setCursor(120, 30);
+                GUI::autoIndentDraw(buf[0], 135, 120, 17);
+                u8g2Fonts.setCursor(160, 21);
+                GUI::autoIndentDraw(buf[1], 167, 160, 17);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+                display.display();
+                while (1)
+                {
+                    updateWebServer();
+                    if (LuaRunning)
+                        continue;
+                    if (hal.btnl.isPressing())
+                    {
+                        while(hal.btnl.isPressing())delay(20);
+                        if(wifi)
+                            server.end();
+                        else{
+                            server.end();
+                            dnsServer.stop();}
+                        WiFi.disconnect(true);
+                        break;
+                    }
+                }
             }
             break;
         default:
@@ -745,6 +880,85 @@ void AppSettings::menu_other()
                 GUI::select_menu("电子书设置", ebook_set);
             }
             break;
+        case 16:
+            {
+                if (GUI::msgbox_yn("提示", "是否联网更新CFU.json文件？")){
+                    GUI::info_msgbox("提示", "正在联网更新CFU.json文件");
+                    if (hal.cheak_firmware_update())
+                        GUI::info_msgbox("提示", "CFU.json文件已更新");
+                    else
+                        GUI::info_msgbox("提示", "http错误,CFU.json文件未更新");
+                    hal.wait_input();
+                }
+                File cfufile = LittleFS.open("/System/CFU.json", "r");
+                bool file_true = true;
+                if (!cfufile)
+                {
+                    Serial.println("Failed to open cfu file");
+                    file_true = false;
+                }
+                deserializeJson(cfu, cfufile);
+                cfufile.close();
+                char buf[128];
+                display.clearScreen();
+                GUI::drawWindowsWithTitle("文件内容");
+                u8g2Fonts.setCursor(2, 28);
+                u8g2Fonts.printf("name:%s newver:%s version:%s isbeta:%s", cfu["name"].as<const char *>(), cfu["newversion"].as<bool>() ? "yes" : "no", cfu["version"].as<const char *>(), cfu["isbeta"].as<bool>() ? "yes" : "no");
+                u8g2Fonts.setCursor(2, 42);
+                u8g2Fonts.printf("bigupdate:%s", cfu["updateinfo"]["bigupdate"].as<bool>() ? "yes" : "no");
+                JsonArray updatelog = cfu["updateinfo"]["log"];
+                int i = 0;
+                for (JsonVariant item : updatelog){
+                    u8g2Fonts.setCursor(2, 42 + ((i + 1) * 14));
+                    u8g2Fonts.printf("%d.%s", i + 1, item.as<const char *>());
+                    i++;
+                }
+                u8g2Fonts.setCursor(2, u8g2Fonts.getCursorY() + 14);
+                u8g2Fonts.printf("%s", cfu["updateinfo"]["url"].as<const char *>());
+                u8g2Fonts.setCursor(2, u8g2Fonts.getCursorY() + 14);
+                u8g2Fonts.printf("%s", cfu["updateinfo"]["url1"].as<const char *>());
+                display.display();
+                hal.wait_input();
+            }
+            break;
+        case 17:
+            {
+                static const menu_select settings_btn_buz[] =
+                {
+                    {false, "返回"},
+                    {true, "按键音"},
+                    {false, "声音频率"},
+                    {false, "声音长度"},
+                    {false, NULL}
+                };
+                int res = 0;
+                bool end = false;
+                while (!end){
+                    res = GUI::select_menu("按键音设置", settings_btn_buz);
+                    switch (res)
+                    {
+                        case 0:
+                            end = true;
+                            break;
+                        case 1:
+                            break;
+                        case 2:
+                            hal.pref.putInt("btn_buz_freq", GUI::msgbox_number("输入频率Hz", 5, hal.pref.getInt("btn_buz_freq", 150)));
+                            break;
+                        case 3:
+                            hal.pref.putInt("btn_buz_time", GUI::msgbox_number("输入时长ms", 5, hal.pref.getInt("btn_buz_time", 100)));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            break;
+        case 18:
+            {
+                hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
+            }
+            break;
         default:
             break;
         }
@@ -805,6 +1019,11 @@ void AppSettings::cheak_config(char *a)
             hal.WiFiConfigManual();
             ESP.restart();
         }
+        else{
+            if(GUI::msgbox_yn("提示","是否使用简易输入法输入密码","确定","取消")){
+                config[PARAM_PASS] = GUI::englishInput("输入WiFi密码");
+            }
+        }
     }
 }
 void AppSettings::menu_SWQ()
@@ -832,12 +1051,12 @@ void AppSettings::menu_SWQ()
                                     end = true;
                                     break;
                                 case 1:
-                                    tf = GUI::msgbox_yn("使能设置","","开启","关闭");
+                                    tf = GUI::msgbox_yn("振荡器使能设置","是否开启振荡器","开启","关闭");
                                     hal.pref.putBool("tf", tf);
                                     Srtc.enableOscillator(tf,bat,frequency);
                                     break;
                                 case 2:
-                                    bat = GUI::msgbox_yn("后备电源是否工作","","开启","关闭");
+                                    bat = GUI::msgbox_yn("后备电源是否工作","在只有备用电源时振荡器是否工作","开启","关闭");
                                     hal.pref.putBool("bat", bat);
                                     Srtc.enableOscillator(tf,bat,frequency);
                                     break;
@@ -889,7 +1108,7 @@ void AppSettings::menu_DS3231()
                         menu_SWQ();
                         break;
                     case 3:
-                        if(GUI::msgbox_yn("时间格式","","24h","12h"))
+                        if(GUI::msgbox_yn("时间格式","设置DS3231的时间格式","24h","12h"))
                         {
                             Srtc.setClockMode(false);
                         }

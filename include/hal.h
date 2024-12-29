@@ -10,25 +10,30 @@ public:
     void loadConfig();
     void getTime();
     char* get_char_sha_key(const char *str);
+    IPAddress getip();
+    bool cheak_firmware_update();
+    void cheak_freq();
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();
     void ReqWiFiConfig();
     void task_buffer_handler();
+    void wait_input();
     /**
      * @brief 初始化
      * @return true 需要全屏刷新
      * @return false 不需要全屏刷新
      */
     bool init();
-    void autoConnectWiFi();
+    bool autoConnectWiFi(bool need_wifi_config = true);
     void searchWiFi();
+    static void set_sleep_set_gpio_interrupt();
     void powerOff(bool displayMessage = true);
     void goSleep(uint32_t sec = 0);
     void update();
     int getNTPMinute();
     void checkNightSleep();
     void setWakeupIO(int io1, int io2);
-    void copy(File &newFile, File &file);
+    bool copy(File &newFile, File &file);
     void rm_rf(const char *path);
     struct tm timeinfo;
     time_t now;
@@ -43,6 +48,8 @@ public:
     int16_t VCC = 0;
     bool USBPluggedIn = false;
     bool isCharging = false;
+    bool TF_connected = false;
+    bool dis_DS3231 = false;
     OneButton btnr = OneButton(PIN_BUTTONR);
     OneButton btnl = OneButton(PIN_BUTTONL);
     OneButton btnc = OneButton(PIN_BUTTONC);

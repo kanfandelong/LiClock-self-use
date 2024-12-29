@@ -91,12 +91,15 @@ bool Peripherals::load(uint16_t bitmask)
         // 首先测试TF卡是否存在
         if (digitalRead(PIN_SD_CARDDETECT) != 1)
         {
+            hal.TF_connected = true;
             Serial.println("[外设] 加载TF卡");
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
+            //gpio_set_pull_mode((gpio_num_t)15, GPIO_PULLUP_ONLY);
+            //gpio_set_pull_mode((gpio_num_t)12, GPIO_PULLUP_ONLY);
             delay(50);
-            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 20000000);
+            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 500000);
             Serial.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
             if (SD.begin(PIN_SD_CS, SDSPI, freq) == false)
             {
@@ -109,12 +112,14 @@ bool Peripherals::load(uint16_t bitmask)
                 }
             }
         }else{
+            hal.TF_connected = false;
             log_w("[外设] 未插入TF卡");
         }
     }
     else if ((bitmask & PERIPHERALS_SD_BIT) == 0 && peripherals_load & PERIPHERALS_SD_BIT)
     {
         // 卸载TF卡
+        hal.TF_connected = false;
         Serial.println("[外设] 卸载TF卡");
         SD.end();
         delay(50);
@@ -192,6 +197,30 @@ void Peripherals::load_append(uint16_t bitmask)
     if (tmp | bitmask == tmp)
         return;
     peripherals.load(bitmask | tmp);
+}
+
+void Peripherals::tf_unload(bool save_power){
+    if (digitalRead(PIN_SD_CARDDETECT) == HIGH){
+        log_w("[外设] TF卡不存在，无需卸载");
+        return;
+    }else if(!(peripherals_load & PERIPHERALS_SD_BIT)){
+        log_w("[外设] 未加载TF卡，无需卸载");
+    }
+    SD.end();
+    delay(100);
+    gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
+    if (save_power)
+        digitalWrite(PIN_SDVDD_CTRL, 0);
+    else
+        digitalWrite(PIN_SDVDD_CTRL, 1);
+    gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
+    if (save_power){
+        log_i("[外设] 卸载并保持TF卡供电\n");
+        F_LOG("卸载并保持TF卡供电");
+    }else{
+        log_i("[外设] 卸载并关闭TF卡供电\n");
+        F_LOG("卸载并关闭TF卡供电");
+    }
 }
 
 void Peripherals::sleep()

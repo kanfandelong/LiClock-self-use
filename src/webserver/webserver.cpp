@@ -258,7 +258,7 @@ void beginWebServer()
               {
                                 String message;
                                 message += "IP地址: ";
-                                message += WiFi.localIP().toString();
+                                message += hal.getip().toString();
                                 message += "<br/>MAC地址: ";
                                 message += WiFi.macAddress();
                                 message += "<br/>系统时间: ";

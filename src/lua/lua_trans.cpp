@@ -72,6 +72,47 @@ static int common_analogRead(lua_State *L)
     return 1;
 }
 
+static int common_adc_attenuation(lua_State *L)
+{
+    if (lua_gettop(L) != 1)
+    {
+        lua_pushstring(L, err_invalid_param);
+        lua_error(L);
+        return 0;
+    }
+    int pin = luaL_checkinteger(L, 1);
+    int attenuation = luaL_checkinteger(L, 2);
+	analogSetPinAttenuation(pin, (adc_attenuation_t)attenuation);
+    return 1;	
+}
+
+static int common_adc_bit(lua_State *L)
+{
+    if (lua_gettop(L) != 1)
+    {
+        lua_pushstring(L, err_invalid_param);
+        lua_error(L);
+        return 0;
+    }
+    int adc_bit = luaL_checkinteger(L, 1);
+	analogReadResolution(adc_bit);
+    return 1;	
+}
+
+static int common_pin_capability(lua_State *L)
+{
+    if (lua_gettop(L) != 1)
+    {
+        lua_pushstring(L, err_invalid_param);
+        lua_error(L);
+        return 0;
+    }
+    int pin = luaL_checkinteger(L, 1);
+	int cap = luaL_checkinteger(L, 2);
+    gpio_set_drive_capability((gpio_num_t)pin, (gpio_drive_cap_t)cap);
+    return 1;
+}
+
 static int common_pinMode(lua_State *L)
 {
     if (lua_gettop(L) != 2)
@@ -111,6 +152,12 @@ void openLua()
     lua_setglobal(L, "digitalWrite");
     lua_pushcfunction(L, common_analogRead);
     lua_setglobal(L, "analogRead");
+	lua_pushcfunction(L, common_adc_attenuation);
+    lua_setglobal(L, "analogSetPinAttenuation");
+	lua_pushcfunction(L, common_adc_bit);
+    lua_setglobal(L, "analogReadResolution");
+    lua_pushcfunction(L, common_pin_capability);
+    lua_setglobal(L, "gpio_set_drive_capability");
     lua_pushcfunction(L, common_pinMode);
     lua_setglobal(L, "pinMode");
 }
