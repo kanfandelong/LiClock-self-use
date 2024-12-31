@@ -40,12 +40,27 @@ static const uint8_t usb_power_bits[] = {
     0x3f, 0x40, 0x00, 0x20, 0xc0, 0x0f, 0x60, 0x40, 0x00, 0xc0, 0x40, 0x00,
     0x00, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 
 };
-
-const uint8_t *getBatteryIcon()
+/**
+ * @brief Get the battery icon to display on the screen.
+ * @param forceEmptyIcon 是否强制返回为空电量图标
+ * @return const uint8_t*的图标
+ */
+const uint8_t *getBatteryIcon(bool forceEmptyIcon)
 {
     int16_t batteryLevel = hal.VCC;
     const uint8_t *batteryIcon;
-    if (batteryLevel < 3500)
+
+    // 检查 forceEmptyIcon 条件
+    if (forceEmptyIcon && batteryLevel < 4300 && !hal.isCharging)
+    {
+        return battery_empty_bits;
+    }
+
+    if (hal.isCharging)
+    {
+        batteryIcon = battery_chongdian_bits;
+    }
+    else if (batteryLevel < 3500)
     {
         batteryIcon = battery_empty_bits;
     }
@@ -57,17 +72,21 @@ const uint8_t *getBatteryIcon()
     {
         batteryIcon = battery_three_quarters_bits;
     }
-    else if (batteryLevel < 4300 && batteryLevel > 4100)
+    else if (batteryLevel >= 3900 && batteryLevel < 4300)
     {
         batteryIcon = battery_full_bits;
     }
-    else if (batteryLevel > 4400 && hal.isCharging == false )
+    else if (batteryLevel > 4400 && !hal.isCharging)
     {
         batteryIcon = usb_power_bits;
     }
-    else if (hal.isCharging == true)
-    {
-        batteryIcon = battery_chongdian_bits;
-    }
+
     return batteryIcon;
+}
+
+uint8_t getBatterysoc(){
+    uint8_t batsoc = (hal.VCC - 2900) / 100;
+    if (batsoc > 13)
+        batsoc = 13;
+    return batsoc;
 }

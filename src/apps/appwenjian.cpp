@@ -251,6 +251,7 @@ void Appwenjian::setup()
     char buf[64];
     int used = 0, total = 0, free = 0;
     fanhui:
+    GUI::info_msgbox("提示", "获取文件系统信息...");
     used = LittleFS.usedBytes()/1024;
     total = LittleFS.totalBytes()/1024;
     free = total - used;

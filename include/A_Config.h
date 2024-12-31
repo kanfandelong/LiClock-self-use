@@ -108,7 +108,8 @@ extern bool LuaRunning;            //全局变量，表示Lua服务器是否运�
 void processRain(float max);
 void beginWebServer();
 void updateWebServer();
-const uint8_t *getBatteryIcon();
+const uint8_t *getBatteryIcon(bool forceEmptyIcon = false);
+uint8_t getBatterysoc();
 
 #include "hal.h"
 #include "weather.h"

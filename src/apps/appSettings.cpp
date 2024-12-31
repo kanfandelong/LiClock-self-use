@@ -65,28 +65,29 @@ static const menu_item settings_menu_peripheral[] =
         {NULL, NULL},
 };
 
-static const menu_item settings_menu_other[] =
+static const menu_select settings_menu_other[] =
     {
-        {NULL, "返回上一级"},
-        {NULL, "屏幕方向"},
-        {NULL, "天气更新间隔"},
-        {NULL, "立即更新天气"},
-        {NULL, "主屏幕应用选择"},
-        {NULL, "应用管理"},
-        {NULL, "TF加载方式"},
-        {NULL, "恢复出厂设置"},
-        {NULL, "格式化Littlefs"},
-        {NULL, "电池电压校准"},
-        {NULL, "sd_clk_freq set"},
-        {NULL, "cpufreq set"},
-        {NULL, "自动休眠电压"},
-        {NULL, "长按时间"},
-        {NULL, "DS3231设置"},
-        {NULL, "电子书txt解析代码设置"},
-        {NULL, "检查网页固件版本文件"},
-        {NULL, "按键音设置"},
-        {NULL, "屏幕全刷间隔"},
-        {NULL, NULL},
+        {false, "返回上一级"},
+        {false, "屏幕方向"},
+        {false, "天气更新间隔"},
+        {false, "立即更新天气"},
+        {false, "主屏幕应用选择"},
+        {false, "应用管理"},
+        {false, "TF加载方式"},
+        {false, "恢复出厂设置"},
+        {false, "格式化Littlefs"},
+        {false, "电池电压校准"},
+        {false, "sd_clk_freq set"},
+        {false, "cpufreq set"},
+        {false, "自动休眠电压"},
+        {false, "长按时间"},
+        {false, "DS3231设置"},
+        {false, "电子书txt解析代码设置"},
+        {false, "检查网页固件版本文件"},
+        {false, "按键音设置"},
+        {false, "屏幕全刷间隔"},
+        {true,  "精准电量显示"},
+        {false, NULL},
 };
 
 class AppSettings : public AppBase
@@ -670,7 +671,7 @@ void AppSettings::menu_other()
     bool end = false;
     while (end == false && hasToApp == false)
     {
-        res = GUI::menu("其它设置", settings_menu_other);
+        res = GUI::select_menu("其它设置", settings_menu_other);
         switch (res)
         {
         case 0:
@@ -706,6 +707,7 @@ void AppSettings::menu_other()
         case 3:
             // 立即更新天气
             {
+                GUI::info_msgbox("提示", "正在联网更新天气信息...");
                 int res = weather.refresh();
                 if (res == 0){
                     GUI::msgbox("更新完成", "已将天气信息保存至/littlefs/System/weather.bin");

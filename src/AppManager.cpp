@@ -182,7 +182,11 @@ void AppManager::showAppList(int page)
         // 右侧状态图标
         int16_t x = 294;
         // 电池
-        display.drawXBitmap(x - 20, 0, getBatteryIcon(), 20, 16, 0);
+        if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"),false) && hal.VCC < 4300 && !hal.isCharging){
+            display.drawXBitmap(x - 20, 0, getBatteryIcon(true), 20, 16, 0);
+            display.fillRect(x - 17, 6, getBatterysoc(), 4, GxEPD_BLACK);
+        }else
+            display.drawXBitmap(x - 20, 0, getBatteryIcon(), 20, 16, 0);
         x -= 20 - 2;
         // 电池电量数值
         u8g2Fonts.setCursor(x - 44, 12);
