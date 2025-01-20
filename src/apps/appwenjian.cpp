@@ -156,7 +156,8 @@ private:
                         }
                         displayPage(file, currentPage);
                     }
-                    default:
+                    default:    
+                        GUI::msgbox("提示", "无效操作");
                         break;
                 }
                 free(buf);
@@ -502,6 +503,7 @@ void Appwenjian::setup()
         case 8:
             break;
         default:
+            GUI::msgbox("提示", "无效的选项");
             break;
         }
     }
@@ -646,9 +648,8 @@ void Appwenjian::openfile()
         fread(&w, 2, 1, fp);
         fread(&h, 2, 1, fp);
         fclose(fp);
-        display.clearScreen();
+        display.fillScreen(GxEPD_WHITE);
         GUI::drawLBM((296 - w) / 2,(128 - h) / 2,filename, GxEPD_BLACK);
-        display.display();
         while (1)
         {
             if(digitalRead(PIN_BUTTONR) == 1)

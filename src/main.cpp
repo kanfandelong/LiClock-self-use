@@ -29,14 +29,10 @@ void setup()
     }
     int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
-    if(hal.VCC < 3500)
-    {
-        sprintf(buf, "电池电压低！\n当前电压为：%d mV\n请连接充电器！", hal.VCC);
-        GUI::info_msgbox("提示", buf);
-    }
     if(hal.VCC < auto_sleep_mv)
     {
         sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
+        GUI::info_msgbox("提示", buf);
         hal.powerOff(false);
     }
 

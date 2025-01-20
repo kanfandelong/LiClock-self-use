@@ -370,7 +370,9 @@ class GxEPD2_BW : public GxEPD2_GFX_BASE_CLASS
       }
       epd2.powerOff();
     }
-
+    void setgray(uint8_t grayLevel){
+      epd2.sendlut(grayLevel);
+    }
     void setFullWindow()
     {
       _using_partial_mode = false;

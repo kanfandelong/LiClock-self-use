@@ -380,6 +380,51 @@ const uint8_t GxEPD2_290::LUTDefault_part[] PROGMEM =
         0x10, 0x18, 0x18, 0x08, 0x18, 0x18, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x13, 0x14, 0x44, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
+const uint8_t GxEPD2_290::lut_grey_update[] PROGMEM ={ //从上到下是依次加深
+  0x10, 0x00, 0x10, 0x00, 0x10, 0x01, 0x10, 0x01,
+  0x10, 0x02, 0x10, 0x02, 0x10, 0x03, 0x10, 0x04,
+  0x10, 0x14, 0x10, 0x24, 0x10, 0x34, 0x11, 0x44,
+  0x12, 0x44, 0x13, 0x44
+};   
+
+const uint8_t GxEPD2_290::lut_fast[] PROGMEM =
+{
+    0x10, 0x18, 0x18, 0x08, 0x18, 0x18, 0x08, 0x00, 
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+    0x00, 0x00, 0x00, 0x00, 0x13, 0x14, 0x44, 0x12, //0x13,0x14,0x44,0x12
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+void GxEPD2_290::_SendLuts(uint8_t LutLevel){
+  LutLevel = LutLevel > 15 ? 15 : LutLevel; 
+  lutgray = LutLevel;
+  if (_hibernating)
+    _reset();
+  _writeCommand(0x01);
+  _writeData((HEIGHT - 1) % 256);
+  _writeData((HEIGHT - 1) / 256);
+  _writeData(0x00);                     // GD = 0; SM = 0; TB = 0;
+  _writeCommand(0x0c);
+  _writeData(0xD7);
+  _writeData(0xD6);
+  _writeData(0x9D);
+  _writeCommand(0x2c);
+  _writeData(0x9B);                     // VCOM 7C
+  _writeCommand(0x3a);
+  _writeData(0x1A);                     // 4 dummy lines per gate
+  _writeCommand(0x3b);
+  _writeData((LutLevel==1)?0x02:((LutLevel==3 || LutLevel==5)?0x05:0x08)); // 2us per line
+  _writeCommand(0x11);
+  _writeData(0x03);                     // X increment; Y increment
+  _writeCommand(0x32);
+  _writeCommand(0x32);
+  for (int i = 0; i < 30; i++) {
+    if(LutLevel>0 && LutLevel<15 || i>19 && i<23)
+      _writeData(pgm_read_byte(lut_grey_update+LutLevel*2+i-(i==20?22:23)));
+    else
+      _writeData(pgm_read_byte(lut_fast+i));
+  }
+}
 void GxEPD2_290::_Init_Full()
 {
   _InitDisplay();
@@ -391,7 +436,10 @@ void GxEPD2_290::_Init_Full()
 void GxEPD2_290::_Init_Part()
 {
   _InitDisplay();
-  _writeCommandDataPGM(LUTDefault_part, sizeof(LUTDefault_part));
+  if (lutgray != 15)
+    _SendLuts(lutgray);
+  else
+    _writeCommandDataPGM(LUTDefault_part, sizeof(LUTDefault_part));
   _PowerOn();
   _using_partial_mode = true;
 }
@@ -434,12 +482,14 @@ enum function_type_t
   FUNC_refresh2,
   FUNC_powerOff,
   FUNC_hibernate,
+  FUNC_sendlut,
 };
 
 typedef struct
 {
   function_type_t function_type;
   uint8_t value;
+  uint8_t lut_value;
   const uint8_t *bitmap;
   const uint8_t *color;
   int16_t x;
@@ -516,6 +566,9 @@ static void process_multi_thread_queue()
     break;
   case FUNC_hibernate:
     multi_thread_params.instance->__hibernate();
+    break;
+  case FUNC_sendlut:
+    multi_thread_params.instance->_SendLuts(multi_thread_params.lut_value);
     break;
   default:
     break;
@@ -779,6 +832,15 @@ void GxEPD2_290::hibernate()
 {
   multi_thread_params_t multi_thread_params;
   multi_thread_params.function_type = FUNC_hibernate;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290::sendlut(uint8_t LutLevel)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_sendlut;
+  multi_thread_params.lut_value = LutLevel;
   multi_thread_params.instance = this;
   xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
 }

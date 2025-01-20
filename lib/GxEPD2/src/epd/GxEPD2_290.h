@@ -30,6 +30,7 @@ class GxEPD2_290 : public GxEPD2_EPD
     static const uint16_t power_off_time = 100; // ms, e.g. 93329us
     static const uint16_t full_refresh_time = 1600; // ms, e.g. 1575016us
     static const uint16_t partial_refresh_time = 420; // ms, e.g. 412493us
+    uint8_t lutgray = 15;
     // constructor
     GxEPD2_290(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
     // methods (virtual)
@@ -62,13 +63,14 @@ class GxEPD2_290 : public GxEPD2_EPD
     void refresh(int16_t x, int16_t y, int16_t w, int16_t h); // screen refresh from controller memory, partial screen
     void powerOff(); // turns off generation of panel driving voltages, avoids screen fading over time
     void hibernate(); // turns powerOff() and sets controller to deep sleep for minimum power use, ONLY if wakeable by RST (rst >= 0)
-
+    void sendlut(uint8_t LutLevel = 15);
     // methods (private)
     void _writeScreenBuffer(uint8_t value);
     void _setPartialRamArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
     void _PowerOn();
     void _PowerOff();
     void _InitDisplay();
+    void _SendLuts(uint8_t LutLevel);
     void _Init_Full();
     void _Init_Part();
     void _Update_Full();
@@ -99,10 +101,11 @@ class GxEPD2_290 : public GxEPD2_EPD
     void __refresh(int16_t x, int16_t y, int16_t w, int16_t h); // screen refresh from controller memory, partial screen
     void __powerOff(); // turns off generation of panel driving voltages, avoids screen fading over time
     void __hibernate(); // turns powerOff() and sets controller to deep sleep for minimum power use, ONLY if wakeable by RST (rst >= 0)
-
   private:
     static const uint8_t LUTDefault_part[];
     static const uint8_t LUTDefault_full[];
+    static const uint8_t lut_grey_update[];
+    static const uint8_t lut_fast[];
 };
 
 #endif

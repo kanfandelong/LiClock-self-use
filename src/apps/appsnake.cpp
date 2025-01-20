@@ -320,6 +320,7 @@ void Appsnake::menu()
             appManager.goBack();
             break;
         default:
+            GUI::info_msgbox("提示", "未知选项");
             break;
         }
 }

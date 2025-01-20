@@ -575,6 +575,10 @@ bool HAL::init()
     tzset();
     // 读取时钟偏移
     pref.begin("clock");
+    //int init_nvs = nvs_.begin("info", false, "nvs2");
+    //log_w("%s初始化nvs2分区",init_nvs ? "成功" : "未能");
+    log_i("nvs分区可用空闲条目数量:%d", (int)pref.freeEntries());
+    //log_i("nvs2分区可用空闲条目数量:%d", (int)nvs_.freeEntries());
     pinMode(PIN_BUTTONR, INPUT);
     pinMode(PIN_BUTTONL, INPUT);
     pinMode(PIN_BUTTONC, INPUT);
@@ -809,6 +813,8 @@ static void pre_sleep()
     display.hibernate();
     buzzer.waitForSleep();
     LittleFS.end();
+    hal.pref.end();
+    hal.nvs_.end();
     delay(10);
     ledcDetachPin(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);

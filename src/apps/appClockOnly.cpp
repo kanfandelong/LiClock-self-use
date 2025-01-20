@@ -58,7 +58,12 @@ void AppClockOnly::setup()
         u8g2Fonts.printf("温度:%.1f℃ 湿度:%.1f%%", temp.temperature, humidity.relative_humidity);
     }
     // 电池
-    display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
+    //display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
+    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"),false) && hal.VCC < 4300 && !hal.isCharging){
+        display.drawXBitmap(296 - 25, 111, getBatteryIcon(true), 20, 16, 0);
+        display.fillRect(296 - 22, 117, getBatterysoc(), 4, GxEPD_BLACK);
+    }else
+        display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
 
     if (force_full_update || part_refresh_count > hal.pref.getInt("display_count", 15))
     {

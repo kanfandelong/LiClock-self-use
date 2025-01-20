@@ -82,6 +82,7 @@ public:
     void GPS_mode();
     void GPS_update_freq();
     void GPS_menu();
+    const char *get_fangxiang(double deg);
     void display_show();
     void setup();
 };
@@ -267,6 +268,75 @@ void AppGps::GPS_menu(){
             GUI::info_msgbox("警告", "非法的输入值");
         break;
     }
+
+}/* 
+0° - 22.5° : 北 (N)
+22.5° - 67.5° : 东北 (NE)
+67.5° - 112.5° : 东 (E)
+112.5° - 157.5° : 东南 (SE)
+157.5° - 202.5° : 南 (S)
+202.5° - 247.5° : 西南 (SW)
+247.5° - 292.5° : 西 (W)
+292.5° - 337.5° : 西北 (NW)
+337.5° - 360° : 北 (N) */
+char deg_str[10];
+const char *AppGps::get_fangxiang(double deg){
+    deg = fmod(deg, 360.0);
+    if (deg < 0.0) {
+        deg += 360.0;
+    }
+
+    // 根据角度判断方向
+    if (deg == 0.0 || deg == 360.0) {
+        sprintf(deg_str, "正北(%.2f)°", deg);
+        return deg_str;
+    } else if (deg > 0.0 && deg < 44.5) {
+        sprintf(deg_str, "北偏东%.2f°", deg);
+        return deg_str;
+    } else if (deg >= 44.5 && deg <= 45.5) {
+        sprintf(deg_str, "东北(%.2f)°", 45.0 - deg);
+        return deg_str;
+    } else if (deg > 45.5 && deg < 90.0) {
+        sprintf(deg_str, "东偏北%.2f°", 90.0 - deg);
+        return deg_str;
+    } else if (deg == 90.0) {
+        sprintf(deg_str, "正东(%.2f)°", deg);
+        return deg_str;
+    } else if (deg > 90.0 && deg < 134.5) {
+        sprintf(deg_str, "东偏南%.2f°", deg - 90.0);
+        return deg_str;
+    } else if (deg >= 134.5 && deg <= 135.5) {
+        sprintf(deg_str, "东南(%.2f)°", 135.0 - deg);
+        return deg_str;
+    } else if (deg > 135.5 && deg < 180) {
+        sprintf(deg_str, "南偏东%.2f°", 180.0 - deg);
+        return deg_str;
+    } else if (deg == 180.0) {
+        sprintf(deg_str, "正南(%.2f)°", deg);
+        return deg_str;
+    } else if (deg > 180 && deg < 224.5) {
+        sprintf(deg_str, "南偏西%.2f°", deg - 180.0);
+        return deg_str;
+    } else if (deg >= 224.5 && deg <= 225.5) {
+        sprintf(deg_str, "西南(%.2f)°", 225.0 - deg);
+        return deg_str;
+    } else if (deg > 225.5 && deg < 270) {
+        sprintf(deg_str, "西偏南%.2f°", 270.0 - deg);
+        return deg_str;
+    } else if (deg == 270.0) {
+        sprintf(deg_str, "正西(%.2f)°", deg);
+        return deg_str;
+    } else if (deg > 270.0 && deg < 314.5) {
+        sprintf(deg_str, "西偏北%.2f°", deg - 270.0);
+        return deg_str;
+    } else if (deg >= 314.5 && deg <= 315.5) {
+        sprintf(deg_str, "西北(%.2f)°", 315.0 - deg);
+        return deg_str;
+    } else if (deg > 315.5 && deg < 360.0) {
+        sprintf(deg_str, "北偏西%.2f°", 360.0 - deg);
+        return deg_str;
+    }
+    return "-----"; 
 }
 void AppGps::display_show(){
     display.clearScreen();
@@ -278,7 +348,7 @@ void AppGps::display_show(){
     u8g2Fonts.setCursor(2, 56);
     u8g2Fonts.printf("速度:%.2f m/s %.2f km/h 海拔高度:%.2fm", gps.speed.mps(), gps.speed.kmph(), gps.altitude.meters());
     u8g2Fonts.setCursor(2, 70);
-    u8g2Fonts.printf("航向:%.2f°  水平精度递减:%d", gps.course.deg(), gps.hdop.value());
+    u8g2Fonts.printf("航向:%.2f° %s 水平精度递减:%d", gps.course.deg(), get_fangxiang(gps.course.deg()), gps.hdop.value());
     u8g2Fonts.setCursor(2, 84);
     u8g2Fonts.printf("授时时间:%d.%d.%d %02d:%02d:%02d", gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
     u8g2Fonts.setCursor(2, 98);

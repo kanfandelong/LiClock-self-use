@@ -28,6 +28,8 @@ namespace GUI
     int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8);
     int select_menu(const char *title, const menu_select options[]);
     void drawLBM(int16_t x, int16_t y,const char *filename, uint16_t color);
+    void drawGrayScaleImage(bool is4Bit, int x, int y, int w, int h, const uint8_t *bitmap);
+    void drawgraybitmap(int16_t x, int16_t y, const char *filename, uint16_t color);
     void drawBMP(FS *fs, const char *filename, bool partial_update = 1, bool overwrite = 0, int16_t x = 0, int16_t y = 0, bool with_color  = 1);
     void drawJPG(String name, FS fs);
     bool epd_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint8_t* bitmap);

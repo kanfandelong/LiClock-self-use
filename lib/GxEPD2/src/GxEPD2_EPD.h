@@ -84,6 +84,7 @@ class GxEPD2_EPD
     virtual void drawDemoBitmap(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, int16_t mode = 0, bool mirror_y = false, bool pgm = false){};
     virtual void refresh(bool partial_update_mode = false) = 0; // screen refresh from controller memory to full screen
     virtual void refresh(int16_t x, int16_t y, int16_t w, int16_t h) = 0; // screen refresh from controller memory, partial screen
+    virtual void sendlut(uint8_t LutLevel) = 0;
     virtual void powerOff() = 0; // turns off generation of panel driving voltages, avoids screen fading over time
     virtual void hibernate() = 0; // turns powerOff() and sets controller to deep sleep for minimum power use, ONLY if wakeable by RST (rst >= 0)
     virtual void setPaged() {}; // for GxEPD2_154c paged workaround

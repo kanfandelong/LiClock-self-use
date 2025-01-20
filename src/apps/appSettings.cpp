@@ -82,11 +82,12 @@ static const menu_select settings_menu_other[] =
         {false, "自动休眠电压"},
         {false, "长按时间"},
         {false, "DS3231设置"},
-        {false, "电子书txt解析代码设置"},
+        {false, "电子书设置"},
         {false, "检查网页固件版本文件"},
         {false, "按键音设置"},
         {false, "屏幕全刷间隔"},
         {true,  "精准电量显示"},
+        {false, "电量计算起点电压"},
         {false, NULL},
 };
 
@@ -857,6 +858,10 @@ void AppSettings::menu_other()
         case 12:
             {
                 int auto_sleep_mv = GUI::msgbox_number("自动休眠电压", 4, hal.pref.getInt("auto_sleep_mv", 2800));
+                if (auto_sleep_mv < 2800){
+                    auto_sleep_mv = 2800;
+                    GUI::msgbox("提示", "自动休眠电压不能小于2800mV,已自动设置为最低值2800mV");
+                }
                 hal.pref.putInt("auto_sleep_mv", auto_sleep_mv);
             }
             break;   
@@ -874,12 +879,31 @@ void AppSettings::menu_other()
                 static const menu_select ebook_set[] = {
                     {false, "返回"},
                     {true, "根据唤醒源翻页"},
+                    {true, "自动翻页"},
+                    {false, "自动翻页延时"},
+                    {true, "使用lightsleep"},
                     {true, "反色显示"},
                     {true, "使用备选txt解析程序1"},
                     {true, "甘草索引程序"},
                     {false, NULL},
                 };
-                GUI::select_menu("电子书设置", ebook_set);
+                int res = 0;
+                bool end = false;
+                while (!end){
+                    res = GUI::select_menu("电子书设置", ebook_set);
+                    switch (res)
+                    {
+                        case 0:
+                            end = true;
+                            break;
+                        case 3:
+                            hal.pref.putInt("auto_page", GUI::msgbox_number("输入时长s", 5, hal.pref.getInt("auto_page", 10)));
+                            break;
+                        default:
+                            GUI::info_msgbox("错误", "无效的选项");
+                            break;
+                    }
+                }
             }
             break;
         case 16:
@@ -959,6 +983,19 @@ void AppSettings::menu_other()
         case 18:
             {
                 hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
+            }
+            break;
+        case 20:
+            {
+                int voltage = GUI::msgbox_number("输入计算起点电压", 4, hal.pref.getInt("soc_voltage", 2900));
+                if (voltage < 2900){
+                    voltage = 2900;
+                    GUI::msgbox("提示", "电压不能小于2900mV，已自动设置为最低值2900mV");}
+                if (voltage > 3700){
+                    voltage = 3700;
+                    GUI::msgbox("提示", "电压不能大于3700mV，已自动设置为最高值3700mV");}
+                hal.pref.putInt("soc_voltage", voltage);
+                hal.pref.putUChar("soc_10%", (uint8_t)((4220 - voltage) / 13));
             }
             break;
         default:

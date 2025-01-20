@@ -430,9 +430,9 @@ uint8_t TinyGPSTime::hour()
 {
    updated = false;
    uint8_t hour = time / 10000000;
-   hour = hour + 7;
-   if(hour > 23)
-      hour = hour - 24;
+  //  hour = hour + 7;
+  //  if(hour > 23)
+  //     hour = hour - 24;
    return hour;
 }
 

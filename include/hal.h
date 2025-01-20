@@ -45,6 +45,7 @@ public:
     int32_t upint = 2 * 60;                 // NTP同步间隔
     int32_t last_update_delta = 0x7FFFFFFF; // 上次更新时修正时间与实际时间的差值
     Preferences pref;
+    Preferences nvs_;
     int16_t VCC = 0;
     bool USBPluggedIn = false;
     bool isCharging = false;

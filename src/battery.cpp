@@ -85,7 +85,7 @@ const uint8_t *getBatteryIcon(bool forceEmptyIcon)
 }
 
 uint8_t getBatterysoc(){
-    uint8_t batsoc = (hal.VCC - 2900) / 100;
+    uint8_t batsoc = (hal.VCC - hal.pref.getInt("soc_voltage", 2900)) / hal.pref.getUChar("soc_10%", 100);
     if (batsoc > 13)
         batsoc = 13;
     return batsoc;

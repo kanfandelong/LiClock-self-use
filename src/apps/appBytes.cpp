@@ -58,7 +58,7 @@ float o = 1.0;
 uint16_t a;
 //String byteconut[4];
 uint64_t shuliang;
-char *wen = (char *)"/appdat/Bytes.bin";
+char *wen = (char *)"/dat/Bytes.bin";
 const char *textname;
 
 void AppBytes::set() {
@@ -226,7 +226,7 @@ void AppBytes::ceshi()
 void AppBytes::chaxun()
 {
     textname = GUI::fileDialog("选择文件");
-    config[Text] = textname;
+    config[Textfile] = textname;
     hal.saveConfig();
 }
 //菜单
@@ -471,7 +471,7 @@ const char* AppBytes::remove_path_prefix(const char* path, const char* prefix) {
 
 void AppBytes::setup()
 {
-    textname = config[Text];
+    textname = config[Textfile];
     display.clearScreen();
     GUI::drawWindowsWithTitle("数据", 0, 0, 296, 128);
     u8g2Fonts.setCursor(5,30);

@@ -53,16 +53,17 @@
     } \
     file_log.close(); \
   } while (0)
+
+
 // 下面这些尽量不要修改，因为改了不完全有效
 #define GRAPH_HEIGHT 37
 #define SAMPLE_COUNT 10
 #define SAMPLE_STEP 1
 #define PX_PER_SAMPLE (SCREEN_WIDTH / SAMPLE_STEP / (SAMPLE_COUNT - 2))
-#define DEFAULT_CONFIG "{\"p1\":\"116.3975,39.9091\",\"p2\":\"15\",\"p3\":\"1\",\"p4\":\"23:30\",\"p5\":\"05:00\",\"p6\":\"\",\"p7\":\"\",\"p8\":\"0\"}"
-#define TFmode "1"
-#define autontpsync "0"
-#define WeatherClocksource "0"
-#define Text "/dat/Bytes.bin"
+#define DEFAULT_CONFIG "{\"p1\":\"116.3975,39.9091\",\"p2\":\"15\",\"p3\":\"1\",\"p4\":\"23:30\",\"p5\":\"05:00\",\"p6\":\"\",\"p7\":\"\",\"p8\":\"0\",\"p9\":\"1\",\"p10\":\"1\",\"p11\":\"0\"}"
+#define TFmode "p9"
+#define autontpsync "p10"
+#define Textfile "p11"
 typedef struct
 {
     const uint8_t *data;

@@ -55,7 +55,7 @@ public:
     bool need_deepsleep = false;
 };
 RTC_DATA_ATTR uint32_t currentPage = -1; // 0:第一页
-RTC_DATA_ATTR bool ebook_run = false;
+RTC_DATA_ATTR bool ebook_run = false, gotonextpage = false;
 RTC_DATA_ATTR u8_t lightsleep_count = 0;
 static AppEBook app;
 static void appebook_exit()
@@ -188,8 +188,9 @@ void AppEBook::setup()
                 page_changed = true;
             }
         }
-        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true))
+        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true) || gotonextpage == true)
         {
+            if (gotonextpage)gotonextpage = false;
             if (GUI::waitLongPress(PIN_BUTTONR)){
                 Serial.println("打开菜单");
                 // 打开菜单
@@ -247,9 +248,15 @@ void AppEBook::setup()
             }
         }
         while_run = hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"));
-        if (exit_app || need_deepsleep){
+        if (need_deepsleep){
             need_deepsleep = false;
-            break;}
+            ebook_run = true;
+            gotonextpage = true;
+            appManager.noDeepSleep = false;
+            appManager.nextWakeup = 1;
+            return;
+            }
+        if (exit_app)break;
         ebook_run = true;
     }
     if (exit_app){
@@ -1331,7 +1338,7 @@ bool AppEBook::draw_page1(){
             }
         }
     }
-    if (partcount < 10)
+    if (partcount < hal.pref.getInt("display_count", 15))
     {
         display.display(true);
         ++partcount;
@@ -1481,7 +1488,7 @@ bool AppEBook::draw_page2(){
             }
         }
     }
-    if (partcount < 10)
+    if (partcount < hal.pref.getInt("display_count", 15))
     {
         display.display(true);
         ++partcount;
@@ -1670,7 +1677,7 @@ bool AppEBook::draw_page3(){
       u8g2Fonts.setCursor(1 + offset, i * 14 + 13);
       u8g2Fonts.print(txt[i]);
     }
-    if (partcount < 10)
+    if (partcount < hal.pref.getInt("display_count", 15))
     {
         display.display(true);
         ++partcount;
@@ -1786,6 +1793,7 @@ void AppEBook::openMenu()
         ebooksettings();
         break;
     default:
+        GUI::msgbox("错误", "无效的选项");
         break;
     }
 }
@@ -1800,6 +1808,7 @@ void AppEBook::ebooksettings(){
         {true, "反色显示"},
         {true, "使用备选txt解析程序1"},
         {true, "甘草索引程序"},
+        {false, "屏幕全刷间隔"},
         {false, NULL},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
@@ -1816,7 +1825,11 @@ void AppEBook::ebooksettings(){
             case 3:
                 hal.pref.putInt("auto_page", GUI::msgbox_number("输入时长s", 5, hal.pref.getInt("auto_page", 10)));
                 break;
+            case 8:
+                hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 5, hal.pref.getInt("display_count", 15)));
+                break;
             default:
+                GUI::info_msgbox("错误", "无效的选项");
                 break;
         }
     }
