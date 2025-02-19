@@ -50,13 +50,14 @@ public:
     size_t currentFileOffset = 0;
     char currentFilename[256];
     bool __eof = false;
-    bool file_fs_sd = false;
-    bool exit_app = false;
-    bool need_deepsleep = false;
+    bool file_fs_sd = false;    //文件是否位于TF卡上
+    bool exit_app = false;      //是否退出app
+    bool need_deepsleep = false;//在启用lightsleep时是否需要间歇性deepsleep（不进行此操作似乎会导致看门狗复位）
 };
 RTC_DATA_ATTR uint32_t currentPage = -1; // 0:第一页
-RTC_DATA_ATTR bool ebook_run = false, gotonextpage = false;
-RTC_DATA_ATTR u8_t lightsleep_count = 0;
+RTC_DATA_ATTR bool ebook_run = false;    //电子书运行标志 
+RTC_DATA_ATTR bool gotonextpage = false; //特殊情况自动下一页标志
+RTC_DATA_ATTR u8_t lightsleep_count = 0; //lightsleep次数
 static AppEBook app;
 static void appebook_exit()
 {
@@ -188,9 +189,8 @@ void AppEBook::setup()
                 page_changed = true;
             }
         }
-        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true) || gotonextpage == true)
+        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true || (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && hal.pref.getBool(hal.get_char_sha_key("自动翻页")))))
         {
-            if (gotonextpage)gotonextpage = false;
             if (GUI::waitLongPress(PIN_BUTTONR)){
                 Serial.println("打开菜单");
                 // 打开菜单
@@ -231,13 +231,18 @@ void AppEBook::setup()
                 esp_sleep_enable_timer_wakeup(hal.pref.getInt("auto_page", 10) * 1000000UL);
             }
             if (hal.btn_activelow){
+                esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0);
+                esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ALL_LOW);
                 gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
             }else{
-                if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true)
+                if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true){
+                    esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1);
+                    esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH);
                     gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL);
+                }else
+                    esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
             }
             esp_sleep_enable_gpio_wakeup();
-            hal.set_sleep_set_gpio_interrupt();
             log_i("进入lightsleep");
             esp_light_sleep_start();
             log_i("退出lightsleep");
@@ -248,15 +253,10 @@ void AppEBook::setup()
             }
         }
         while_run = hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"));
-        if (need_deepsleep){
+        if (exit_app || need_deepsleep){
             need_deepsleep = false;
-            ebook_run = true;
-            gotonextpage = true;
-            appManager.noDeepSleep = false;
-            appManager.nextWakeup = 1;
-            return;
-            }
-        if (exit_app)break;
+            break;
+        }
         ebook_run = true;
     }
     if (exit_app){
@@ -1729,8 +1729,9 @@ void AppEBook::openMenu()
 {
     const char *dayOfWeek[] = {"日", "一", "二", "三", "四", "五", "六"};
     int moth=hal.timeinfo.tm_mon + 1,d=hal.timeinfo.tm_mday,dw=hal.timeinfo.tm_wday,h=hal.timeinfo.tm_hour,m=hal.timeinfo.tm_min,s=hal.timeinfo.tm_sec;
-    char buf[64];
+    char buf[64], vbat[64];
     sprintf(buf,"当前时间:%d月%d日 星期%s %d:%d:%d",moth,d,dayOfWeek[dw],h,m,s);
+    sprintf(vbat, "电源电压：%.2fV", (float)hal.VCC / 1000.0);
     char *title = (char *)malloc(128);
     int totalPages = getTotalPages();
     sprintf(title, "%d/%d %d%%", currentPage + 1, totalPages, (currentPage + 1) * 100 / totalPages);
@@ -1740,8 +1741,9 @@ void AppEBook::openMenu()
         {NULL, "换文件.."},
         {NULL, "重建当前文件索引"},
         {NULL, "跳转到.."},
-        {NULL,buf},
+        {NULL, buf},
         {NULL, "设置"},
+        {NULL, vbat},
         {NULL, NULL},
     };
     int ret = GUI::menu(title, items);
@@ -1793,7 +1795,7 @@ void AppEBook::openMenu()
         ebooksettings();
         break;
     default:
-        GUI::msgbox("错误", "无效的选项");
+        GUI::msgbox("错误", "无效的选项,或此选项为空");
         break;
     }
 }

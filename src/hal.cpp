@@ -48,6 +48,9 @@ void task_hal_update(void *)
         delay(20);
     }
 }
+/**
+ * @brief 按键音任务函数
+ */
 void task_btn_buzzer(void *){
     bool buz_l = false, buz_r = false, buz_c = false;
     int buz_freq = hal.pref.getInt("btn_buz_freq", 150);
@@ -72,6 +75,133 @@ void task_btn_buzzer(void *){
         delay(50);
     }
 }
+
+#include "esp_wifi.h"
+/**
+ * @brief 连接WiFi并检查连接状态
+ * @param ssid 要连接的WiFi SSID
+ * @param pass 要连接的WiFi密码
+ * @return true表示连接成功，false表示连接失败
+ */
+bool HAL::connected_wifi(const char* ssid, const char* pass){
+    WiFi.begin(ssid, pass);
+    log_i("Connecting to %s", ssid);
+    unsigned long startAttemptTime = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+        delay(500);
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+        log_i("Connected to %s", ssid);
+        return true;
+    } else {
+        log_i("Connection failed");
+        return false;
+    }
+}
+/**
+ * @brief WIFI连接配置管理函数
+ * @details 尝试连接默认WiFi，如果失败，则搜索并连接已保存的WiFi，以及在配置新的WiFi时自动保存至配置文件中
+ * @note 如果默认WiFi连接失败，会尝试搜索并连接已保存的WiFi，如果失败，则会提示错误并返回false。如果连接成功，但PASS不匹配，则会更新JSON配置文件。
+ * @return true表示连接成功，false表示连接失败
+ */
+bool HAL::wifi_config_manger(){
+    bool isConnected = false;
+    isConnected = connected_wifi(config[PARAM_SSID].as<const char *>(), config[PARAM_PASS].as<const char *>());
+
+    if (!LittleFS.exists(wifi_config_file)){
+        File file = LittleFS.open(wifi_config_file, "w");
+        file.print(DEFAULT_WIFI_CONFIG);
+        file.close();
+    }
+    // 读取JSON配置文件
+    File configFile = LittleFS.open(wifi_config_file);
+    if (!configFile) {
+        Serial.println("Failed to open file for reading");
+        return false;
+    }
+
+    StaticJsonDocument<2048> wifi_config;
+    deserializeJson(wifi_config, configFile);
+    configFile.close();
+
+    if (!isConnected) {
+        GUI::info_msgbox("错误", "默认WIFI连接失败，开始尝试保存过的可用WIFI");
+        // 如果默认连接失败，搜索并连接已保存的WIFI
+        JsonArray networks = wifi_config["networks"];
+        WiFi.disconnect();
+        int n = WiFi.scanNetworks(); // 扫描周围的WiFi网络
+        if (n == 0) {
+            log_w("没有找到可用的WiFi网络");
+            GUI::info_msgbox("错误", "没有找到可用的WiFi网络");
+            delay(3000);
+            return false;
+        } else {
+            for (JsonObject network : networks) {
+                const char* ssid = network["ssid"];
+                const char* pass = network["pass"];
+                for (int i = 0; i < n; ++i) {
+                    if (strcmp(WiFi.SSID(i).c_str(), ssid) == 0) {
+                        isConnected = connected_wifi(ssid, pass);
+                        if (isConnected) {
+                            config[PARAM_SSID] = ssid;
+                            config[PARAM_PASS] = pass;
+                            saveConfig();
+                            char buf[128];
+                            sprintf(buf, "成功连接：%s,默认WiFi已切换至此WiFi", WiFi.SSID().c_str());
+                            GUI::info_msgbox("成功", buf);
+                            break;
+                        }
+                    }
+                }
+                if (isConnected) {
+                    break;
+                }
+            }
+        }
+    }
+
+    // 如果连接成功，但PASS不匹配，更新JSON配置文件
+    if (isConnected) {
+        String currentSSID = WiFi.SSID();
+        String currentPASS = WiFi.psk();
+        JsonArray networks = wifi_config["networks"];
+        bool found = false;
+        for (JsonObject network : networks) {
+            if (network["ssid"] == currentSSID) {
+                found = true;
+                if (network["pass"] != currentPASS) {
+                    network["pass"] = currentPASS;
+                    savewifiConfig(wifi_config);
+                } 
+                break;
+            }
+        }
+        if (!found) {
+            JsonObject newNetwork = networks.createNestedObject();
+            newNetwork["ssid"] = currentSSID;
+            newNetwork["pass"] = currentPASS;
+            savewifiConfig(wifi_config);
+        }
+    } else {
+        return false;
+    }
+    return true;
+}
+/**
+ * @brief 保存WiFi配置文件
+ * @param wifi_config 要保存的WiFi配置的json对象
+ */
+void HAL::savewifiConfig(StaticJsonDocument<2048>& wifi_config){
+    File configFile = LittleFS.open(wifi_config_file, "w");
+    if (!configFile)
+    {
+        Serial.println("Failed to open wifi config file for writing");
+        return;
+    }
+    serializeJson(wifi_config, configFile);
+    configFile.close();
+}
+
 void HAL::saveConfig()
 {
     File configFile = LittleFS.open("/System/config.json", "w");
@@ -129,8 +259,12 @@ void HAL::getTime()
     }
 }
 #include <esp32\rom\sha.h>
-    char key[16];
-    const char* ip;
+    char key[16];  // 存储经过SHA-256运算后结果的前15个字符
+/**
+ * @brief 计算字符串的SHA-256哈希值，并返回前15个字符组成的字符串
+ * @param str 要计算哈希值的字符串
+ * @return 返回前15个字符组成的字符串
+ */
 char* HAL::get_char_sha_key(const char *str){
     SHA_CTX ctx;
     uint8_t temp[32];
@@ -149,6 +283,10 @@ char* HAL::get_char_sha_key(const char *str){
     ets_sha_disable();
     return key;
 }
+/**
+ * @brief 获取当前设备的IP地址（根据WIFI模式自动切换获取）
+ * @return 返回IP地址
+ */
 IPAddress HAL::getip(){
     wifi_mode_t mode;
     mode = WiFi.getMode();
@@ -237,7 +375,9 @@ bool HAL::cheak_firmware_update(){
     log_i("结束固件更新状态检查");
     return true;
 }
-
+/**
+ * @brief 检查CPU频率，若低于80MHz则设置CPU频率为80MHz
+ */
 void HAL::cheak_freq()
 {
     int freq = ESP.getCpuFreqMHz();
@@ -571,8 +711,6 @@ bool HAL::init()
     bool timeerr = false;
     bool initial = true;
     Serial.begin(115200);
-    setenv("TZ", "CST-8", 1);
-    tzset();
     // 读取时钟偏移
     pref.begin("clock");
     //int init_nvs = nvs_.begin("info", false, "nvs2");
@@ -640,13 +778,6 @@ bool HAL::init()
         else {ESP_LOGI("hal", "err");}
     }
 
-    getTime();
-    if ((timeinfo.tm_year < (2016 - 1900)))
-    {
-        timeerr = true;              // 需要同步时间
-        pref.putUInt("lastsync", 1); // 清除上次同步时间，但不清除时钟偏移信息
-        lastsync = 1;
-    }
     if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED)
         initial = false;
     // 下面进行初始化
@@ -718,6 +849,8 @@ bool HAL::init()
         F_LOG("复位为DeepSleep,唤醒源:%d", esp_sleep_get_wakeup_cause());
     }
     loadConfig();
+    setenv("TZ", config[Time_Zone].as<const char *>(), 1);
+    tzset();
     peripherals.init();
     weather.begin();
     buzzer.init();
@@ -725,11 +858,42 @@ bool HAL::init()
     if (hal.pref.getBool(get_char_sha_key("按键音"), false))
         xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
+    getTime();
+    if ((timeinfo.tm_year < (2016 - 1900)))
+    {
+        timeerr = true;              // 需要同步时间
+        pref.putUInt("lastsync", 1); // 清除上次同步时间，但不清除时钟偏移信息
+        lastsync = 1;
+    }
     if (initial == false && timeerr == false)
     {
         return false;
     }
     return true;
+}
+
+void HAL::rtc_offset(){
+    // 计算时间间隔Δt（秒）
+    //time_t deltaT = currentSync - previousSync;
+    time_t deltaT = pref.getInt("every", 0);
+    if (deltaT <= 0) return; // 避免除以零或负数
+    
+    // DS3231的误差ΔT（秒）
+    // 负数代表DS3231慢于实际时间，正数代表DS3231快于实际时间
+    time_t error = pref.getInt("rtc_offset", 0);
+    
+    // 计算误差率（ppm）
+    double errorRate_ppm = (error / (double)deltaT) * 1e6;
+    
+    // 调整振荡器的频率。每个LSB代表大约0.12ppm的频率变化，正值会减慢时间基准，负值会加快时间基准
+    // 计算校准值offset（注意符号方向）
+    int8_t offset = round(-errorRate_ppm / 0.12); // 负号修正误差方向
+    
+    // 限制offset在±127范围内
+    offset = constrain(offset, -127, 127);
+    
+    // 写入Aging Offset寄存器
+    peripherals.rtc.writeOffset(offset);
 }
 
 bool HAL::autoConnectWiFi(bool need_wifi_config)
@@ -749,18 +913,28 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     {
         WiFi.setHostname("weatherclock");
         WiFi.mode(WIFI_STA);
-        WiFi.begin(config[PARAM_SSID].as<const char *>(), config[PARAM_PASS].as<const char *>());
-    }
-    if (!WiFi.isConnected())
-    {
-        if (WiFi.waitForConnectResult(20000) != WL_CONNECTED)
+        // WiFi.begin(config[PARAM_SSID].as<const char *>(), config[PARAM_PASS].as<const char *>());
+        if (!wifi_config_manger())
         {
             if (need_wifi_config)
                 hal.ReqWiFiConfig();
             else
                 return false;
         }
+        if (esp_wifi_set_max_tx_power(hal.pref.getUChar("wifitxpower", 78)) != ESP_OK)
+        F_LOG("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+        log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
     }
+    // if (!WiFi.isConnected())
+    // {
+    //     if (WiFi.waitForConnectResult(20000) != WL_CONNECTED)
+    //     {
+    //         if (need_wifi_config)
+    //             hal.ReqWiFiConfig();
+    //         else
+    //             return false;
+    //     }
+    // }
     F_LOG("成功连接:%s", WiFi.SSID().c_str());
     F_LOG("IP:%s", WiFi.localIP().toString().c_str());
     F_LOG("MAC:%s", WiFi.macAddress().c_str());
@@ -774,10 +948,10 @@ void HAL::searchWiFi()
     ESP_LOGI("hal", "searchWiFi");
     cheak_freq();
     WiFi.mode(WIFI_STA);
-    hal.numNetworks = WiFi.scanNetworks();
+    hal.numNetworks = WiFi.scanNetworks(false, false, false, 500);
     if(hal.numNetworks == 0)
     {
-        hal.numNetworks = WiFi.scanNetworks();
+        hal.numNetworks = WiFi.scanNetworks(false, false, false, 500);
         if(hal.numNetworks == 0)
         {
             Serial.printf("没有搜索到WIFI");

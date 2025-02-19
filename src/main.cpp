@@ -21,7 +21,7 @@ void setup()
     hal.init();
     hal.update();
     esp_reset_reason_t reset_reason = esp_reset_reason();
-    if(reset_reason == ESP_RST_POWERON)
+    if(reset_reason == ESP_RST_POWERON && config[autontpsync] == "1")
     {
         GUI::info_msgbox("提示", "正在对时...");
         hal.autoConnectWiFi();

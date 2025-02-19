@@ -42,7 +42,9 @@ static const menu_select settings_menu_time[] =
 static const menu_item settings_menu_network[] =
     {
         {NULL, "返回上一级"},
+        {NULL, "选择默认WiFi"},
         {NULL, "搜索周围的WIFI"},
+        {NULL, "设置WiFi发射功率"},
         {NULL, "ESPTouch配网"},
         {NULL, "启动HTTP服务器"},
         {NULL, "ESPNow设备扫描"},
@@ -120,6 +122,13 @@ public:
     void cheak_config(char *a);
     void menu_SWQ();
     void menu_DS3231();
+private:
+    void show_wifi_power_set()
+    {
+        char buf[128];
+        sprintf(buf, "已将WiFi发射功率设置为:%.2f dbm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+        GUI::msgbox("提示", buf);
+    }
 };
 static AppSettings app;
 void AppSettings::set(){
@@ -230,7 +239,7 @@ void AppSettings::setup()
             u8g2Fonts.setCursor(5,90);
             u8g2Fonts.printf("屏幕类型:EPD  屏幕分辨率:296X128 CPU_freq:%uMHz", getCpuFrequencyMhz());
             u8g2Fonts.setCursor(5,105);
-            u8g2Fonts.printf("原作者:小李电子实验室 chip model:%s", ESP.getChipModel());
+            u8g2Fonts.printf("电池容量:1000mAh chip model:%s", ESP.getChipModel());
             u8g2Fonts.drawUTF8(5,120,"原开源程序网址:https://github.com/diylxy/LiClock");
             display.display();
             hal.wait_input();
@@ -484,10 +493,86 @@ void AppSettings::menu_network()
             break;
         case 1:
             {
+                if (!LittleFS.exists(wifi_config_file)){
+                    File file = LittleFS.open(wifi_config_file, "w");
+                    file.print(DEFAULT_WIFI_CONFIG);
+                    file.close();
+                }
+                // 读取JSON配置文件
+                File configFile = LittleFS.open(wifi_config_file);
+                if (!configFile) {
+                    Serial.println("Failed to open file for reading");
+                }
+
+                StaticJsonDocument<1024> wifi_list;
+                deserializeJson(wifi_list, configFile);
+                configFile.close();
+                JsonArray networks = wifi_list["networks"];
+                int i = 0, j = 1;
+                for (JsonObject network : networks) {
+                    i++;
+                }
+                menu_item *_wifi_list = new menu_item[i + 2];
+                char pass[i][32];
+                _wifi_list[0].title = "返回";
+                _wifi_list[0].icon = NULL;
+                JsonArray wifi = wifi_list["networks"];
+                for (JsonObject network : wifi) {
+                    _wifi_list[j].title = network["ssid"].as<const char*>();
+                    strcpy(pass[j - 1], network["pass"].as<const char*>());
+                    _wifi_list[j].icon = NULL;
+                    j++;
+                }
+                _wifi_list[i + 1].title = NULL;
+                _wifi_list[i + 1].icon = NULL;
+                int res = 0;
+                bool end = false;
+                while (end == false && hasToApp == false)
+                {
+                    res = GUI::menu("WiFi列表", _wifi_list);
+                    if(res == 0)
+                    {    
+                        delete[] _wifi_list;    
+                        end = true;
+                        break;
+                    }else{
+                        config[PARAM_SSID] = _wifi_list[res].title;
+                        config[PARAM_PASS] = pass[res - 1];
+                        char buf[256];
+                        sprintf(buf, "已将默认WiFi配置为: \nSSID: %s\nPASS: %s\n下次连接时将使用新的配置", _wifi_list[res].title, pass[res - 1]);
+                        hal.saveConfig();
+                        hal.loadConfig();
+                        delete[] _wifi_list;
+                        GUI::msgbox("WiFi设置", buf);
+                        break;  
+                    }     
+                
+                }
+            }  
+            break;
+        case 2:
+            {
+            GUI::info_msgbox("WiFi搜索", "正在搜索WiFi...");
+            static const uint8_t WIFI_5_bits[] = {
+                0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x80, 0x02, 0x80, 0x02, 0xa0, 0x02,
+                0xa0, 0x02, 0xa8, 0x02, 0xa8, 0x02, 0xaa, 0x02, 0xaa, 0x02, 0x00, 0x00 };
+            static const uint8_t WIFI_4_bits[] = {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x80, 0x00, 0xa0, 0x00,
+                0xa0, 0x00, 0xa8, 0x00, 0xa8, 0x00, 0xaa, 0x00, 0xaa, 0x00, 0x00, 0x00 };  
+            static const uint8_t WIFI_3_bits[] = {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00,
+                0x20, 0x00, 0x28, 0x00, 0x28, 0x00, 0x2a, 0x00, 0x2a, 0x00, 0x00, 0x00 };
+            static const uint8_t WIFI_2_bits[] = {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x08, 0x00, 0x08, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x00, 0x00 };
+            static const uint8_t WIFI_1_bits[] = {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00 };
             WiFi.mode(WIFI_STA);
             hal.searchWiFi();
             Serial.printf("搜索到的个数:%d",hal.numNetworks);
             char winfo[hal.numNetworks][64];
+            int rssis[hal.numNetworks];
             char _ssid[hal.numNetworks][64];
             if(hal.numNetworks != 0)
             {
@@ -497,6 +582,7 @@ void AppSettings::menu_network()
                     char ssidArray[ssid.length() + 1]; // +1 是为了包含字符串末尾的 null 字符
                     ssid.toCharArray(ssidArray, sizeof(ssidArray));
                     sprintf(winfo[i],"%s %d",ssidArray,WiFi.RSSI(i));
+                    rssis[i] = WiFi.RSSI(i);
                     sprintf(_ssid[i],"%s",ssidArray);
                 }
             }
@@ -506,7 +592,18 @@ void AppSettings::menu_network()
             for(int i = 1;i < hal.numNetworks + 1;i++)
             {
                 WiFi_list[i].title = winfo[i - 1];
-                WiFi_list[i].icon = NULL;
+                if (rssis[i - 1] > -55)
+                    WiFi_list[i].icon = WIFI_5_bits;
+                else if (rssis[i - 1] >= -66)
+                    WiFi_list[i].icon = WIFI_4_bits;
+                else if (rssis[i - 1] >= -77)
+                    WiFi_list[i].icon = WIFI_3_bits;
+                else if (rssis[i - 1] >= -88)
+                    WiFi_list[i].icon = WIFI_2_bits;
+                else if (rssis[i - 1] >= -99)
+                    WiFi_list[i].icon = WIFI_1_bits;
+                else
+                    WiFi_list[i].icon = NULL;
             }
             WiFi_list[hal.numNetworks + 1].title = NULL;
             WiFi_list[hal.numNetworks + 1].icon = NULL;
@@ -514,7 +611,7 @@ void AppSettings::menu_network()
             bool end = false;
             while (end == false && hasToApp == false)
             {
-                res = GUI::menu("部分扫描到的WIFI",WiFi_list);
+                res = GUI::menu("扫描到的WIFI", WiFi_list, 12, 12);
                 if(res == 0)
                 {    
                     delete[] WiFi_list;    
@@ -530,23 +627,110 @@ void AppSettings::menu_network()
             WiFi.mode(WIFI_OFF);
             }
             break;
-        case 2:
+
+        case 3:
+            {
+                static const menu_item wifi_power[] = {
+                    {NULL, "返回"},
+                    {NULL, "自定义"},
+                    {NULL, "19.5dbm"},
+                    {NULL, "19dbm"},
+                    {NULL, "18.5dbm"},
+                    {NULL, "17dbm"},
+                    {NULL, "15dbm"},
+                    {NULL, "13dbm"},
+                    {NULL, "11dbm"},
+                    {NULL, "8.5dbm"},
+                    {NULL, "7dbm"},
+                    {NULL, "5dbm"},
+                    {NULL, "2dbm"},
+                    {NULL, NULL}
+                };
+                int res = 0;
+                bool end = false;
+                while (end == false && hasToApp == false)
+                {
+                    res = GUI::menu("WiFi发射功率设置", wifi_power);
+                    switch(res){
+                        case 0:
+                            end = true;
+                            break;
+                        case 1:
+                            {
+                                uint wifitxpower = GUI::msgbox_number("[8,84],0.25dbm", 2, hal.pref.getUChar("wifitxpower", 78));
+                                hal.pref.putUChar("wifitxpower", wifitxpower);
+                                show_wifi_power_set();
+                            }
+                            break;
+                        case 2:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_19_5dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 3:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_19dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 4:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_18_5dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 5:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_17dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 6:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_15dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 7:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_13dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 9:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_11dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 10:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_8_5dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 11:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_7dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 12:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_5dBm);
+                            show_wifi_power_set();
+                            break;
+                        case 13:
+                            hal.pref.putUChar("wifitxpower", WIFI_POWER_2dBm);
+                            show_wifi_power_set();
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            break;
+        case 4:
             // ESPTouch配网
             hal.WiFiConfigSmartConfig();
             break;
-        case 3:
+        case 5:
             // 启动HTTP服务器
             toApp = "webserver";
             hasToApp = true;
             end = true;
             break;
-        case 4:
-            // ESPNow设备扫描
-            break;
-        case 5:
-            // 蓝牙扫描
-            break;
         case 6:
+            // ESPNow设备扫描
+            GUI::msgbox("提示", "ESPNow设备扫描功能未实现");
+            break;
+        case 7:
+            // 蓝牙扫描
+            GUI::msgbox("提示", "蓝牙扫描功能未实现");
+            break;
+        case 8:
             // 退出Bilibili账号
             if (LittleFS.exists("/blCookies.txt"))
             {
@@ -560,7 +744,7 @@ void AppSettings::menu_network()
                 break;
             }
             break;
-        case 7:
+        case 9:
             {
                 String ssid = config[PARAM_SSID].as<String>();
                 String pass = config[PARAM_PASS].as<String>();
@@ -587,7 +771,7 @@ void AppSettings::menu_network()
                 hal.wait_input();
             }
             break;
-        case 8:
+        case 10:
             {
                 String str1, str2;
                 bool wifi = hal.autoConnectWiFi(false);
@@ -1070,13 +1254,15 @@ void AppSettings::menu_SWQ()
     static const menu_item settings_menu_DS3231_SWQ[] =
     {
         {NULL,"返回"},
-        {NULL,"使能设置"},
-        {NULL,"后备电源是否工作"},
+        {NULL,"后备电源振荡器使能设置"},
+        {NULL,"后备电源1Hz输出"},
         {NULL,"频率设置"},
+        {NULL,"1Hz方波输出"},
         {NULL,NULL},
     };
                             int res = 0;
                             bool end = false;
+                            while (!end){
                             res = GUI::menu("振荡器设置", settings_menu_DS3231_SWQ);
                             bool tf;
                             bool bat;
@@ -1090,12 +1276,12 @@ void AppSettings::menu_SWQ()
                                     end = true;
                                     break;
                                 case 1:
-                                    tf = GUI::msgbox_yn("振荡器使能设置","是否开启振荡器","开启","关闭");
+                                    tf = GUI::msgbox_yn("振荡器使能设置","使用后备电源是否开启振荡器","开启","关闭");
                                     hal.pref.putBool("tf", tf);
                                     Srtc.enableOscillator(tf,bat,frequency);
                                     break;
                                 case 2:
-                                    bat = GUI::msgbox_yn("后备电源是否工作","在只有备用电源时振荡器是否工作","开启","关闭");
+                                    bat = GUI::msgbox_yn("后备电源是否工作","在只有备用电源时1Hz是否输出","开启","关闭");
                                     hal.pref.putBool("bat", bat);
                                     Srtc.enableOscillator(tf,bat,frequency);
                                     break;
@@ -1105,8 +1291,14 @@ void AppSettings::menu_SWQ()
                                     hal.pref.putInt("frequency", frequency);
                                     Srtc.enableOscillator(tf,bat,frequency);
                                     break;
+                                case 4:
+                                    {
+                                        bool TF = GUI::msgbox_yn("1Hz方波输出","是否开启1Hz方波输出","开启","关闭");
+                                        Srtc.enable1Hz(TF);
+                                    }
                                 default:
                                     break;
+                            }
                             }
                             
 }
@@ -1116,6 +1308,7 @@ void AppSettings::menu_DS3231()
                 {
                     {NULL,"返回"},
                     {NULL,"偏移量读取"},
+                    {NULL,"设置偏移量"},
                     {NULL,"振荡器设置"},
                     {NULL,"时间格式设置"},
                     {NULL,"读取芯片温度"},
@@ -1138,15 +1331,26 @@ void AppSettings::menu_DS3231()
                     case 1:
                         {
                             int8_t offset=Srtc.readOffset();
-                            char buf[35];
-                            sprintf(buf,"1lsb=0.1ppm@25°C\n偏移量：%d",offset);
-                            GUI::msgbox("晶振偏移量",buf);
+                            char buf[128];
+                            sprintf(buf,"1lsb≈0.12ppm@25°C\n偏移量：%d\n间隔%d秒%s%d秒", offset, hal.pref.getInt("every", 100), hal.pref.getInt("rtc_offset", 0) < 0 ? "慢" : "快", abs(hal.pref.getInt("rtc_offset", 0)));
+                            GUI::msgbox("DS3231设置",buf);
                         }
                         break;
                     case 2:
-                        menu_SWQ();
+                        {
+                            int offset = peripherals.rtc.readOffset();
+                            offset = GUI::msgbox_number("输入偏移量", 3, offset);
+                            if (!(offset <128 && offset > -128)){
+                                offset = 0;
+                                GUI::msgbox("提示","偏移量超出范围\n-127~127\n已重置为0");
+                            }
+                            peripherals.rtc.writeOffset((int8_t)offset);
+                        }
                         break;
                     case 3:
+                        menu_SWQ();
+                        break;
+                    case 4:
                         if(GUI::msgbox_yn("时间格式","设置DS3231的时间格式","24h","12h"))
                         {
                             Srtc.setClockMode(false);
@@ -1156,7 +1360,7 @@ void AppSettings::menu_DS3231()
                             Srtc.setClockMode(true);
                         }
                         break;
-                    case 4:
+                    case 5:
                         {
                             float c=Srtc.getTemperature();
                             char buf[30];
@@ -1164,7 +1368,7 @@ void AppSettings::menu_DS3231()
                             GUI::msgbox("芯片温度",buf);
                         }
                         break;
-                    case 5:
+                    case 6:
                         {
                             char buf[60];
                             sprintf(buf, "20%d年%d月%d日 星期%d %d:%d:%d",Srtc.getYear(),Srtc.getMonth(),Srtc.getDate(),Srtc.getDoW(),Srtc.getHour(),Srtc.getMinute(),Srtc.getSecond());
@@ -1172,7 +1376,7 @@ void AppSettings::menu_DS3231()
                             GUI::msgbox("DS3231时间", buf);
                         }
                         break;
-                    case 6:
+                    case 7:
                         {
                             if(Srtc.oscillatorCheck())
                             {
@@ -1184,7 +1388,7 @@ void AppSettings::menu_DS3231()
                             }
                         }
                         break;
-                    case 7:
+                    case 8:
                         {
                             Srtc.setSecond(GUI::msgbox_number("输入秒",2,0));
                             Srtc.setMinute(GUI::msgbox_number("输入分",2,0));
@@ -1195,7 +1399,7 @@ void AppSettings::menu_DS3231()
                             Srtc.setYear(GUI::msgbox_number("输入年的后两位",2,0));
                         }
                         break;
-                    case 8:
+                    case 9:
                         Srtc.enable32kHz(GUI::msgbox_yn("使能32.786KHZ","","开启","关闭"));
                         break;
                     default:

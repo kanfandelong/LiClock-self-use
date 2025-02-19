@@ -4,6 +4,26 @@
 #define RXD_2 36
 #define TXD_2 32
 #define GPS_POWER TXD_2
+// 存储上一个点的经纬度
+double previousLat = 0.0;
+double previousLng = 0.0;
+
+// 总距离
+double totalDistance = 0.0;
+
+// 地球半径（单位：公里）
+const double earthRadius = 6371.0;
+
+// GPS信号丢失状态
+bool gpsSignalLost = false;
+unsigned long signalLostTime = 0;
+const unsigned long signalLostThreshold = 5000; // 信号丢失阈值（5秒）
+
+// 任务句柄
+TaskHandle_t distanceTaskHandle = NULL;
+
+// 标志位，用于控制任务是否运行
+volatile bool isRunning = true;
 
 static const uint8_t gps_bits[] = {
    0x00, 0xf0, 0x0f, 0x00, 0x00, 0xfc, 0x3f, 0x00, 0x00, 0x1e, 0x78, 0x00,
@@ -24,6 +44,7 @@ TinyGPSCustom numsv(gps, "GPGSV", 3);
 RTC_DATA_ATTR bool has_buffer = false;
 bool menu_open = false;
 bool while_end = true;
+bool task_end = false;
 u32_t failedChecksum_last = 0;
 int part_update = 0;
 
@@ -36,6 +57,7 @@ static const menu_item menu_GPS[] =
     {NULL,"接收机模式"},
     {NULL,"数据更新频率"},
     {NULL,"接收机供电模式"},
+    {NULL,"清空里程数据"},
     {NULL,NULL},
 };
 void buffer_handler(void *){
@@ -45,14 +67,18 @@ void buffer_handler(void *){
         {
             gps.encode(Serial1.read());
         }
+        if (task_end)
+            vTaskDelete(NULL);
         delay(1);
     }
 }
 static void appgps_exit(){
+    task_end = true;
     Serial1.end();
     digitalWrite(GPS_POWER, LOW);
     gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_DEFAULT);
     pinMode(GPS_POWER, INPUT);
+    hal.pref.putDouble("totalDistance", totalDistance);
 }
 void IRAM_ATTR RXD_interrupt(){
     if (Serial1.available())
@@ -77,6 +103,7 @@ public:
         image = gps_bits;
     }
     void set();
+    double calculateDistance(double lat1, double lng1, double lat2, double lng2);
     void GPS_restart();
     void GPS_band();
     void GPS_mode();
@@ -87,9 +114,92 @@ public:
     void setup();
 };
 static AppGps app;
+
+void distanceCalculationTask(void *parameter) {
+  while (1) {
+    // 检查GPS信号是否丢失
+    if (!gps.location.isValid() || gps.satellites.value() == 0) {
+      if (!gpsSignalLost) {
+        gpsSignalLost = true;
+        signalLostTime = millis(); // 记录信号丢失的时间
+      } else if (millis() - signalLostTime > signalLostThreshold) {
+        // Serial.println("GPS signal lost for too long, using speed estimation.");
+        isRunning = false; // 暂停正常距离计算，启用速度预估
+      }
+
+      // 如果GPS信号丢失且启用了速度预估
+      if (!isRunning && gps.speed.isValid()) {
+        double speed = gps.speed.kmph(); // 获取速度（单位：公里/小时）
+        double timeElapsed = 1.0; // 假设1秒更新一次
+        double distance = (speed * timeElapsed) / 3600.0; // 计算距离（单位：公里）
+
+        // 估算新位置（简单直线运动模型）
+        double estimatedLat = previousLat + (distance / 111.32); // 纬度每度约111.32公里
+        double estimatedLng = previousLng + (distance / (111.32 * cos(radians(previousLat)))); // 经度每度距离随纬度变化
+
+        // 使用估算的位置进行计算
+        double calculatedDistance = app.calculateDistance(previousLat, previousLng, estimatedLat, estimatedLng);
+        totalDistance += calculatedDistance;
+
+        // 更新上一个点的经纬度
+        previousLat = estimatedLat;
+        previousLng = estimatedLng;
+
+        // Serial.print("Estimated Distance: ");
+        // Serial.print(calculatedDistance, 6);
+        // Serial.print(" km, Total Distance: ");
+        // Serial.print(totalDistance, 6);
+        // Serial.println(" km");
+      }
+    } else {
+      if (gpsSignalLost) {
+        gpsSignalLost = false;
+        isRunning = true; // 恢复正常距离计算
+        // Serial.println("GPS signal restored!");
+      }
+
+      // 如果任务正在运行，计算距离
+      if (isRunning) {
+        double currentLat = gps.location.lat();
+        double currentLng = gps.location.lng();
+
+        if (previousLat != 0.0 && previousLng != 0.0) {
+          double distance = app.calculateDistance(previousLat, previousLng, currentLat, currentLng);
+          totalDistance += distance;
+        //   Serial.print("Distance: ");
+        //   Serial.print(distance, 6);
+        //   Serial.print(" km, Total Distance: ");
+        //   Serial.print(totalDistance, 6);
+        //   Serial.println(" km");
+        }
+
+        // 更新上一个点的经纬度
+        previousLat = currentLat;
+        previousLng = currentLng;
+      }
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS); // 任务延迟1秒
+  }
+}
 void AppGps::set(){
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
+
+// 计算两点之间的距离（单位：公里）
+double AppGps::calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+  double dLat = radians(lat2 - lat1);
+  double dLng = radians(lng2 - lng1);
+
+  double a = sin(dLat / 2) * sin(dLat / 2) +
+             cos(radians(lat1)) * cos(radians(lat2)) *
+             sin(dLng / 2) * sin(dLng / 2);
+
+  double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+  return earthRadius * c;
+}
+
 static const menu_item menu_GPS_reset[] =
 {
     {NULL,"返回"},
@@ -264,6 +374,12 @@ void AppGps::GPS_menu(){
                 digitalWrite(GPS_POWER, HIGH);
             }
         break;
+        case 7:
+            {
+                totalDistance = 0.0;
+                GUI::msgbox("提示", "已重置总里程为0");
+            }
+        break;
         default:
             GUI::info_msgbox("警告", "非法的输入值");
         break;
@@ -344,13 +460,13 @@ void AppGps::display_show(){
     u8g2Fonts.setCursor(2, 28);
     u8g2Fonts.printf("正在使用的卫星数:%02d 可见卫星数:%s", gps.satellites.value(), numsv.value());
     u8g2Fonts.setCursor(2, 42);
-    u8g2Fonts.printf("经度:%.6f° 纬度:%.6f°", gps.location.lng(), gps.location.lat());
+    u8g2Fonts.printf("经度:%.6f° 纬度:%.6f°", previousLng, previousLat);
     u8g2Fonts.setCursor(2, 56);
     u8g2Fonts.printf("速度:%.2f m/s %.2f km/h 海拔高度:%.2fm", gps.speed.mps(), gps.speed.kmph(), gps.altitude.meters());
     u8g2Fonts.setCursor(2, 70);
     u8g2Fonts.printf("航向:%.2f° %s 水平精度递减:%d", gps.course.deg(), get_fangxiang(gps.course.deg()), gps.hdop.value());
     u8g2Fonts.setCursor(2, 84);
-    u8g2Fonts.printf("授时时间:%d.%d.%d %02d:%02d:%02d", gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second());
+    u8g2Fonts.printf("授时时间:%d.%d.%d %02d:%02d:%02d 总里程：%.3fKm", gps.date.year(), gps.date.month(), gps.date.day(), gps.time.hour(), gps.time.minute(), gps.time.second(), totalDistance);
     u8g2Fonts.setCursor(2, 98);
     u8g2Fonts.printf("接收字节数:%d 校验通过语句:%d", gps.charsProcessed(), gps.passedChecksum());
     u8g2Fonts.setCursor(2, 112);
@@ -365,6 +481,7 @@ void AppGps::display_show(){
 }    
 void AppGps::setup(){
     exit = appgps_exit;
+    totalDistance = hal.pref.getDouble("totalDistance", 0.0);
     display.clearScreen();
     GUI::drawWindowsWithTitle("定位系统信息");
     display.display();
@@ -380,7 +497,16 @@ void AppGps::setup(){
     }
     //attachInterrupt(digitalPinToInterrupt(RXD_2), RXD_interrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(PIN_BUTTONC), button_interrupt, FALLING);
-    xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 8192, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 4096, NULL, 5, NULL, 0);
+      // 创建距离计算任务
+    xTaskCreate(
+        distanceCalculationTask, // 任务函数
+        "Distance Calculation",  // 任务名称
+        4096,                   // 任务堆栈大小
+        NULL,                   // 任务参数
+        4,                      // 任务优先级
+        &distanceTaskHandle     // 任务句柄
+    );
     //hal.task_buffer_handler();
     while(while_end)
     {

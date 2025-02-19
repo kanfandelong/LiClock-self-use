@@ -40,6 +40,7 @@ public:
 
     // 32-bit times as seconds since 1/1/2000
     long secondstime() const;
+	void gettime_rtc();
     // 32-bit times as seconds since 1/1/1970
     // THE ABOVE COMMENT IS CORRECT FOR LOCAL TIME; TO USE THIS COMMAND TO
     // OBTAIN TRUE UNIX TIME SINCE EPOCH, YOU MUST CALL THIS COMMAND AFTER
@@ -181,7 +182,8 @@ class DS3231 {
 			// 3 = 8.192 kHz (Default if frequency byte is out of range);
 		void enable32kHz(bool TF); 
 			// Turns the 32kHz output pin on (true); or off (false).
-		bool oscillatorCheck();;
+		void enable1Hz(bool TF);
+		bool oscillatorCheck();
 			// Checks the status of the OSF (Oscillator Stop Flag);.
 			// If this returns false, then the clock is probably not
 			// giving you the correct time.

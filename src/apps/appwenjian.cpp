@@ -27,14 +27,17 @@ static const uint8_t wenjian_bits[] = {
 #define BYTES_PER_PAGE  (LINES_PER_PAGE * BYTES_PER_LINE)  // 每页显示n行，每行n个字节
 
 
-const char *filename;
-const char *filepath;
-const char *file_name;
+const char *filename; //保存从文件选择的完整文件名
+const char *filepath; //保存文件夹
 
 class Appwenjian : public AppBase
 {
 private:
-    /* data */
+    /**
+     * 16进制文件查看器，页绘制函数
+     * @param file 文件对象
+     * @param page 页码
+     */
     void displayPage(File &file, int page) {
         // 计算当前页面的起始字节
         uint32_t startByte = page * BYTES_PER_PAGE;
@@ -89,6 +92,10 @@ private:
 
         display.display(true);
     }
+    /**
+     * 16进制文件查看器
+     * @note 函数使用全局变量 filename 获取处理的文件
+     */
     void openbin(){
         File file;
         if (strncmp(filename, "/sd/", 4) == 0) {
@@ -208,6 +215,12 @@ bool hasToApp = false;
 void Appwenjian::set(){
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
+/**
+ * 获取指定文件大小
+ * @param filePath 文件路径
+ * @param fromTF 文件是否在TF卡
+ * @return 文件大小（字节）
+ */
 int Appwenjian::getFileSize(const char* filePath, bool fromTF)
 {
     File file;
@@ -520,7 +533,11 @@ void Appwenjian::setup()
 
 
 char fullPath[300];
-
+/**
+ * 文件名获取函数
+ * @param filePath 完整文件路径
+ * @return 文件名
+ */
 const char* Appwenjian::getFileName(const char* filePath) {
   // 找到最后一个斜杠的位置
   const char* lastSlash = strrchr(filePath, '/');
@@ -534,7 +551,12 @@ const char* Appwenjian::getFileName(const char* filePath) {
     return filePath;
   }
 }
-
+/**
+ * 文件路径拼接函数
+ * @param directory 目录路径
+ * @param fileName 文件名
+ * @return 完整文件路径
+ */
 const char* Appwenjian::combinePath(const char* directory, const char* fileName) {
 // 计算所需的缓冲区大小（目录长度 + 文件名长度 + 斜杠 + 结束符）
   size_t directoryLen = strlen(directory);
@@ -557,7 +579,12 @@ const char* Appwenjian::combinePath(const char* directory, const char* fileName)
   // 返回完整路径
   return fullPath;
 }
-
+/**
+ * 去除路径特定前缀函数
+ * @param path 完整路径
+ * @param prefix 特定前缀
+ * @return 去除前缀后的路径
+ */
 const char* Appwenjian::remove_path_prefix(const char* path, const char* prefix) {
     size_t prefix_len = strlen(prefix);
     size_t path_len = strlen(path);
@@ -570,7 +597,11 @@ const char* Appwenjian::remove_path_prefix(const char* path, const char* prefix)
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
 }
-
+/**
+ * 获取目录路径函数】
+ * @param filePath 完整文件路径
+ * @return 目录路径
+ */
 const char* Appwenjian::getDirectoryPath(const char* filePath) {
     // 找到最后一个斜杠的位置
     const char* lastSlash = strrchr(filePath, '/');
@@ -587,7 +618,11 @@ const char* Appwenjian::getDirectoryPath(const char* filePath) {
         return "";
     }
 }
-
+/**
+ * 获取文件后缀函数
+ * @param filename 文件名
+ * @return 文件后缀
+ */
 const char* Appwenjian::get_houzhui(const char* filename) {
     const char* dot = strrchr(filename, '.'); // 找到最后一个 '.' 的位置
     if (!dot || dot == filename) { // 如果找不到 '.' 或者 '.' 是第一个字符
@@ -595,7 +630,9 @@ const char* Appwenjian::get_houzhui(const char* filename) {
     }
     return dot + 1; // 返回 '.' 后面的字符串，即后缀
 }
-
+/**
+ * 打开文件函数，将对应文件的处理或查看方式对应至对应的app
+ */
 void Appwenjian::openfile()
 {
     LOG("openfile,filename:%s\n",filename);
@@ -752,7 +789,11 @@ void Appwenjian::openfile()
         openbin();
     }
 }
-
+/**
+ * 文件夹选择菜单
+ * @param _file 控制函数打开的文件系统
+ * @note 使用全局变量 directoryname 返回选择的文件夹名称
+ */
 void Appwenjian::selctwenjianjia(bool _file)
 {
 

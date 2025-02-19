@@ -34,5 +34,13 @@ namespace GUI
     void drawJPG(String name, FS fs);
     bool epd_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint8_t* bitmap);
     // fileManager.cpp
+    /**
+     * @brief 文件选择器，注意，这个函数完全没有考虑线程安全，no reentrent!!!
+     * @param title 标题
+     * @param isApp 是否为lua应用选择
+     * @param endsWidth 文件尾缀筛选，默认不筛选，如果输入了文件尾缀，则只显示以该字符串结尾的文件
+     * @param gotoendsWidth 文件尾缀筛选，默认不筛选，如果输入了文件尾缀，则忽略以该字符串结尾的文件
+     * @return 返回文件名，如果返回NULL，则用户取消选择
+     */
     const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i");
 } // namespace GUI

@@ -171,6 +171,7 @@ namespace GUI
         // 160*100窗口，圆角5
         //constexpr int start_x = (296 - 160) / 2;
         //constexpr int start_y = (128 - 96) / 2;
+        int16_t x = u8g2Fonts.getCursorX(), y = u8g2Fonts.getCursorY();
         push_buffer();
         drawWindowsWithTitle(title, start_x, start_y, 160, 96);
         // 内容
@@ -181,6 +182,7 @@ namespace GUI
         }
         display.displayWindow(start_x, start_y, 160, 96);
         pop_buffer();
+        u8g2Fonts.setCursor(x, y);
     }
     /**
     * @brief  选择GUI  

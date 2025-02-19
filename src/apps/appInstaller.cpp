@@ -220,7 +220,6 @@ void AppInstaller::setup()
                 appManager.App_Preferences_init();
                 static const menu_select appMenu_select[] = {
                     {false, "返回"},
-                    {true, "随机算式"},
                     {true, "录音"},
                     {true, "定位"},
                     {true, "电源"},
@@ -235,6 +234,7 @@ void AppInstaller::setup()
                     {true, "电子书"},
                     {true, "贪吃蛇"},
                     {true, "仅时钟"},
+                    {true, "音频播放"},
                     {true, "天气时钟"},
                     {true, "APP管理"},
                     {true, "B站粉丝"},
@@ -242,6 +242,7 @@ void AppInstaller::setup()
                     {true, "天气预警"},
                     {true, "网页配置"},
                     {true, "文件管理"},
+                    {true, "DS18B20"},
                     {false, NULL},
                 };
                 GUI::select_menu("APP显示设置", appMenu_select);

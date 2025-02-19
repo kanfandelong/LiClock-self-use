@@ -141,7 +141,6 @@ static uint8_t conv2d(const char* p) {
         v = *p - '0';
     return 10 * v + *++p - '0';
 }
-
 // UNIX time: IS CORRECT ONLY WHEN SET TO UTC!!!
 uint32_t DateTime::unixtime(void) const {
   uint32_t t;
@@ -157,6 +156,23 @@ uint32_t DateTime::unixtime(void) const {
 static uint8_t bcd2bin (uint8_t val) { return val - 6 * (val >> 4); }
 static uint8_t bin2bcd (uint8_t val) { return val + 6 * (val / 10); }
 
+
+
+void DateTime::gettime_rtc(){
+  Wire.beginTransmission(CLOCK_ADDRESS);
+  Wire.write(0);	// This is the first register address (Seconds)
+  			// We'll read from here on for 7 bytes: secs reg, minutes reg, hours, days, months and years.
+  Wire.endTransmission();
+  
+  Wire.requestFrom(CLOCK_ADDRESS, 7);
+  ss = bcd2bin(Wire.read() & 0x7F);
+  mm = bcd2bin(Wire.read());
+  hh = bcd2bin(Wire.read());
+  Wire.read();
+  d = bcd2bin(Wire.read());
+  m = bcd2bin(Wire.read());
+  yOff = bcd2bin(Wire.read()) + 2000;
+}
 bool isleapYear(const uint8_t y) {
   if(y&3)//check if divisible by 4
     return false;
@@ -608,11 +624,11 @@ bool DS3231::checkAlarmEnabled(byte Alarm) {
 	}
 	return result;
 }
-
-bool DS3231::checkIfAlarm(byte Alarm) {
 	// Checks whether alarm 1 or alarm 2 flag is on, returns T/F accordingly.
 	// Turns flag off, also.
 	// defaults to checking alarm 2, unless Alarm == 1.
+bool DS3231::checkIfAlarm(byte Alarm) {
+
 	byte result;
 	byte temp_buffer = readControlByte(1);
 	if (Alarm == 1) {
@@ -630,7 +646,6 @@ bool DS3231::checkIfAlarm(byte Alarm) {
 	return result;
 }
 
-void DS3231::enableOscillator(bool TF, bool battery, byte frequency) {
 	// turns oscillator on or off. True is on, false is off.
 	// if battery is true, turns on even for battery-only operation,
 	// otherwise turns off if Vcc is off.
@@ -639,6 +654,7 @@ void DS3231::enableOscillator(bool TF, bool battery, byte frequency) {
 	// 1 = 1.024 kHz
 	// 2 = 4.096 kHz
 	// 3 = 8.192 kHz (Default if frequency byte is out of range)
+void DS3231::enableOscillator(bool TF, bool battery, byte frequency) {
 	if (frequency > 3) frequency = 3;
 	// read control byte in, but zero out current state of RS2 and RS1.
 	byte temp_buffer = readControlByte(0) & 0b11100111;
@@ -650,10 +666,10 @@ void DS3231::enableOscillator(bool TF, bool battery, byte frequency) {
 		temp_buffer = temp_buffer & 0b10111111;
 	}
 	if (TF) {
-		// set ~EOSC to 0 and INTCN to zero.
-		temp_buffer = temp_buffer & 0b01111011;
+		// set ~EOSC to 0 to zero.
+		temp_buffer = temp_buffer & 0b01111111;
 	} else {
-		// set ~EOSC to 1, leave INTCN as is.
+		// set ~EOSC to 1.
 		temp_buffer = temp_buffer | 0b10000000;
 	}
 	// shift frequency into bits 3 and 4 and set.
@@ -662,9 +678,8 @@ void DS3231::enableOscillator(bool TF, bool battery, byte frequency) {
 	// And write the control bits
 	writeControlByte(temp_buffer, 0);
 }
-
-void DS3231::enable32kHz(bool TF) {
 	// turn 32kHz pin on or off
+void DS3231::enable32kHz(bool TF) {
 	byte temp_buffer = readControlByte(1);
 	if (TF) {
 		// turn on 32kHz pin
@@ -675,7 +690,18 @@ void DS3231::enable32kHz(bool TF) {
 	}
 	writeControlByte(temp_buffer, 1);
 }
-
+void DS3231::enable1Hz(bool TF){
+	// turn 1Hz out on or off
+	byte temp_buffer = readControlByte(0);
+	if (TF){
+		// turn on 1Hz out
+		temp_buffer = temp_buffer & 0b11111011;
+	}else{
+		// turn off 1Hz out
+		temp_buffer = temp_buffer | 0b00000100;
+	}
+	writeControlByte(temp_buffer, 0);
+}
 bool DS3231::oscillatorCheck() {
 	// Returns false if the oscillator has been off for some reason.
 	// If this is the case, the time is probably not correct.
@@ -701,7 +727,11 @@ byte DS3231::bcdToDec(byte val) {
 // Convert binary coded decimal to normal decimal numbers
 	return ( (val/16*10) + (val%16) );
 }
-
+/**
+ * 读取控制寄存器
+ * @param which 控制读取的地址，1 -> 0x0f, 0 -> 0x0e
+ * @return 控制寄存器的值
+ */
 byte DS3231::readControlByte(bool which) {
 	// Read selected control byte
 	// first byte (0) is 0x0e, second (1) is 0x0f

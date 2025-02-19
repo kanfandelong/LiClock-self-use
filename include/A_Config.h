@@ -54,16 +54,20 @@
     file_log.close(); \
   } while (0)
 
+#define wifi_config_file "/System/wifi_config.json"
 
 // 下面这些尽量不要修改，因为改了不完全有效
 #define GRAPH_HEIGHT 37
 #define SAMPLE_COUNT 10
 #define SAMPLE_STEP 1
 #define PX_PER_SAMPLE (SCREEN_WIDTH / SAMPLE_STEP / (SAMPLE_COUNT - 2))
-#define DEFAULT_CONFIG "{\"p1\":\"116.3975,39.9091\",\"p2\":\"15\",\"p3\":\"1\",\"p4\":\"23:30\",\"p5\":\"05:00\",\"p6\":\"\",\"p7\":\"\",\"p8\":\"0\",\"p9\":\"1\",\"p10\":\"1\",\"p11\":\"0\"}"
+#define DEFAULT_CONFIG "{\"p1\":\"116.3975,39.9091\",\"p2\":\"15\",\"p3\":\"1\",\"p4\":\"23:30\",\"p5\":\"05:00\",\"p6\":\"\",\"p7\":\"\",\"p8\":\"0\",\"p9\":\"1\",\"p10\":\"1\",\"p11\":\"0\",\"p12\":\"\",\"p13\":\"CST-8\"}"
+#define DEFAULT_WIFI_CONFIG "{\"networks\":[{\"ssid\":\"\",\"pass\":\"\"}]}"
 #define TFmode "p9"
 #define autontpsync "p10"
 #define Textfile "p11"
+#define isp_file "p12"
+#define Time_Zone "p13"
 typedef struct
 {
     const uint8_t *data;
@@ -122,5 +126,6 @@ uint8_t getBatterysoc();
 #include "peripherals.h"
 #include "Buzzer.h"
 #include "lua_trans.h"
+#include "stc-isp.h"
 extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);

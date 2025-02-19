@@ -40,6 +40,7 @@ public:
     Adafruit_BMP280 bmp;
     Adafruit_SGP30 sgp;
     DS3231 rtc;
+    DateTime rtc_unix;
     SemaphoreHandle_t i2cMutex = NULL;
 };
 extern Peripherals peripherals;

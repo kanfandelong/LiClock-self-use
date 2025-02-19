@@ -80,10 +80,11 @@ void NTPSync()
     struct timeval tv;
     tv.tv_sec = timenow;
     tv.tv_usec = 0;
-    if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT)
+    if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !hal.dis_DS3231)
     {
         tm t;
         localtime_r(&timenow, &t);
+        hal.pref.putInt("rtc_offset", (peripherals.rtc.getMinute() * 60 + peripherals.rtc.getSecond()) - (t.tm_min * 60 + t.tm_sec));
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
         //peripherals.rtc.setYear(t.tm_year + 1900 - 2000);
         peripherals.rtc.setSecond(t.tm_sec);
@@ -146,6 +147,9 @@ void NTPSync()
         Serial.printf("首次同步时间, now=%u\n", tv.tv_sec);
         F_LOG("首次同步时间, now=%u", tv.tv_sec);
     }
+    hal.rtc_offset();
+    Serial.printf("DS3231偏移秒数:%d,更新后的偏移寄存器值:%d\n", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
+    F_LOG("DS3231误差秒数:%d,更新后的偏移寄存器值:%d", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
     hal.pref.putUInt("lastsync", tv.tv_sec);
     hal.lastsync = tv.tv_sec;
 }

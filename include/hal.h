@@ -6,6 +6,9 @@
 class HAL
 {
 public:
+    bool connected_wifi(const char* ssid, const char* pass);
+    bool wifi_config_manger();
+    void savewifiConfig(StaticJsonDocument<2048>& wifi_config);
     void saveConfig();
     void loadConfig();
     void getTime();
@@ -24,6 +27,7 @@ public:
      * @return false 不需要全屏刷新
      */
     bool init();
+    void rtc_offset();
     bool autoConnectWiFi(bool need_wifi_config = true);
     void searchWiFi();
     static void set_sleep_set_gpio_interrupt();
