@@ -1,6 +1,66 @@
 #include "hal.h"
 #include <LittleFS.h>
 
+void HAL::printBatteryInfo() {
+    Serial.println("\n------ Battery Information ------");
+    
+    // 基础信息
+    Serial.print("SOC: "); Serial.print(hal.bat_info.soc); Serial.println("%");
+    Serial.print("SOH: "); Serial.print(hal.bat_info.soh); Serial.println("%");
+    Serial.printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
+    Serial.printf("Voltage: %.3f mV\n", hal.bat_info.voltage);
+    Serial.print("Avg Power: "); Serial.print(hal.bat_info.power); Serial.println(" mW");
+  
+    // 电流信息
+    Serial.println("\n-- Current --");
+    Serial.print("Average: "); Serial.print(hal.bat_info.current.avg); Serial.println(" mA");
+    Serial.print("Max: "); Serial.print(hal.bat_info.current.max); Serial.println(" mA");
+    Serial.print("Standby: "); Serial.print(hal.bat_info.current.stby); Serial.println(" mA");
+  
+    // 容量信息
+    Serial.println("\n-- Capacity --");
+    Serial.print("Remaining: "); Serial.print(hal.bat_info.capacity.remain); Serial.println(" mAh");
+    Serial.print("Full: "); Serial.print(hal.bat_info.capacity.full); Serial.println(" mAh");
+    Serial.print("Available: "); Serial.print(hal.bat_info.capacity.avail); Serial.println(" mAh");
+    Serial.print("Available Full: "); Serial.print(hal.bat_info.capacity.avail_full); Serial.println(" mAh");
+    Serial.print("Remaining Filtered: "); Serial.print(hal.bat_info.capacity.remain_f); Serial.println(" mAh");
+    Serial.print("Full Filtered: "); Serial.print(hal.bat_info.capacity.full_f); Serial.println(" mAh");
+    Serial.print("Design: "); Serial.print(hal.bat_info.capacity.design); Serial.println(" mAh");
+  
+    // 状态标志
+    Serial.println("\n-- Flags --");
+    Serial.print("Discharging: "); Serial.println(hal.bat_info.flag.DSG ? "Yes" : "No");
+    Serial.print("Fully Charged: "); Serial.println(hal.bat_info.flag.FC ? "Yes" : "No");
+    Serial.print("Charging Allowed: "); Serial.println(hal.bat_info.flag.CHG ? "Yes" : "No");
+  
+    Serial.println("---------------------------------\n");
+}
+
+void task_bat_info_update(void *){
+    while(1){    
+        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        hal.bat_info.voltage = (float)lipo.voltage() / 1000.0;
+        hal.bat_info.soc = lipo.soc(FILTERED);
+        hal.bat_info.power = lipo.power();
+        hal.bat_info.temp = (float)lipo.temperature(BATTERY) / 100.0;
+        hal.bat_info.current.avg = lipo.current(AVG);
+        hal.bat_info.current.max = lipo.current(MAX);
+        hal.bat_info.current.stby = lipo.current(STBY);
+        hal.bat_info.capacity.remain = lipo.capacity(REMAIN);
+        hal.bat_info.capacity.full = lipo.capacity(FULL);
+        hal.bat_info.capacity.avail = lipo.capacity(AVAIL);
+        hal.bat_info.capacity.avail_full = lipo.capacity(AVAIL_FULL);
+        hal.bat_info.capacity.remain_f = lipo.capacity(REMAIN_F);
+        hal.bat_info.capacity.full_f = lipo.capacity(FULL_F);
+        hal.bat_info.capacity.design = lipo.capacity(DESIGN);
+        hal.bat_info.flag.CHG = lipo.chgFlag();
+        hal.bat_info.flag.DSG = lipo.dsgFlag();
+        hal.bat_info.flag.FC = lipo.fcFlag();
+        xSemaphoreGive(peripherals.i2cMutex);
+        delay(1000);
+    }
+}
+
 void task_hal_update(void *)
 {
     while (1)
@@ -858,6 +918,7 @@ bool HAL::init()
     if (hal.pref.getBool(get_char_sha_key("按键音"), false))
         xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
+    xTaskCreate(task_bat_info_update, "bat_info_update", 2048, NULL, 10, NULL);
     getTime();
     if ((timeinfo.tm_year < (2016 - 1900)))
     {

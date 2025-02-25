@@ -3,9 +3,49 @@
 #include <A_Config.h>
 #include <Preferences.h>
 #include "OneButton.h"
+
+typedef struct
+{
+    uint16_t avg;       // 平均电流
+    uint16_t max;       // 最大电流
+    uint16_t stby;      // 待机电流
+} _bat_current;
+
+typedef struct
+{
+    uint16_t remain;
+    uint16_t full;
+    uint16_t avail;
+    uint16_t avail_full;
+    uint16_t remain_f;
+    uint16_t full_f;
+    uint16_t design;
+} _bat_capacity;
+
+typedef struct
+{
+    bool DSG;       // 电池放电标志
+    bool FC;        // 电量充满标志
+    bool CHG;       // 快速充电允许
+} _bat_flag;
+
+typedef struct
+{
+    uint8_t soc;            // 电池百分比电量
+    uint8_t soh;            // 电池健康度
+    float temp;          // 温度
+    float voltage;       // 电池电压
+    _bat_current current;   // 电池电流
+    _bat_capacity capacity; // 电池容量
+    int16_t power;          // 电池平均功率
+    _bat_flag flag;
+} _bat_info;
+
+
 class HAL
 {
 public:
+    void printBatteryInfo();
     bool connected_wifi(const char* ssid, const char* pass);
     bool wifi_config_manger();
     void savewifiConfig(StaticJsonDocument<2048>& wifi_config);
@@ -51,6 +91,7 @@ public:
     Preferences pref;
     Preferences nvs_;
     int16_t VCC = 0;
+    _bat_info bat_info;
     bool USBPluggedIn = false;
     bool isCharging = false;
     bool TF_connected = false;

@@ -1,10 +1,15 @@
 #pragma once
 #include "A_Config.h"
+#include "ESP8266Audio.h"
 #include <AudioFileSourceSD.h>
 #include <AudioFileSourceLittleFS.h>
 #include <AudioGeneratorMP3.h>
 #include <AudioGeneratorWAV.h>
+#include <AudioGeneratorAAC.h>
+#include <AudioGeneratorFLAC.h>
 #include <AudioOutputI2S.h>
+#include <AudioOutputULP.h>
+#include <AudioOutputI2SNoDAC.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
@@ -15,6 +20,12 @@ enum PlayerCommand {
     CMD_STOP,
     CMD_VOLUME,
     CMD_SWITCH_FILE
+};
+
+enum output_mode {
+    I2S_NODAC,
+    I2S_build_in_DAC,
+    ULP_build_in_DAC
 };
 
 struct PlayerEvent {
@@ -29,18 +40,21 @@ public:
     AudioGenerator* decoder = nullptr;
     AudioFileSource* file = nullptr;
     AudioOutputI2S* out = nullptr;
+    AudioOutputULP* out_ulp = nullptr;
     TaskHandle_t playTaskHandle = nullptr;
     QueueHandle_t eventQueue = nullptr;
+    output_mode out_mode = I2S_build_in_DAC;
     bool isPlaying = false;
     bool loopPlay = false;
     float currentVolume = 1.0;
 
+    const char* remove_prefix(const char* path, const char* prefix);
     void createAudioSource(const char* path);
     void createDecoder(const char* path);
-    static void playTask(void* params);
+    ///static void playTask(void* params);
     void stopPlayback(bool keepSource = false);
 
-    AudioPlayer();
+    void init(output_mode _out_mode);
     ~AudioPlayer();
     void play(const char* path);
     void pause();
@@ -49,4 +63,4 @@ public:
     void setLoop(bool loop);
 };
 
-
+extern AudioPlayer music_player;

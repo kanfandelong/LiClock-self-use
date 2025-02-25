@@ -50,6 +50,8 @@ void Peripherals::check()
 void Peripherals::init()
 {
     Wire.begin(PIN_SDA, PIN_SCL);
+    if (!lipo.begin())
+        log_i("[外设] BQ27441初始化失败");
     i2cMutex = xSemaphoreCreateMutex();
     SDSPI.begin(PIN_SD_SCLK, PIN_SD_MISO, PIN_SD_MOSI, -1);
     peripherals_current = hal.pref.getUShort(SETTINGS_PARAM_PHERIPHERAL_BITMASK, 0xffff);

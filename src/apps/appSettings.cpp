@@ -90,6 +90,7 @@ static const menu_select settings_menu_other[] =
         {false, "屏幕全刷间隔"},
         {true,  "精准电量显示"},
         {false, "电量计算起点电压"},
+        {false, "BQ27441初始化设置"},
         {false, NULL},
 };
 
@@ -1180,6 +1181,51 @@ void AppSettings::menu_other()
                     GUI::msgbox("提示", "电压不能大于3700mV，已自动设置为最高值3700mV");}
                 hal.pref.putInt("soc_voltage", voltage);
                 hal.pref.putUChar("soc_10%", (uint8_t)((4220 - voltage) / 13));
+            }
+            break;
+        case 21:
+            {    
+                if (GUI::msgbox_yn("提示", "选择对BQ27441", "配置参数", "打印状态")){
+                    xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+                    // Set BATTERY_CAPACITY to the design capacity of your battery in mAh.
+                    uint16_t BATTERY_CAPACITY = GUI::msgbox_number("输入电池容量mAh", 5, 1000);
+
+                    //lowest operational voltage in mV
+                    uint16_t TERMINATE_VOLTAGE = GUI::msgbox_number("输入低电压门槛", 5, 3000);
+
+                    //current at which charger stops charging battery in mA
+                    //in case of Sparkfun Battery Babysitter board:
+                    // 100mA charge current --> 12mA
+                    // 500mA charge current --> 60mA
+                    uint16_t TAPER_CURRENT = GUI::msgbox_number("输入低流电压门槛", 5, 24);
+
+                    GUI::info_msgbox("提示", "正在写入配置...");
+            
+                    lipo.enterConfig();                 // To configure the values below, you must be in config mode
+                    lipo.setCapacity(BATTERY_CAPACITY); // Set the battery capacity
+            
+                    /*
+                        Design Energy should be set to be Design Capacity × 3.7 if using the bq27441-G1A or Design
+                        Capacity × 3.8 if using the bq27441-G1B
+                    */
+                    lipo.setDesignEnergy(BATTERY_CAPACITY * 3.7f);
+            
+                    /*
+                        Terminate Voltage should be set to the minimum operating voltage of your system. This is the target
+                        where the gauge typically reports 0% capacity
+                    */
+                    lipo.setTerminateVoltage(TERMINATE_VOLTAGE);
+            
+                    /*
+                        Taper Rate = Design Capacity / (0.1 * Taper Current)
+                    */
+                    lipo.setTaperRate(10 * BATTERY_CAPACITY / TAPER_CURRENT);
+            
+                    lipo.exitConfig(); // Exit config mode to save changes
+                    xSemaphoreGive(peripherals.i2cMutex);
+                }
+                else
+                    hal.printBatteryInfo();
             }
             break;
         default:

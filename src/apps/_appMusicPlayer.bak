@@ -1,0 +1,96 @@
+#include "AppManager.h"
+#include "AudioPlayer.h"
+
+// 全局变量
+volatile bool g_playbackFinished = false;
+
+const char *music_file;
+
+static void player_exit(){
+
+    int date = hal.pref.getInt("CpuFreq", 80);
+    int freq = ESP.getCpuFreqMHz();
+    if (freq != date)
+    {
+        bool cpuset = setCpuFrequencyMhz(date);
+        Serial.begin(115200);
+        ESP_LOGI("HAL", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
+        if(cpuset){ESP_LOGI("HAL","ok");}
+        else {ESP_LOGI("hal", "err");}
+    }
+}
+
+class AppMusicPlayer : public AppBase
+{
+private:
+    /* data */
+public:
+    AppMusicPlayer()
+    {
+        name = "musicplater";
+        title = "音乐";
+        description = "暂无";
+        peripherals_requested = PERIPHERALS_SD_BIT;
+        image = NULL;
+    }
+    void set();
+    const char* remove_path_prefix(const char* path, const char* prefix);
+    void setup();
+};
+static AppMusicPlayer app;
+void AppMusicPlayer::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
+/**
+ * 去除路径特定前缀函数
+ * @param path 完整路径
+ * @param prefix 特定前缀
+ * @return 去除前缀后的路径
+ */
+const char* AppMusicPlayer::remove_path_prefix(const char* path, const char* prefix) {
+    size_t prefix_len = strlen(prefix);
+    size_t path_len = strlen(path);
+
+    // 检查路径是否以指定前缀开头
+    if (strncmp(path, prefix, prefix_len) == 0) {
+        // 返回去除前缀后的路径
+        return path + prefix_len;
+    }
+    // 如果路径不以指定前缀开头，则返回原始路径
+    return path;
+}
+void AppMusicPlayer::setup(){
+    bool cpuset = setCpuFrequencyMhz(240);
+    Serial.begin(115200);
+    if(cpuset){ESP_LOGI("change CpuFrequency","ok");}
+    else {ESP_LOGI("change CpuFrequency", "err");}
+    music_player.init(I2S_build_in_DAC);
+    music_player.setLoop(true);
+    music_player.play("/sd/水龙吟.mp3");
+    exit = player_exit;
+    uint8_t core = xPortGetCoreID();
+    Serial.printf("run in core %d\r\n", core);
+    GUI::info_msgbox("", "播放中...");
+    bool menu = false;
+    bool end = false;
+    while(!end){
+        if (hal.btnl.isPressing()) {
+            end = true;
+            music_player.stop();
+            music_player.~AudioPlayer();
+            appManager.goBack();
+        }
+        if (hal.btnc.isPressing()){
+            GUI::info_msgbox("", "暂停解码器...");
+            music_player.play(GUI::fileDialog("选择音乐文件", false, "mp3", NULL));
+        }
+        if (g_playbackFinished) {
+            GUI::info_msgbox("", "播放完成");
+            delay(50);
+        }
+        //delay(500);
+    }    
+    appManager.noDeepSleep = false;
+    appManager.nextWakeup = 1;
+}
+

@@ -3,6 +3,7 @@
 #include <Adafruit_AHTX0.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_SGP30.h>
+#include <SparkFunBQ27441.h>
 #include <Wire.h>
 #include <SD.h>
 #include <DS3231.h>
