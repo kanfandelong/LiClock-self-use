@@ -3,8 +3,8 @@
 #ifndef __STC_ISP_H__
 #define __STC_ISP_H__
 
-#define RXD_2 36
-#define TXD_2 32
+#define RXD_2 25
+#define TXD_2 26
 
 #define ISP_PROGRAM_BUFFER          256
 

@@ -1,7 +1,7 @@
 #include "AppManager.h"
 
 // PWM配置
-#define PWM_PIN 32       // 使用支持LEDC的GPIO（如25）
+#define PWM_PIN 26       // 使用支持LEDC的GPIO（如25）
 int PWM_FREQ = 32000;   // PWM频率（32kHz）
 #define PWM_RESOLUTION 8 // PWM分辨率（8位）
 

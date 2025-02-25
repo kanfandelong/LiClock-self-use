@@ -40,7 +40,8 @@ namespace GUI
      * @param isApp 是否为lua应用选择
      * @param endsWidth 文件尾缀筛选，默认不筛选，如果输入了文件尾缀，则只显示以该字符串结尾的文件
      * @param gotoendsWidth 文件尾缀筛选，默认不筛选，如果输入了文件尾缀，则忽略以该字符串结尾的文件
+     * @param cwd 打开的目录，默认为根目录
      * @return 返回文件名，如果返回NULL，则用户取消选择
      */
-    const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i");
+    const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/");
 } // namespace GUI

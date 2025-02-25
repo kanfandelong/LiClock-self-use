@@ -28,9 +28,9 @@
 #define PIN_BUTTONC 34
 #define PIN_BUTTONR 39
 
-#define PIN_RTC_IRQ 25
+#define PIN_RTC_IRQ 36
 #define PIN_SDVDD_CTRL 27
-#define PIN_CHARGING 26
+#define PIN_CHARGING 32
 #define PIN_SD_CS 14
 #define PIN_SD_MOSI 12
 #define PIN_SD_SCLK 13

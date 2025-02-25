@@ -48,7 +48,8 @@ AudioOutputI2S::AudioOutputI2S(int port, int output_mode, int dma_buf_count, int
   hertz = 44100;
   bclkPin = 26;
   wclkPin = 25;
-  doutPin = 22;
+  // doutPin = 22;
+  doutPin = 32;
   mclkPin = 0;
   SetGain(1.0);
 }

@@ -1,7 +1,7 @@
 #include "AppManager.h"
 #include "DallasTemperature.h"
 
-#define DS18B20_pin 32
+#define DS18B20_pin 26
 
 OneWire  ds(DS18B20_pin);
 DallasTemperature sensors(&ds);

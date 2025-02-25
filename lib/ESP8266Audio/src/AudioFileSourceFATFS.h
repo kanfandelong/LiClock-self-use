@@ -21,7 +21,8 @@
 #ifndef _AUDIOFILESOURCEFATFS_H
 #define _AUDIOFILESOURCEFATFS_H
 
-#ifdef ESP32
+// #ifdef ESP32
+#ifdef _ESP32 //禁用以下部分
 
 #include <Arduino.h>
 #include <FS.h>

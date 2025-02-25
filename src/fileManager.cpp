@@ -75,7 +75,7 @@ namespace GUI
     void push_buffer();
     void pop_buffer();
     // 注意，下面这个函数完全没有考虑线程安全，no reentrent!!!
-    const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth)
+    const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd)
     {
         // 首先选择文件系统
         bool useSD = false;
@@ -95,7 +95,7 @@ namespace GUI
         {
             useSD = true;
         }
-        String cwd = "/";
+        //String cwd = "/";
         File root;
         File file;
         int16_t total_entries = 0;

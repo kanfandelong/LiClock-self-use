@@ -1,8 +1,8 @@
 #include "AppManager.h"
 #include "TinyGPSPlus.h"
 
-#define RXD_2 36
-#define TXD_2 32
+#define RXD_2 25
+#define TXD_2 26
 #define GPS_POWER TXD_2
 // 存储上一个点的经纬度
 double previousLat = 0.0;
@@ -76,7 +76,8 @@ static void appgps_exit(){
     task_end = true;
     Serial1.end();
     digitalWrite(GPS_POWER, LOW);
-    gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_DEFAULT);
+    detachInterrupt(digitalPinToInterrupt(PIN_BUTTONC));
+    gpio_set_drive_capability(GPIO_NUM_26, GPIO_DRIVE_CAP_DEFAULT);
     pinMode(GPS_POWER, INPUT);
     hal.pref.putDouble("totalDistance", totalDistance);
 }
@@ -492,7 +493,7 @@ void AppGps::setup(){
         Serial1.setPins(RXD_2, GPIO_NUM_NC);
         Serial1.begin(hal.pref.getLong("gps_baud", 9600));
         pinMode(GPS_POWER, OUTPUT);
-        gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_3);
+        gpio_set_drive_capability(GPIO_NUM_26, GPIO_DRIVE_CAP_3);
         digitalWrite(GPS_POWER, HIGH);   
     }
     //attachInterrupt(digitalPinToInterrupt(RXD_2), RXD_interrupt, RISING);
