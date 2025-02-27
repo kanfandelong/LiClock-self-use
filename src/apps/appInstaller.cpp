@@ -220,7 +220,7 @@ void AppInstaller::setup()
                 appManager.App_Preferences_init();
                 static const menu_select appMenu_select[] = {
                     {false, "返回"},
-                    {true, "录音"},
+                    {true, "音乐"},
                     {true, "定位"},
                     {true, "电源"},
                     {true, "数据"},
@@ -234,7 +234,6 @@ void AppInstaller::setup()
                     {true, "电子书"},
                     {true, "贪吃蛇"},
                     {true, "仅时钟"},
-                    {true, "音频播放"},
                     {true, "天气时钟"},
                     {true, "APP管理"},
                     {true, "B站粉丝"},

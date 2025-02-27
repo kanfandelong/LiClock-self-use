@@ -36,16 +36,13 @@ void HAL::printBatteryInfo() {
     Serial.println("---------------------------------\n");
 }
 
-void task_bat_info_update(void *){
-    while(1){    
+void HAL::task_bat_info_update(){
+    //while(1){    
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
         hal.bat_info.voltage = (float)lipo.voltage() / 1000.0;
         hal.bat_info.soc = lipo.soc(FILTERED);
         hal.bat_info.power = lipo.power();
         hal.bat_info.temp = (float)lipo.temperature(BATTERY) / 100.0;
-        hal.bat_info.current.avg = lipo.current(AVG);
-        hal.bat_info.current.max = lipo.current(MAX);
-        hal.bat_info.current.stby = lipo.current(STBY);
         hal.bat_info.capacity.remain = lipo.capacity(REMAIN);
         hal.bat_info.capacity.full = lipo.capacity(FULL);
         hal.bat_info.capacity.avail = lipo.capacity(AVAIL);
@@ -53,12 +50,15 @@ void task_bat_info_update(void *){
         hal.bat_info.capacity.remain_f = lipo.capacity(REMAIN_F);
         hal.bat_info.capacity.full_f = lipo.capacity(FULL_F);
         hal.bat_info.capacity.design = lipo.capacity(DESIGN);
+        hal.bat_info.current.avg = lipo.current(AVG);
+        hal.bat_info.current.max = lipo.current(MAX);
+        hal.bat_info.current.stby = lipo.current(STBY);
         hal.bat_info.flag.CHG = lipo.chgFlag();
         hal.bat_info.flag.DSG = lipo.dsgFlag();
         hal.bat_info.flag.FC = lipo.fcFlag();
         xSemaphoreGive(peripherals.i2cMutex);
         delay(1000);
-    }
+    //}
 }
 
 void task_hal_update(void *)
@@ -802,6 +802,8 @@ bool HAL::init()
     pinMode(PIN_CHARGING, INPUT);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SDVDD_CTRL, OUTPUT);
+    pinMode(PIN_SCL, OUTPUT | PULLUP);
+    pinMode(PIN_SDA, OUTPUT | PULLUP);
     digitalWrite(PIN_SDVDD_CTRL, 1);
     digitalWrite(PIN_BUZZER, 0);
     pinMode(PIN_BUZZER, OUTPUT);
@@ -918,7 +920,7 @@ bool HAL::init()
     if (hal.pref.getBool(get_char_sha_key("按键音"), false))
         xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
-    xTaskCreate(task_bat_info_update, "bat_info_update", 2048, NULL, 10, NULL);
+    //xTaskCreate(task_bat_info_update, "bat_info_update", 2048, NULL, 10, NULL);
     getTime();
     if ((timeinfo.tm_year < (2016 - 1900)))
     {

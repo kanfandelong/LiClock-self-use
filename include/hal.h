@@ -6,9 +6,9 @@
 
 typedef struct
 {
-    uint16_t avg;       // 平均电流
-    uint16_t max;       // 最大电流
-    uint16_t stby;      // 待机电流
+    int16_t avg;       // 平均电流
+    int16_t max;       // 最大电流
+    int16_t stby;      // 待机电流
 } _bat_current;
 
 typedef struct
@@ -46,6 +46,7 @@ class HAL
 {
 public:
     void printBatteryInfo();
+    void task_bat_info_update();
     bool connected_wifi(const char* ssid, const char* pass);
     bool wifi_config_manger();
     void savewifiConfig(StaticJsonDocument<2048>& wifi_config);

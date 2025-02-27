@@ -1224,8 +1224,10 @@ void AppSettings::menu_other()
                     lipo.exitConfig(); // Exit config mode to save changes
                     xSemaphoreGive(peripherals.i2cMutex);
                 }
-                else
+                else{
+                    hal.task_bat_info_update();
                     hal.printBatteryInfo();
+                }
             }
             break;
         default:

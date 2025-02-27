@@ -1,12 +1,23 @@
 #include "AppManager.h"
 #include "ESP8266Audio.h"
 
-// 全局变量
-//AudioPlayer player;
-volatile bool g_playbackFinished = false;
+static const uint8_t APP_MusicPlayer_bits[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0xc0, 0x07, 0x00, 0x00, 0xf8, 0x07, 0x00, 0x00, 0xff, 0x07,
+    0x00, 0xe0, 0xff, 0x07, 0x00, 0xfc, 0xff, 0x07, 0x00, 0xff, 0x9f, 0x07,
+    0x80, 0xff, 0x81, 0x07, 0x80, 0x3f, 0x80, 0x07, 0x80, 0x0f, 0x80, 0x07,
+    0x80, 0x0f, 0x80, 0x07, 0x80, 0x0f, 0x80, 0x07, 0x80, 0x0f, 0x80, 0x07,
+    0x80, 0x0f, 0x80, 0x07, 0x80, 0x0f, 0x80, 0x07, 0x80, 0x0f, 0xe0, 0x07,
+    0x80, 0x0f, 0xf8, 0x07, 0x80, 0x0f, 0xf8, 0x07, 0xe0, 0x0f, 0xfc, 0x07,
+    0xf0, 0x0f, 0xfc, 0x07, 0xf8, 0x0f, 0xfc, 0x07, 0xf8, 0x0f, 0xf8, 0x07,
+    0xf8, 0x0f, 0xf0, 0x03, 0xf8, 0x07, 0xe0, 0x01, 0xf8, 0x07, 0x00, 0x00,
+    0xf0, 0x03, 0x00, 0x00, 0xe0, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
 SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
 TaskHandle_t player_loop_task_handle = NULL;
 AudioFileSource *in = nullptr;
+AudioFileSourceID3 *id3;
 AudioGeneratorMP3 *generator;
 AudioOutputI2S *output;
 const char *music_file;
@@ -15,8 +26,34 @@ bool _play_end = false;
 bool _loop_play = false;
 float gain = 0.3;
 uint32_t decode_heap;
+unsigned long play_time_start;
+unsigned long play_time_end;
+unsigned long play_time_total = 0;
+
+// 回调函数，用于处理ID3标签数据
+void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string) 
+{
+    (void)cbData;
+    Serial.printf("ID3 callback for: %s = '", type);
+      
+    if (isUnicode) {
+        string += 2;
+    }
+        
+    while (*string) {
+        char a = *(string++);
+        if (isUnicode) {
+            string++;
+        }
+        Serial.printf("%c", a);
+    }
+    Serial.printf("'\n");
+}
+
 
 static void player_exit(){
+    hal.pref.putFloat("gain", gain);
+    hal.pref.putBool("loop_play", _loop_play);
     int date = hal.pref.getInt("CpuFreq", 80);
     int freq = ESP.getCpuFreqMHz();
     if (freq != date)
@@ -39,6 +76,8 @@ void player_loop(void *){
                 if (!generator->loop()) {
                     generator->stop();
                     _play_end = true;
+                    play_time_end = millis();
+                    play_time_total = play_time_end - play_time_start;
                     vTaskDelete(NULL);
                 }
             }
@@ -61,7 +100,7 @@ public:
         title = "音乐";
         description = "暂无";
         peripherals_requested = PERIPHERALS_SD_BIT;
-        image = NULL;
+        image = APP_MusicPlayer_bits;
     }
     void set();
     const char* remove_path_prefix(const char* path, const char* prefix);
@@ -142,15 +181,24 @@ void AppMusicPlayer::player_menu(){
                     vTaskDelete(player_loop_task_handle);
                     delay(10);
                 }
+                play_time_total = 0;
                 select_file();
                 output= new AudioOutputI2S(0, 1);
                 output->SetGain(gain);
-                generator->begin(in, output);
+                id3 = new AudioFileSourceID3(in);
+                id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+                generator->begin(id3, output);
                 begin_player_task();
                 xSemaphoreGive(audio_control_sem);
                 break;
             case 3:
-                gain = (float)GUI::msgbox_number("0-40", 2, gain * 10.0) / 10.0;
+                gain = (float)GUI::msgbox_number("0-400", 3, gain * 100.0) / 100.0;
+                if (gain > 4.0) {
+                    gain = 4.0;
+                }
+                if (gain < 0.0) {
+                    gain = 0.0;
+                }
                 output->SetGain(gain);
                 break;
             case 4:
@@ -173,6 +221,7 @@ void AppMusicPlayer::begin_player_task(){
         xTaskCreatePinnedToCore(player_loop, "player_loop_task", 8192, NULL, 5, &player_loop_task_handle, 1);
     else
         xTaskCreatePinnedToCore(player_loop, "player_loop_task", 8192, NULL, 5, &player_loop_task_handle, 0);
+    play_time_start = millis();
 }
 void AppMusicPlayer::show_display(){
     display.clearScreen();
@@ -185,49 +234,67 @@ void AppMusicPlayer::show_display(){
     else
         u8g2Fonts.printf("播放中...");
     if (_loop_play) {
-        u8g2Fonts.setCursor(3, 60);
+        u8g2Fonts.setCursor(64, 45);
         u8g2Fonts.printf("循环播放");
     }
-    u8g2Fonts.setCursor(3, 75);
+    uint32_t play_time = (millis() - play_time_start) / 1000;
+    uint32_t total_time = play_time_total / 1000;
+    u8g2Fonts.printf("  %02d:%02d/%02d:%02d", play_time / 60, play_time % 60, total_time / 60, total_time % 60);
+    u8g2Fonts.setCursor(3, 60);
     u8g2Fonts.printf("剩余堆内存：%.2fKB 解码器内存占用：%.2fKB", (float)ESP.getFreeHeap() / 1024.0, (float)decode_heap / 1024.0);
+    u8g2Fonts.setCursor(3, 75);
+    u8g2Fonts.printf("Gain：%.2f 电源电压：%dmV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.soc, hal.bat_info.soh);
     u8g2Fonts.setCursor(3, 90);
-    u8g2Fonts.printf("Gain：%.2f   电源电压：%d mV", gain, hal.VCC);
+    u8g2Fonts.printf("平均电流:%dmA 平均功耗:%dmW 剩余容量:%dmAh", hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
+    u8g2Fonts.setCursor(3, 105);
+    u8g2Fonts.printf("电池电压:%.3fV", hal.bat_info.voltage);
+    //u8g2Fonts.setCursor(3, 120);
+    //u8g2Fonts.printf("%s", mp3_info.album.c_str());
     display.display(true);
 }
 void AppMusicPlayer::setup(){
-    bool cpuset = setCpuFrequencyMhz(240);
-    Serial.begin(115200);
-    if(cpuset){ESP_LOGI("change CpuFrequency","ok");}
-    else {ESP_LOGI("change CpuFrequency", "err");}
+    hal.task_bat_info_update();
+    _loop_play = hal.pref.getBool("loop_play", false);
+    gain = hal.pref.getFloat("gain", 0.3);
     exit = player_exit;
     audioLogger = &Serial;
     pinMode(32, OUTPUT);
     audio_control_sem = xSemaphoreCreateBinary();  // 创建二进制信号量
-    xSemaphoreGive(audio_control_sem);  // 初始化为可用状态  bclkPin = 26;wclkPin = 25;// doutPin = 22;doutPin = 32;
+    xSemaphoreGive(audio_control_sem);  // 初始化为可用状态
     generator = new AudioGeneratorMP3();
     output= new AudioOutputI2S(0, 1);
     output->SetGain(gain);
     select_file();
-    generator->begin(in, output);
+    id3 = new AudioFileSourceID3(in);
+    id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+    generator->begin(id3, output);
     begin_player_task();
     show_display();
     _end = false;
     int a = 0;
     int display_count = 0;
     while(!_end){
-        if (GUI::waitLongPress(PIN_BUTTONC)){
-            player_menu();
-            show_display();
+        if (hal.btnc.isPressing()){
+            if (GUI::waitLongPress(PIN_BUTTONC)){
+                player_menu();
+                show_display();
+                display_count++;
+            }
+            else {
+                hal.task_bat_info_update();
+                show_display();
+                display_count++;
+            }
         }
         if (hal.btnl.isPressing()) {
-            gain = gain + 0.1;
+            gain = gain + 0.02;
             if (gain > 4.0) {
                 gain = 4.0;
             }
             output->SetGain(gain);
         }
         if (hal.btnr.isPressing()) {
-            gain = gain - 0.1;
+            gain = gain - 0.02;
             if (gain < 0.0) {
                 gain = 0.0;
             }
@@ -244,7 +311,9 @@ void AppMusicPlayer::setup(){
             }
             output= new AudioOutputI2S(0, 1);
             output->SetGain(gain);
-            generator->begin(in, output);
+            id3 = new AudioFileSourceID3(in);
+            id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+            generator->begin(id3, output);
             begin_player_task();
             xSemaphoreGive(audio_control_sem);
         }
@@ -255,6 +324,7 @@ void AppMusicPlayer::setup(){
         if (a > 60) {
             a = 0;
             if (display_count > 15) {
+                hal.task_bat_info_update();
                 display_count = 0;
                 display.clearScreen();
                 display.display();
