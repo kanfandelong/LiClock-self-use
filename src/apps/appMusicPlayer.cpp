@@ -21,6 +21,7 @@ AudioFileSourceID3 *id3;
 AudioGeneratorMP3 *generator;
 AudioOutputI2S *output;
 const char *music_file;
+const char *music_dir = "/";
 bool _end;
 bool _play_end = false;
 bool _loop_play = false;
@@ -104,6 +105,7 @@ public:
     }
     void set();
     const char* remove_path_prefix(const char* path, const char* prefix);
+    const char* getDirectoryPath(const char* filePath);
     void select_file();
     void player_menu();
     void begin_player_task();
@@ -132,12 +134,35 @@ const char* AppMusicPlayer::remove_path_prefix(const char* path, const char* pre
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
 }
+
+/**
+ * 获取目录路径函数】
+ * @param filePath 完整文件路径
+ * @return 目录路径
+ */
+const char* AppMusicPlayer::getDirectoryPath(const char* filePath) {
+    // 找到最后一个斜杠的位置
+    const char* lastSlash = strrchr(filePath, '/');
+    if (lastSlash != nullptr) {
+        // 计算目录路径的长度
+        size_t dirLength = lastSlash - filePath;
+        // 分配内存存储目录路径
+        char* dirPath = new char[dirLength + 1];
+        strncpy(dirPath, filePath, dirLength);
+        dirPath[dirLength] = '\0';
+        return dirPath;
+    } else {
+        // 如果没有找到斜杠，返回根目录或空字符串
+        return "";
+    }
+}
 void AppMusicPlayer::select_file(){
-    music_file = GUI::fileDialog("选择音乐文件", false, "mp3", NULL);  
+    music_file = GUI::fileDialog("选择音乐文件", false, "mp3", NULL, (String)music_dir);  
     if (strstr(music_file, ".mp3") != nullptr) {
         // 示例：网络MP3流
         if (strncmp(music_file, "/sd/", 4) == 0)
         {
+            music_dir = remove_path_prefix(getDirectoryPath(music_file),"/sd");
             in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
         }
         else if (strncmp(music_file, "/littlefs/", 10) == 0) 
@@ -170,6 +195,8 @@ void AppMusicPlayer::player_menu(){
                 xSemaphoreTake(audio_control_sem, portMAX_DELAY);
                 delay(100);
                 generator->stop();
+                free(in);
+                free(id3);
                 vTaskDelete(player_loop_task_handle);
                 appManager.goBack();
                 break;
@@ -182,9 +209,11 @@ void AppMusicPlayer::player_menu(){
                     delay(10);
                 }
                 play_time_total = 0;
+                free(in);
                 select_file();
                 output= new AudioOutputI2S(0, 1);
                 output->SetGain(gain);
+                free(id3);
                 id3 = new AudioFileSourceID3(in);
                 id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
                 generator->begin(id3, output);
@@ -301,6 +330,7 @@ void AppMusicPlayer::setup(){
             output->SetGain(gain);
         }
         if (_loop_play && _play_end) {
+            free(in);
             if (strncmp(music_file, "/sd/", 4) == 0)
             {
                 in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
@@ -311,6 +341,7 @@ void AppMusicPlayer::setup(){
             }
             output= new AudioOutputI2S(0, 1);
             output->SetGain(gain);
+            free(id3);
             id3 = new AudioFileSourceID3(in);
             id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
             generator->begin(id3, output);
