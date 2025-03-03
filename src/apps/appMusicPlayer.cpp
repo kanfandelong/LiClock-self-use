@@ -14,19 +14,28 @@ static const uint8_t APP_MusicPlayer_bits[] = {
     0xf0, 0x03, 0x00, 0x00, 0xe0, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
+typedef struct
+{
+    String album;       // 专辑
+    String performer;   // 歌手
+    String title;       // 标题
+} id3_info;
+    
+
 SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
 TaskHandle_t player_loop_task_handle = NULL;
 AudioFileSource *in = nullptr;
 AudioFileSourceID3 *id3;
 AudioGeneratorMP3 *generator;
 AudioOutputI2S *output;
+AudioOutputI2SNoDAC *noDAC;
+id3_info info;
 const char *music_file;
-const char *music_dir = "/";
 bool _end;
 bool _play_end = false;
 bool _loop_play = false;
+bool nodac = false;
 float gain = 0.3;
-uint32_t decode_heap;
 unsigned long play_time_start;
 unsigned long play_time_end;
 unsigned long play_time_total = 0;
@@ -35,26 +44,33 @@ unsigned long play_time_total = 0;
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string) 
 {
     (void)cbData;
-    Serial.printf("ID3 callback for: %s = '", type);
-      
     if (isUnicode) {
         string += 2;
     }
-        
+    String outputString, id3_type; // 用于存储输出结果的 String 对象
+    id3_type = type;
     while (*string) {
         char a = *(string++);
         if (isUnicode) {
-            string++;
+            string++; // 如果是 Unicode，跳过第二个字节
         }
-        Serial.printf("%c", a);
+        outputString += a; // 将字符追加到 String 中
     }
-    Serial.printf("'\n");
+    if (id3_type.equalsIgnoreCase((String)"title")) {
+        info.title = outputString;
+    }
+    if (id3_type.equalsIgnoreCase((String)"album")) {
+        info.album = outputString;
+    }
+    if (id3_type.equalsIgnoreCase((String)"performer")) {
+        info.performer = outputString;
+    }
+    Serial.printf("ID3 callback for: %s = '%s'\n", type, outputString.c_str());
 }
 
 
 static void player_exit(){
     hal.pref.putFloat("gain", gain);
-    hal.pref.putBool("loop_play", _loop_play);
     int date = hal.pref.getInt("CpuFreq", 80);
     int freq = ESP.getCpuFreqMHz();
     if (freq != date)
@@ -73,13 +89,13 @@ void player_loop(void *){
         if (xSemaphoreTake(audio_control_sem, portMAX_DELAY) == pdTRUE) {
             // 安全操作解码器
             if (generator->isRunning()) {
-                decode_heap = generator->preAllocSize();
                 if (!generator->loop()) {
                     generator->stop();
                     _play_end = true;
                     play_time_end = millis();
                     play_time_total = play_time_end - play_time_start;
                     vTaskDelete(NULL);
+                    vTaskDelay(portMAX_DELAY);
                 }
             }
             else
@@ -105,11 +121,11 @@ public:
     }
     void set();
     const char* remove_path_prefix(const char* path, const char* prefix);
-    const char* getDirectoryPath(const char* filePath);
     void select_file();
     void player_menu();
     void begin_player_task();
     void show_display();
+    void player_set();
     void setup();
 };
 static AppMusicPlayer app;
@@ -135,34 +151,12 @@ const char* AppMusicPlayer::remove_path_prefix(const char* path, const char* pre
     return path;
 }
 
-/**
- * 获取目录路径函数】
- * @param filePath 完整文件路径
- * @return 目录路径
- */
-const char* AppMusicPlayer::getDirectoryPath(const char* filePath) {
-    // 找到最后一个斜杠的位置
-    const char* lastSlash = strrchr(filePath, '/');
-    if (lastSlash != nullptr) {
-        // 计算目录路径的长度
-        size_t dirLength = lastSlash - filePath;
-        // 分配内存存储目录路径
-        char* dirPath = new char[dirLength + 1];
-        strncpy(dirPath, filePath, dirLength);
-        dirPath[dirLength] = '\0';
-        return dirPath;
-    } else {
-        // 如果没有找到斜杠，返回根目录或空字符串
-        return "";
-    }
-}
 void AppMusicPlayer::select_file(){
-    music_file = GUI::fileDialog("选择音乐文件", false, "mp3", NULL, (String)music_dir);  
+    music_file = GUI::fileDialog("选择音乐文件", false, "mp3", NULL);  
     if (strstr(music_file, ".mp3") != nullptr) {
         // 示例：网络MP3流
         if (strncmp(music_file, "/sd/", 4) == 0)
         {
-            music_dir = remove_path_prefix(getDirectoryPath(music_file),"/sd");
             in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
         }
         else if (strncmp(music_file, "/littlefs/", 10) == 0) 
@@ -171,20 +165,21 @@ void AppMusicPlayer::select_file(){
         }
     }
 }
-static const menu_item menu_player[] =
+static const menu_select menu_player[] =
 {
-    {NULL,"返回"},
-    {NULL,"退出"},
-    {NULL,"选择文件"},
-    {NULL,"音量设置"},
-    {NULL,"循环播放"},
-    {NULL,NULL},
+    {false,"返回"},
+    {false,"退出"},
+    {false,"选择文件"},
+    {false,"音量设置"},
+    {true, "循环播放"},
+    {true, "使用蜂鸣器输出"},
+    {false,NULL},
 };
 void AppMusicPlayer::player_menu(){
     bool end = false;
     while (!end)
     {
-        int res = GUI::menu("菜单", menu_player);
+        int res = GUI::select_menu("菜单", menu_player);
         switch(res){
             case 0:
                 end = true;
@@ -196,7 +191,12 @@ void AppMusicPlayer::player_menu(){
                 delay(100);
                 generator->stop();
                 free(in);
+                if (nodac)
+                    free(noDAC);
+                else
+                    free(output);
                 free(id3);
+                free(generator);
                 vTaskDelete(player_loop_task_handle);
                 appManager.goBack();
                 break;
@@ -211,12 +211,16 @@ void AppMusicPlayer::player_menu(){
                 play_time_total = 0;
                 free(in);
                 select_file();
-                output= new AudioOutputI2S(0, 1);
-                output->SetGain(gain);
-                free(id3);
-                id3 = new AudioFileSourceID3(in);
-                id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
-                generator->begin(id3, output);
+                // free(output);
+                // output= new AudioOutputI2S(0, 1);
+                // output->SetGain(gain);
+                // free(id3);
+                // id3 = new AudioFileSourceID3(in);
+                // id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+                // free(generator);
+                // generator = new AudioGeneratorMP3();
+                // generator->begin(id3, output);
+                player_set();
                 begin_player_task();
                 xSemaphoreGive(audio_control_sem);
                 break;
@@ -228,13 +232,12 @@ void AppMusicPlayer::player_menu(){
                 if (gain < 0.0) {
                     gain = 0.0;
                 }
-                output->SetGain(gain);
+                if (!nodac)
+                    output->SetGain(gain);
                 break;
             case 4:
-                if (GUI::msgbox_yn("循环播放", "是否循环播放?"))
-                    _loop_play = true;
-                else 
-                    _loop_play = false;
+                break;
+            case 5:
                 break;
             default:
                 GUI::info_msgbox("警告", "非法的输入值");
@@ -270,33 +273,65 @@ void AppMusicPlayer::show_display(){
     uint32_t total_time = play_time_total / 1000;
     u8g2Fonts.printf("  %02d:%02d/%02d:%02d", play_time / 60, play_time % 60, total_time / 60, total_time % 60);
     u8g2Fonts.setCursor(3, 60);
-    u8g2Fonts.printf("剩余堆内存：%.2fKB 解码器内存占用：%.2fKB", (float)ESP.getFreeHeap() / 1024.0, (float)decode_heap / 1024.0);
+    u8g2Fonts.printf("bat:%.3fV %s", hal.bat_info.voltage, info.title.c_str());
     u8g2Fonts.setCursor(3, 75);
-    u8g2Fonts.printf("Gain：%.2f 电源电压：%dmV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.soc, hal.bat_info.soh);
+    u8g2Fonts.printf("歌手:%s", info.performer.c_str());
     u8g2Fonts.setCursor(3, 90);
-    u8g2Fonts.printf("平均电流:%dmA 平均功耗:%dmW 剩余容量:%dmAh", hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
+    u8g2Fonts.printf("专辑:%s", info.album.c_str());
     u8g2Fonts.setCursor(3, 105);
-    u8g2Fonts.printf("电池电压:%.3fV", hal.bat_info.voltage);
-    //u8g2Fonts.setCursor(3, 120);
-    //u8g2Fonts.printf("%s", mp3_info.album.c_str());
+    u8g2Fonts.printf("Gain：%.2f 电源电压：%dmV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.soc, hal.bat_info.soh);
+    u8g2Fonts.setCursor(3, 120);
+    u8g2Fonts.printf("剩余堆内存：%.2fKB I:%dmA P:%dmW %dmAh", (float)ESP.getFreeHeap() / 1024.0, hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
     display.display(true);
 }
+void AppMusicPlayer::player_set(){
+    if (nodac){
+        free(noDAC);
+        noDAC = new AudioOutputI2SNoDAC(1);
+        noDAC->SetGain(gain);
+        free(id3);
+        id3 = new AudioFileSourceID3(in);
+        id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+        free(generator);
+        generator = new AudioGeneratorMP3();
+        generator->begin(id3, noDAC);
+    }else{
+        free(output);
+        output= new AudioOutputI2S(0, 1);
+        output->SetGain(gain);
+        free(id3);
+        id3 = new AudioFileSourceID3(in);
+        id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+        free(generator);
+        generator = new AudioGeneratorMP3();
+        generator->begin(id3, output);
+    }
+}
 void AppMusicPlayer::setup(){
+    nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
     hal.task_bat_info_update();
-    _loop_play = hal.pref.getBool("loop_play", false);
+    _loop_play = hal.pref.getBool(hal.get_char_sha_key("循环播放"), false);
     gain = hal.pref.getFloat("gain", 0.3);
     exit = player_exit;
     audioLogger = &Serial;
-    pinMode(32, OUTPUT);
     audio_control_sem = xSemaphoreCreateBinary();  // 创建二进制信号量
     xSemaphoreGive(audio_control_sem);  // 初始化为可用状态
     generator = new AudioGeneratorMP3();
-    output= new AudioOutputI2S(0, 1);
-    output->SetGain(gain);
-    select_file();
-    id3 = new AudioFileSourceID3(in);
-    id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
-    generator->begin(id3, output);
+    if (nodac){
+        noDAC = new AudioOutputI2SNoDAC(1);
+        noDAC->SetGain(gain);
+        select_file();
+        id3 = new AudioFileSourceID3(in);
+        id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+        generator->begin(id3, noDAC);
+    }else {
+        output= new AudioOutputI2S(0, 1);
+        output->SetGain(gain);
+        select_file();
+        id3 = new AudioFileSourceID3(in);
+        id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+        generator->begin(id3, output);
+    }
     begin_player_task();
     show_display();
     _end = false;
@@ -320,14 +355,16 @@ void AppMusicPlayer::setup(){
             if (gain > 4.0) {
                 gain = 4.0;
             }
-            output->SetGain(gain);
+            if (!nodac)
+                output->SetGain(gain);
         }
         if (hal.btnr.isPressing()) {
             gain = gain - 0.02;
             if (gain < 0.0) {
                 gain = 0.0;
             }
-            output->SetGain(gain);
+            if (!nodac)
+                output->SetGain(gain);
         }
         if (_loop_play && _play_end) {
             free(in);
@@ -339,12 +376,16 @@ void AppMusicPlayer::setup(){
             {
                 in = new AudioFileSourceLittleFS(remove_path_prefix(music_file,"/littlefs"));
             }
-            output= new AudioOutputI2S(0, 1);
-            output->SetGain(gain);
-            free(id3);
-            id3 = new AudioFileSourceID3(in);
-            id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
-            generator->begin(id3, output);
+            // free(output);
+            // output= new AudioOutputI2S(0, 1);
+            // output->SetGain(gain);
+            // free(id3);
+            // id3 = new AudioFileSourceID3(in);
+            // id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
+            // free(generator);
+            // generator = new AudioGeneratorMP3();
+            // generator->begin(id3, output);
+            player_set();
             begin_player_task();
             xSemaphoreGive(audio_control_sem);
         }
