@@ -507,7 +507,9 @@ void AppMusicPlayer::setup(){
             if (currentSongIndex > maxSong) {
                 currentSongIndex = 0;
             }
-            in = new AudioFileSourceSD((currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+            sprintf(buf, "%s", (currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+            music_file = buf;
+            in = new AudioFileSourceSD(music_file);
             player_set();
             begin_player_task();
             xSemaphoreGive(audio_control_sem);
