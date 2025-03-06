@@ -40,8 +40,8 @@ void btMusicBox::begin() {
   esp_bt_dev_set_device_name(_devName);
   
   // initialize AVRCP controller
-  esp_avrc_ct_init();
-  esp_avrc_ct_register_callback(avrc_callback);
+  //esp_avrc_ct_init();
+  //esp_avrc_ct_register_callback(avrc_callback);
   
   // this sets up the audio receive
   esp_a2d_sink_init();
@@ -148,51 +148,6 @@ void btMusicBox::a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t*param){
         break;
     }
 }
-void btMusicBox::updateMeta() {
-  uint8_t attr_mask = ESP_AVRC_MD_ATTR_TITLE | ESP_AVRC_MD_ATTR_ARTIST | ESP_AVRC_MD_ATTR_ALBUM | ESP_AVRC_MD_ATTR_GENRE;
-  esp_avrc_ct_send_metadata_cmd(1, attr_mask);
-}
-void btMusicBox::avrc_callback(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param) {
-  esp_avrc_ct_cb_param_t *rc = (esp_avrc_ct_cb_param_t *)(param);
-  char *attr_text;
-  String mystr;
-
-  switch (event) {
-    case ESP_AVRC_CT_METADATA_RSP_EVT: {
-      attr_text = (char *) malloc (rc->meta_rsp.attr_length + 1);
-      memcpy(attr_text, rc->meta_rsp.attr_text, rc->meta_rsp.attr_length);
-      attr_text[rc->meta_rsp.attr_length] = 0;
-      mystr = String(attr_text);
-
-      switch (rc->meta_rsp.attr_id) {
-        case ESP_AVRC_MD_ATTR_TITLE:
-          //Serial.print("Title: ");
-          //Serial.println(mystr);
-		      //title= mystr;
-          break;
-        case ESP_AVRC_MD_ATTR_ARTIST:
-          //Serial.print("Artist: ");
-          //Serial.println(mystr);
-          //artist= mystr;
-		  break;
-        case ESP_AVRC_MD_ATTR_ALBUM:
-          //Serial.print("Album: ");
-          //Serial.println(mystr);
-          //album= mystr;
-		  break;
-        case ESP_AVRC_MD_ATTR_GENRE:
-          //Serial.print("Genre: ");
-          //Serial.println(mystr);
-          //genre= mystr;
-		  break;
-      }
-      free(attr_text);
-  }break;
-    default:
-      ESP_LOGE("RCCT", "unhandled AVRC event: %d", event);
-      break;
-  }
-}
 void btMusicBox::setSinkCallback(void (*sinkCallback)(const uint8_t *data, uint32_t len) ){
 	 esp_a2d_sink_register_data_callback(sinkCallback);
 }
@@ -263,139 +218,17 @@ void btMusicBox::i2sCallback(const uint8_t *data, uint32_t len){
   
   int jump =4; //how many bytes at a time get sent to buffer
   int  n = len/jump; // number of byte chunks	
-	switch (_postprocess) {
-   case NOTHING:
-        for(int i=0;i<n;i++){
+  for(int i=0;i<n;i++){
 		 //process left channel
 		 fy[0] = (int16_t)((*data16)*_vol);
 		 data16++;
-		 
 		 // process right channel
 		 fy[1] = (int16_t)((*data16)*_vol);
 		 data16++;
 		 i2s_write(I2S_NUM_0, fy, jump, &i2s_bytes_write,  100 ); 
-		}
-		break;
-   case FILTER:
-		for(int i=0;i<n;i++){
-		 //process left channel
-		 temp = _filtLlp.process(_filtLhp.process((*data16)*_vol));
-		 
-		 // overflow check
-		 if(temp>32767){
-		 temp=32767;
-		 }
-		 if(temp < -32767){
-			temp= -32767;
-		 }
-		 fy[0] = (int16_t)(temp);
-	     data16++;
-		 
-		 // process right channel
-		 temp = _filtRlp.process(_filtRhp.process((*data16)*_vol));
-		 if(temp>32767){
-		 temp=32767;
-		 }
-		 if(temp < -32767){
-			temp= -32767;
-		 }
-		 fy[1] =(int16_t) (temp);
-		 data16++; 
-		 i2s_write(I2S_NUM_0, fy, jump, &i2s_bytes_write,  100 );
-		} 
-		break;
-   case COMPRESS:
-	    for(int i=0;i<n;i++){
-		 //process left channel
-		 fy[0] = (*data16); 
-		 fy[0]=_DRCL.softKnee(fy[0]*_vol);
-		 data16++;
-		 
-		 // process right channel
-		 fy[1] = (*data16);
-		 fy[1]=_DRCR.softKnee(fy[1]*_vol);
-		 data16++;
-		 i2s_write(I2S_NUM_0, fy, jump, &i2s_bytes_write,  100 );
-		}
-		break;
-   case FILTER_COMPRESS:
-      for(int i=0;i<n;i++){
-		 //process left channel(overflow check built into DRC)
-		 fy[0] = _DRCL.softKnee(_filtLhp.process(_filtLlp.process((*data16)*_vol)));
-		 data16++;
-		 
-		 //process right channel(overflow check built into DRC)
-		 fy[1] = _DRCR.softKnee(_filtRhp.process(_filtRlp.process((*data16)*_vol)));
-		 data16++;
-		 i2s_write(I2S_NUM_0, fy, jump, &i2s_bytes_write,  100 );
-		}
-		break;	
   }
-
 }
 void btMusicBox::volume(float vol){
 	_vol = constrain(vol,0,1);	
 }
 
-////////////////////////////////////////////////////////////////////
-////////////////// Filtering Functionality /////////////////////////
-////////////////////////////////////////////////////////////////////
-void btMusicBox::createFilter(int n, float fc, int type){
-   fc=constrain(fc,2,20000);
-   switch (type) {
-   case lowpass:
-	_filtLlp= filter(fc,_sampleRate,n,type);
-    _filtRlp= filter(fc,_sampleRate,n,type);
-   break;
-   case highpass:
-	_filtLhp= filter(fc,_sampleRate,n,type);
-    _filtRhp= filter(fc,_sampleRate,n,type);
-   break;
-   }
-	_filtering=true;
-	
-	if(_filtering & _compressing){
-	 _postprocess=3;	
-	}else{
-	 _postprocess=1;
-	}
-}
-void btMusicBox::stopFilter(){
-	_filtering=false;
-	if(_compressing){
-	  _postprocess = 2;
-	}else{
-	 _postprocess = 0;
-	}
-}
-
-////////////////////////////////////////////////////////////////////
-////////////////// Compression Functionality ///////////////////////
-////////////////////////////////////////////////////////////////////
-void btMusicBox::compress(float T,float alphAtt,float alphRel, float R,float w,float mu){
-	_T=T;
-	_alphAtt=alphAtt;
-	_alphRel=alphRel;
-	_R=R;
-	_w=w;
-	_mu=mu;
-	
-	_DRCL = DRC(_sampleRate,T,alphAtt,alphRel,R,w,mu);
-	_DRCR = DRC(_sampleRate,T,alphAtt,alphRel,R,w,mu);
-	_compressing=true;
-	
-	if(_filtering & _compressing){
-	 _postprocess=3;	
-	}else{
-	 _postprocess=2;
-	}	
-}
-void btMusicBox::decompress(){
-	_compressing=false;
-	
-	if(_filtering){
-	  _postprocess = 1;
-	}else{
-	 _postprocess = 0;
-	}
-}

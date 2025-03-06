@@ -1,0 +1,362 @@
+[000555][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000601][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[000980][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002105][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000820][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000954][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002434][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002535][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000557][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001019][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002873][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003026][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000940][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002473][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002608][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000989][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001395][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003053][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001041][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001525][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003929][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000943][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001280][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[001422][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001001][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002788][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002945][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001051][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003043][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003497][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000948][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002513][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002668][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001004][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001426][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003131][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001052][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001550][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[004031][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000953][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002531][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002689][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001008][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002814][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002984][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001060][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001562][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[004045][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001016][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001338][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[001466][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000987][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002736][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002875][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001039][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001520][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003923][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000937][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001274][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[001411][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000990][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002754][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002900][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001043][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003013][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003463][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000947][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002501][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002640][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000999][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002791][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002945][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001051][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001541][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002019][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000947][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002520][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002680][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001007][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002823][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002989][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001054][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003065][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003537][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000949][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002537][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002689][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001009][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002824][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002987][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001059][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001559][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[004017][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001013][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001332][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002894][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000987][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001393][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003017][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001042][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001525][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003897][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000939][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002469][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002606][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000992][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002758][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002911][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001040][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001522][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003939][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000943][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002495][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002636][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000997][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002774][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002926][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001052][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001545][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003991][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000950][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001288][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[001436][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001004][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002802][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002964][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001059][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003075][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003562][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000953][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002533][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002693][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001007][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002814][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002976][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001056][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001557][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[004033][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001012][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001336][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002880][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000985][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002726][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002864][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001043][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001526][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003915][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000938][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002467][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002606][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000993][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002752][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002894][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001048][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003013][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003467][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000947][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002507][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002650][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000998][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002776][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002932][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001050][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001534][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003957][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000951][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002517][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002676][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001001][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002796][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002966][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001056][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001552][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002036][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000957][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002548][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002708][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001012][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002834][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003003][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001061][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001563][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[004021][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001014][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002615][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002751][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000988][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001394][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003051][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001043][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003005][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003459][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000938][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002479][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002616][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000996][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002776][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002934][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001046][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003027][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003480][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000942][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002508][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002647][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001003][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001424][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003123][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001055][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003043][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003505][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000950][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001287][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[001439][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001002][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002788][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002953][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001059][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001556][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002039][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000952][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002527][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002690][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001008][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002824][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002994][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001063][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[003079][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003566][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001012][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002607][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002733][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000987][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002732][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002873][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001038][src/hal.cpp:911] 复位为DeepSleep,唤醒源:3
+[001518][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003883][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[007298][src/AppManager.cpp:422] 正在跳转到APP：0:wenjian
+[007416][src/peripherals.cpp:89] 外设加载:0x2 -> 0x1,当前安装,0x17
+[033732][src/peripherals.cpp:89] 外设加载:0x1 -> 0x0,当前安装,0x17
+[033913][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000992][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002756][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002921][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001045][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001531][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003905][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000943][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002504][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002641][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000998][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002778][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002940][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001054][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001549][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[003999][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000954][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002537][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002692][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000535][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001004][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[002808][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002975][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000569][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[001056][src/hal.cpp:911] 复位为DeepSleep,唤醒源:4
+[001561][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002043][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[000499][src/hal.cpp:909] ESP32复位,原因:DEEPSLEEP_RESET
+[000952][src/hal.cpp:911] 复位为DeepSleep,唤醒源:3
+[001295][src/peripherals.cpp:89] 外设加载:0x0 -> 0x0,当前安装,0x17
+[002868][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[006135][src/AppManager.cpp:422] 正在跳转到APP：0:wenjian
+[006290][src/peripherals.cpp:89] 外设加载:0x2 -> 0x1,当前安装,0x17
+[015947][src/peripherals.cpp:89] 外设加载:0x1 -> 0x0,当前安装,0x17
+[016160][src/peripherals.cpp:89] 外设加载:0x0 -> 0x2,当前安装,0x17
+[021146][src/AppManager.cpp:422] 正在跳转到APP：2:webserver
+[021310][src/peripherals.cpp:89] 外设加载:0x2 -> 0x0,当前安装,0x17
+[052768][src/hal.cpp:1001] 成功连接:ChinaNet-666
+[053183][src/hal.cpp:1002] IP:192.168.101.2
+[053386][src/hal.cpp:1003] MAC:D8:BC:38:40:0E:BC
+[053507][src/hal.cpp:1004] 信号强度:-44

@@ -35,17 +35,6 @@ class btMusicBox {
 	// I2S Audio
 	void I2S(int bck = -1, int dout = -1, int ws = -1);
 	void volume(float vol);
-    
-	// Filtering
-	void createFilter(int n, float hp,int type);
-	void stopFilter();
-	
-	// Compression
-	void compress(float T,float alphAtt,float alphRel, float R,float w,float mu );
-	void decompress();
-	
-	// meta data
-	void updateMeta();
 	
 	
 	float _T=60.0;
@@ -65,7 +54,6 @@ class btMusicBox {
 	// static function causes a static infection of variables
 	static void i2sCallback(const uint8_t *data, uint32_t len);
 	static void a2d_cb(esp_a2d_cb_event_t event, esp_a2d_cb_param_t *param);
-	static void avrc_callback(esp_avrc_ct_cb_event_t event, esp_avrc_ct_cb_param_t *param);
 	
 	// bluetooth address of connected device
 	static uint8_t _address[6];

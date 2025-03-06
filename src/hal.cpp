@@ -660,7 +660,7 @@ void test_littlefs_size(bool format = true)
     uint32_t size_request; // 存储目的分区大小
     size_t size_physical = 0;
     esp_flash_get_physical_size(esp_flash_default_chip, &size_physical);
-    size_request = size_physical - 0x300000 - 0x1000;
+    size_request = size_physical - 0x300000;// - 0x1000
     if (hal.pref.getUInt("size", 0) != size_request)
     {
         Serial.println("检测到分区大小不一致，正在格式化");
@@ -682,7 +682,7 @@ void refresh_partition_table()
     uint32_t size_request; // 存储目的分区大小
     size_t size_physical = 0;
     esp_flash_get_physical_size(esp_flash_default_chip, &size_physical);
-    size_request = size_physical - 0x300000 - 0x1000;
+    size_request = size_physical - 0x300000;// - 0x1000
     esp_flash_read(esp_flash_default_chip, table, 0x8000, sizeof(table));
     memcpy(partition_size.size_byte, &table[16 * 2 * PARTITION_SPIFFS + 0x8], 4);
     Serial.printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
