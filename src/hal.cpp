@@ -765,6 +765,7 @@ void HAL::wait_input(){
     esp_light_sleep_start();
 }
 static const char esp_rst_str[12][64] = {"UNKNOWN_RESRT", "POWERON_RESET", "EXT_RESET", "SW_RESET", "PANIC_RESET", "INT_WDT_RESET", "TASK_WDT_RESET", "WDT_RESET", "DEEPSLEEP_RESET", "BROWNOUT_RESET", "SDIO_RESET"};
+static const char esp_sleep_str[13][64] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
 bool HAL::init()
 {
     int16_t total_gnd = 0;
@@ -890,16 +891,16 @@ bool HAL::init()
         f.print(DEFAULT_CONFIG);
         f.close();
     }
-    if(LittleFS.exists("/System/error log.txt"))
+    if(LittleFS.exists("/System/log.txt"))
     {
-        File log_file = LittleFS.open("/System/error log.txt", "r");
+        File log_file = LittleFS.open("/System/log.txt", "r");
         if(log_file.size() > 1024 * 50){
             log_file.close();
-            LittleFS.remove("/System/error log.txt");
+            LittleFS.remove("/System/log.txt");
         }
         log_file.close();
     }else{      
-        File log_file = LittleFS.open("/System/error log.txt", "a");
+        File log_file = LittleFS.open("/System/log.txt", "a");
         // 添加 BOM 头
         log_file.write(0xEF);
         log_file.write(0xBB);
@@ -908,7 +909,7 @@ bool HAL::init()
     }
     F_LOG("ESP32复位,原因:%s", esp_rst_str[esp_reset_reason()]);
     if(esp_reset_reason() == ESP_RST_DEEPSLEEP){
-        F_LOG("复位为DeepSleep,唤醒源:%d", esp_sleep_get_wakeup_cause());
+        F_LOG("复位为DeepSleep,唤醒源:%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
     }
     loadConfig();
     setenv("TZ", config[Time_Zone].as<const char *>(), 1);
@@ -1337,6 +1338,7 @@ bool HAL::copy(File &newFile, File &file)
             u8g2Fonts.setCursor(1, 50);
             u8g2Fonts.printf("进度: %0.2f%%", progress);
             u8g2Fonts.setCursor(1, 65);
+            log_i("进度: %0.2f%%", progress);
             u8g2Fonts.printf("提示:长按左键中止复制");
             u8g2Fonts.setCursor(1, 80);
             u8g2Fonts.printf("提示:长按中键暂停，暂停后按任意键恢复复制");

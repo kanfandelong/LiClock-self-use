@@ -42,7 +42,7 @@
 
 #define F_LOG(fmt, ...) \
   do { \
-    File file_log = LittleFS.open("/System/error log.txt", "a"); \
+    File file_log = LittleFS.open("/System/log.txt", "a"); \
     if (file_log) { \
       file_log.printf("[%06d]", esp_log_timestamp());\
       file_log.printf("[%s:%d] ", __FILE__, __LINE__); \

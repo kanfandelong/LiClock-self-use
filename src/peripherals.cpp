@@ -223,6 +223,7 @@ void Peripherals::tf_unload(bool save_power){
         log_i("[外设] 卸载并关闭TF卡供电\n");
         F_LOG("卸载并关闭TF卡供电");
     }
+    peripherals_load &= ~PERIPHERALS_SD_BIT;
 }
 
 void Peripherals::sleep()

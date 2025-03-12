@@ -78,7 +78,8 @@ static void appgps_exit(){
     digitalWrite(GPS_POWER, LOW);
     detachInterrupt(digitalPinToInterrupt(PIN_BUTTONC));
     gpio_set_drive_capability(GPIO_NUM_26, GPIO_DRIVE_CAP_DEFAULT);
-    pinMode(GPS_POWER, INPUT);
+    pinMode(GPS_POWER, OUTPUT);
+    pinMode(RXD_2, OUTPUT);
     hal.pref.putDouble("totalDistance", totalDistance);
 }
 void IRAM_ATTR RXD_interrupt(){
@@ -487,10 +488,13 @@ void AppGps::setup(){
     GUI::drawWindowsWithTitle("定位系统信息");
     display.display();
     if (hal.pref.getBool("gps_self_power", true)){
+        pinMode(RXD_2, INPUT);
+        pinMode(TXD_2, OUTPUT);
         Serial1.setPins(RXD_2 ,TXD_2);
         Serial1.begin(hal.pref.getLong("gps_baud", 9600)); 
     }else{
         Serial1.setPins(RXD_2, GPIO_NUM_NC);
+        pinMode(RXD_2, INPUT);
         Serial1.begin(hal.pref.getLong("gps_baud", 9600));
         pinMode(GPS_POWER, OUTPUT);
         gpio_set_drive_capability(GPIO_NUM_26, GPIO_DRIVE_CAP_3);

@@ -230,6 +230,7 @@ void AppInstaller::setup()
                     {true, "AHT20"},
                     {true, "Debug"},
                     {true, "BMP280"},
+                    {true, "收音机"},
                     {true, "蜂鸣器"},
                     {true, "电子书"},
                     {true, "贪吃蛇"},
