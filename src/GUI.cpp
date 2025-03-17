@@ -153,14 +153,14 @@ namespace GUI
             if (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
                 break;
             if (millis() - start > 30000)
-                hal.wait_input();
+                hal.wait_input(300);
             delay(10);
         }
         pop_buffer();
         hal.unhookButton();
     }
     /**
-     * @brief  消息显示GUI  
+     * @brief  消息显示GUI,等待5min用户输入 
      * @param title 窗口标题
      * @param msg  消息内容
      * @param start_x 起始X坐标(左上角)

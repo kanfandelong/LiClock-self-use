@@ -91,6 +91,7 @@ static const menu_select settings_menu_other[] =
         {true,  "精准电量显示"},
         {false, "电量计算起点电压"},
         {false, "BQ27441初始化设置"},
+        {false, "NVS备份设置"},
         {false, NULL},
 };
 
@@ -1228,6 +1229,88 @@ void AppSettings::menu_other()
                     hal.task_bat_info_update();
                     hal.printBatteryInfo();
                 }
+            }
+            break;
+        case 22:
+            {
+                #define NVS_BACKUP_FILE "/System/nvs.bin"
+                // 获取NVS分区信息
+                const esp_partition_t* nvs_partition = esp_partition_find_first(
+                    ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_NVS, "nvs");
+                if (!nvs_partition) {
+                    log_e("找不到NVS分区");
+                    break;
+                }
+                uint8_t* buffer;
+                File file;
+                hal.pref.end();
+                if (GUI::msgbox_yn("NVS备份及恢复程序", "NVS备份文件存储在System文件夹中的nvs.bin文件", "备份", "恢复")){
+                    buffer = (uint8_t*)malloc(nvs_partition->size);
+                    if (!buffer) {
+                        log_e("内存分配失败");
+                        break;
+                    }
+                    // 读取Flash数据
+                    if (esp_partition_read(nvs_partition, 0, buffer, nvs_partition->size) != ESP_OK) {
+                        log_e("读取NVS失败");
+                        free(buffer);
+                        break;
+                    }
+                    // 写入文件
+                    file = LittleFS.open(NVS_BACKUP_FILE, "w");
+                    if (!file) {
+                        GUI::info_msgbox("发生错误", "无法创建文件");
+                        free(buffer);
+                        break;
+                    }
+                    size_t written = file.write(buffer, nvs_partition->size);
+                    file.close();
+                    free(buffer);
+                    if (written != nvs_partition->size) {
+                        GUI::info_msgbox("发生错误", "文件写入错误");
+                        LittleFS.remove(NVS_BACKUP_FILE);
+                    } else {
+                        Serial.printf("备份成功，大小：%d字节\n", written);
+                        GUI::info_msgbox("操作成功", "已创建备份文件nvs.bin");
+                    }
+                } else {
+                    if (!LittleFS.exists(NVS_BACKUP_FILE)){
+                        GUI::info_msgbox("发生错误", "nvs.bin不存在");
+                    }
+                    // 打开备份文件
+                    file = LittleFS.open(NVS_BACKUP_FILE, "r");
+                    if (!file) {
+                        GUI::info_msgbox("发生错误", "无法打开备份文件");
+                        return;
+                    }
+                    size_t fileSize = file.size();
+                    // 读取文件内容
+                    buffer = (uint8_t*)malloc(fileSize);
+                    if (!buffer) {
+                        log_e("内存分配失败");
+                        file.close();
+                        return;
+                    }
+                    size_t read = file.read(buffer, fileSize);
+                    file.close();
+                    if (read != fileSize) {
+                        log_e("读取不完整");
+                        free(buffer);
+                        return;
+                    }
+                    // 擦除并写入分区
+                    if (esp_partition_erase_range(nvs_partition, 0, nvs_partition->size) != ESP_OK) {
+                        GUI::info_msgbox("发生错误", "NVS擦除失败");
+                        free(buffer);
+                        return;
+                    }
+                    if (esp_partition_write(nvs_partition, 0, buffer, fileSize) != ESP_OK)
+                        GUI::info_msgbox("发生错误", "NVS写入失败");
+                    else
+                        GUI::info_msgbox("操作成功", "成功从备份文件恢复NVS");
+                    free(buffer);
+                }
+                hal.pref.begin("clock");
             }
             break;
         default:

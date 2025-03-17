@@ -78,6 +78,8 @@ private:
                             u8g2Fonts.print(data, HEX);
                         }
                     }
+                    u8g2Fonts.setCursor(225 + (8 * a) , u8g2Fonts.getCursorY());
+                    u8g2Fonts.printf("%c", data);
                     a++;
                     u8g2Fonts.setCursor(62 + (17 * a) , u8g2Fonts.getCursorY());
                 }else {

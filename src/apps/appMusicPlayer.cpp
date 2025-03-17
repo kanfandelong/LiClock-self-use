@@ -58,6 +58,7 @@ public:
     const char* remove_path_prefix(const char* path, const char* prefix);
     void select_file();
     void file_in(const char* path);
+    void next_song(bool next = true, bool btn = false);
     void sem();
     void delete_playtask();
     void bulid_music_list();
@@ -244,12 +245,11 @@ void AppMusicPlayer::select_file(){
         file_is_ok = false; 
         if (!hal.pref.getBool(hal.get_char_sha_key("循环播放"), false)){           
             if (hal.pref.getBool(hal.get_char_sha_key("随机播放"), false))
-                currentSongIndex = random(0, maxSong);
+                currentSongIndex = random(0, maxSong - 1);
             else
                 currentSongIndex++;
-            if (currentSongIndex > maxSong) {
-            currentSongIndex = 0;
-            }
+            currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
+                               (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
         }
         sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
         music_file = buf;
@@ -296,6 +296,59 @@ void AppMusicPlayer::file_in(const char* path){
             }
         }
     }
+}
+void AppMusicPlayer::next_song(bool next, bool btn) {
+    const bool loopPlay = hal.pref.getBool(hal.get_char_sha_key("循环播放"), false);
+    const bool autoPlay = hal.pref.getBool(hal.get_char_sha_key("自动播放音乐列表"), false);
+    const bool randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
+    
+    if (!loopPlay && !autoPlay && !randomPlay && !btn) return;
+
+    delete_playtask();
+    free(in);
+
+    if (!loopPlay && !autoPlay && !randomPlay){
+        goto step1;
+    }
+    // 循环播放模式
+    if (loopPlay) {
+        if (btn)
+            goto step1;
+        else {
+            file_in(music_file);
+            player_set();
+            begin_player_task();
+            sem();
+            return;
+        }
+    }
+
+    // 非自动播放模式
+    if (!autoPlay) return;
+
+    // 处理播放列表逻辑
+    if (randomPlay) {
+        currentSongIndex = random(0, maxSong - 1);
+    } else {
+        step1:
+        // 统一处理前进/后退方向
+        const int step = next ? 1 : -1;
+        currentSongIndex += step;
+        
+        // 统一边界处理
+        currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
+                           (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
+    }
+
+    // 路径生成
+    sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+    music_file = buf;
+
+    // 统一执行播放操作
+    file_in(music_file);
+    player_set();
+    begin_player_task();
+    sem();
 }
 /**
  * 信号量函数，用于控制音频播放/暂停
@@ -399,6 +452,8 @@ bool AppMusicPlayer::music_list_menu(bool play){
         break;
     default:
         currentSongIndex = res - 1;
+        currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
+                           (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
         sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[res - 1]).c_str());
         music_file = buf;
         // in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
@@ -503,7 +558,7 @@ void AppMusicPlayer::player_menu(){
                     output->SetGain(gain);
                 break;
             case 10:
-                play_count = GUI::msgbox_number("0-999", 3, play_count);
+                _count = GUI::msgbox_number("重启间隔 0-999", 3, _count);
                 break;
             default:
                 GUI::info_msgbox("警告", "非法的输入值");
@@ -644,27 +699,39 @@ void AppMusicPlayer::setup(){
             }
         }
         if (hal.btnl.isPressing()) {
-            gain = gain + 0.02;
-            if (gain > 4.0) {
-                gain = 4.0;
+            if (GUI::waitLongPress(PIN_BUTTONL)) {
+                next_song(true, true);
+                while(hal.btnl.isPressing())
+                    delay(10);
+            } else {
+                gain = gain + 0.02;
+                if (gain > 4.0) {
+                    gain = 4.0;
+                }
+                if (!nodac)
+                    output->SetGain(gain);
             }
-            if (!nodac)
-                output->SetGain(gain);
         }
         if (hal.btnr.isPressing()) {
-            gain = gain - 0.02;
-            if (gain < 0.0) {
-                gain = 0.0;
+            if (GUI::waitLongPress(PIN_BUTTONR)) {
+                next_song(false, true);
+                while(hal.btnr.isPressing())
+                    delay(10);
+            } else {
+                gain = gain - 0.02;
+                if (gain < 0.0) {
+                    gain = 0.0;
+                }
+                if (!nodac)
+                    output->SetGain(gain);
             }
-            if (!nodac)
-                output->SetGain(gain);
         }
         if ((_count > 0 && play_count > _count && _play_end) || need_deep_sleep){
             file_is_ok = true;
             need_deep_sleep = true;
             GUI::info_msgbox("提示", "出现暂未解决的BUG,将会在重启后恢复播放");
             break;
-        }
+        }/* 
         if (hal.pref.getBool(hal.get_char_sha_key("循环播放"), false) && _play_end) {
             free(in);
             // if (strncmp(music_file, "/sd/", 4) == 0)
@@ -705,10 +772,11 @@ void AppMusicPlayer::setup(){
             player_set();
             begin_player_task();
             sem();
-        }
+        } */
         if (_play_end) {
+            next_song();
             show_display();
-            delay(50);
+            delay(333);
         } else
             wait_time = millis();
         if (millis() - display_time > 3000) {

@@ -363,7 +363,8 @@ IPAddress HAL::getip(){
 #define url_is_test 0
 #define url_test "http://192.168.101.12:5500/firmware-info.json"
 #define url_firmware "https://kanfandelong.github.io/liclock-web-flash/firmware-info.json"
-const char* root_ca= \
+#define CAcert_file "/System/_.github.io.crt"
+/* const char* root_ca= \
 "-----BEGIN CERTIFICATE-----\n" \
 "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n" \
 "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n" \
@@ -385,50 +386,74 @@ const char* root_ca= \
 "8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe\n" \
 "pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl\n" \
 "MrY=\n" \
-"-----END CERTIFICATE-----";
-
+"-----END CERTIFICATE-----"; */
 bool HAL::cheak_firmware_update(){
-    if (autoConnectWiFi())
-        log_i("WiFi连接成功");
-    else
-        return false;
     log_i("开始检查固件更新...");
     if (!WiFi.isConnected())
         return false;
+    else
+        GUI::info_msgbox("提示", "检查固件更新...");
     HTTPClient http;
-    WiFiClient WiFiClientSecure;
+    char* ca_cert;
+    if (LittleFS.exists(CAcert_file)){
+        File CAcert = LittleFS.open(CAcert_file, "r");
+        // 计算动态缓冲区大小（考虑CRLF可能被替换为LF）
+        size_t file_size = CAcert.size();
+        // 假设每个CRLF可能被替换为LF，最大需要file_size * 2的空间（极端情况）
+        ca_cert = new (std::nothrow) char[file_size + 1]; // +1为终止符
+          // 读取证书内容并替换CRLF为LF
+        size_t index = 0;
+        while (CAcert.available()) {
+            char c = CAcert.read();
+            if (c == '\r' && CAcert.peek() == '\n') {
+                // 遇到CRLF，替换为LF
+                ca_cert[index++] = '\n';
+                CAcert.read(); // 跳过下一个字符（\n）
+            } else {
+                ca_cert[index++] = c;
+            }
+            // 防止缓冲区溢出
+            if (index >= file_size * 2) {
+                Serial.println("缓冲区溢出，证书可能被截断");
+                break;
+            }
+        }
+        ca_cert[index] = '\0'; // 添加终止符
+    }
+    else {
+        GUI::msgbox("提示", "CA证书文件不存在!请上传CA证书到littlefs的System文件夹");
+        return false;
+    }
+    log_i("CAcert: \n%s", ca_cert);
     http.setTimeout(20000); 
     if (url_is_test)
         http.begin((String)url_test);
     else
-        http.begin((String)url_firmware, root_ca);
+        http.begin((String)url_firmware, ca_cert);
     int httpCode = http.GET();
     run:
     if (httpCode == HTTP_CODE_OK){
         DynamicJsonDocument doc(2048);
         String http_str = http.getString();
         deserializeJson(doc, http_str);
-        if (is_test)
-        {
-            log_i("正在写入固件版本检查文件...");
-            File f = LittleFS.open("/System/CFU.json", "w");
-            f.print(http_str);
-            f.close();
-        }
-    } else{
+        Serial.println("正在写入固件版本检查文件...");
+        File f = LittleFS.open("/System/CFU.json", "w");
+        f.print(http_str);
+        f.close();
+    } else {
         for (int i = 0; i < 5; i++)
         {
-            log_e("连接失败, 正在重试...");
+            Serial.println("连接失败，正在重试...");
             delay(1000);
             httpCode = http.GET();
             if (httpCode != HTTP_CODE_OK) {
-                log_e("请求失败, http code: %d, 重试次数: %d", httpCode, i + 1);
+                Serial.printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
                 delay(1000); // 等待1秒后重试
             }else
                 goto run;
         }
-        
         log_e("无法获取固件更新状态,http code:%d", httpCode);
+        http.end();
         return false;
     }
     http.end();
@@ -751,8 +776,11 @@ void hal_buffer_handler(void *){
 void HAL::task_buffer_handler(){
     xTaskCreatePinnedToCore(hal_buffer_handler, "hal_buffer_handler", 8192, NULL, 5, NULL, 0);
 }
-void HAL::wait_input(){
-    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+void HAL::wait_input(uint32_t sleeptime){
+    if (sleeptime == 0)
+        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    else 
+        esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
     if (hal.btn_activelow){
         gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
         esp_sleep_enable_gpio_wakeup();
@@ -764,7 +792,7 @@ void HAL::wait_input(){
     log_i("进入lightsleep");
     esp_light_sleep_start();
 }
-static const char esp_rst_str[12][64] = {"UNKNOWN_RESRT", "POWERON_RESET", "EXT_RESET", "SW_RESET", "PANIC_RESET", "INT_WDT_RESET", "TASK_WDT_RESET", "WDT_RESET", "DEEPSLEEP_RESET", "BROWNOUT_RESET", "SDIO_RESET"};
+static const char esp_rst_str[12][64] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
 static const char esp_sleep_str[13][64] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
 bool HAL::init()
 {
@@ -774,10 +802,7 @@ bool HAL::init()
     Serial.begin(115200);
     // 读取时钟偏移
     pref.begin("clock");
-    //int init_nvs = nvs_.begin("info", false, "nvs2");
-    //log_w("%s初始化nvs2分区",init_nvs ? "成功" : "未能");
     log_i("nvs分区可用空闲条目数量:%d", (int)pref.freeEntries());
-    //log_i("nvs2分区可用空闲条目数量:%d", (int)nvs_.freeEntries());
     pinMode(PIN_BUTTONR, INPUT);
     pinMode(PIN_BUTTONL, INPUT);
     pinMode(PIN_BUTTONC, INPUT);
@@ -865,7 +890,7 @@ bool HAL::init()
     {
         display.fillScreen(GxEPD_WHITE);
         u8g2Fonts.setCursor(70, 80);
-        u8g2Fonts.print("等待LittleFS格式化");
+        u8g2Fonts.print("格式化LittleFS...");
         display.display();
         LittleFS.format();
         if (LittleFS.begin(false) == false)
@@ -907,9 +932,9 @@ bool HAL::init()
         log_file.write(0xBF);
         log_file.close();
     }
-    F_LOG("ESP32复位,原因:%s", esp_rst_str[esp_reset_reason()]);
+    F_LOG("ESP32复位,原因:ESP_RST_%s", esp_rst_str[esp_reset_reason()]);
     if(esp_reset_reason() == ESP_RST_DEEPSLEEP){
-        F_LOG("复位为DeepSleep,唤醒源:%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
+        F_LOG("复位为DeepSleep,唤醒源:ESP_SLEEP_%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
     }
     loadConfig();
     setenv("TZ", config[Time_Zone].as<const char *>(), 1);

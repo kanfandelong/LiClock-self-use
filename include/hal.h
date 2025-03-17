@@ -61,7 +61,11 @@ public:
     void WiFiConfigManual();
     void ReqWiFiConfig();
     void task_buffer_handler();
-    void wait_input();
+    /**
+     * @brief 等待用户输入
+     * @param sleeptime 休眠时间，单位秒，0表示不休眠
+     */
+    void wait_input(uint32_t sleeptime = 0);
     /**
      * @brief 初始化
      * @return true 需要全屏刷新
