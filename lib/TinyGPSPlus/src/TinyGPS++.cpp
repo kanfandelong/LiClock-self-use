@@ -30,7 +30,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define _RMCterm "RMC"
 #define _GGAterm "GGA"
 
-#if !defined(ARDUINO) && !defined(__AVR__)
+/* #if !defined(ARDUINO) && !defined(__AVR__)
 // Alternate implementation of millis() that relies on std
 unsigned long millis()
 {
@@ -41,7 +41,7 @@ unsigned long millis()
 
     return static_cast<unsigned long>(duration.count());
 }
-#endif
+#endif */
 
 TinyGPSPlus::TinyGPSPlus()
   :  parity(0)

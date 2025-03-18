@@ -946,6 +946,7 @@ bool HAL::init()
     if (hal.pref.getBool(get_char_sha_key("按键音"), false))
         xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
+    cmd.begin();
     //xTaskCreate(task_bat_info_update, "bat_info_update", 2048, NULL, 10, NULL);
     getTime();
     if ((timeinfo.tm_year < (2016 - 1900)))
@@ -1071,6 +1072,7 @@ void HAL::set_sleep_set_gpio_interrupt()
 #include "driver/ledc.h"
 static void pre_sleep()
 {
+    //cmd.end();
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
     display.hibernate();

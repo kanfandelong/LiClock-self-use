@@ -126,6 +126,6 @@ uint8_t getBatterysoc();
 #include "peripherals.h"
 #include "Buzzer.h"
 #include "lua_trans.h"
-#include "stc-isp.h"
+#include "Serial_cmd.h"
 extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);
