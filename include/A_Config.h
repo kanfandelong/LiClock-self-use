@@ -19,6 +19,7 @@
 #include <LittleFS.h>
 
 #define code_version "2.0.10.9"
+// #define E029A01
 
 #define SCREEN_WIDTH 296
 #define SCREEN_HEIGHT 128
@@ -91,7 +92,11 @@ bool file_exist(const char *path);
 
 extern DynamicJsonDocument config;
 extern DynamicJsonDocument cfu;
-extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
+#if defined(E029A01)
+  extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
+#else
+  extern GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display;
+#endif
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 extern TJpg_Decoder TJpgDec;
 

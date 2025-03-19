@@ -836,7 +836,7 @@ void GxEPD2_290::hibernate()
   xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
 }
 
-void GxEPD2_290::sendlut(uint8_t LutLevel)
+void GxEPD2_290::SendLuts(uint8_t LutLevel)
 {
   multi_thread_params_t multi_thread_params;
   multi_thread_params.function_type = FUNC_sendlut;

@@ -467,8 +467,10 @@ void HAL::cheak_freq()
 {
     int freq = ESP.getCpuFreqMHz();
     if (freq < 80){
+        Serial.end();
         bool cpuset = setCpuFrequencyMhz(80);
         Serial.begin(115200);
+        Serial.setDebugOutput(true);
         ESP_LOGI("hal", "CpuFreq: %dMHZ -> 80MHZ", freq);
         F_LOG("CpuFreq: %dMHZ -> 80MHZ", freq);
         if(cpuset)
@@ -802,6 +804,20 @@ bool HAL::init()
     Serial.begin(115200);
     // 读取时钟偏移
     pref.begin("clock");
+
+    int date = pref.getInt("CpuFreq", 80);
+    int freq = ESP.getCpuFreqMHz();
+    if (freq != date)
+    {
+        Serial.end();
+        bool cpuset = setCpuFrequencyMhz(date);
+        Serial.begin(115200);
+        Serial.setDebugOutput(true);
+        ESP_LOGI("HAL", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
+        if(cpuset){ESP_LOGI("HAL","ok");}
+        else {ESP_LOGI("hal", "err");}
+    }
+
     log_i("nvs分区可用空闲条目数量:%d", (int)pref.freeEntries());
     pinMode(PIN_BUTTONR, INPUT);
     pinMode(PIN_BUTTONL, INPUT);
@@ -854,17 +870,6 @@ bool HAL::init()
     upint = pref.getInt("upint", 2 * 60);   // NTP同步间隔
     // 系统“自检”
     dis_DS3231 = pref.getBool(get_char_sha_key("停用DS3231"), false);
-
-    int date = pref.getInt("CpuFreq", 80);
-    int freq = ESP.getCpuFreqMHz();
-    if (freq != date)
-    {
-        bool cpuset = setCpuFrequencyMhz(date);
-        Serial.begin(115200);
-        ESP_LOGI("HAL", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
-        if(cpuset){ESP_LOGI("HAL","ok");}
-        else {ESP_LOGI("hal", "err");}
-    }
 
     if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_UNDEFINED)
         initial = false;

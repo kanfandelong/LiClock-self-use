@@ -121,6 +121,9 @@
 #if __has_include("epd/GxEPD2_290_T5D.h")
 #include "epd/GxEPD2_290_T5D.h"
 #endif
+#if __has_include("epd/GxEPD2_290_T5D_gray.h")
+#include "epd/GxEPD2_290_T5D_gray.h"
+#endif
 #if __has_include("epd/GxEPD2_290_I6FD.h")
 #include "epd/GxEPD2_290_I6FD.h"
 #endif
@@ -371,7 +374,7 @@ class GxEPD2_BW : public GxEPD2_GFX_BASE_CLASS
       epd2.powerOff();
     }
     void setgray(uint8_t grayLevel){
-      epd2.sendlut(grayLevel);
+      epd2.SendLuts(grayLevel);
     }
     void setFullWindow()
     {

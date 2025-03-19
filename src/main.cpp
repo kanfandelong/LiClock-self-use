@@ -2,7 +2,13 @@
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
+
+#if defined(E029A01)
 GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY)); // 注意：此类略微修改过，使用两个缓冲区
+#else
+GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display(GxEPD2_290_T5D_gray(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
+#endif
+
 DynamicJsonDocument config(1024);
 DynamicJsonDocument cfu(2048);
 
@@ -40,7 +46,7 @@ void setup()
     alarms.check();
     Serial.print("当前CPU频率：");
     Serial.println(ESP.getCpuFreqMHz());
-    xTaskCreate(task_appManager, "appManager", 12288, NULL, 1, NULL);
+    xTaskCreate(task_appManager, "appManager", 8192, NULL, 3, NULL);
     if (hal.pref.getInt("oobe", 0) <= 2)
     {
         appManager.gotoApp("oobe");

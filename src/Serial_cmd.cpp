@@ -5,7 +5,7 @@ char task_list[1024];
 void cmd_task(void *pvParameters) {
     size_t bufIndex = 0;
     memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
-    Serial.println("Serial command task started");
+    Serial.println("LiClock串口工具已启动");
     while(1) {
         // 读取串口数据
         while (Serial.available() > 0) {
@@ -13,7 +13,7 @@ void cmd_task(void *pvParameters) {
   
             if (c == COMMAND_TERMINATOR) {
                 cmd.cmdBuffer[bufIndex] = '\0';
-                Serial.printf("[DEBUG] Raw command: %s\n", cmd.cmdBuffer); // 调试日志
+                Serial.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
                 cmd.parseCommand(cmd.cmdBuffer);
                 bufIndex = 0;
                 memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
@@ -42,11 +42,50 @@ void CMD::end(){
     //vTaskSuspend(cmd_task_handle);
     vTaskDelete(cmd_task_handle);
 }
+void CMD::printHelp(){
+    Serial.println("===================================");
+    Serial.println("欢迎使用LiClock串口工具");
+    Serial.println("此工具旨在帮助固件开发和调试，以及进行错误设置后的救砖操作");
+    Serial.println("命令格式: #command[param]*");
+    Serial.println("\n=== Available Commands ===");
+    
+    // 系统命令
+    Serial.println("\n[System]");
+    Serial.printf("%-18s - %s\n", help, "显示帮助信息");
+    Serial.printf("%-18s - %s\n", esp_light_sleep, "使设备CPU停止（由按键唤醒）");
+    Serial.printf("%-18s - %s\n", esp_restart_, "重启设备");
+    Serial.printf("%-18s - %s\n", free_heap_size, "显示剩余内存");
+
+    // 硬件控制
+    Serial.println("[Hardware]");
+    Serial.printf("%-18s[] - %s\n", set_cpu_freq, "设置CPU频率（单位：MHz）,立即生效,注意应在[]中填入参数");
+    Serial.printf("%-18s[] - %s\n", config_cpu_freq, "保存CPU频率（单位：MHz）到设置,重启后生效,注意应在[]中填入参数");
+    Serial.println("CPU频率可选值:240、160、80、40、20、10");
+    Serial.printf("%-18s - %s\n", esp_chip_info_, "显示芯片信息");
+
+    // 文件系统
+    Serial.println("[Filesystem]");
+    Serial.printf("%-18s - %s\n", littlefs_format, "格式化LittleFS");
+    Serial.printf("%-18s - %s\n", littlefs_info, "显示存储空间信息");
+    Serial.printf("%-18s - %s\n", erase_nvs, "擦除NVS存储");
+
+    // 其他
+    Serial.println("[Parameters]");
+    Serial.printf("%-18s[] - %s\n", set_long_press, "设置长按阈值（单位：ms）,注意应在[]中填入参数");
+    Serial.printf("%-18s - %s\n", set_boot_app, "修改默认APP为clock");
+    Serial.printf("%-18s - %s\n", get_bat_info, "显示电池信息");
+    
+    Serial.println("Example:");
+    Serial.println("#set_cpu_freq[240]*");
+    Serial.println("#chip_info*");
+}
 // 命令解析函数
 void CMD::parseCommand(const char* command) {
     // 检查命令头
     if (command[0] != COMMAND_HEADER) {
         Serial.println("Error: Invalid command header");
+        Serial.println("Command Format: #command[param]*");
+        Serial.println("use '#help*' to get help");
         return;
     }
   
@@ -64,16 +103,31 @@ void CMD::parseCommand(const char* command) {
         // 指令处理
         if (strcmp(cmd, set_cpu_freq) == 0 && parsed == 2) {
             int freq = atoi(param);
+            Serial.end();
             if (setCpuFrequencyMhz(freq)){
+                Serial.begin(115200);
+                Serial.setDebugOutput(true);
                 Serial.println("CPU frequency set successfully");
-                hal.pref.putInt("CpuFreq", freq);
-            } else 
+                //hal.pref.putInt("CpuFreq", freq);
+            } else {
+                Serial.begin(115200);
+                Serial.setDebugOutput(true);
                 Serial.println("Error: Failed to set CPU frequency");
+            }
+        } else if (strcmp(cmd, config_cpu_freq) == 0 && parsed == 2) {
+            int freq = atoi(param);
+            hal.pref.putInt("CpuFreq", freq);
         } else if (strcmp(cmd, set_long_press) == 0 && parsed == 2) {
             int value = atoi(param);
             hal.pref.putInt("lpt", value);
+        } else if (strcmp(cmd, set_dlsplay) == 0 && parsed == 2) {
+            int value = atoi(param);
+            hal.pref.putInt("dlsplay", value);
         } else if (strcmp(cmd, erase_nvs) == 0) {
-            nvs_flash_erase();
+            if (nvs_flash_erase() == ESP_OK)
+                Serial.println("NVS erased successfully");
+            else    
+                Serial.println("Error: Failed to erase NVS");
         } else if (strcmp(cmd, littlefs_format) == 0) {
             LittleFS.end();
             if (!LittleFS.format()){
@@ -131,10 +185,17 @@ void CMD::parseCommand(const char* command) {
             hal.printBatteryInfo();
         } else if (strcmp(cmd, get_cpu_usage) == 0) {
             Serial.println("only use in ESP-IDF");
-        } else 
+        } else if (strcmp(cmd, set_boot_app) == 0) {
+            hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
+        } else if (strcmp(cmd, help) == 0) {
+            printHelp();
+        } else {
             Serial.println("Error: Unknown command");
+            Serial.println("use '#help*' to get help");
+        }
         
     } else {
         Serial.println("Error: Invalid command format");
+        Serial.println("use '#help*' to get help");
     }
 }
