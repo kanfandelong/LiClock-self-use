@@ -17,14 +17,14 @@ GxEPD2_290_T5::GxEPD2_290_T5(int16_t cs, int16_t dc, int16_t rst, int16_t busy) 
 {
 }
 
-void GxEPD2_290_T5::clearScreen(uint8_t value)
+void GxEPD2_290_T5::__clearScreen(uint8_t value)
 {
-  writeScreenBuffer(value);
-  refresh(true);
-  writeScreenBuffer(value);
+  __writeScreenBuffer(value);
+  __refresh(true);
+  __writeScreenBuffer(value);
 }
 
-void GxEPD2_290_T5::writeScreenBuffer(uint8_t value)
+void GxEPD2_290_T5::__writeScreenBuffer(uint8_t value)
 {
   _initial_write = false; // initial full screen buffer clean done
   if (!_using_partial_mode) _Init_Part();
@@ -43,9 +43,9 @@ void GxEPD2_290_T5::writeScreenBuffer(uint8_t value)
   }
 }
 
-void GxEPD2_290_T5::writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+void GxEPD2_290_T5::__writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
-  if (_initial_write) writeScreenBuffer(); // initial full screen buffer clean
+  if (_initial_write) __writeScreenBuffer(); // initial full screen buffer clean
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   int16_t wb = (w + 7) / 8; // width bytes, bitmaps are padded
   x -= x % 8; // byte boundary
@@ -92,10 +92,10 @@ void GxEPD2_290_T5::writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_290_T5::writeImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+void GxEPD2_290_T5::__writeImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
                                    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
-  if (_initial_write) writeScreenBuffer(); // initial full screen buffer clean
+  if (_initial_write) __writeScreenBuffer(); // initial full screen buffer clean
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
   if ((w_bitmap < 0) || (h_bitmap < 0) || (w < 0) || (h < 0)) return;
   if ((x_part < 0) || (x_part >= w_bitmap)) return;
@@ -148,7 +148,7 @@ void GxEPD2_290_T5::writeImagePart(const uint8_t bitmap[], int16_t x_part, int16
   delay(1); // yield() to avoid WDT on ESP8266 and ESP32
 }
 
-void GxEPD2_290_T5::writeImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+void GxEPD2_290_T5::__writeImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   if (black)
   {
@@ -156,7 +156,7 @@ void GxEPD2_290_T5::writeImage(const uint8_t* black, const uint8_t* color, int16
   }
 }
 
-void GxEPD2_290_T5::writeImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+void GxEPD2_290_T5::__writeImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
                                    int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   if (black)
@@ -165,7 +165,7 @@ void GxEPD2_290_T5::writeImagePart(const uint8_t* black, const uint8_t* color, i
   }
 }
 
-void GxEPD2_290_T5::writeNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+void GxEPD2_290_T5::__writeNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   if (data1)
   {
@@ -173,14 +173,14 @@ void GxEPD2_290_T5::writeNative(const uint8_t* data1, const uint8_t* data2, int1
   }
 }
 
-void GxEPD2_290_T5::drawImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+void GxEPD2_290_T5::__drawImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   writeImage(bitmap, x, y, w, h, invert, mirror_y, pgm);
   refresh(x, y, w, h);
   writeImage(bitmap, x, y, w, h, invert, mirror_y, pgm);
 }
 
-void GxEPD2_290_T5::drawImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+void GxEPD2_290_T5::__drawImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
                                   int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   writeImagePart(bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
@@ -188,14 +188,14 @@ void GxEPD2_290_T5::drawImagePart(const uint8_t bitmap[], int16_t x_part, int16_
   writeImagePart(bitmap, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
 }
 
-void GxEPD2_290_T5::drawImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+void GxEPD2_290_T5::__drawImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   writeImage(black, color, x, y, w, h, invert, mirror_y, pgm);
   refresh(x, y, w, h);
   writeImage(black, color, x, y, w, h, invert, mirror_y, pgm);
 }
 
-void GxEPD2_290_T5::drawImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+void GxEPD2_290_T5::__drawImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
                                   int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   writeImagePart(black, color, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
@@ -203,16 +203,16 @@ void GxEPD2_290_T5::drawImagePart(const uint8_t* black, const uint8_t* color, in
   writeImagePart(black, color, x_part, y_part, w_bitmap, h_bitmap, x, y, w, h, invert, mirror_y, pgm);
 }
 
-void GxEPD2_290_T5::drawNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+void GxEPD2_290_T5::__drawNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
 {
   writeNative(data1, data2, x, y, w, h, invert, mirror_y, pgm);
   refresh(x, y, w, h);
   writeNative(data1, data2, x, y, w, h, invert, mirror_y, pgm);
 }
 
-void GxEPD2_290_T5::refresh(bool partial_update_mode)
+void GxEPD2_290_T5::__refresh(bool partial_update_mode)
 {
-  if (partial_update_mode) refresh(0, 0, WIDTH, HEIGHT);
+  if (partial_update_mode) __refresh(0, 0, WIDTH, HEIGHT);
   else
   {
     if (_using_partial_mode) _Init_Full();
@@ -221,7 +221,7 @@ void GxEPD2_290_T5::refresh(bool partial_update_mode)
   }
 }
 
-void GxEPD2_290_T5::refresh(int16_t x, int16_t y, int16_t w, int16_t h)
+void GxEPD2_290_T5::__refresh(int16_t x, int16_t y, int16_t w, int16_t h)
 {
   if (_initial_refresh) return refresh(false); // initial update needs be full update
   // intersection with screen
@@ -243,12 +243,12 @@ void GxEPD2_290_T5::refresh(int16_t x, int16_t y, int16_t w, int16_t h)
   _writeCommand(0x92); // partial out
 }
 
-void GxEPD2_290_T5::powerOff(void)
+void GxEPD2_290_T5::__powerOff(void)
 {
   _PowerOff();
 }
 
-void GxEPD2_290_T5::hibernate()
+void GxEPD2_290_T5::__hibernate()
 {
   _PowerOff();
   if (_rst >= 0)
@@ -437,6 +437,26 @@ const unsigned char GxEPD2_290_T5::lut_24_bb_partial[] PROGMEM =
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
+const unsigned char GxEPD2_290_T5::lutFast_[] PROGMEM ={
+  0x00,0x18,0x5a,0xa5,0x24
+};
+
+void GxEPD2_290_T5::_SendLuts(uint8_t LutLevel){
+  LutLevel = LutLevel?(LutLevel>15?15:LutLevel):15; 
+  lutgray = LutLevel;
+  uint8_t greyHQ = 3;
+  for(uint8_t i=0;i<5;i++){
+    _writeCommand(i+0x20);
+    for(int j=0;j<(i==0?44:42);j++){
+        if(j==4 && ((i==2) || (greyHQ==3 && i==4))) _writeData(0x0f); //刷黑->白
+        else if(j==greyHQ) _writeData(LutLevel);
+        else if(j==0) _writeData(pgm_read_byte(lutFast_+(i)));
+        else if(j==5) _writeData(1);
+        else _writeData(0x0);
+    }
+  }
+}
+
 void GxEPD2_290_T5::_Init_Full()
 {
   _InitDisplay();
@@ -465,16 +485,20 @@ void GxEPD2_290_T5::_Init_Part()
   _writeData (0x08);
   _writeCommand(0X50);
   _writeData(0x17);    //WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
-  _writeCommand(0x20);
-  _writeDataPGM(lut_20_vcomDC_partial, sizeof(lut_20_vcomDC_partial));
-  _writeCommand(0x21);
-  _writeDataPGM(lut_21_ww_partial, sizeof(lut_21_ww_partial));
-  _writeCommand(0x22);
-  _writeDataPGM(lut_22_bw_partial, sizeof(lut_22_bw_partial));
-  _writeCommand(0x23);
-  _writeDataPGM(lut_23_wb_partial, sizeof(lut_23_wb_partial));
-  _writeCommand(0x24);
-  _writeDataPGM(lut_24_bb_partial, sizeof(lut_24_bb_partial));
+  if (lutgray != 15){
+    _SendLuts(lutgray);
+  } else {
+    _writeCommand(0x20);
+    _writeDataPGM(lut_20_vcomDC_partial, sizeof(lut_20_vcomDC_partial));
+    _writeCommand(0x21);
+    _writeDataPGM(lut_21_ww_partial, sizeof(lut_21_ww_partial));
+    _writeCommand(0x22);
+    _writeDataPGM(lut_22_bw_partial, sizeof(lut_22_bw_partial));
+    _writeCommand(0x23);
+    _writeDataPGM(lut_23_wb_partial, sizeof(lut_23_wb_partial));
+    _writeCommand(0x24);
+    _writeDataPGM(lut_24_bb_partial, sizeof(lut_24_bb_partial));
+  }
   _PowerOn();
   _using_partial_mode = true;
 }
@@ -489,4 +513,387 @@ void GxEPD2_290_T5::_Update_Part()
 {
   _writeCommand(0x12); //display refresh
   _waitWhileBusy("_Update_Part", partial_refresh_time);
+}
+
+////下面实现多线程
+
+enum function_type_t
+{
+  FUNC_clearScreen,
+  FUNC_writeScreenBuffer,
+  FUNC_writeImage,
+  FUNC_writeImagePart,
+  FUNC_writeImage2,
+  FUNC_writeImagePart2,
+  FUNC_writeNative,
+  FUNC_drawImage,
+  FUNC_drawImagePart,
+  FUNC_drawImage2,
+  FUNC_drawImagePart2,
+  FUNC_drawNative,
+  FUNC_refresh,
+  FUNC_refresh2,
+  FUNC_powerOff,
+  FUNC_hibernate,
+  FUNC_sendlut,
+};
+
+typedef struct
+{
+  function_type_t function_type;
+  uint8_t value;
+  uint8_t lut_value;
+  const uint8_t *bitmap;
+  const uint8_t *color;
+  int16_t x;
+  int16_t y;
+  int16_t w;
+  int16_t h;
+  bool invert;
+  bool mirror_y;
+  bool pgm;
+  int16_t x_part;
+  int16_t y_part;
+  int16_t w_bitmap;
+  int16_t h_bitmap;
+  bool partial_update_mode;
+  bool full_refresh;
+  const uint8_t *data1;
+  const uint8_t *data2;
+  GxEPD2_290_T5 *instance;
+} multi_thread_params_t;
+
+static QueueHandle_t multi_thread_queue = NULL;
+static bool queue_busy = false;
+static void process_multi_thread_queue()
+{
+  multi_thread_params_t multi_thread_params;
+  xQueueReceive(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+  queue_busy = true;
+  switch (multi_thread_params.function_type)
+  {
+  case FUNC_clearScreen:
+    multi_thread_params.instance->__clearScreen(multi_thread_params.value);
+    break;
+  case FUNC_writeScreenBuffer:
+    multi_thread_params.instance->__writeScreenBuffer(multi_thread_params.value);
+    break;
+  case FUNC_writeImage:
+    multi_thread_params.instance->__writeImage(multi_thread_params.bitmap, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_writeImagePart:
+    multi_thread_params.instance->__writeImagePart(multi_thread_params.bitmap, multi_thread_params.x_part, multi_thread_params.y_part, multi_thread_params.w_bitmap, multi_thread_params.h_bitmap, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_writeImage2:
+    multi_thread_params.instance->__writeImage(multi_thread_params.bitmap, multi_thread_params.color, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_writeImagePart2:
+    multi_thread_params.instance->__writeImagePart(multi_thread_params.bitmap, multi_thread_params.color, multi_thread_params.x_part, multi_thread_params.y_part, multi_thread_params.w_bitmap, multi_thread_params.h_bitmap, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_writeNative:
+    multi_thread_params.instance->__writeNative(multi_thread_params.data1, multi_thread_params.data2, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_drawImage:
+    multi_thread_params.instance->__drawImage(multi_thread_params.bitmap, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_drawImagePart:
+    multi_thread_params.instance->__drawImagePart(multi_thread_params.bitmap, multi_thread_params.x_part, multi_thread_params.y_part, multi_thread_params.w_bitmap, multi_thread_params.h_bitmap, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_drawImage2:
+    multi_thread_params.instance->__drawImage(multi_thread_params.bitmap, multi_thread_params.color, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_drawImagePart2:
+    multi_thread_params.instance->__drawImagePart(multi_thread_params.bitmap, multi_thread_params.color, multi_thread_params.x_part, multi_thread_params.y_part, multi_thread_params.w_bitmap, multi_thread_params.h_bitmap, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_drawNative:
+    multi_thread_params.instance->__drawNative(multi_thread_params.data1, multi_thread_params.data2, multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h, multi_thread_params.invert, multi_thread_params.mirror_y, multi_thread_params.pgm);
+    break;
+  case FUNC_refresh:
+    multi_thread_params.instance->__refresh(multi_thread_params.partial_update_mode);
+    break;
+  case FUNC_refresh2:
+    multi_thread_params.instance->__refresh(multi_thread_params.x, multi_thread_params.y, multi_thread_params.w, multi_thread_params.h);
+    break;
+  case FUNC_powerOff:
+    multi_thread_params.instance->__powerOff();
+    break;
+  case FUNC_hibernate:
+    multi_thread_params.instance->__hibernate();
+    break;
+  case FUNC_sendlut:
+    multi_thread_params.instance->_SendLuts(multi_thread_params.lut_value);
+    break;
+  default:
+    break;
+  }
+}
+static void task_gxEPD2_290_T5(void *params)
+{
+  multi_thread_queue = xQueueCreate(1, sizeof(multi_thread_params_t));
+  while (1)
+  {
+    process_multi_thread_queue();
+    queue_busy = false;
+  }
+}
+void GxEPD2_290_T5::startQueue()
+{
+  xTaskCreate(task_gxEPD2_290_T5, "task_gxEPD2_290_T5", 4096, NULL, 1, NULL);
+}
+QueueHandle_t GxEPD2_290_T5::getQueue()
+{
+  return multi_thread_queue;
+}
+bool GxEPD2_290_T5::isBusy()
+{
+  return queue_busy;
+}
+void GxEPD2_290_T5::clearScreen(uint8_t value)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_clearScreen;
+  multi_thread_params.value = value;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::writeScreenBuffer(uint8_t value)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_writeScreenBuffer;
+  multi_thread_params.value = value;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_writeImage;
+  multi_thread_params.bitmap = bitmap;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::writeImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                                int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_writeImagePart;
+  multi_thread_params.bitmap = bitmap;
+  multi_thread_params.x_part = x_part;
+  multi_thread_params.y_part = y_part;
+  multi_thread_params.w_bitmap = w_bitmap;
+  multi_thread_params.h_bitmap = h_bitmap;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::writeImage(const uint8_t *black, const uint8_t *color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_writeImage2;
+  multi_thread_params.bitmap = black;
+  multi_thread_params.color = color;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::writeImagePart(const uint8_t *black, const uint8_t *color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                                int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_writeImagePart2;
+  multi_thread_params.bitmap = black;
+  multi_thread_params.color = color;
+  multi_thread_params.x_part = x_part;
+  multi_thread_params.y_part = y_part;
+  multi_thread_params.w_bitmap = w_bitmap;
+  multi_thread_params.h_bitmap = h_bitmap;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::writeNative(const uint8_t *data1, const uint8_t *data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_writeNative;
+  multi_thread_params.data1 = data1;
+  multi_thread_params.data2 = data2;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::drawImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_drawImage;
+  multi_thread_params.bitmap = bitmap;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::drawImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                               int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_drawImagePart;
+  multi_thread_params.bitmap = bitmap;
+  multi_thread_params.x_part = x_part;
+  multi_thread_params.y_part = y_part;
+  multi_thread_params.w_bitmap = w_bitmap;
+  multi_thread_params.h_bitmap = h_bitmap;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::drawImage(const uint8_t *black, const uint8_t *color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_drawImage2;
+  multi_thread_params.bitmap = black;
+  multi_thread_params.color = color;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::drawNative(const uint8_t *data1, const uint8_t *data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_drawNative;
+  multi_thread_params.data1 = data1;
+  multi_thread_params.data2 = data2;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::drawImagePart(const uint8_t *black, const uint8_t *color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                               int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_drawImagePart2;
+  multi_thread_params.bitmap = black;
+  multi_thread_params.color = color;
+  multi_thread_params.x_part = x_part;
+  multi_thread_params.y_part = y_part;
+  multi_thread_params.w_bitmap = w_bitmap;
+  multi_thread_params.h_bitmap = h_bitmap;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.invert = invert;
+  multi_thread_params.mirror_y = mirror_y;
+  multi_thread_params.pgm = pgm;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::refresh(bool partial_update_mode)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_refresh;
+  multi_thread_params.partial_update_mode = partial_update_mode;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::refresh(int16_t x, int16_t y, int16_t w, int16_t h)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_refresh2;
+  multi_thread_params.x = x;
+  multi_thread_params.y = y;
+  multi_thread_params.w = w;
+  multi_thread_params.h = h;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::powerOff(void)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_powerOff;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::hibernate()
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_hibernate;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
+}
+
+void GxEPD2_290_T5::SendLuts(uint8_t LutLevel)
+{
+  multi_thread_params_t multi_thread_params;
+  multi_thread_params.function_type = FUNC_sendlut;
+  multi_thread_params.lut_value = LutLevel;
+  multi_thread_params.instance = this;
+  xQueueSend(multi_thread_queue, &multi_thread_params, portMAX_DELAY);
 }

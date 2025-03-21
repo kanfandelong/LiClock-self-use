@@ -404,6 +404,27 @@ const unsigned char GxEPD2_290_T5D::lut_24_bb_partial[] PROGMEM =
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
+const unsigned char GxEPD2_290_T5D::lutFast_[] PROGMEM ={
+  0x00,0x18,0x5a,0xa5,0x24
+};
+
+
+void GxEPD2_290_T5D::SendLuts(uint8_t LutLevel){
+  LutLevel = LutLevel?(LutLevel>15?15:LutLevel):15; 
+  lutgray = LutLevel;
+  uint8_t greyHQ = 3;
+  for(uint8_t i=0;i<5;i++){
+    _writeCommand(i+0x20);
+    for(int j=0;j<(i==0?44:42);j++){
+        if(j==4 && ((i==2) || (greyHQ==3 && i==4))) _writeData(0x0f); //刷黑->白
+        else if(j==greyHQ) _writeData(LutLevel);
+        else if(j==0) _writeData(pgm_read_byte(lutFast_+(i)));
+        else if(j==5) _writeData(1);
+        else _writeData(0x0);
+    }
+  }
+}
+
 void GxEPD2_290_T5D::_Init_Full()
 {
   _InitDisplay();
@@ -420,16 +441,20 @@ void GxEPD2_290_T5D::_Init_Part()
   _writeData (0x08);
   _writeCommand(0x50);
   _writeData(0x17);    //WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
-  _writeCommand(0x20);
-  _writeDataPGM(lut_20_vcomDC_partial, sizeof(lut_20_vcomDC_partial));
-  _writeCommand(0x21);
-  _writeDataPGM(lut_21_ww_partial, sizeof(lut_21_ww_partial));
-  _writeCommand(0x22);
-  _writeDataPGM(lut_22_bw_partial, sizeof(lut_22_bw_partial));
-  _writeCommand(0x23);
-  _writeDataPGM(lut_23_wb_partial, sizeof(lut_23_wb_partial));
-  _writeCommand(0x24);
-  _writeDataPGM(lut_24_bb_partial, sizeof(lut_24_bb_partial));
+  if (lutgray != 15){
+    SendLuts(lutgray);
+  } else {
+    _writeCommand(0x20);
+    _writeDataPGM(lut_20_vcomDC_partial, sizeof(lut_20_vcomDC_partial));
+    _writeCommand(0x21);
+    _writeDataPGM(lut_21_ww_partial, sizeof(lut_21_ww_partial));
+    _writeCommand(0x22);
+    _writeDataPGM(lut_22_bw_partial, sizeof(lut_22_bw_partial));
+    _writeCommand(0x23);
+    _writeDataPGM(lut_23_wb_partial, sizeof(lut_23_wb_partial));
+    _writeCommand(0x24);
+    _writeDataPGM(lut_24_bb_partial, sizeof(lut_24_bb_partial));
+  }
   _PowerOn();
   _using_partial_mode = true;
 }

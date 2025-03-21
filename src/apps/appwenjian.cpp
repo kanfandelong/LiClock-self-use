@@ -684,10 +684,16 @@ void Appwenjian::openfile()
         }*/
         FILE *fp = fopen(getRealPath(filename), "rb");
         uint16_t w, h;
-        fread(&w, 2, 1, fp);
+        HEADGRAY header;
+        /* fread(&w, 2, 1, fp);
         fread(&h, 2, 1, fp);
+        fread(&grayLevels, 2, 1, fp); */
+        fread(&header, sizeof(HEADGRAY), 1, fp);
+        w = header.w;
+        h = header.h;
         fclose(fp);
         display.fillScreen(GxEPD_WHITE);
+        display.display();
         GUI::drawLBM((296 - w) / 2,(128 - h) / 2,filename, GxEPD_BLACK);
         while (1)
         {
@@ -703,10 +709,12 @@ void Appwenjian::openfile()
             }
             hal.wait_input();
         }
+        display.setgray(15);
     }
     else if(strcmp(houzhui, "bmp") == 0 || strcmp(houzhui, "BMP") == 0)
     {
         display.clearScreen();
+        display.display();
         if (strncmp(filename, "/sd/", 4) == 0) {
             GUI::drawBMP(&SD,remove_path_prefix(filename,"/sd"),false);
         } 
@@ -729,6 +737,7 @@ void Appwenjian::openfile()
         }
     }else if(strcmp(houzhui, "JPG") == 0 || strcmp(houzhui, "jpg") == 0){
         display.clearScreen();
+        display.display();
         if (strncmp(filename, "/sd/", 4) == 0) {
             GUI::drawJPG(remove_path_prefix(filename,"/sd"), SD);
         } 

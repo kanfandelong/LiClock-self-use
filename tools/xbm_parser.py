@@ -3,6 +3,8 @@
 import re
 import struct
 import os
+import math
+
 """
 “lbm”格式定义：
 扩展名.lbm
@@ -10,17 +12,19 @@ import os
 小端
 2字节宽度
 2字节高度
+2字节灰度级别
 4字节文件大小
 之后是数据
 """
-def writeLBM(filename: str, width: int, height: int, data: bytes):
+def writeLBM(filename: str, gray: int, width: int, height: int, data: bytes):
     f = open(filename, "wb")
     f.write(struct.pack("<H", width))
     f.write(struct.pack("<H", height))
+    f.write(struct.pack("<H", gray))
     f.write(data)
     f.close()
 
-def parseXBM(filename: str):
+def parseXBM(filename: str, gray: int):
     wid_pattern = "_width\s(\d+)"
     hei_pattern = "_height\s(\d+)"
     f = open(filename, "r")
@@ -33,11 +37,11 @@ def parseXBM(filename: str):
     binary = b""
     for i in data_raw:
         binary += bytes.fromhex(i)
-    if len(binary) == int(wid[0]) * int(hei[0]) / 8:
+    if len(binary) == int(wid[0]) * int(hei[0]) * gray / 8:
         print("文件解析成功！")
     print(wid[0])
     print(hei[0])
-    writeLBM(filename.replace(".xbm", ".lbm"), int(wid[0]), int(hei[0]), binary)
+    writeLBM(filename.replace(".xbm", ".lbm"), int(2 ** gray), int(wid[0]), int(hei[0]), binary)
 
 files = []
 files_raw = os.listdir()
@@ -51,7 +55,8 @@ if(len(files) == 0):
 for file in files:
     print(file)
 i = input("是否转换上述全部文件[y/N]")
+gray = int(input('输入一个像素所占的位数：'))
 if i == "y":
     for file in files:
         print(file)
-        parseXBM(file)
+        parseXBM(file, gray)

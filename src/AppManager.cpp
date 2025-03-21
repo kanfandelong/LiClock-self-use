@@ -509,10 +509,12 @@ void AppManager::update()
     {
         // 准备进入睡眠模式
         // 等待EPD2
+#if defined(Queue)
         if (display.epd2.isBusy())
             return;
         if(uxQueueMessagesWaiting(display.epd2.getQueue()) != 0)
             return;
+#endif
         // 计算下一次唤醒时间
         int realNextWakeup = 0;
         if (nextWakeup != 0)

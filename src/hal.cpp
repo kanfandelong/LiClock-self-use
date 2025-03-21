@@ -868,6 +868,8 @@ bool HAL::init()
     every = pref.getInt("every", 100);      // 两次校准间隔多久
     delta = pref.getInt("delta", 0);        // 这两次校准之间时钟偏差秒数，时钟时间-准确时间
     upint = pref.getInt("upint", 2 * 60);   // NTP同步间隔
+    auto_sleep_mv = pref.getInt("auto_sleep_mv", 2800);
+    ppc = pref.getInt("ppc", 7230);
     // 系统“自检”
     dis_DS3231 = pref.getBool(get_char_sha_key("停用DS3231"), false);
 
@@ -876,8 +878,10 @@ bool HAL::init()
     // 下面进行初始化
 
     WiFi.mode(WIFI_OFF);
+#if defined(Queue)
     display.epd2.startQueue();
-    display.init(0, initial);
+#endif
+    display.init(115200, initial);
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(GxEPD_BLACK);
     u8g2Fonts.setFontMode(1);
@@ -1091,6 +1095,7 @@ static void pre_sleep()
 }
 static void wait_display()
 {
+#if defined(Queue)
     while(uxQueueMessagesWaiting(display.epd2.getQueue()) > 0)
     {
         delay(10);
@@ -1099,6 +1104,7 @@ static void wait_display()
     {
         delay(10);
     }
+#endif
 }
 void HAL::goSleep(uint32_t sec)
 {
@@ -1119,7 +1125,7 @@ void HAL::goSleep(uint32_t sec)
     if (noDeepSleep)
     {
         esp_light_sleep_start();
-        display.init(0, false);
+        display.init(115200, false);
         LittleFS.begin(false);
         peripherals.wakeup();
         ledcAttachPin(PIN_BUZZER, 0);
@@ -1149,7 +1155,7 @@ void HAL::powerOff(bool displayMessage)
     if (noDeepSleep)
     {
         esp_light_sleep_start();
-        display.init(0, false);
+        display.init(115200, false);
         LittleFS.begin(false);
         peripherals.wakeup();
     }
@@ -1169,9 +1175,9 @@ void HAL::update(void)
 
     long adc;
     adc = analogRead(PIN_ADC);
-    adc = adc * pref.getInt("ppc",7230) / 4096;
+    adc = adc * ppc / 4096; // pref.getInt("ppc",7230)
     VCC = adc;
-    int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
+    // int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
     if(hal.VCC < auto_sleep_mv)
     {

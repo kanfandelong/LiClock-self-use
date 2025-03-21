@@ -12,6 +12,14 @@ typedef struct
     const char *title;   // 标题
 } menu_select;
 
+typedef struct
+{
+    uint8_t scan;
+    uint8_t gray;
+    uint16_t w;
+    uint16_t h;
+} HEADGRAY;
+
 namespace GUI
 {
     extern int last_buffer_idx;

@@ -1000,29 +1000,17 @@ namespace GUI
             Serial.printf("File %s not found!\n", filename);
             return;
         }
+        HEADGRAY header;
         uint16_t w, h;
-        uint8_t grayLevels;
-        fread(&w, 2, 1, fp);
+        uint8_t pixel_bit;
+        /* fread(&w, 2, 1, fp);
         fread(&h, 2, 1, fp);
-        fread(&grayLevels, 1, 1, fp);
-        log_i("w: %d, h: %d, grayLevels: %d\n", w, h, grayLevels);
-        uint8_t pixel_bit = 0;
-        switch (grayLevels)
-        {
-            case 1:
-                pixel_bit = 1;
-                break;
-            case 4:
-                pixel_bit = 2;
-                break;
-            case 16:
-                pixel_bit = 4;
-                break;
-            default:
-                Serial.printf("Unsupported gray levels: %d\n", grayLevels);
-                fclose(fp);
-                return;
-        }
+        fread(&grayLevels, 2, 1, fp); */
+        fread(&header, sizeof(HEADGRAY), 1, fp);
+        w = header.w;
+        h = header.h;
+        pixel_bit = header.gray;
+        log_i("w: %d, h: %d, grayLevels(每像素位数): %d\n", w, h, pixel_bit);
         size_t imgsize;
         uint16_t tmp = w / (8 / pixel_bit);
         if (w % (8 / pixel_bit) != 0)
@@ -1052,51 +1040,51 @@ namespace GUI
         uint8_t y;
         uint8_t grayLevel = 20;
     } pixel;
-    void drawGrayScaleImage(bool is4Bit, int x, int y, int w, int h, const uint8_t *bitmap) {
-        int grayLevels = is4Bit ? 4 : 16;
-        int bytesPerRow = w;
-        long pixelCount = 0;
-        int pixel_x = 0;
-        int bitmapaddress = 0;
-        //pixel *grayPixels = new pixel[w * h];
+    void drawGrayScaleImage(bool is4gray, int x, int y, int w, int h, const uint8_t *bitmap) {
+        int bytes_per_row = is4gray ? (w + 3) / 4 : (w + 1) / 2;
 
-        // Collect pixel positions for each gray level is4Bit ? byte >> (2 * (k + 1)) & 0x03 : (4 * (k + 1)) & 0x0F
-        log_i("开始进行像素灰度分类");
-        for (int a = grayLevels - 1; a > 0; a--){
-            display.setgray(a);
-            for (int j = 0; j < h; j++) {
-                log_i("%d", j + 1);
-                for (int i = 0; i < bytesPerRow / (is4Bit ? 4 : 2); i++) {
-                    uint8_t byte = bitmap[bitmapaddress];
-                    bitmapaddress++;
-                    for (int k = 0; k < (is4Bit ? 4 : 2); k++) {
-                        int grayValue = is4Bit ? ((byte >> (6 - 2 * k)) & 0x03) * (15 / 3) : ((byte >> (4 - 4 * k)) & 0x0F);
-                        // grayPixels[pixelCount].x = x + pixel_x;
-                        // grayPixels[pixelCount].y = y + j;
-                        // grayPixels[pixelCount].grayLevel = grayValue;
-                        pixel_x++;
-                        pixelCount++;
-                        if (grayValue == a)
-                            display.drawPixel(x + pixel_x, y + j, a == 0 ? GxEPD_WHITE : GxEPD_BLACK);
+        if (is4gray) {
+            // 4阶灰度处理（映射到0,5,10,15）
+            const int levels[] = {15, 10, 5, 0};
+            for (int l = 0; l < 4; l++) {
+                int gray_level = levels[l];
+                display.setgray(gray_level);
+                
+                for (int j = 0; j < h; j++) {
+                    for (int i = 0; i < w; i++) {
+                        // 计算字节位置和像素值
+                        int byte_idx = j * bytes_per_row + (i / 4);
+                        uint8_t byte = bitmap[byte_idx];
+                        int shift = 6 - (i % 4) * 2;
+                        uint8_t p4 = (byte >> shift) & 0x03;
+                        
+                        if (p4 * 5 == gray_level) {
+                            display.drawPixel(x + i, y + j, gray_level == 0 ? GxEPD_WHITE : GxEPD_BLACK);
+                        }
                     }
                 }
-                pixel_x = 0;
+                display.display(true); // 刷新当前灰阶层
             }
-            display.display(true);
+        } else {
+            // 16阶灰度处理
+            for (int gray_level = 15; gray_level >= 0; gray_level--) {
+                display.setgray(gray_level);
+                
+                for (int j = 0; j < h; j++) {
+                    for (int i = 0; i < w; i++) {
+                        // 计算字节位置和像素值
+                        int byte_idx = j * bytes_per_row + (i / 2);
+                        uint8_t byte = bitmap[byte_idx];
+                        uint8_t p16 = (i % 2 == 0) ? (byte >> 4) : (byte & 0x0F);
+                        
+                        if (p16 == gray_level) {
+                            display.drawPixel(x + i, y + j, gray_level == 0 ? GxEPD_WHITE : GxEPD_BLACK);
+                        }
+                    }
+                }
+                display.display(true); // 刷新当前灰阶层
+            }
         }
-
-        // Draw pixels from dark to light
-        // uint8_t _grayLevels = grayLevels - 1;
-        // log_i("开始进行灰度像素绘制");
-        // for (int a = grayLevels - 1; a > 0; a--){
-        //     display.setgray(a);
-        //     for (int i = 0; i < pixelCount; i++){
-        //         if (grayPixels[i].grayLevel == a)
-        //             display.drawPixel(grayPixels[i].x, grayPixels[i].y, a == 0 ? GxEPD_WHITE : GxEPD_BLACK);
-        //     }
-        //     display.display(true);
-        // }
-        // delete[] grayPixels;
     }
     void drawgraybitmap(int16_t x, int16_t y, const char *filename, uint16_t color)
     {

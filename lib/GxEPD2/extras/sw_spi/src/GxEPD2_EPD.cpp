@@ -59,7 +59,7 @@ void GxEPD2_EPD::init(uint32_t serial_diag_bitrate, bool initial, uint16_t reset
   _reset_duration = reset_duration;
   if (serial_diag_bitrate > 0)
   {
-    Serial.begin(serial_diag_bitrate);
+    // Serial.begin(serial_diag_bitrate);
     _diag_enabled = true;
   }
   if (_cs >= 0)

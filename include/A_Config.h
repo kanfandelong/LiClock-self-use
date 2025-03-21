@@ -19,7 +19,10 @@
 #include <LittleFS.h>
 
 #define code_version "2.0.10.9"
+// 屏幕型号选择宏定义
 // #define E029A01
+// 屏幕多线程且驱动为UC8151C
+// #define Queue
 
 #define SCREEN_WIDTH 296
 #define SCREEN_HEIGHT 128
@@ -95,7 +98,11 @@ extern DynamicJsonDocument cfu;
 #if defined(E029A01)
   extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
 #else
-  extern GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display;
+  #if defined(Queue)
+    extern GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display;
+  #else
+    extern GxEPD2_BW<GxEPD2_290_T5D, GxEPD2_290_T5D::HEIGHT> display;
+  #endif
 #endif
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 extern TJpg_Decoder TJpgDec;

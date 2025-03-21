@@ -88,6 +88,8 @@ public:
     time_t now;
     int global_hour_offset = 0;
     int numNetworks = 0;
+    int ppc = 0;
+    int auto_sleep_mv = 0;
     time_t lastsync = 1;
     int32_t every = 100;
     int32_t delta = 0;
