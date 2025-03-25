@@ -698,13 +698,13 @@ void AppMusicPlayer::setup(){
                 display_count++;
             }
         }
-        if (hal.btnl.isPressing()) {
-            if (GUI::waitLongPress(PIN_BUTTONL)) {
+        if (hal.btnr.isPressing()) {
+            if (GUI::waitLongPress(PIN_BUTTONR)) {
                 next_song(true, true);
                 while(hal.btnl.isPressing())
                     delay(10);
             } else {
-                gain = gain + 0.02;
+                gain = gain + 0.2;
                 if (gain > 4.0) {
                     gain = 4.0;
                 }
@@ -712,13 +712,13 @@ void AppMusicPlayer::setup(){
                     output->SetGain(gain);
             }
         }
-        if (hal.btnr.isPressing()) {
-            if (GUI::waitLongPress(PIN_BUTTONR)) {
+        if (hal.btnl.isPressing()) {
+            if (GUI::waitLongPress(PIN_BUTTONL)) {
                 next_song(false, true);
                 while(hal.btnr.isPressing())
                     delay(10);
             } else {
-                gain = gain - 0.02;
+                gain = gain - 0.2;
                 if (gain < 0.0) {
                     gain = 0.0;
                 }

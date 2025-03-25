@@ -9,11 +9,12 @@
 
 //命令列表
 #define help                "help"
-#define set_cpu_freq        "setcpufreq"
-#define set_dlsplay         "setdisplay"
+#define set_cpu_freq        "cpufreq"
+#define set_display         "displaygray"
+#define set_display_PLL     "PLL"
 #define config_cpu_freq     "configcpufreq"
-#define set_long_press      "setlongpress"
-#define get_runtime         "getruntime"
+#define set_long_press      "longpress"
+#define get_runtime         "runtime"
 #define get_cpu_usage       "cpuusage"
 #define set_boot_app        "bootapp->clock"
 #define erase_nvs           "erasenvs"
@@ -34,7 +35,6 @@
 #define WHITE   "\033[37m"
 #define RESET   "\033[0m"
 
-// 全局缓冲区
 class CMD
 {
 private:

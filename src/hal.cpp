@@ -41,6 +41,7 @@ void HAL::task_bat_info_update(){
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
         hal.bat_info.voltage = (float)lipo.voltage() / 1000.0;
         hal.bat_info.soc = lipo.soc(FILTERED);
+        hal.bat_info.soh = lipo.soh();
         hal.bat_info.power = lipo.power();
         hal.bat_info.temp = (float)lipo.temperature(BATTERY) / 100.0;
         hal.bat_info.capacity.remain = lipo.capacity(REMAIN);
@@ -870,6 +871,7 @@ bool HAL::init()
     upint = pref.getInt("upint", 2 * 60);   // NTP同步间隔
     auto_sleep_mv = pref.getInt("auto_sleep_mv", 2800);
     ppc = pref.getInt("ppc", 7230);
+    lpt = hal.pref.getInt("lpt", 25);
     // 系统“自检”
     dis_DS3231 = pref.getBool(get_char_sha_key("停用DS3231"), false);
 

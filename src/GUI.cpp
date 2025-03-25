@@ -10,7 +10,7 @@ namespace GUI
      */
     bool waitLongPress(int btn) // 检查长按，如果是长按则返回true
     {
-        for (int16_t i = 0; i < hal.pref.getInt("lpt", 25); ++i)
+        for (int16_t i = 0; i < hal.lpt; ++i)
         {
             if (digitalRead(btn) == hal.btn_activelow)
                 return false;
@@ -1026,7 +1026,7 @@ namespace GUI
         fread(img, 1, imgsize, fp);
         fclose(fp);
         if (pixel_bit == 1){
-            display.drawXBitmap(x, y, img, w, h, color);
+            drawbitmap(x, y, img, w, h, color);
             display.display();}
         else if (pixel_bit == 2) 
             drawGrayScaleImage(true, x, y, w, h, img);
@@ -1067,9 +1067,14 @@ namespace GUI
             }
         } else {
             // 16阶灰度处理
+            int display_gray = hal.pref.getInt("dlsplay", 16);
             for (int gray_level = 15; gray_level >= 0; gray_level--) {
-                display.setgray(gray_level);
-                
+                if (display_gray == 16)
+                    display.setgray(gray_level);
+                else {
+                    display.setgray(display_gray);
+                    // display.display(true);
+                }
                 for (int j = 0; j < h; j++) {
                     for (int i = 0; i < w; i++) {
                         // 计算字节位置和像素值
@@ -1086,37 +1091,29 @@ namespace GUI
             }
         }
     }
-    void drawgraybitmap(int16_t x, int16_t y, const char *filename, uint16_t color)
+    /**
+     * 由于lmage2Lcd的像素排列顺序（高位到低位）与XBM（低位到高位）的不同，所以重写了单色位图绘制函数，与Adafruit_GFX库函数的绘制函数在函数输入上（除了位图的像素排列）完全相同
+     */
+    void drawbitmap(int16_t x, int16_t y, const uint8_t bitmap[],int16_t w, int16_t h, uint16_t color)
     {
-        FILE *fp = fopen(getRealPath(filename), "rb");
-        if (!fp)
-        {
-            Serial.printf("File %s not found!\n", filename);
-            return;
+        int16_t byteWidth = (w + 7) / 8;
+        uint8_t b = 0;
+        uint8_t bitMask = 0;
+
+        for (int16_t j = 0; j < h; j++, y++) {
+            for (int16_t i = 0; i < w; i++) {
+                // 每8像素重新加载字节和初始化掩码
+                if ((i & 7) == 0) { 
+                    b = pgm_read_byte(&bitmap[j * byteWidth + (i / 8)]);
+                    bitMask = 0x80; // 从最高位开始
+                }
+                // 检查当前位并绘制像素
+                if (b & bitMask) {
+                    display.drawPixel(x + i, y, color);
+                }
+                bitMask >>= 1; // 右移处理下一位
+            }
         }
-        uint16_t w, h, grayLevels;
-        fread(&w, 2, 1, fp);
-        fread(&h, 2, 1, fp);
-        fread(&grayLevels, 1, 1, fp);
-        size_t imgsize;
-        uint16_t tmp = w / grayLevels == 4 ? 4 : 2;
-        if (w % grayLevels == 4 ? 4 : 2 != 0)
-            tmp++;
-        imgsize = tmp * h;
-        uint8_t *img = (uint8_t *)malloc(imgsize);
-        if (!img)
-        {
-            Serial.printf("malloc failed!\n");
-            fclose(fp);
-            return;
-        }
-        fread(img, 1, imgsize, fp);
-        fclose(fp);
-        if (grayLevels == 4)
-            drawGrayScaleImage(true, x, y, w, h, img);
-        else if (grayLevels == 16)
-            drawGrayScaleImage(false, x, y, w, h, img);
-        free(img);
     }
     //请注意，BMP位图是在屏幕物理方向的物理位置绘制的
     #define input_buffer_pixels 10 // 可能会影响性能，数值越大越费动态内存

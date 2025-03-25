@@ -294,10 +294,11 @@ void GxEPD2_290_T5::_PowerOff()
   _power_is_on = false;
   _using_partial_mode = false;
 }
-
+// #define def_init_code
 void GxEPD2_290_T5::_InitDisplay()
 {
   if (_hibernating) _reset();
+#if defined(def_init_code)
   _writeCommand(0x01); //POWER SETTING
   _writeData (0x03);
   _writeData (0x00);
@@ -319,6 +320,16 @@ void GxEPD2_290_T5::_InitDisplay()
   _writeData (WIDTH);
   _writeData (HEIGHT >> 8);
   _writeData (HEIGHT & 0xFF);
+#else
+  _writeCommand(0x00); // panel setting
+  _writeData(0x1f);    // LUT from OTP, 128x296
+  _writeCommand(0x61); //resolution setting
+  _writeData (WIDTH);
+  _writeData (HEIGHT >> 8);
+  _writeData (HEIGHT & 0xFF);
+  _writeCommand(0x50); // VCOM AND DATA INTERVAL SETTING
+  _writeData(0x97);    // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+#endif
 }
 
 //full screen update LUT
@@ -459,6 +470,7 @@ void GxEPD2_290_T5::_SendLuts(uint8_t LutLevel){
 
 void GxEPD2_290_T5::_Init_Full()
 {
+#if defined(def_init_code)
   _InitDisplay();
   _writeCommand(0x82); //vcom_DC setting
   _writeData (0x08);
@@ -474,17 +486,30 @@ void GxEPD2_290_T5::_Init_Full()
   _writeDataPGM(lut_23_wb, sizeof(lut_23_wb));
   _writeCommand(0x24);
   _writeDataPGM(lut_24_bb, sizeof(lut_24_bb));
+#else
+  _InitDisplay();
+#endif
   _PowerOn();
   _using_partial_mode = false;
 }
 
 void GxEPD2_290_T5::_Init_Part()
 {
+#if defined(def_init_code)
   _InitDisplay();
   _writeCommand(0x82); //vcom_DC setting
   _writeData (0x08);
   _writeCommand(0X50);
   _writeData(0x17);    //WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+#else  
+  _InitDisplay();
+  _writeCommand(0x00); //panel setting
+  _writeData(hasFastPartialUpdate ? 0xbf : 0x1f); // for test with OTP LUT
+  _writeCommand(0x82); //vcom_DC setting
+  _writeData (0x08);
+  _writeCommand(0x50);
+  _writeData(0x17);    //WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+#endif
   if (lutgray != 15){
     _SendLuts(lutgray);
   } else {

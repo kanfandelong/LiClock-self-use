@@ -423,8 +423,15 @@ void GxEPD2_290_T5D::SendLuts(uint8_t LutLevel){
         else _writeData(0x0);
     }
   }
+  _writeCommand(0x30);
+  _writeData(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz
 }
 
+void GxEPD2_290_T5D::PLL_set(uint8_t PLL_set_val){
+  _writeCommand(0x30);
+  _writeData(PLL_set_val); //0x3a(58):100Hz, 0x29(37):150Hz
+  PLL_val = PLL_set_val;
+}
 void GxEPD2_290_T5D::_Init_Full()
 {
   _InitDisplay();

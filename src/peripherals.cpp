@@ -102,7 +102,7 @@ bool Peripherals::load(uint16_t bitmask)
             //gpio_set_pull_mode((gpio_num_t)15, GPIO_PULLUP_ONLY);
             //gpio_set_pull_mode((gpio_num_t)12, GPIO_PULLUP_ONLY);
             delay(50);
-            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 500000);
+            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
             Serial.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
             if (SD.begin(PIN_SD_CS, SDSPI, freq) == false)
             {

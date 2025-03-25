@@ -1020,10 +1020,10 @@ void AppSettings::menu_other()
             }
             break;
         case 10:
-        {
-            float new_clk_freq = (float)GUI::msgbox_number("SD卡时钟", 8, hal.pref.getInt("sd_clk_freq" , 20000000));
-            hal.pref.putInt("sd_clk_freq" , new_clk_freq);
-        }
+            {
+                int new_clk_freq = GUI::msgbox_number("SD卡时钟", 8, hal.pref.getInt("sd_clk_freq" , 3500000));
+                hal.pref.putInt("sd_clk_freq" , new_clk_freq);
+            }
             break;
         case 11:
             {
@@ -1361,7 +1361,7 @@ void AppSettings::cheak_config(char *a)
         char pass[32];
         sprintf(pass, "%d", GUI::msgbox_number("输入密码",8,0));
         config[PARAM_PASS] = pass;
-        config[PARAM_CLOCKONLY] = "1";
+        config[PARAM_CLOCKONLY] = "0";
         hal.saveConfig();
         GUI::msgbox("提示","已写入配置，即将重启！");
         esp_restart();

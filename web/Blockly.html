@@ -1669,53 +1669,74 @@
         }
         function drawLBM(url) {
             document.getElementById("canvas").style.display = "inline";
-            var canvas = document.querySelector('#canvas')
+            var canvas = document.querySelector('#canvas');
             var ctx = canvas.getContext('2d');
-            function drawDot(x, y) {
-                ctx.fillStyle = "rgba(0,0,0,1)";
-                ctx.fillRect(x * 2, y * 2, 2, 2)
+
+            function drawDot(x, y, grayValue) {
+                if (grayValue === 255) return; // 跳过白色像素
+                ctx.fillStyle = `rgba(${grayValue},${grayValue},${grayValue},1)`;
+                ctx.fillRect(x * 2, y * 2, 2, 2);
             }
+
             function clearCanvas() {
-                if (canvas.getContext) {
-                    ctx.fillStyle = "rgba(255,255,255,1)";
-                    ctx.fillRect(0, 0, 296 * 2, 128 * 2)
-                    ctx.fillStyle = "rgba(255,255,0,0.1)";
-                    ctx.fillRect(0, 0, 296 * 2, 128 * 2)
-                } else {
-                    console.log('不支持getContext');
-                }
+                ctx.fillStyle = "rgba(255,255,255,1)";
+                ctx.fillRect(0, 0, 296 * 2, 128 * 2);
+                ctx.fillStyle = "rgba(255,255,0,0.1)";
+                ctx.fillRect(0, 0, 296 * 2, 128 * 2);
             }
-            clearCanvas()
+
+            clearCanvas();
+
             let xhr = new XMLHttpRequest();
-            xhr.open('get', url, true);  //url为地址链接
+            xhr.open('get', url, true);
             xhr.responseType = "blob";
             xhr.onload = function () {
-                if (this.status == 200) {
-                    //承受二进制文件流
-                    var res = this.response;
-                    const buff = res.arrayBuffer()
-                    buff.then(function (value) {
-                        const uInt8 = new Uint8Array(value)
+                if (this.status === 200) {
+                    this.response.arrayBuffer().then(value => {
+                        const uInt8 = new Uint8Array(value);
+                
+                        // 解析文件头
+                        const header = {
+                            scan: uInt8[0],
+                            gray: uInt8[1],
+                            w: uInt8[2] | (uInt8[3] << 8),
+                            h: uInt8[4] | (uInt8[5] << 8)
+                        };
+                
+                        // 计算对齐参数
+                        const alignmentMap = {1:8, 2:4, 4:2};
+                        const alignedWidth = Math.ceil(header.w / alignmentMap[header.gray]) * alignmentMap[header.gray];
+                        const bytesPerLine = (alignedWidth * header.gray) >> 3;
+                
+                        // 绘制参数
+                        const startX = (296 - header.w) / 2;
+                        const startY = (128 - header.h) / 2;
                         ctx.fillStyle = "rgba(0,0,0,0.1)";
-                        var w = uInt8[0] + uInt8[1] * 256
-                        var h = uInt8[2] + uInt8[3] * 256
-                        var size = uInt8.length - 4
-                        var x = (296 - w) / 2
-                        var y = (128 - h) / 2
-                        ctx.fillRect(x * 2, y * 2, w * 2, h * 2)
-                        var real_w = Math.ceil(w / 8) * 8
-                        for (i = 0; i < h; ++i) {
-                            for (j = 0; j < w; ++j) {
-                                pos = i * (real_w / 8) + Math.floor(j / 8) + 4
-                                bit = 1 << (j % 8)
-                                if ((uInt8[pos] & bit) != 0) {
-                                    drawDot(x + j, y + i);
-                                }
+                        ctx.fillRect(startX * 2, startY * 2, header.w * 2, header.h * 2);
+
+                        // 逐像素处理
+                        for (let y = 0; y < header.h; y++) {
+                            const rowStart = 6 + y * bytesPerLine;
+                            for (let x = 0; x < header.w; x++) {
+                                const bitPosition = x * header.gray;
+                                const byteOffset = rowStart + (bitPosition >> 3);
+                                if (byteOffset >= uInt8.length) break; // 防溢出
+
+                                const byte = uInt8[byteOffset];
+                                const shift = 8 - (bitPosition & 7) - header.gray;
+                                const mask = (0xFF >> (8 - header.gray)) << shift;
+                                let value = (byte & mask) >>> shift;
+
+                                // 值域转换（0为白，最大值为黑）
+                                value = (header.gray === 1) ? 1 - value : value; // 黑白模式取反
+                                const grayValue = 255 - Math.round((value / ((1 << header.gray) - 1)) * 255);
+                        
+                                drawDot(startX + x, startY + y, grayValue);
                             }
                         }
                     });
                 }
-            }
+            };
             xhr.send();
         }
     </script>

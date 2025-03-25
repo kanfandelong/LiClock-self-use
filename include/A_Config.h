@@ -23,6 +23,9 @@
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C
 // #define Queue
+// #define T5
+#define T5D
+// #define T5D_gray
 
 #define SCREEN_WIDTH 296
 #define SCREEN_HEIGHT 128
@@ -98,10 +101,14 @@ extern DynamicJsonDocument cfu;
 #if defined(E029A01)
   extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
 #else
-  #if defined(Queue)
-    extern GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display;
-  #else
+  #if defined(T5D)
     extern GxEPD2_BW<GxEPD2_290_T5D, GxEPD2_290_T5D::HEIGHT> display;
+  #endif
+  #if defined(T5)
+    extern GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display;
+  #endif
+  #if defined(T5D_gray)
+    extern GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display;
   #endif
 #endif
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;

@@ -26,10 +26,10 @@ class GxEPD2_290_T5 : public GxEPD2_EPD
     static const bool hasColor = false;
     static const bool hasPartialUpdate = true;
     static const bool hasFastPartialUpdate = true; // set this false for test with OTP LUT (GDEW029I6F)
-    static const uint16_t power_on_time = 400; // ms, e.g. 36553us
-    static const uint16_t power_off_time = 250; // ms, e.g. 20759us
-    static const uint16_t full_refresh_time = 2100; // ms, e.g. 2056899us
-    static const uint16_t partial_refresh_time = 400; // ms, e.g. 353649us
+    static const uint16_t power_on_time = 100; // ms, e.g. 36553us
+    static const uint16_t power_off_time = 50; // ms, e.g. 20759us
+    static const uint16_t full_refresh_time = 3500; // ms, e.g. 2056899us
+    static const uint16_t partial_refresh_time = 750; // ms, e.g. 353649us
     uint8_t lutgray = 15;
     // constructor
     GxEPD2_290_T5(int16_t cs, int16_t dc, int16_t rst, int16_t busy);

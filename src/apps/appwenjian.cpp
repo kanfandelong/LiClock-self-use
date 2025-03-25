@@ -697,11 +697,11 @@ void Appwenjian::openfile()
         GUI::drawLBM((296 - w) / 2,(128 - h) / 2,filename, GxEPD_BLACK);
         while (1)
         {
-            if(digitalRead(PIN_BUTTONR) == 1)
+            if(hal.btnr.isPressing())
             {
-                appManager.noDeepSleep = false;
+                while(hal.btnr.isPressing())
+                    delay(10);
                 hal.powerOff(false);
-                esp_deep_sleep_start();
             }
             if(digitalRead(PIN_BUTTONC) == 1)
             {
@@ -725,9 +725,9 @@ void Appwenjian::openfile()
         {
             if(hal.btnr.isPressing())
             {
-                appManager.noDeepSleep = false;
+                while(hal.btnr.isPressing())
+                    delay(10);
                 hal.powerOff(false);
-                esp_deep_sleep_start();
             }
             if(hal.btnc.isPressing())
             {
@@ -748,9 +748,9 @@ void Appwenjian::openfile()
         {
             if(hal.btnr.isPressing())
             {
-                appManager.noDeepSleep = false;
+                while(hal.btnr.isPressing())
+                    delay(10);
                 hal.powerOff(false);
-                esp_deep_sleep_start();
             }
             if(hal.btnc.isPressing())
             {

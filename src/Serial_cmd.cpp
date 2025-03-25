@@ -11,7 +11,7 @@ void cmd_task(void *pvParameters) {
         while (Serial.available() > 0) {
             char c = Serial.read();
   
-            if (c == COMMAND_TERMINATOR) {
+            if (c == COMMAND_TERMINATOR && c == '\n') {
                 cmd.cmdBuffer[bufIndex] = '\0';
                 Serial.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
                 cmd.parseCommand(cmd.cmdBuffer);
@@ -58,6 +58,7 @@ void CMD::printHelp(){
 
     // 硬件控制
     Serial.println("[Hardware]");
+    Serial.printf("%-18s - %s\n", set_cpu_freq, "获取CPU频率（单位：MHz）");
     Serial.printf("%-18s[] - %s\n", set_cpu_freq, "设置CPU频率（单位：MHz）,立即生效,注意应在[]中填入参数");
     Serial.printf("%-18s[] - %s\n", config_cpu_freq, "保存CPU频率（单位：MHz）到设置,重启后生效,注意应在[]中填入参数");
     Serial.println("CPU频率可选值:240、160、80、40、20、10");
@@ -71,6 +72,7 @@ void CMD::printHelp(){
 
     // 其他
     Serial.println("[Parameters]");
+    Serial.printf("%-18s - %s\n", set_long_press, "获取长按阈值（单位：ms）");
     Serial.printf("%-18s[] - %s\n", set_long_press, "设置长按阈值（单位：ms）,注意应在[]中填入参数");
     Serial.printf("%-18s - %s\n", set_boot_app, "修改默认APP为clock");
     Serial.printf("%-18s - %s\n", get_bat_info, "显示电池信息");
@@ -101,28 +103,38 @@ void CMD::parseCommand(const char* command) {
             // Serial.printf("Parameter: %s\n", param);
         }
         // 指令处理
-        if (strcmp(cmd, set_cpu_freq) == 0 && parsed == 2) {
-            int freq = atoi(param);
-            Serial.end();
-            if (setCpuFrequencyMhz(freq)){
-                Serial.begin(115200);
-                Serial.setDebugOutput(true);
-                Serial.println("CPU frequency set successfully");
-                //hal.pref.putInt("CpuFreq", freq);
+        if (strcmp(cmd, set_cpu_freq) == 0) {
+            if (parsed == 2){
+                int freq = atoi(param);
+                Serial.end();
+                if (setCpuFrequencyMhz(freq)){
+                    Serial.begin(115200);
+                    Serial.setDebugOutput(true);
+                    Serial.println("CPU frequency set successfully");
+                } else {
+                    Serial.begin(115200);
+                    Serial.setDebugOutput(true);
+                    Serial.println("Error: Failed to set CPU frequency");
+                }
             } else {
-                Serial.begin(115200);
-                Serial.setDebugOutput(true);
-                Serial.println("Error: Failed to set CPU frequency");
+                Serial.printf("CPU frequency:%uMhz\n", ESP.getCpuFreqMHz());
             }
         } else if (strcmp(cmd, config_cpu_freq) == 0 && parsed == 2) {
             int freq = atoi(param);
             hal.pref.putInt("CpuFreq", freq);
-        } else if (strcmp(cmd, set_long_press) == 0 && parsed == 2) {
-            int value = atoi(param);
-            hal.pref.putInt("lpt", value);
-        } else if (strcmp(cmd, set_dlsplay) == 0 && parsed == 2) {
+        } else if (strcmp(cmd, set_long_press) == 0) {
+            if (parsed == 2) {
+                int value = atoi(param);
+                hal.pref.putInt("lpt", value);
+            } else {
+                Serial.printf("LongPress wait time:%dms\n", hal.pref.getInt("lpt", 20) * 10);
+            }
+        } else if (strcmp(cmd, set_display) == 0 && parsed == 2) {
             int value = atoi(param);
             hal.pref.putInt("dlsplay", value);
+        } else if (strcmp(cmd, set_display_PLL) == 0 && parsed == 2) {
+            int value = atoi(param);
+            display.epd2.PLL_set(value);
         } else if (strcmp(cmd, erase_nvs) == 0) {
             if (nvs_flash_erase() == ESP_OK)
                 Serial.println("NVS erased successfully");
@@ -145,7 +157,7 @@ void CMD::parseCommand(const char* command) {
             uint32_t heap = ESP.getHeapSize(), free_heap = ESP.getFreeHeap();
             Serial.printf("All heap size:  %d KB\n", heap / 1024);
             Serial.printf("Free heap size: %d KB\n", free_heap / 1024);
-            Serial.printf("Heap fragmentation: %.02f%%\n", ((float)heap - (float)free_heap) / (float)heap * 100.0);
+            Serial.printf("内存占用:        %.02f%%\n", ((float)heap - (float)free_heap) / (float)heap * 100.0);
         } else if (strcmp(cmd, esp_chip_info_) == 0) {
             Serial.printf("ChipModel:    %s\n", ESP.getChipModel());
             Serial.printf("ChipRevision: %u\n", ESP.getChipRevision());

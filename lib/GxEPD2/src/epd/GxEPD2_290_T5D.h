@@ -31,6 +31,7 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     static const uint16_t full_refresh_time = 3500; // ms, e.g. 3251067us
     static const uint16_t partial_refresh_time = 750; // ms, e.g. 704907us
     int lutgray = 15;
+    uint8_t PLL_val = 60;
     // constructor
     GxEPD2_290_T5D(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
     // methods (virtual)
@@ -66,6 +67,7 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     void powerOff(); // turns off generation of panel driving voltages, avoids screen fading over time
     void hibernate(); // turns powerOff() and sets controller to deep sleep for minimum power use, ONLY if wakeable by RST (rst >= 0)
     void SendLuts(uint8_t LutLevel);
+    void PLL_set(uint8_t PLL_set_val);
   private:
     void _writeScreenBuffer(uint8_t command, uint8_t value);
     void _writeImage(uint8_t command, const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
