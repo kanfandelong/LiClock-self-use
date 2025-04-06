@@ -2,20 +2,55 @@
 #include <nvs_flash.h>
 CMD cmd;
 char task_list[1024];
+bool stop_fileserver = false; 
+extern bool serverRunning;
+void fileserver_task(void *){
+    DNSServer dnsServer;
+    bool wifi = hal.autoConnectWiFi(false);
+    String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
+    String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;", str1;
+    if (wifi){
+        str1 = WiFi.localIP().toString();
+    }else{
+        hal.cheak_freq();
+        WiFi.softAP("WeatherClock", passwd.c_str());
+        WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+        dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
+        str1 = "192.168.4.1";
+    }
+    beginWebServer();
+    while(1){
+        if (!stop_fileserver){
+            if (wifi)
+                dnsServer.stop();
+            server.end();
+            vTaskDelete(NULL);
+        }else
+            vTaskDelay(100);
+    }
+}
+
 void cmd_task(void *pvParameters) {
     size_t bufIndex = 0;
     memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
+    BLUE;
     Serial.println("LiClock串口工具已启动");
+    RESET;
     while(1) {
         // 读取串口数据
         while (Serial.available() > 0) {
             char c = Serial.read();
   
-            if (c == COMMAND_TERMINATOR && c == '\n') {
+            if (c == COMMAND_TERMINATOR || c == '\n') {
                 cmd.cmdBuffer[bufIndex] = '\0';
-                Serial.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
+                GREEN;
+                if (c == COMMAND_TERMINATOR)
+                    Serial.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
+                else 
+                    Serial.printf("[DEBUG] Raw command: %s\"n\n", cmd.cmdBuffer);
+                RESET;
                 cmd.parseCommand(cmd.cmdBuffer);
-                bufIndex = 0;
+                bufIndex = 0;                   // 重置bufIndex
                 memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
                 continue;
             }
@@ -27,7 +62,9 @@ void cmd_task(void *pvParameters) {
             } else {
                 bufIndex = 0;
                 memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
+                RED;
                 Serial.println("Error: Buffer overflow");
+                RESET;
             }
         }
   
@@ -53,14 +90,15 @@ void CMD::printHelp(){
     Serial.println("\n[System]");
     Serial.printf("%-18s - %s\n", help, "显示帮助信息");
     Serial.printf("%-18s - %s\n", esp_light_sleep, "使设备CPU停止（由按键唤醒）");
+    Serial.printf("%-18s - %s\n", ((String)esp_light_sleep + "[]").c_str(), "使设备CPU停止（由按键唤醒）");
     Serial.printf("%-18s - %s\n", esp_restart_, "重启设备");
     Serial.printf("%-18s - %s\n", free_heap_size, "显示剩余内存");
 
     // 硬件控制
     Serial.println("[Hardware]");
     Serial.printf("%-18s - %s\n", set_cpu_freq, "获取CPU频率（单位：MHz）");
-    Serial.printf("%-18s[] - %s\n", set_cpu_freq, "设置CPU频率（单位：MHz）,立即生效,注意应在[]中填入参数");
-    Serial.printf("%-18s[] - %s\n", config_cpu_freq, "保存CPU频率（单位：MHz）到设置,重启后生效,注意应在[]中填入参数");
+    Serial.printf("%-18s - %s\n", ((String)set_cpu_freq + "[]").c_str(), "设置CPU频率（单位：MHz）,立即生效,注意应在[]中填入参数");
+    Serial.printf("%-18s - %s\n", ((String)config_cpu_freq + "[]").c_str(), "保存CPU频率（单位：MHz）到设置,重启后生效,注意应在[]中填入参数");
     Serial.println("CPU频率可选值:240、160、80、40、20、10");
     Serial.printf("%-18s - %s\n", esp_chip_info_, "显示芯片信息");
 
@@ -73,7 +111,7 @@ void CMD::printHelp(){
     // 其他
     Serial.println("[Parameters]");
     Serial.printf("%-18s - %s\n", set_long_press, "获取长按阈值（单位：ms）");
-    Serial.printf("%-18s[] - %s\n", set_long_press, "设置长按阈值（单位：ms）,注意应在[]中填入参数");
+    Serial.printf("%-18s - %s\n", ((String)set_long_press + "[]").c_str(), "设置长按阈值（单位：ms）,注意应在[]中填入参数");
     Serial.printf("%-18s - %s\n", set_boot_app, "修改默认APP为clock");
     Serial.printf("%-18s - %s\n", get_bat_info, "显示电池信息");
     
@@ -85,18 +123,22 @@ void CMD::printHelp(){
 void CMD::parseCommand(const char* command) {
     // 检查命令头
     if (command[0] != COMMAND_HEADER) {
+        RED;
         Serial.println("Error: Invalid command header");
+        RESET;
         Serial.println("Command Format: #command[param]*");
+        YELLOW;
         Serial.println("use '#help*' to get help");
+        RESET;
         return;
     }
   
-    // 提取指令部分
+    // 指令解析
     char cmd[32] = {0};
     char param[32] = {0};
     int parsed = sscanf(command, "#%[^[][%[^]]]", cmd, param);
   
-    // 根据解析结果处理命令
+    // 命令处理
     if (parsed >= 1) {
         // Serial.printf("Command: %s\n", cmd);
         if (parsed == 2) {
@@ -201,13 +243,29 @@ void CMD::parseCommand(const char* command) {
             hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
         } else if (strcmp(cmd, help) == 0) {
             printHelp();
+        } else if (strcmp(cmd, esp_light_sleep) == 0) {
+            int value = 0;
+            if (parsed == 2)
+                value = atoi(param);
+            hal.wait_input(value);
+        } else if (strcmp(cmd, file_server_begin) == 0) {
+            xTaskCreatePinnedToCore(fileserver_task, "fileserver", 8192, NULL, 1, NULL, 0);
+        } else if (strcmp(cmd, file_server_end) == 0) {
+            stop_fileserver = true;
+            serverRunning = false;
         } else {
+            RED;
             Serial.println("Error: Unknown command");
+            YELLOW;
             Serial.println("use '#help*' to get help");
+            RESET;
         }
         
     } else {
+        RED;
         Serial.println("Error: Invalid command format");
+        YELLOW;
         Serial.println("use '#help*' to get help");
+        RESET;
     }
 }

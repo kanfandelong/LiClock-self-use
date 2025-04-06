@@ -1,5 +1,4 @@
 #include "AppManager.h"
-#include <DNSServer.h>
 #include "DS3231.h"
 DS3231 Srtc;
 static const uint8_t settings_bits[] = {
@@ -47,6 +46,7 @@ static const menu_item settings_menu_network[] =
         {NULL, "设置WiFi发射功率"},
         {NULL, "ESPTouch配网"},
         {NULL, "启动HTTP服务器"},
+        {NULL, "启动文件服务器"},
         {NULL, "ESPNow设备扫描"},
         {NULL, "蓝牙扫描"},
         {NULL, "退出Bilibili账号"},
@@ -725,14 +725,58 @@ void AppSettings::menu_network()
             end = true;
             break;
         case 6:
+            {
+                bool wifi = hal.autoConnectWiFi(false);
+                String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
+                String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;", str1;
+                display.fillScreen(GxEPD_WHITE);
+                if (wifi){
+                    beginWebServer();
+                    str1 = WiFi.localIP().toString();
+                }else{
+                    hal.cheak_freq();
+                    WiFi.softAP("WeatherClock", passwd.c_str());
+                    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+                    dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
+                    beginWebServer();
+                    str1 = "192.168.4.1";
+                    QRCode qrcode;
+                    uint8_t qrcodeData[qrcode_getBufferSize(7)];
+                    qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
+                    Serial.println(qrcode.size);
+                    for (uint8_t y = 0; y < qrcode.size; y++)
+                    {
+                        // Each horizontal module
+                        for (uint8_t x = 0; x < qrcode.size; x++)
+                        {
+                            display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
+                        }
+                    }
+                }
+                beginFileServer();
+                u8g2Fonts.setCursor(120, (128 - (13 * 2)) / 2);
+                GUI::autoIndentDraw(str1.c_str(), 296, 120, 13);
+                display.display();
+                while(1){
+                    if (hal.btnl.isPressing()){
+                        if (GUI::waitLongPress(PIN_BUTTONL)){
+                            while(hal.btnl.isPressing())delay(20);
+                            server.end();
+                            break;
+                        }
+                    }
+                }
+            }
+            break;
+        case 7:
             // ESPNow设备扫描
             GUI::msgbox("提示", "ESPNow设备扫描功能未实现");
             break;
-        case 7:
+        case 8:
             // 蓝牙扫描
             GUI::msgbox("提示", "蓝牙扫描功能未实现");
             break;
-        case 8:
+        case 9:
             // 退出Bilibili账号
             if (LittleFS.exists("/blCookies.txt"))
             {
@@ -746,7 +790,7 @@ void AppSettings::menu_network()
                 break;
             }
             break;
-        case 9:
+        case 10:
             {
                 String ssid = config[PARAM_SSID].as<String>();
                 String pass = config[PARAM_PASS].as<String>();
@@ -764,19 +808,20 @@ void AppSettings::menu_network()
                         display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
                     }
                 }
-                u8g2Fonts.setFont(u8g2_font_wqy16_t_gb2312);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
                 u8g2Fonts.setCursor(120, (128 - (17 * 2)) / 2);
                 char buf[50];
                 sprintf(buf, "扫描二维码以连接本机分享的WiFi");
-                GUI::autoIndentDraw(buf, 296, 120, 17);
+                GUI::autoIndentDraw(buf, 296, 120, 13);
                 display.display();
                 hal.wait_input();
             }
             break;
-        case 10:
+        case 11:
             {
                 String str1, str2;
                 bool wifi = hal.autoConnectWiFi(false);
+                bool ap = false;
                 if (wifi){
                     beginWebServer();
                     str1 = "http://" + WiFi.localIP().toString();
@@ -785,8 +830,9 @@ void AppSettings::menu_network()
                     hal.cheak_freq();
                     String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
                     String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;";
-                    WiFi.softAP("WeatherClock", passwd.c_str());
-                    WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+                    ap = true;
+                    wifi = WiFi.softAP("WeatherClock", passwd.c_str());
+                    wifi = WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
                     dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
                     beginWebServer();
                     str1 = "http://192.168.4.1";
@@ -815,14 +861,14 @@ void AppSettings::menu_network()
                         display.fillRect(2 * x + 196, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode2, x, y) ? GxEPD_BLACK : GxEPD_WHITE);
                     }
                 }
-                u8g2Fonts.setFont(u8g2_font_wqy16_t_gb2312);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
                 char buf[2][32];
                 sprintf(buf[0], "网页配置界面");
                 sprintf(buf[1], "Blockly界面");
                 u8g2Fonts.setCursor(120, 30);
-                GUI::autoIndentDraw(buf[0], 135, 120, 17);
+                GUI::autoIndentDraw(buf[0], 135, 120, 12);
                 u8g2Fonts.setCursor(160, 21);
-                GUI::autoIndentDraw(buf[1], 167, 160, 17);
+                GUI::autoIndentDraw(buf[1], 167, 160, 12);
                 u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
                 display.display();
                 while (1)
@@ -837,7 +883,9 @@ void AppSettings::menu_network()
                             server.end();
                         else{
                             server.end();
-                            dnsServer.stop();}
+                            if (ap)
+                                dnsServer.stop();
+                        }
                         WiFi.disconnect(true);
                         break;
                     }

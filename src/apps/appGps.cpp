@@ -502,12 +502,12 @@ void AppGps::setup(){
     }
     //attachInterrupt(digitalPinToInterrupt(RXD_2), RXD_interrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(PIN_BUTTONC), button_interrupt, FALLING);
-    xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 4096, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 2048, NULL, 5, NULL, 0);
       // 创建距离计算任务
     xTaskCreate(
         distanceCalculationTask, // 任务函数
         "Distance Calculation",  // 任务名称
-        4096,                   // 任务堆栈大小
+        2048,                   // 任务堆栈大小
         NULL,                   // 任务参数
         4,                      // 任务优先级
         &distanceTaskHandle     // 任务句柄

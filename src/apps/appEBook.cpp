@@ -247,8 +247,9 @@ void AppEBook::setup()
             esp_light_sleep_start();
             log_i("退出lightsleep");
             lightsleep_count++;
-            if (lightsleep_count > 20){
+            if (lightsleep_count > hal.pref.getInt("max_lightsleep", 20)){
                 need_deepsleep = true;
+                hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
                 lightsleep_count = 0;
             }
         }
@@ -1803,14 +1804,15 @@ void AppEBook::openMenu()
 void AppEBook::ebooksettings(){
     static const menu_select ebook_set[] = {
         {false, "返回"},
-        {true, "根据唤醒源翻页"},
-        {true, "自动翻页"},
-        {false, "自动翻页延时"},
-        {true, "使用lightsleep"},
-        {true, "反色显示"},
-        {true, "使用备选txt解析程序1"},
-        {true, "甘草索引程序"},
-        {false, "屏幕全刷间隔"},
+        {true,  "根据唤醒源翻页"},          
+        {true,  "自动翻页"},
+        {false, "自动翻页延时"},        //3
+        {true,  "使用lightsleep"},   
+        {false, "最大lightsleep次数"}, //5
+        {true,  "反色显示"},            
+        {true,  "使用备选txt解析程序1"},
+        {true,  "甘草索引程序"},
+        {false, "屏幕全刷间隔"},        //9
         {false, NULL},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
@@ -1827,8 +1829,11 @@ void AppEBook::ebooksettings(){
             case 3:
                 hal.pref.putInt("auto_page", GUI::msgbox_number("输入时长s", 5, hal.pref.getInt("auto_page", 10)));
                 break;
-            case 8:
-                hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 5, hal.pref.getInt("display_count", 15)));
+            case 5:
+                hal.pref.putInt("max_lightsleep", GUI::msgbox_number("输入次数", 3, hal.pref.getInt("max_lightsleep", 20)));
+                break;
+            case 9:
+                hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
                 break;
             default:
                 GUI::info_msgbox("错误", "无效的选项");

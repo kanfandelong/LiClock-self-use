@@ -24,16 +24,18 @@
 #define free_heap_size      "freeheap"
 #define esp_light_sleep     "lightsleep"
 #define esp_chip_info_      "chipinfo"
+#define file_server_begin   "fileserverbegin"
+#define file_server_end     "fileserverend"
 #define esp_restart_        "rst"
 //串口颜色转义码
-#define RED     "\033[31m"
-#define GREEN   "\033[32m"
-#define YELLOW  "\033[33m"
-#define BLUE    "\033[34m"
-#define MAGENTA "\033[35m"
-#define CYAN    "\033[36m"
-#define WHITE   "\033[37m"
-#define RESET   "\033[0m"
+#define RED     Serial.print("\033[31m")
+#define GREEN   Serial.print("\033[32m")
+#define YELLOW  Serial.print("\033[33m")
+#define BLUE    Serial.print("\033[34m")
+#define MAGENTA Serial.print("\033[35m")
+#define CYAN    Serial.print("\033[36m")
+#define WHITE   Serial.print("\033[37m")
+#define RESET   Serial.print("\033[0m")
 
 class CMD
 {

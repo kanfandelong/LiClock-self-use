@@ -6,6 +6,7 @@
 #include <Fonts/Picopixel.h>
 #include <U8g2_for_Adafruit_GFX.h>
 #include <WiFi.h>
+#include <DNSServer.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <TJpg_Decoder.h>
@@ -13,6 +14,7 @@
 #include <esp_sntp.h>
 #include <Fonts/FreeSans18pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
 #include "esp_task_wdt.h"
 #include <driver/rtc_io.h>
 #include <esp_netif.h>
@@ -119,6 +121,7 @@ extern int part_refresh_count;
 extern uint8_t night_sleep;          // 夜间模式屏幕状态，0：不在夜间模式，1：晚安，2：早上好
 extern uint8_t night_sleep_today; // 今天是否进入过夜间模式
 extern bool LuaRunning;            //全局变量，表示Lua服务器是否运行，用于防止调试时误退出
+extern bool serverRunning;
 
 #define PARAM_GPS "p1"
 #define PARAM_FULLUPDATE "p2"
@@ -130,6 +133,7 @@ extern bool LuaRunning;            //全局变量，表示Lua服务器是否运�
 #define PARAM_CLOCKONLY "p8"
 
 void processRain(float max);
+void beginFileServer();
 void beginWebServer();
 void updateWebServer();
 const uint8_t *getBatteryIcon(bool forceEmptyIcon = false);

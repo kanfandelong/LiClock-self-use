@@ -39,6 +39,13 @@ private:
      * @param page 页码
      */
     void displayPage(File &file, int page) {
+        // UTF-8 解析相关变量
+        uint8_t utf8_remaining = 0;       // 剩余待读取字节数
+        uint16_t utf8_start_x = 0;        // UTF-8字符起始X坐标
+        uint16_t utf8_start_y = 0;        // UTF-8字符起始Y坐标
+        uint8_t utf8_buffer[5] = {0};     // UTF-8缓冲区（4字节+终止符）
+        uint8_t utf8_index = 0;
+        bool is_utf8 = false;
         // 计算当前页面的起始字节
         uint32_t startByte = page * BYTES_PER_PAGE;
         uint32_t datOffset = startByte;
@@ -65,7 +72,7 @@ private:
             for (int byte = 0; byte < BYTES_PER_LINE; byte++) {
                 if (file.available()) {
                     uint8_t data = file.read();
-                    //u8g2.print("0x");
+                    //HEX值打印
                     if (data == 0)
                     {
                         u8g2Fonts.print("00");
@@ -78,8 +85,61 @@ private:
                             u8g2Fonts.print(data, HEX);
                         }
                     }
-                    u8g2Fonts.setCursor(225 + (8 * a) , u8g2Fonts.getCursorY());
-                    u8g2Fonts.printf("%c", data);
+                    // ASCII/UTF-8处理
+                    if (!is_utf8) {
+                        if ((data & 0x80) == 0x00) { // ASCII
+                            u8g2Fonts.setCursor(225 + 8 * a, u8g2Fonts.getCursorY());
+                            if (data != '\n')
+                                u8g2Fonts.printf("%c", data);
+                        } else { // UTF-8头字节
+                            // UTF-8头字节
+                            is_utf8 = true;
+                            utf8_remaining = 
+                                (data & 0xF0) == 0xE0 ? 2 :  // 3字节需要2后续
+                                (data & 0xE0) == 0xC0 ? 1 :  // 2字节需要1后续
+                                (data & 0xF8) == 0xF0 ? 3 : 0; // 4字节需要3后续
+                            utf8_buffer[0] = data;
+                            utf8_index = 1;  // 关键修复：从索引1开始存储后续字节
+                            utf8_start_x = 225 + 8 * a;
+                            utf8_start_y = u8g2Fonts.getCursorY();
+                            // 非法头字节立即恢复
+                            if (utf8_remaining == 0) 
+                                is_utf8 = false;
+                        }
+                    } else { // 收集UTF-8后续字节
+                        // 验证后续字节格式
+                        if ((data & 0xC0) != 0x80) { 
+                            // 非法字节，终止解析并显示错误符号
+                            is_utf8 = false;
+                            utf8_remaining = 0;
+                            utf8_index = 0;
+                        }
+                        else {
+                            if (utf8_index < sizeof(utf8_buffer)-1) { // 防止溢出
+                                utf8_buffer[utf8_index++] = data;
+                            }
+                            utf8_remaining--;
+                            
+                            if (utf8_remaining <= 0) {
+                                utf8_buffer[utf8_index] = '\0'; // 正确终止符位置
+                                
+                                // 保存当前光标
+                                int savedX = u8g2Fonts.getCursorX();
+                                int savedY = u8g2Fonts.getCursorY();
+                                
+                                // 显示UTF-8字符
+                                u8g2Fonts.setCursor(utf8_start_x, utf8_start_y);
+                                u8g2Fonts.print((char*)utf8_buffer);
+                                
+                                // 恢复原始光标
+                                u8g2Fonts.setCursor(savedX, savedY);
+                                
+                                // 重置状态
+                                is_utf8 = false;
+                                utf8_index = 0;
+                            }
+                        }
+                    }
                     a++;
                     u8g2Fonts.setCursor(62 + (17 * a) , u8g2Fonts.getCursorY());
                 }else {
@@ -135,7 +195,9 @@ private:
                 static const menu_item appMenu_main[] = {
                     {NULL, "返回"},
                     {NULL, "退出"},
-                    {NULL, "跳转"},
+                    {NULL, "跳转页"},
+                    {NULL, "跳转至偏移量"},
+                    {NULL, "跳转至HEX偏移量"},
                     {NULL, NULL},
                 };
                 char *buf = (char *)malloc(128);
@@ -149,22 +211,51 @@ private:
                         end = true;
                         break;
                     case 2:
-                    {
-                        int digits = 0;
-                        int a = totalPages;
-                        while (a > 0)
                         {
-                            a /= 10;
-                            digits++;
+                            int digits = 0;
+                            int a = totalPages;
+                            while (a > 0)
+                            {
+                                a /= 10;
+                                digits++;
+                            }
+                            currentPage = GUI::msgbox_number("跳转页", digits,currentPage + 1) - 1;
+                            if (currentPage < 0) {
+                                currentPage = 0;
+                            }if (currentPage >= totalPages) {
+                                currentPage = totalPages - 1;
+                            }
+                            displayPage(file, currentPage);
                         }
-                        currentPage = GUI::msgbox_number("跳转页", digits,currentPage + 1) - 1;
-                        if (currentPage < 0) {
-                            currentPage = 0;
-                        }if (currentPage >= totalPages) {
-                            currentPage = totalPages - 1;
+                        break;
+                    case 3:
+                        {
+                            int offset = GUI::msgbox_number("跳转至偏移量", 8, (currentPage * BYTES_PER_PAGE));
+                            currentPage = offset / BYTES_PER_PAGE;
+                            if (offset % BYTES_PER_PAGE)
+                                currentPage++;
+                            if (currentPage < 0) {
+                                currentPage = 0;
+                            }if (currentPage >= totalPages) {
+                                currentPage = totalPages - 1;
+                            }
+                            displayPage(file, currentPage);
                         }
-                        displayPage(file, currentPage);
-                    }
+                        break;
+                    case 4:
+                        {
+                            uint32_t offset = GUI::msgbox_hex("跳转至偏移量", 8, currentPage * BYTES_PER_PAGE);
+                            currentPage = offset / BYTES_PER_PAGE;
+                            if (offset % BYTES_PER_PAGE)
+                                currentPage++;
+                            if (currentPage < 0) {
+                                currentPage = 0;
+                            }if (currentPage >= totalPages) {
+                                currentPage = totalPages - 1;
+                            }
+                            displayPage(file, currentPage);
+                        }
+                        break;
                     default:    
                         GUI::msgbox("提示", "无效操作");
                         break;
@@ -305,6 +396,7 @@ void Appwenjian::setup()
     {NULL, "删除"},
     {NULL, Str},
     {NULL, "打开"},
+    {NULL, "hex查看器打开"},
     {NULL, "退出"},
     {NULL, buf},
     {NULL, NULL},
@@ -512,10 +604,13 @@ void Appwenjian::setup()
             openfile();
             break;
         case 7:
+            openbin();
+            break;
+        case 8:
             appManager.goBack(); 
             return;
             break;
-        case 8:
+        case 9:
             break;
         default:
             GUI::msgbox("提示", "无效的选项");

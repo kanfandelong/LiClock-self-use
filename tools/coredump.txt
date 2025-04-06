@@ -1,0 +1,236 @@
+===============================================================
+==================== ESP32 CORE DUMP START ====================
+
+Crashed task handle: 0x3ffb52f4, name: 'fileserver', GDB name: 'process 1073435380'
+
+================== CURRENT THREAD REGISTERS ===================
+exccause       0x1d (StoreProhibitedCause)
+excvaddr       0x0
+epc1           0x40178cbd
+epc2           0x0
+epc3           0x0
+epc4           0x0
+epc5           0x0
+epc6           0x0
+eps2           0x0
+eps3           0x0
+eps4           0x0
+eps5           0x0
+eps6           0x0
+pc             0x40084660          0x40084660 <panic_abort+24>
+lbeg           0x4008b589          1074312585
+lend           0x4008b5ab          1074312619
+lcount         0xffffffff          4294967295
+sar            0x18                24
+ps             0x60c20             396320
+threadptr      <unavailable>
+br             <unavailable>
+scompare1      <unavailable>
+acclo          <unavailable>
+acchi          <unavailable>
+m0             <unavailable>
+m1             <unavailable>
+m2             <unavailable>
+m3             <unavailable>
+expstate       <unavailable>
+f64r_lo        <unavailable>
+f64r_hi        <unavailable>
+f64s           <unavailable>
+fcr            <unavailable>
+fsr            <unavailable>
+a0             0x800909d8          -2146891304
+a1             0x3ffd8250          1073578576
+a2             0x3ffd82d4          1073578708
+a3             0x3                 3
+a4             0xa                 10
+a5             0x3ffd83b0          1073578928
+a6             0x0                 0
+a7             0x0                 0
+a8             0x0                 0
+a9             0x1                 1
+a10            0x3ffd829f          1073578655
+a11            0x3ffd829f          1073578655
+a12            0x3ffd829f          1073578655
+a13            0x60c23             396323
+a14            0x60c20             396320
+a15            0x1                 1
+
+==================== CURRENT THREAD STACK =====================
+#0  0x40084660 in panic_abort (details=0x3ffd82d4 "assert failed: tcpip_api_call IDF/components/lwip/lwip/src/api/tcpip.c:497 (Invalid mbox)") at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/panic.c:408
+#1  0x400909d8 in esp_system_abort (details=0x3ffd82d4 "assert failed: tcpip_api_call IDF/components/lwip/lwip/src/api/tcpip.c:497 (Invalid mbox)") at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/esp_system.c:137
+#2  0x40096374 in __assert_func (file=<optimized out>, line=<optimized out>, func=<optimized out>, expr=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/newlib/assert.c:85
+#3  0x40157190 in tcpip_api_call (fn=0x401d33f4 <_tcp_bind_api(tcpip_api_call_data*)>, call=0x3ffd8408) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/lwip/lwip/src/api/tcpip.c:497
+#4  0x401d3af5 in _tcp_bind (port=80, addr=0x3ffd83f0, pcb=<optimized out>) at .pio/libdeps/esp32solo1/AsyncTCP/src/AsyncTCP.cpp:511
+#5  AsyncServer::begin (this=0x3ffcbd4c <server>) at .pio/libdeps/esp32solo1/AsyncTCP/src/AsyncTCP.cpp:1264
+#6  0x401163d5 in AsyncWebServer::begin (this=0x3ffcbd4c <server>) at lib/ESPAsyncWebServer-master/src/WebServer.cpp:84
+#7  0x400f6cd1 in beginFileServer () at src/webserver/webserver.cpp:242
+#8  0x400d7c8e in fileserver_task () at src/Serial_cmd.cpp:7
+
+======================== THREADS INFO =========================
+  Id   Target Id          Frame
+* 1    process 1073435380 0x40084660 in panic_abort (details=0x3ffd82d4 "assert failed: tcpip_api_call IDF/components/lwip/lwip/src/api/tcpip.c:497 (Invalid mbox)") at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/panic.c:408
+  2    process 1073469324 0x401f3e02 in esp_pm_impl_waiti () at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:183
+  3    process 1073469684 0x401f3e02 in esp_pm_impl_waiti () at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:183
+  4    process 1073435020 0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+  5    process 1073434660 0x400845a0 in esp_crosscore_int_send_yield (core_id=0) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+  6    process 1073430188 0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+  7    process 1073466856 0x4000bff0 in ?? ()
+  8    process 1073427764 0x400845a0 in esp_crosscore_int_send_yield (core_id=0) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+  9    process 1073445460 0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+  10   process 1073443760 0x400845a0 in esp_crosscore_int_send_yield (core_id=0) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+  11   process 1073435968 0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+
+
+       TCB             NAME PRIO C/B  STACK USED/FREE
+---------- ---------------- -------- ----------------
+0x3ffb52f4       fileserver      1/1         288/7892
+0x3ffbd78c            IDLE0      0/0          384/628
+0x3ffbd8f4            IDLE1      0/0          384/632
+0x3ffb518c       appManager      3/3         560/7620
+0x3ffb5024         cmd_task      1/1         432/3660
+0x3ffb3eac       hal_update    10/10         416/1620
+0x3ffbcde8        esp_timer    22/22         416/4184
+0x3ffb3534      task_buzzer    10/10         416/3676
+0x3ffb7a54             ipc1    24/24          416/604
+0x3ffb73b0             ipc0    24/24          416/592
+0x3ffb5540        async_tcp      3/3        432/15940
+
+==================== THREAD 1 (TCB: 0x3ffb52f4, name: 'fileserver') =====================
+#0  0x40084660 in panic_abort (details=0x3ffd82d4 "assert failed: tcpip_api_call IDF/components/lwip/lwip/src/api/tcpip.c:497 (Invalid mbox)") at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/panic.c:408
+#1  0x400909d8 in esp_system_abort (details=0x3ffd82d4 "assert failed: tcpip_api_call IDF/components/lwip/lwip/src/api/tcpip.c:497 (Invalid mbox)") at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/esp_system.c:137
+#2  0x40096374 in __assert_func (file=<optimized out>, line=<optimized out>, func=<optimized out>, expr=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/newlib/assert.c:85
+#3  0x40157190 in tcpip_api_call (fn=0x401d33f4 <_tcp_bind_api(tcpip_api_call_data*)>, call=0x3ffd8408) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/lwip/lwip/src/api/tcpip.c:497
+#4  0x401d3af5 in _tcp_bind (port=80, addr=0x3ffd83f0, pcb=<optimized out>) at .pio/libdeps/esp32solo1/AsyncTCP/src/AsyncTCP.cpp:511
+#5  AsyncServer::begin (this=0x3ffcbd4c <server>) at .pio/libdeps/esp32solo1/AsyncTCP/src/AsyncTCP.cpp:1264
+#6  0x401163d5 in AsyncWebServer::begin (this=0x3ffcbd4c <server>) at lib/ESPAsyncWebServer-master/src/WebServer.cpp:84
+#7  0x400f6cd1 in beginFileServer () at src/webserver/webserver.cpp:242
+#8  0x400d7c8e in fileserver_task () at src/Serial_cmd.cpp:7
+
+==================== THREAD 2 (TCB: 0x3ffbd78c, name: 'IDLE0') =====================
+#0  0x401f3e02 in esp_pm_impl_waiti () at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:183
+#1  0x40146a68 in esp_vApplicationIdleHook () at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/freertos_hooks.c:63       
+#2  0x40092003 in prvIdleTask (pvParameters=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:4099 
+
+==================== THREAD 3 (TCB: 0x3ffbd8f4, name: 'IDLE1') =====================
+#0  0x401f3e02 in esp_pm_impl_waiti () at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:183
+#1  0x40146a68 in esp_vApplicationIdleHook () at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/freertos_hooks.c:63       
+#2  0x40092003 in prvIdleTask (pvParameters=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:4099 
+
+==================== THREAD 4 (TCB: 0x3ffb518c, name: 'appManager') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x40093118 in vTaskDelay (xTicksToDelay=10) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39  
+#2  0x40135eb0 in delay (ms=10) at C:/Users/admin/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-misc.c:178
+#3  0x400d4b20 in AppManager::appSelector (this=0x3ffc48fc <appManager>, showHidden=<optimized out>) at src/AppManager.cpp:363
+#4  0x400d4bed in AppManager::update (this=0x3ffc48fc <appManager>) at src/AppManager.cpp:416
+#5  0x400f2d81 in task_appManager () at src/main.cpp:27
+
+==================== THREAD 5 (TCB: 0x3ffb5024, name: 'cmd_task') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=0) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x40093118 in vTaskDelay (xTicksToDelay=10) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39  
+#2  0x40135eb0 in delay (ms=10) at C:/Users/admin/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-misc.c:178
+#3  0x400d8611 in cmd_task (pvParameters=<optimized out>) at src/Serial_cmd.cpp:54
+
+==================== THREAD 6 (TCB: 0x3ffb3eac, name: 'hal_update') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x40093118 in vTaskDelay (xTicksToDelay=20) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39  
+#2  0x40135eb0 in delay (ms=20) at C:/Users/admin/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-misc.c:178
+#3  0x400f0420 in task_hal_update () at src/hal.cpp:86
+
+==================== THREAD 7 (TCB: 0x3ffbcde8, name: 'esp_timer') =====================
+#0  0x4000bff0 in ?? ()
+#1  0x40093f94 in vPortClearInterruptMaskFromISR (prev_level=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/port/xtensa/include/freertos/portmacro.h:571
+#2  vPortExitCritical (mux=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/port/xtensa/port.c:332        
+#3  0x40093671 in ulTaskGenericNotifyTake (uxIndexToWait=<optimized out>, xClearCountOnExit=1, xTicksToWait=4294967295) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:5513
+#4  0x4016b575 in timer_task (arg=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_timer/src/esp_timer.c:420   
+
+==================== THREAD 8 (TCB: 0x3ffb3534, name: 'task_buzzer') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=0) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x4009195e in xQueueReceive (xQueue=0x3ffb2330, pvBuffer=0x3ffc4980 <current_buzz>, xTicksToWait=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39
+#2  0x400d514b in task_buzzer () at src/Buzzer.cpp:46
+
+==================== THREAD 9 (TCB: 0x3ffb7a54, name: 'ipc1') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x40091ac4 in xQueueSemaphoreTake (xQueue=0x3ffb75e0, xTicksToWait=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39
+#2  0x40086a6f in ipc_task (arg=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_ipc/src/esp_ipc.c:54
+
+==================== THREAD 10 (TCB: 0x3ffb73b0, name: 'ipc0') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=0) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x40091ac4 in xQueueSemaphoreTake (xQueue=0x3ffb6f3c, xTicksToWait=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39
+#2  0x40086a6f in ipc_task (arg=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_ipc/src/esp_ipc.c:54
+
+==================== THREAD 11 (TCB: 0x3ffb5540, name: 'async_tcp') =====================
+#0  0x400845a0 in esp_crosscore_int_send_yield (core_id=1) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp_system/crosscore_int.c:144
+#1  0x4009195e in xQueueReceive (xQueue=0x3ffb545c, pvBuffer=0x3ffdc4b4, xTicksToWait=<optimized out>) at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/hal/esp32/include/hal/cpu_ll.h:39
+#2  0x401d40f4 in _get_async_event (e=<unavailable>) at .pio/libdeps/esp32solo1/AsyncTCP/src/AsyncTCP.cpp:188
+#3  _async_service_task (pvParameters=<optimized out>) at .pio/libdeps/esp32solo1/AsyncTCP/src/AsyncTCP.cpp:188
+
+
+======================= ALL MEMORY REGIONS ========================
+Name   Address   Size   Attrs
+.rtc.text 0x400c0000 0x67 R XA
+.rtc.force_fast 0x3ff80067 0x5 RW A
+.rtc.data 0x50000200 0x175 RW A
+.rtc.force_slow 0x50000388 0x0 RW
+.iram0.vectors 0x40080000 0x403 R XA
+.iram0.text 0x40080404 0x177e7 R XA
+.dram0.data 0x3ffbdb60 0x698c RW A
+.ext_ram_noinit 0x3f800000 0x0 RW
+.noinit 0x3ffc44ec 0x0 RW
+.ext_ram.bss 0x3f800000 0x0 RW
+.flash.appdesc 0x3f400020 0x100 R  A
+.flash.rodata 0x3f400120 0x10b894 RW A
+.flash.text 0x400d0020 0x12d033 R XA
+.phyiram.0 0x401fd054 0x2b R XA
+.phyiram.1 0x401fd080 0x7d R XA
+.phyiram.2 0x401fd100 0x21e R XA
+.phyiram.3 0x401fd320 0xb2 R XA
+.phyiram.6 0x401fd3d4 0xde R XA
+.phyiram.4 0x401fd4b4 0xea R XA
+.phyiram.7 0x401fd5a0 0xe4 R XA
+.phyiram.8 0x401fd684 0x223 R XA
+.phyiram.9 0x401fd8a8 0x183 R XA
+.phyiram.10 0x401fda2c 0x8e R XA
+.phyiram.13 0x401fdabc 0x188 R XA
+.phyiram.15 0x401fdc44 0xba R XA
+.phyiram.14 0x401fdd00 0xef R XA
+.phyiram.16 0x401fddf0 0x1cb R XA
+.phyiram.18 0x401fdfbc 0x72 R XA
+.phyiram.12 0x401fe030 0x78 R XA
+.phyiram.17 0x401fe0a8 0xee R XA
+.phyiram.24 0x401fe198 0x4a R XA
+.phyiram.25 0x401fe1e4 0x31 R XA
+.phyiram.26 0x401fe218 0x103 R XA
+.phyiram.27 0x401fe31c 0x87 R XA
+.phyiram.22 0x401fe3a4 0x61 R XA
+.phyiram.20 0x401fe408 0x10e R XA
+.phyiram.21 0x401fe518 0x9e R XA
+.phyiram.19 0x401fe5b8 0x2df R XA
+.iram0.data 0x40097bec 0x0 RW
+.iram0.bss 0x40097bec 0x0 RW
+.dram0.heap_start 0x3ffd2568 0x0 RW
+.coredump.tasks.data 0x3ffb52f4 0x158 RW
+.coredump.tasks.data 0x3ffd8190 0x3a0 RW
+.coredump.tasks.data 0x3ffbd78c 0x158 RW
+.coredump.tasks.data 0x3ffbd5f0 0x180 RW
+.coredump.tasks.data 0x3ffbd8f4 0x158 RW
+.coredump.tasks.data 0x3ffd3d20 0x180 RW
+.coredump.tasks.data 0x3ffb518c 0x158 RW
+.coredump.tasks.data 0x3ffd62f0 0x230 RW
+.coredump.tasks.data 0x3ffb5024 0x158 RW
+.coredump.tasks.data 0x3ffb4e60 0x1b0 RW
+.coredump.tasks.data 0x3ffb3eac 0x158 RW
+.coredump.tasks.data 0x3ffb3cf0 0x1a0 RW
+.coredump.tasks.data 0x3ffbcde8 0x158 RW
+.coredump.tasks.data 0x3ffbcc30 0x1a0 RW
+.coredump.tasks.data 0x3ffb3534 0x158 RW
+.coredump.tasks.data 0x3ffb3380 0x1a0 RW
+.coredump.tasks.data 0x3ffb7a54 0x158 RW
+.coredump.tasks.data 0x3ffb78a0 0x1a0 RW
+.coredump.tasks.data 0x3ffb73b0 0x158 RW
+.coredump.tasks.data 0x3ffb71f0 0x1a0 RW
+.coredump.tasks.data 0x3ffb5540 0x158 RW
+.coredump.tasks.data 0x3ffdc390 0x1b0 RW
+
+===================== ESP32 CORE DUMP END =====================
+===============================================================
+Done!

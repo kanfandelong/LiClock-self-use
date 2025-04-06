@@ -60,12 +60,12 @@ public:
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();
     void ReqWiFiConfig();
-    void task_buffer_handler();
     /**
      * @brief 等待用户输入
      * @param sleeptime 休眠时间，单位秒，0表示不休眠
      */
     void wait_input(uint32_t sleeptime = 0);
+    void coredump_file();
     /**
      * @brief 初始化
      * @return true 需要全屏刷新
@@ -97,7 +97,6 @@ public:
     int32_t upint = 2 * 60;                 // NTP同步间隔
     int32_t last_update_delta = 0x7FFFFFFF; // 上次更新时修正时间与实际时间的差值
     Preferences pref;
-    Preferences nvs_;
     int16_t VCC = 0;
     _bat_info bat_info;
     bool USBPluggedIn = false;

@@ -239,7 +239,7 @@ void Peripherals::sleep()
             digitalWrite(PIN_SDVDD_CTRL, 1);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             Serial.printf("[外设] 卸载并关闭TF卡供电\n");
-            F_LOG("卸载并关闭TF卡供电");
+            // F_LOG("卸载并关闭TF卡供电");
         }else if((peripherals_load & PERIPHERALS_SD_BIT) && digitalRead(PIN_SD_CARDDETECT) != LOW){
             log_w("[外设] TF卡不存在，无需卸载");
         }
@@ -255,7 +255,7 @@ void Peripherals::sleep()
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             //gpio_deep_sleep_hold_en();
             Serial.printf("[外设] 卸载并保持TF卡供电\n");
-            F_LOG("卸载并保持TF卡供电");
+            // F_LOG("卸载并保持TF卡供电");
         }else if((peripherals_load & PERIPHERALS_SD_BIT) && digitalRead(PIN_SD_CARDDETECT) != LOW){
             log_w("[外设] TF卡不存在，无需卸载");
         }

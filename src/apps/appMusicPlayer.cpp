@@ -271,7 +271,7 @@ void AppMusicPlayer::file_in(const char* path){
         _path = char_buf;
         in = new AudioFileSourceSD(_path);
     }
-    else if (strncmp(music_file, "/littlefs/", 10) == 0) {
+    else if (strncmp(path, "/littlefs/", 10) == 0) {
         file_sd = false;
         sprintf(char_buf, "%s", remove_path_prefix(path,"/littlefs"));
         _path = char_buf;
@@ -318,7 +318,12 @@ void AppMusicPlayer::next_song(bool next, bool btn) {
             file_in(music_file);
             player_set();
             begin_player_task();
-            sem();
+            if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE){
+                xSemaphoreGive(audio_control_sem);
+            } else {
+                xSemaphoreGive(audio_control_sem);
+            }
+            log_i("释放信号量");
             return;
         }
     }
@@ -341,14 +346,22 @@ void AppMusicPlayer::next_song(bool next, bool btn) {
     }
 
     // 路径生成
-    sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+    if (strncmp(music_file, "/sd/", 4) == 0)
+        sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+    else 
+        sprintf(buf, "%s", ("/littlefs" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
     music_file = buf;
 
     // 统一执行播放操作
     file_in(music_file);
     player_set();
     begin_player_task();
-    sem();
+    if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE){
+        xSemaphoreGive(audio_control_sem);
+    } else {
+        xSemaphoreGive(audio_control_sem);
+    }
+    log_i("释放信号量");
 }
 /**
  * 信号量函数，用于控制音频播放/暂停
@@ -454,7 +467,10 @@ bool AppMusicPlayer::music_list_menu(bool play){
         currentSongIndex = res - 1;
         currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
                            (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
-        sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[res - 1]).c_str());
+        if (strncmp(music_file, "/sd/", 4) == 0)
+            sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[res - 1]).c_str());
+        else 
+            sprintf(buf, "%s", ("/littlefs" + currentDir + "/" + (String)titles[res - 1]).c_str());
         music_file = buf;
         // in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
         if (!play)
@@ -559,6 +575,7 @@ void AppMusicPlayer::player_menu(){
                 break;
             case 10:
                 _count = GUI::msgbox_number("重启间隔 0-999", 3, _count);
+                hal.pref.putInt("rst_count", _count);
                 break;
             default:
                 GUI::info_msgbox("警告", "非法的输入值");
@@ -607,13 +624,13 @@ void AppMusicPlayer::show_display(){
     uint32_t total_time = play_time_total / 1000;
     u8g2Fonts.printf("  %02d:%02d/%02d:%02d  index:%d %d", play_time / 60, play_time % 60, total_time / 60, total_time % 60, currentSongIndex, play_count);
     u8g2Fonts.setCursor(3, 60);
-    u8g2Fonts.printf("歌手:%s  bat:%.3fV", info.performer.c_str(), hal.bat_info.voltage);
+    u8g2Fonts.printf("歌手:%s  ", info.performer.c_str());
     u8g2Fonts.setCursor(3, 75);
     u8g2Fonts.printf("标题:%s", info.title.c_str());
     u8g2Fonts.setCursor(3, 90);
     u8g2Fonts.printf("专辑:%s", info.album.c_str());
     u8g2Fonts.setCursor(3, 105);
-    u8g2Fonts.printf("Gain：%.2f 电源电压：%dmV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.soc, hal.bat_info.soh);
+    u8g2Fonts.printf("Gain:%.2f vcc:%dmV bat:%.3fV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.voltage, hal.bat_info.soc, hal.bat_info.soh);
     u8g2Fonts.setCursor(3, 120);
     u8g2Fonts.printf("剩余堆内存：%.2fKB I:%dmA P:%dmW %dmAh", (float)ESP.getFreeHeap() / 1024.0, hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
     display.display(true);
@@ -624,9 +641,11 @@ void AppMusicPlayer::show_display(){
  */
 void AppMusicPlayer::player_set(){
     play_count++;
-    info.album = "---";
-    info.performer = "---";
-    info.title = "---";
+    if (!hal.pref.getBool(hal.get_char_sha_key("循环播放"), false)) {
+        info.album = "---";
+        info.performer = "---";
+        info.title = "---";
+    }
     if (nodac){
         free(noDAC);
         noDAC = new AudioOutputI2SNoDAC(1);
@@ -656,6 +675,7 @@ void AppMusicPlayer::setup(){
     pinMode(25, ANALOG);
     pinMode(26, ANALOG);
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
+    _count = hal.pref.getInt("rst_count", 20);
     hal.task_bat_info_update();
     gain = hal.pref.getFloat("gain", 0.3);
     exit = player_exit;
@@ -701,10 +721,15 @@ void AppMusicPlayer::setup(){
         if (hal.btnr.isPressing()) {
             if (GUI::waitLongPress(PIN_BUTTONR)) {
                 next_song(true, true);
-                while(hal.btnl.isPressing())
-                    delay(10);
+                int a = 0;
+                while(hal.btnr.isPressing()){
+                    delay(50);
+                    if (a++ > 20) {
+                        break;
+                    }
+                }
             } else {
-                gain = gain + 0.2;
+                gain = gain + 0.1;
                 if (gain > 4.0) {
                     gain = 4.0;
                 }
@@ -715,10 +740,15 @@ void AppMusicPlayer::setup(){
         if (hal.btnl.isPressing()) {
             if (GUI::waitLongPress(PIN_BUTTONL)) {
                 next_song(false, true);
-                while(hal.btnr.isPressing())
-                    delay(10);
+                int a = 0;
+                while(hal.btnl.isPressing()){
+                    delay(50);
+                    if (a++ > 20) {
+                        break;
+                    }
+                }
             } else {
-                gain = gain - 0.2;
+                gain = gain - 0.1;
                 if (gain < 0.0) {
                     gain = 0.0;
                 }

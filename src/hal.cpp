@@ -171,6 +171,10 @@ bool HAL::wifi_config_manger(){
 
     if (!LittleFS.exists(wifi_config_file)){
         File file = LittleFS.open(wifi_config_file, "w");
+        if (!file) {
+            Serial.println("Failed to open file for w");
+            return false;
+        }
         file.print(DEFAULT_WIFI_CONFIG);
         file.close();
     }
@@ -182,6 +186,7 @@ bool HAL::wifi_config_manger(){
     }
 
     StaticJsonDocument<2048> wifi_config;
+    // 或许可以使用DynamicJsonDocument
     deserializeJson(wifi_config, configFile);
     configFile.close();
 
@@ -192,9 +197,10 @@ bool HAL::wifi_config_manger(){
         WiFi.disconnect();
         int n = WiFi.scanNetworks(); // 扫描周围的WiFi网络
         if (n == 0) {
+            WiFi.scanDelete();
             log_w("没有找到可用的WiFi网络");
             GUI::info_msgbox("错误", "没有找到可用的WiFi网络");
-            delay(3000);
+            delay(1500);
             return false;
         } else {
             for (JsonObject network : networks) {
@@ -211,13 +217,16 @@ bool HAL::wifi_config_manger(){
                             sprintf(buf, "成功连接：%s,默认WiFi已切换至此WiFi", WiFi.SSID().c_str());
                             GUI::info_msgbox("成功", buf);
                             break;
+                            WiFi.scanDelete();
                         }
                     }
                 }
                 if (isConnected) {
+                    WiFi.scanDelete();
                     break;
                 }
             }
+            WiFi.scanDelete();
         }
     }
 
@@ -521,7 +530,6 @@ void HAL::WiFiConfigSmartConfig()
     }
 }
 
-#include <DNSServer.h>
 void HAL::WiFiConfigManual()
 {
     ESP_LOGI("hal", "WiFiConfigManual");
@@ -688,7 +696,7 @@ void test_littlefs_size(bool format = true)
     uint32_t size_request; // 存储目的分区大小
     size_t size_physical = 0;
     esp_flash_get_physical_size(esp_flash_default_chip, &size_physical);
-    size_request = size_physical - 0x300000;// - 0x1000
+    size_request = size_physical - 0x310000;// - 0x1000
     if (hal.pref.getUInt("size", 0) != size_request)
     {
         Serial.println("检测到分区大小不一致，正在格式化");
@@ -710,7 +718,7 @@ void refresh_partition_table()
     uint32_t size_request; // 存储目的分区大小
     size_t size_physical = 0;
     esp_flash_get_physical_size(esp_flash_default_chip, &size_physical);
-    size_request = size_physical - 0x300000;// - 0x1000
+    size_request = size_physical - 0x310000;// - 0x1000
     esp_flash_read(esp_flash_default_chip, table, 0x8000, sizeof(table));
     memcpy(partition_size.size_byte, &table[16 * 2 * PARTITION_SPIFFS + 0x8], 4);
     Serial.printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
@@ -758,32 +766,13 @@ void refresh_partition_table()
         ESP.restart();
     }
 }
-#include "TinyGPSPlus.h"
-extern TinyGPSPlus gps;
-extern RTC_DATA_ATTR bool has_buffer;
-void hal_buffer_handler(void *){
-    while(1)
-    {
-        if (has_buffer)
-        {
-            while(Serial1.available())
-            {
-                gps.encode(Serial1.read());
-            }
-        }else
-        {
-            delay(20);
-        }
-    }
-}
-void HAL::task_buffer_handler(){
-    xTaskCreatePinnedToCore(hal_buffer_handler, "hal_buffer_handler", 8192, NULL, 5, NULL, 0);
-}
+
 void HAL::wait_input(uint32_t sleeptime){
     if (sleeptime == 0)
         esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
     else 
         esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
+    esp_sleep_enable_uart_wakeup(0);
     if (hal.btn_activelow){
         gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
         esp_sleep_enable_gpio_wakeup();
@@ -795,6 +784,45 @@ void HAL::wait_input(uint32_t sleeptime){
     log_i("进入lightsleep");
     esp_light_sleep_start();
 }
+
+void HAL::coredump_file(){
+    #define CoreDump_File "/System/coredump.elf"
+    // 获取coredump分区信息
+    const esp_partition_t* coredump_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, "coredump");
+    if (!coredump_partition) {
+        log_e("找不到coredump分区");
+    }
+    uint8_t* buffer;
+    File file;
+    hal.pref.end();
+    buffer = (uint8_t*)malloc(coredump_partition->size);
+    if (!buffer) {
+        log_e("内存分配失败");
+    }
+    // 读取Flash数据
+    if (esp_partition_read(coredump_partition, 0, buffer, coredump_partition->size) != ESP_OK) {
+        log_e("读取coredump失败");
+        free(buffer);
+    }
+    // 写入文件
+    file = LittleFS.open(CoreDump_File, "w");
+    if (!file) {
+        GUI::info_msgbox("发生错误", "无法创建coredump文件");
+        free(buffer);
+    }
+    size_t written = file.write(buffer, coredump_partition->size);
+    file.close();
+    free(buffer);
+    if (written != coredump_partition->size) {
+        GUI::info_msgbox("发生错误", "文件写入错误");
+        LittleFS.remove(CoreDump_File);
+    } else {
+        log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节\n", written);
+        GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf");
+    }
+}
+
 static const char esp_rst_str[12][64] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
 static const char esp_sleep_str[13][64] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
 bool HAL::init()
@@ -947,6 +975,8 @@ bool HAL::init()
     if(esp_reset_reason() == ESP_RST_DEEPSLEEP){
         F_LOG("复位为DeepSleep,唤醒源:ESP_SLEEP_%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
     }
+    if (esp_reset_reason() == ESP_RST_PANIC)
+        coredump_file();
     loadConfig();
     setenv("TZ", config[Time_Zone].as<const char *>(), 1);
     tzset();
@@ -1090,7 +1120,6 @@ static void pre_sleep()
     buzzer.waitForSleep();
     LittleFS.end();
     hal.pref.end();
-    hal.nvs_.end();
     delay(10);
     ledcDetachPin(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);

@@ -16,7 +16,7 @@
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 TaskHandle_t lua_server_handle = NULL;
-static bool serverRunning = false;
+bool serverRunning = false;
 bool LuaRunning = false; // 全局变量，表示Lua服务器是否运行，用于防止调试时误退出
 extern "C" void lua_printf(const char *format, ...)
 {
@@ -220,6 +220,28 @@ static void sendreq(AsyncWebServerRequest *request, const char *mime, const uint
         response->addHeader("Last-Modified", buildTime);
         request->send(response);
     }
+}
+void beginFileServer()
+{
+    // 设置未找到路由的默认响应
+    server.onNotFound([](AsyncWebServerRequest *request)
+                      {
+        if(WiFi.softAPgetStationNum() != 0)
+        {
+            request->redirect("http://192.168.4.1");
+        }
+        else
+        {
+            request->send(404);
+        } });
+    
+    // 添加SPIFFS文件编辑器
+    server.addHandler(new SPIFFSEditor(LittleFS));
+    
+    // 启动服务器
+    server.begin();
+    Serial.println("SPIFFS File Server started");
+    serverRunning = true;
 }
 void beginWebServer()
 {
