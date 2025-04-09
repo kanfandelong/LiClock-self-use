@@ -21,6 +21,7 @@ const unsigned long signalLostThreshold = 5000; // 信号丢失阈值（5秒）
 
 // 任务句柄
 TaskHandle_t distanceTaskHandle = NULL;
+TaskHandle_t serial_read = NULL;
 
 // 标志位，用于控制任务是否运行
 volatile bool isRunning = true;
@@ -74,6 +75,8 @@ void buffer_handler(void *){
 }
 static void appgps_exit(){
     task_end = true;
+    vTaskDelete(serial_read);
+    vTaskDelete(distanceTaskHandle);
     Serial1.end();
     digitalWrite(GPS_POWER, LOW);
     detachInterrupt(digitalPinToInterrupt(PIN_BUTTONC));
@@ -368,12 +371,14 @@ void AppGps::GPS_menu(){
                 hal.pref.putBool("gps_self_power", true);
             }else{
                 hal.pref.putBool("gps_self_power", false);
+                vTaskSuspend(serial_read);
                 Serial1.end();
                 Serial1.setPins(RXD_2, GPIO_NUM_NC);
                 Serial1.begin(hal.pref.getLong("gps_baud", 9600));
                 pinMode(GPS_POWER, OUTPUT);
-                gpio_set_drive_capability(GPIO_NUM_32, GPIO_DRIVE_CAP_3);
+                gpio_set_drive_capability(GPIO_NUM_26, GPIO_DRIVE_CAP_3);
                 digitalWrite(GPS_POWER, HIGH);
+                vTaskResume(serial_read);
             }
         break;
         case 7:
@@ -502,7 +507,7 @@ void AppGps::setup(){
     }
     //attachInterrupt(digitalPinToInterrupt(RXD_2), RXD_interrupt, RISING);
     attachInterrupt(digitalPinToInterrupt(PIN_BUTTONC), button_interrupt, FALLING);
-    xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 2048, NULL, 5, NULL, 0);
+    xTaskCreatePinnedToCore(buffer_handler, "buffer_handler", 2048, NULL, 5, &serial_read, 0);
       // 创建距离计算任务
     xTaskCreate(
         distanceCalculationTask, // 任务函数
@@ -512,7 +517,6 @@ void AppGps::setup(){
         4,                      // 任务优先级
         &distanceTaskHandle     // 任务句柄
     );
-    //hal.task_buffer_handler();
     while(while_end)
     {
         delay(GPS_delay);

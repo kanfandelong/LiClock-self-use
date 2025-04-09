@@ -190,6 +190,8 @@ void AppClock::setup()
     deepsleep = appclock_deepsleep;
     wakeup = appclock_wakeup;
     int ntp_interval = hal.getNTPMinute();
+    // 设置屏幕PLL为50HZ
+    display.epd2.PLL_set(0x3C);
     if (hal.wakeUpFromDeepSleep)
     {
         ++NTPCounter;

@@ -92,6 +92,7 @@ static const menu_select settings_menu_other[] =
         {false, "电量计算起点电压"},
         {false, "BQ27441初始化设置"},
         {false, "NVS备份设置"},
+        {false, "屏幕PLL设定"},
         {false, NULL},
 };
 
@@ -1359,6 +1360,13 @@ void AppSettings::menu_other()
                     free(buffer);
                 }
                 hal.pref.begin("clock");
+            }
+            break;
+        case 23:
+            {
+                uint val = GUI::msgbox_hex("set_PLL", 2, hal.pref.getUInt("pllset", 0x3C));
+                hal.pref.putUInt("pllset", val);
+                display.epd2.PLL_set(val);
             }
             break;
         default:

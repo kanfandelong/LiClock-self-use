@@ -343,6 +343,7 @@ void GxEPD2_290_T5D::_InitDisplay()
   _writeData (HEIGHT & 0xFF);
   _writeCommand(0x50); // VCOM AND DATA INTERVAL SETTING
   _writeData(0x97);    // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+  PLL_set(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz
 }
 
 //partial screen update LUT
@@ -423,8 +424,7 @@ void GxEPD2_290_T5D::SendLuts(uint8_t LutLevel){
         else _writeData(0x0);
     }
   }
-  _writeCommand(0x30);
-  _writeData(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz
+  PLL_set(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz
 }
 
 void GxEPD2_290_T5D::PLL_set(uint8_t PLL_set_val){

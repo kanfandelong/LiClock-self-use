@@ -12,6 +12,7 @@
 #define set_cpu_freq        "cpufreq"
 #define set_display         "displaygray"
 #define set_display_PLL     "PLL"
+#define cfg_display_PLL     "cfgPLL"
 #define config_cpu_freq     "configcpufreq"
 #define set_long_press      "longpress"
 #define get_runtime         "runtime"

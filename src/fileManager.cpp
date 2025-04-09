@@ -75,7 +75,7 @@ namespace GUI
     void push_buffer();
     void pop_buffer();
     // 注意，下面这个函数完全没有考虑线程安全，no reentrent!!!
-    const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd)
+    const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system)
     {
         // 首先选择文件系统
         bool useSD = false;
@@ -85,9 +85,22 @@ namespace GUI
         {
             if (peripherals.isSDLoaded())
             {
-                if (msgbox_yn("请选择文件系统", "左：LittleFS\n右：TF 卡", "TF 卡", "LittleFS"))
+                if (file_system != NULL){
+                    if (strcmp(file_system, "TF") == 0)
+                    {
+                        useSD = true;
+                    }
+                    else if(strcmp(file_system, "LittleFS") == 0)
+                    {
+                        useSD = false;
+                    }
+                }
+                else
                 {
-                    useSD = true;
+                    if (msgbox_yn("请选择文件系统", "左：LittleFS\n右：TF 卡", "TF 卡", "LittleFS"))
+                    {
+                        useSD = true;
+                    }
                 }
             }
         }

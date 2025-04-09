@@ -238,6 +238,7 @@ void AppManager::showAppList(int page)
 }
 AppBase *AppManager::appSelector(bool showHidden)
 {
+    display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
     bool finished = false; // 是否完成选择，用于超过一页的情况
     int currentPage = 0;
     loadLuaApps();

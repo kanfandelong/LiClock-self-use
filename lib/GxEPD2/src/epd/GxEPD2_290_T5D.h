@@ -31,7 +31,7 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     static const uint16_t full_refresh_time = 3500; // ms, e.g. 3251067us
     static const uint16_t partial_refresh_time = 750; // ms, e.g. 704907us
     int lutgray = 15;
-    uint8_t PLL_val = 60;
+    uint8_t PLL_val = 0x39;
     // constructor
     GxEPD2_290_T5D(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
     // methods (virtual)

@@ -1243,12 +1243,6 @@ namespace GUI
             drawGrayScaleImage(false, x, y, w, h, img);
         free(img);
     }
-    typedef struct
-    {
-        uint16_t x;
-        uint8_t y;
-        uint8_t grayLevel = 20;
-    } pixel;
     void drawGrayScaleImage(bool is4gray, int x, int y, int w, int h, const uint8_t *bitmap)
     {
         int bytes_per_row = is4gray ? (w + 3) / 4 : (w + 1) / 2;

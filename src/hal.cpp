@@ -919,6 +919,7 @@ bool HAL::init()
     u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
     u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
     u8g2Fonts.begin(display);
+    display.epd2.PLL_set(pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     if (hal.btnl.isPressing() && (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED))
     {
         // 复位时检查左键是否按下，可以用于无限重启时临时关机

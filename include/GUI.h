@@ -52,5 +52,5 @@ namespace GUI
      * @param cwd 打开的目录，默认为根目录
      * @return 返回文件名，如果返回NULL，则用户取消选择
      */
-    const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/");
+    const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/", const char *file_system = NULL);
 } // namespace GUI

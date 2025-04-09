@@ -20,7 +20,8 @@
 #include <esp_netif.h>
 #include <LittleFS.h>
 
-#define code_version "2.0.10.9"
+
+#define code_version "2.0.10.11"
 // 屏幕型号选择宏定义
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C
@@ -36,6 +37,9 @@
 #define PIN_BUTTONL 35
 #define PIN_BUTTONC 34
 #define PIN_BUTTONR 39
+
+// #define PIN_RTC_IRQ 25
+// #define PIN_CHARGING 26
 
 #define PIN_RTC_IRQ 36
 #define PIN_SDVDD_CTRL 27

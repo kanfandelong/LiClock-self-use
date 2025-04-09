@@ -177,6 +177,10 @@ void CMD::parseCommand(const char* command) {
         } else if (strcmp(cmd, set_display_PLL) == 0 && parsed == 2) {
             int value = atoi(param);
             display.epd2.PLL_set(value);
+        } else if (strcmp(cmd, cfg_display_PLL) == 0 && parsed == 2) {
+            int value = atoi(param);
+            hal.pref.putUInt("pllset", value);
+            display.epd2.PLL_set(value);
         } else if (strcmp(cmd, erase_nvs) == 0) {
             if (nvs_flash_erase() == ESP_OK)
                 Serial.println("NVS erased successfully");

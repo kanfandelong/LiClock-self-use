@@ -20,7 +20,7 @@
 GxEPD2_EPD::GxEPD2_EPD(int16_t cs, int16_t dc, int16_t rst, int16_t busy, int16_t busy_level, uint32_t busy_timeout,
                        uint16_t w, uint16_t h, GxEPD2::Panel p, bool c, bool pu, bool fpu) : WIDTH(w), HEIGHT(h), panel(p), hasColor(c), hasPartialUpdate(pu), hasFastPartialUpdate(fpu),
                                                                                              _cs(cs), _dc(dc), _rst(rst), _busy(busy), _busy_level(busy_level), _busy_timeout(busy_timeout), _diag_enabled(false),
-                                                                                             _pSPIx(&SPI), _spi_settings(4000000, MSBFIRST, SPI_MODE0)
+                                                                                             _pSPIx(&SPI), _spi_settings(6000000ul, MSBFIRST, SPI_MODE0)
 {
   _initial_write = true;
   _initial_refresh = true;
@@ -134,8 +134,8 @@ void GxEPD2_EPD::_waitWhileBusy(const char *comment, uint16_t busy_time)
 {
   if (_busy >= 0)
   {
-    delay(busy_time - 10); // add some margin to become active
-    unsigned long start = micros();
+    delay(10); // add some margin to become active
+    unsigned long start = millis();
     while (1)
     {
       if (digitalRead(_busy) != _busy_level)
@@ -146,7 +146,7 @@ void GxEPD2_EPD::_waitWhileBusy(const char *comment, uint16_t busy_time)
         delay(5);
       if (digitalRead(_busy) != _busy_level)
         break;
-      if (micros() - start > _busy_timeout)
+      if (millis() - start > (_busy_timeout / 1000ul / 1000ul) + busy_time)
       {
         Serial.println("Busy Timeout!");
         break;
@@ -161,10 +161,11 @@ void GxEPD2_EPD::_waitWhileBusy(const char *comment, uint16_t busy_time)
 #if !defined(DISABLE_DIAGNOSTIC_OUTPUT)
       if (_diag_enabled)
       {
-        unsigned long elapsed = micros() - start;
+        unsigned long elapsed = millis() - start + 10;
         Serial.print(comment);
         Serial.print(" : ");
-        Serial.println(elapsed);
+        Serial.print(elapsed);
+        Serial.println(" ms");
       }
 #endif
     }

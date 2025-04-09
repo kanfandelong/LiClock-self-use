@@ -27,8 +27,10 @@ static const uint8_t wenjian_bits[] = {
 #define BYTES_PER_PAGE  (LINES_PER_PAGE * BYTES_PER_LINE)  // 每页显示n行，每行n个字节
 
 
-const char *filename; //保存从文件选择的完整文件名
 const char *filepath; //保存文件夹
+RTC_DATA_ATTR const char *filename = NULL; //保存从文件选择的完整文件名
+extern RTC_DATA_ATTR char buf[];
+
 
 class Appwenjian : public AppBase
 {
@@ -203,9 +205,11 @@ private:
                 char *buf = (char *)malloc(128);
                 sprintf(buf, "当前页：%d/%d", currentPage + 1, totalPages);
                 int res = GUI::menu(buf,appMenu_main);
+                free(buf);
                 switch (res)
                 {
                     case 0:
+                        display.display(true);
                         break;
                     case 1:
                         end = true;
@@ -260,9 +264,7 @@ private:
                         GUI::msgbox("提示", "无效操作");
                         break;
                 }
-                free(buf);
                 wait_time = millis();
-                //break;
             }if (end){
                 break;
             }
@@ -295,15 +297,14 @@ public:
     void openfile();
     void selctwenjianjia(bool _file = false);
     void uint8tobuf(uint8_t *input,int inputSize,char *output);
-    //const char* combineFilePath(const char* path, const char* filename, const char* extension);
-    bool wenjianend = false;
+    // const char* combineFilePath(const char* path, const char* filename, const char* extension);
+    const char *directoryname;
+    time_t LastWrite_time = 0;
+    String toApp = "";
+    bool hasToApp = false;
 };
 static Appwenjian wenjian;
 
-const char *directoryname;
-time_t LastWrite_time = 0;
-String toApp = "";
-bool hasToApp = false;
 
 void Appwenjian::set(){
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
@@ -355,27 +356,45 @@ void AppInstaller::loadApp(const String path) // 加载TF卡App
 
 void Appwenjian::setup() 
 {
-    char buf[64];
+    char char_buf[64];
     int used = 0, total = 0, free = 0;
-    fanhui:
+    String _filename, dir;
+    u32_t a;
+    const char *file_system;
+    bool run_first = true;
+    if (filename != NULL)
+        run_first = false;
+    if (run_first){
+fanhui:
+        filename = GUI::fileDialog("文件管理", false, NULL, NULL);
+        sprintf(buf,"%s",filename);     //将filename指向的数据拷贝到buf
+        filename = buf;                 //将filename指向到buf
+    }
     GUI::info_msgbox("提示", "获取文件系统信息...");
     used = LittleFS.usedBytes()/1024;
     total = LittleFS.totalBytes()/1024;
     free = total - used;
-    sprintf(buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
-    filename = GUI::fileDialog("文件管理", false, NULL, NULL);
+    sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
     if (filename == NULL)
     {
         goto fanhui;
     }
-    GUI::info_msgbox("提示", "正在获取文件信息...");
-    u32_t a;
+    // GUI::info_msgbox("提示", "正在获取文件信息...");
+file_info:
     if (strncmp(filename, "/sd/", 4) == 0) {
         a = getFileSize(filename,true);
+        file_system = "TF";
+        _filename = remove_path_prefix(filename,"/sd");
     } 
     else if (strncmp(filename, "/littlefs/", 10) == 0) {
         a = getFileSize(filename,false);
+        file_system = "LittleFS";
+        _filename = remove_path_prefix(filename,"/littlefs");
     }
+    int lastSlash = _filename.lastIndexOf('/');
+    dir = _filename.substring(0, lastSlash);
+    if (dir == "")
+        dir = "/";
     struct tm *filetimeinfo; 
     filetimeinfo = localtime(&LastWrite_time);
     char Str[128];
@@ -396,9 +415,9 @@ void Appwenjian::setup()
     {NULL, "删除"},
     {NULL, Str},
     {NULL, "打开"},
-    {NULL, "hex查看器打开"},
+    {NULL, "切换文件系统"},
     {NULL, "退出"},
-    {NULL, buf},
+    {NULL, char_buf},
     {NULL, NULL},
     };
     int res = 0;
@@ -408,7 +427,19 @@ void Appwenjian::setup()
         switch (res)
         {
         case 0:
-            goto fanhui;
+            {
+                filename = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system);
+                if (filename == NULL)
+                {
+                    goto fanhui;
+                }
+                sprintf(buf,"%s",filename);     //将filename指向的数据拷贝到buf
+                filename = buf;                 //将filename指向到buf
+                used = LittleFS.usedBytes()/1024;
+                free = total - used;
+                sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
+                goto file_info;
+            }
             break;
         case 1:
             {
@@ -601,10 +632,15 @@ void Appwenjian::setup()
             }
             break;
         case 6:
-            openfile();
+            {
+                if(GUI::msgbox_yn("提示","使用默认的方式打开文件？否则使用bin文件查看器(hex)打开", "默认方式", "hex"))
+                    openfile();
+                else
+                    openbin(); 
+            }
             break;
         case 7:
-            openbin();
+            goto fanhui;
             break;
         case 8:
             appManager.goBack(); 
@@ -736,18 +772,14 @@ void Appwenjian::openfile()
     const char* houzhui = get_houzhui(filename);
     if(strcmp(houzhui, "txt") == 0 || strcmp(houzhui, "TXT") == 0)
     {
-        if(GUI::msgbox_yn("提示","使用默认的文本查看器打开？否则使用bin文件查看器打开")){
-            if(GUI::msgbox_yn("提示","将会覆盖原有记录的文件名"))
-            {
-                hal.pref.putBytes(SETTINGS_PARAM_LAST_EBOOK, filename, strlen(filename));
-                hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
-                hasToApp = true;
-                toApp = "ebook";
-                appManager.gotoApp(toApp.c_str());
-            }
-        }else{
-            openbin();
-        }    
+        if(GUI::msgbox_yn("提示","将会覆盖原有的历史纪录"))
+        {
+            hal.pref.putBytes(SETTINGS_PARAM_LAST_EBOOK, filename, strlen(filename));
+            hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
+            hasToApp = true;
+            toApp = "ebook";
+            appManager.gotoApp(toApp.c_str());
+        }
     }
     else if(strcmp(houzhui, "buz") == 0)
     {
@@ -891,7 +923,7 @@ void Appwenjian::openfile()
         GUI::info_msgbox("提示", "lua脚本执行完毕", 136, 32);
         hal.wait_input();
     }else {
-        GUI::msgbox("提示","文件格式没有支持的显示或处理方式，使用16进制(bin)模式打开");
+        GUI::msgbox("提示","文件格式没有支持的显示或处理方式，将使用16进制(bin)模式打开");
         openbin();
     }
 }
