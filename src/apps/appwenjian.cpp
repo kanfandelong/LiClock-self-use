@@ -1,5 +1,24 @@
 #include "AppManager.h"
 
+/**
+ * 去除路径特定前缀函数
+ * @param path 完整路径
+ * @param prefix 特定前缀
+ * @return 去除前缀后的路径
+ */
+const char* remove_path_prefix(const char* path, const char* prefix) {
+    size_t prefix_len = strlen(prefix);
+    size_t path_len = strlen(path);
+
+    // 检查路径是否以指定前缀开头
+    if (strncmp(path, prefix, prefix_len) == 0) {
+        // 返回去除前缀后的路径
+        return path + prefix_len;
+    }
+    // 如果路径不以指定前缀开头，则返回原始路径
+    return path;
+}
+
 static const uint8_t wenjian_bits[] = {
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfc, 0xff, 0x01, 0x00,
@@ -290,7 +309,7 @@ public:
    // void loadwenjian(const String path);
     const char* getFileName(const char* filePath);
     const char* combinePath(const char* directory, const char* fileName);
-    const char* remove_path_prefix(const char* path, const char* prefix);
+    // const char* remove_path_prefix(const char* path, const char* prefix);
     const char* getDirectoryPath(const char* filePath);
     void setup();
     const char* get_houzhui(const char* filename);
@@ -718,7 +737,7 @@ const char* Appwenjian::combinePath(const char* directory, const char* fileName)
  * @param prefix 特定前缀
  * @return 去除前缀后的路径
  */
-const char* Appwenjian::remove_path_prefix(const char* path, const char* prefix) {
+/* const char* Appwenjian::remove_path_prefix(const char* path, const char* prefix) {
     size_t prefix_len = strlen(prefix);
     size_t path_len = strlen(path);
 
@@ -729,7 +748,7 @@ const char* Appwenjian::remove_path_prefix(const char* path, const char* prefix)
     }
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
-}
+} */
 /**
  * 获取目录路径函数】
  * @param filePath 完整文件路径

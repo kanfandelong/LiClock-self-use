@@ -221,6 +221,7 @@ void AppInstaller::setup()
                 static const menu_select appMenu_select[] = {
                     {false, "返回"},
                     {true, "音乐"},
+                    {true, "图片"},
                     {true, "定位"},
                     {true, "电源"},
                     {true, "数据"},

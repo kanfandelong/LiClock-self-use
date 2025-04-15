@@ -11,6 +11,7 @@
 #define help                "help"
 #define set_cpu_freq        "cpufreq"
 #define set_display         "displaygray"
+#define set_display_debug   "display_debug"
 #define set_display_PLL     "PLL"
 #define cfg_display_PLL     "cfgPLL"
 #define config_cpu_freq     "configcpufreq"

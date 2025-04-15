@@ -40,7 +40,7 @@ public:
     }
     void set();
     void setup();
-    const char* remove_path_prefix(const char* path, const char* prefix);
+    // const char* remove_path_prefix(const char* path, const char* prefix);
     void init();
     void xianshi();
     void ceshi();
@@ -456,7 +456,7 @@ void AppBytes::shuzi()
  * @param prefix 需要删除的前缀
  * @return 去除前缀后的路径
  */
-const char* AppBytes::remove_path_prefix(const char* path, const char* prefix) {
+/* const char* AppBytes::remove_path_prefix(const char* path, const char* prefix) {
     size_t prefix_len = strlen(prefix);
     size_t path_len = strlen(path);
 
@@ -467,7 +467,7 @@ const char* AppBytes::remove_path_prefix(const char* path, const char* prefix) {
     }
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
-}
+} */
 
 void AppBytes::setup()
 {

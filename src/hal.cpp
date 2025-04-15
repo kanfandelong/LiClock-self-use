@@ -831,6 +831,7 @@ bool HAL::init()
     bool timeerr = false;
     bool initial = true;
     Serial.begin(115200);
+    log_i("系统初始化，固件版本:%s", code_version);
     // 读取时钟偏移
     pref.begin("clock");
 
@@ -899,7 +900,7 @@ bool HAL::init()
     upint = pref.getInt("upint", 2 * 60);   // NTP同步间隔
     auto_sleep_mv = pref.getInt("auto_sleep_mv", 2800);
     ppc = pref.getInt("ppc", 7230);
-    lpt = hal.pref.getInt("lpt", 25);
+    lpt = pref.getInt("lpt", 25);
     // 系统“自检”
     dis_DS3231 = pref.getBool(get_char_sha_key("停用DS3231"), false);
 
@@ -911,7 +912,7 @@ bool HAL::init()
 #if defined(Queue)
     display.epd2.startQueue();
 #endif
-    display.init(115200, initial);
+    display.init(pref.getInt("display_debug", 115200), initial);
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(GxEPD_BLACK);
     u8g2Fonts.setFontMode(1);
@@ -1157,7 +1158,7 @@ void HAL::goSleep(uint32_t sec)
     if (noDeepSleep)
     {
         esp_light_sleep_start();
-        display.init(115200, false);
+        display.init(pref.getInt("display_debug", 115200), false);
         LittleFS.begin(false);
         peripherals.wakeup();
         ledcAttachPin(PIN_BUZZER, 0);
@@ -1187,7 +1188,7 @@ void HAL::powerOff(bool displayMessage)
     if (noDeepSleep)
     {
         esp_light_sleep_start();
-        display.init(115200, false);
+        display.init(pref.getInt("display_debug", 115200), false);
         LittleFS.begin(false);
         peripherals.wakeup();
     }

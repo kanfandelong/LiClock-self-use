@@ -173,55 +173,55 @@ void AppSettings::setup()
         case 5:
             //SD卡信息
             {
-            display.clearScreen();
-            GUI::drawWindowsWithTitle("TF卡信息",0,0,296,128);
-            display.display();
-            //u8g2Fonts.setCursor(5,30);
-            //u8g2Fonts.printf("类型：%s",SD.cardType());
-            if (hal.TF_connected){
-                u8g2Fonts.setCursor(5,30);
-                float cardSizeMB = (float)SD.cardSize() / 1024.0 / 1024.0;
-                u8g2Fonts.printf("大小：%uBytes %.2fMB ",SD.cardSize(),cardSizeMB);
-                u8g2Fonts.setCursor(5,45);
-                u8g2Fonts.printf("扇区数量：%u",SD.numSectors());
-                u8g2Fonts.setCursor(5,60);
-                u8g2Fonts.printf("扇区大小：%u Bytes",SD.sectorSize());
-                u8g2Fonts.setCursor(5,75);
-                float cardSizeuse = (float)SD.usedBytes() / 1024.0 / 1024.0;
-                float cardSizetotal = (float)SD.totalBytes() / 1024.0 / 1024.0;
-                u8g2Fonts.printf("空间使用:%0.2f%%(%.2f/%.2f)MB", cardSizeuse * 100.0 / cardSizetotal, cardSizeuse, cardSizetotal);
-                u8g2Fonts.setCursor(5,90);
-                u8g2Fonts.printf("可用空间：%.2fMB", cardSizetotal - cardSizeuse);
-                u8g2Fonts.setCursor(5,105);
-                char tf_type[20];
-                sdcard_type_t tf_type_num = SD.cardType();
-                switch (tf_type_num)
-                {
-                    case CARD_NONE:
-                        sprintf(tf_type, "此卡类型字段为空");
-                        break;
-                    case CARD_MMC:
-                        sprintf(tf_type, "MMC卡");
-                        break;
-                    case CARD_SD:
-                        sprintf(tf_type, "SD卡");
-                        break;
-                    case CARD_SDHC:
-                        sprintf(tf_type, "SDHC卡");
-                        break;
-                    case CARD_UNKNOWN:
-                        sprintf(tf_type, "未知的卡类型");
-                        break;
+                display.clearScreen();
+                GUI::drawWindowsWithTitle("TF卡信息",0,0,296,128);
+                display.display();
+                //u8g2Fonts.setCursor(5,30);
+                //u8g2Fonts.printf("类型：%s",SD.cardType());
+                if (hal.TF_connected){
+                    u8g2Fonts.setCursor(5,30);
+                    float cardSizeMB = (float)SD.cardSize() / 1024.0 / 1024.0;
+                    u8g2Fonts.printf("大小：%uBytes %.2fMB ",SD.cardSize(),cardSizeMB);
+                    u8g2Fonts.setCursor(5,45);
+                    u8g2Fonts.printf("扇区数量：%u",SD.numSectors());
+                    u8g2Fonts.setCursor(5,60);
+                    u8g2Fonts.printf("扇区大小：%u Bytes",SD.sectorSize());
+                    u8g2Fonts.setCursor(5,75);
+                    float cardSizeuse = (float)SD.usedBytes() / 1024.0 / 1024.0;
+                    float cardSizetotal = (float)SD.totalBytes() / 1024.0 / 1024.0;
+                    u8g2Fonts.printf("空间使用:%0.2f%%(%.2f/%.2f)MB", cardSizeuse * 100.0 / cardSizetotal, cardSizeuse, cardSizetotal);
+                    u8g2Fonts.setCursor(5,90);
+                    u8g2Fonts.printf("可用空间：%.2fMB", cardSizetotal - cardSizeuse);
+                    u8g2Fonts.setCursor(5,105);
+                    char tf_type[20];
+                    sdcard_type_t tf_type_num = SD.cardType();
+                    switch (tf_type_num)
+                    {
+                        case CARD_NONE:
+                            sprintf(tf_type, "此卡类型字段为空");
+                            break;
+                        case CARD_MMC:
+                            sprintf(tf_type, "MMC卡");
+                            break;
+                        case CARD_SD:
+                            sprintf(tf_type, "SD卡");
+                            break;
+                        case CARD_SDHC:
+                            sprintf(tf_type, "SDHC卡");
+                            break;
+                        case CARD_UNKNOWN:
+                            sprintf(tf_type, "未知的卡类型");
+                            break;
+                    }
+                    u8g2Fonts.printf("TF卡类型:%s", tf_type);
+                    display.display(true);
+                }else{
+                    GUI::info_msgbox("提示", "未插入TF卡，无法显示信息");
                 }
-                u8g2Fonts.printf("TF卡类型:%s", tf_type);
-                display.display(true);
-            }else{
-                GUI::info_msgbox("提示", "未插入TF卡，无法显示信息");
-            }
-            hal.wait_input();
-            /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
-                delay(100);
-            } */
+                hal.wait_input();
+                /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+                    delay(100);
+                } */
             }
             break;
         case 6:
@@ -294,23 +294,34 @@ void AppSettings::menu_time()
             // 时间同步间隔设置
             {
                 const menu_item menu[] = {
-                    {NULL, "取消"},
-                    {NULL, "禁用时间同步"},
-                    {NULL, "2小时"},
-                    {NULL, "4小时"},
+                    {NULL, "取消"},         // 0
+                    {NULL, "禁用时间同步"}, // 1
+                    {NULL, "2小时"},        // 2
+                    {NULL, "4小时"},        // 3
                     {NULL, "6小时"},
                     {NULL, "12小时"},
                     {NULL, "24小时"},
                     {NULL, "36小时"},
                     {NULL, "48小时"},
+                    {NULL, "自定义"},       // 9
                     {NULL, NULL},
                 };
                 res = GUI::menu("时间同步间隔设置", menu);
-                if (res > 0)
+                if (res > 0 && res < 9)
                 {
                     // 设置时间同步间隔
                     hal.pref.putUChar(SETTINGS_PARAM_NTP_INTERVAL, res - 1);
                     GUI::msgbox("时间同步间隔设置", "设置完成");
+                }
+                else if (res == 9)
+                {
+                    // 自定义
+                    int hour = GUI::msgbox_number("2-999", 3, hal.pref.putUChar(SETTINGS_PARAM_NTP_INTERVAL, 1));
+                    if (hour > 1)
+                    {
+                        hal.pref.putUChar(SETTINGS_PARAM_NTP_INTERVAL, hour);
+                        GUI::msgbox("时间同步间隔设置","设置完成");
+                    }
                 }
             }
             break;
@@ -1145,6 +1156,7 @@ void AppSettings::menu_other()
             {
                 if (GUI::msgbox_yn("提示", "是否联网更新CFU.json文件？")){
                     GUI::info_msgbox("提示", "正在联网更新CFU.json文件");
+                    hal.autoConnectWiFi();
                     if (hal.cheak_firmware_update())
                         GUI::info_msgbox("提示", "CFU.json文件已更新");
                     else

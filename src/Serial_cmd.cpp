@@ -161,9 +161,6 @@ void CMD::parseCommand(const char* command) {
             } else {
                 Serial.printf("CPU frequency:%uMhz\n", ESP.getCpuFreqMHz());
             }
-        } else if (strcmp(cmd, config_cpu_freq) == 0 && parsed == 2) {
-            int freq = atoi(param);
-            hal.pref.putInt("CpuFreq", freq);
         } else if (strcmp(cmd, set_long_press) == 0) {
             if (parsed == 2) {
                 int value = atoi(param);
@@ -171,6 +168,9 @@ void CMD::parseCommand(const char* command) {
             } else {
                 Serial.printf("LongPress wait time:%dms\n", hal.pref.getInt("lpt", 20) * 10);
             }
+        } else if (strcmp(cmd, config_cpu_freq) == 0 && parsed == 2) {
+            int freq = atoi(param);
+            hal.pref.putInt("CpuFreq", freq);
         } else if (strcmp(cmd, set_display) == 0 && parsed == 2) {
             int value = atoi(param);
             hal.pref.putInt("dlsplay", value);
@@ -181,6 +181,9 @@ void CMD::parseCommand(const char* command) {
             int value = atoi(param);
             hal.pref.putUInt("pllset", value);
             display.epd2.PLL_set(value);
+        } else if (strcmp(cmd, set_display_debug) == 0 && parsed == 2) {
+            int value = atoi(param);
+            hal.pref.putInt("display_debug", value);
         } else if (strcmp(cmd, erase_nvs) == 0) {
             if (nvs_flash_erase() == ESP_OK)
                 Serial.println("NVS erased successfully");

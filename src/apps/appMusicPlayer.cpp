@@ -55,7 +55,7 @@ public:
         image = APP_MusicPlayer_bits;
     }
     void set();
-    const char* remove_path_prefix(const char* path, const char* prefix);
+    // const char* remove_path_prefix(const char* path, const char* prefix);
     void select_file();
     void file_in(const char* path);
     void next_song(bool next = true, bool btn = false);
@@ -73,7 +73,7 @@ public:
     bool is_root = false;           // 是否是根目录
     menu_item *fileList;            // 歌曲菜单数组
     char *titles[256];              // 歌曲名内存指针数组
-    char char_buf[512];             // 字符串拼接缓c存
+    char char_buf[512];             // 字符串拼接缓存
     bool filelist_ok = false;       // 歌曲列表就绪标志
     uint16_t maxSong = 0;           // 歌曲总数
 
@@ -86,6 +86,7 @@ public:
     id3_info info;                          // 歌曲ID3信息
     bool _end;                              // 播放器主任务函数while循环停止标志
     bool nodac = false;                     // 无DAC标志
+    bool in_littlefs = false;               // 文件是否位于LittleFS
     float gain = 0.3;                       // 音频输出增益（音量）
     bool need_deep_sleep = false;           // 是否需要进入deepsleep
     int play_count = 1;                     // 播放歌曲数量
@@ -185,7 +186,7 @@ void AppMusicPlayer::set(){
  * @param prefix 特定前缀
  * @return 去除前缀后的路径
  */
-const char* AppMusicPlayer::remove_path_prefix(const char* path, const char* prefix) {
+/* const char* AppMusicPlayer::remove_path_prefix(const char* path, const char* prefix) {
     size_t prefix_len = strlen(prefix);
     size_t path_len = strlen(path);
 
@@ -196,7 +197,7 @@ const char* AppMusicPlayer::remove_path_prefix(const char* path, const char* pre
     }
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
-}
+} */
 /**
  * 文件选择函数，根据变量和preferences库读取数据判断文件选择方式
  */
@@ -251,7 +252,11 @@ void AppMusicPlayer::select_file(){
             currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
                                (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
         }
-        sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+        // sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+        if (strncmp(music_file, "/sd/", 4) == 0)
+            sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
+        else 
+            sprintf(buf, "%s", ("/littlefs" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
         music_file = buf;
         //in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
         file_in(music_file);
@@ -270,12 +275,14 @@ void AppMusicPlayer::file_in(const char* path){
         sprintf(char_buf, "%s", remove_path_prefix(path,"/sd"));
         _path = char_buf;
         in = new AudioFileSourceSD(_path);
+        in_littlefs = false;
     }
     else if (strncmp(path, "/littlefs/", 10) == 0) {
         file_sd = false;
         sprintf(char_buf, "%s", remove_path_prefix(path,"/littlefs"));
         _path = char_buf;
         in = new AudioFileSourceLittleFS(_path);
+        in_littlefs = true;
     }
     pathStr = _path;
     if (!in->isOpen()){
@@ -394,11 +401,17 @@ void AppMusicPlayer::bulid_music_list(){
         uint16_t song_count = 0;
         File root;
         if (is_root){
-            root = SD.open("/");
+            if (!in_littlefs)
+                root = SD.open("/");
+            else
+                root = LittleFS.open("/");
             Serial.printf("创建音乐列表,从根目录\n");
         }
         else{
-            root = SD.open(currentDir);
+            if (!in_littlefs)
+                root = SD.open(currentDir);
+            else
+                root = LittleFS.open(currentDir);
             Serial.printf("创建音乐列表,从文件夹:%s\n", currentDir.c_str());
         }
         File dir = root.openNextFile();
@@ -419,10 +432,18 @@ void AppMusicPlayer::bulid_music_list(){
             titles[i] = NULL;   
             ++i;
         }
-        if (is_root)
-            root = SD.open("/");
-        else
-            root = SD.open(currentDir);
+        if (is_root){
+            if (!in_littlefs)
+                root = SD.open("/");
+            else
+                root = LittleFS.open("/");
+        }
+        else{
+            if (!in_littlefs)
+                root = SD.open(currentDir);
+            else
+                root = LittleFS.open(currentDir);
+        }
         dir = root.openNextFile();
         maxSong = song_count;
         fileList = new menu_item[song_count + 2];

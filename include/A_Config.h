@@ -21,7 +21,7 @@
 #include <LittleFS.h>
 
 
-#define code_version "2.0.10.11"
+#define code_version "2.0.a.b"  //代码版本号（16进制格式）
 // 屏幕型号选择宏定义
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C
@@ -101,6 +101,7 @@ extern const char *ipv6_to_str(const esp_ip6_addr_t *addr);
 extern void enableIPv6();
 void refreshIPV6Addr();
 bool file_exist(const char *path);
+const char* remove_path_prefix(const char* path, const char* prefix);
 
 extern DynamicJsonDocument config;
 extern DynamicJsonDocument cfu;

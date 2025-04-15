@@ -649,7 +649,7 @@ bool AppEBook::indexcode_2()
     }
     return true;
 }
-const char *remove_path_prefix(const char *path, const char *prefix)
+/* const char *remove_path_prefix(const char *path, const char *prefix)
 {
     size_t prefix_len = strlen(prefix);
     size_t path_len = strlen(path);
@@ -662,7 +662,7 @@ const char *remove_path_prefix(const char *path, const char *prefix)
     }
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
-}
+} */
 int8_t getCharLength(char zf) // 获取ascii字符的长度
 {
     if (zf == 0x20)
