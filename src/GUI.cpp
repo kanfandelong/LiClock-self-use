@@ -199,7 +199,7 @@ namespace GUI
      * @param msg  消息内容
      * @param yes 右按钮文本
      * @param no 左按钮文本
-     * @return bool  true:左键，false:右键
+     * @return bool  true:右键，false:左键
      */
     bool msgbox_yn(const char *title, const char *msg, const char *yes, const char *no)
     {

@@ -59,6 +59,7 @@ void AppWebserver::setup()
                 while(hal.btnl.isPressing())delay(20);
                 //ESP.restart();
                 server.end();
+                server.reset();
                 WiFi.disconnect(true);
                 end = false;
                 appManager.goBack();

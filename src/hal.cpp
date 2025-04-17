@@ -473,10 +473,10 @@ bool HAL::cheak_firmware_update(){
 /**
  * @brief 检查CPU频率，若低于80MHz则设置CPU频率为80MHz
  */
-void HAL::cheak_freq()
+void HAL::cheak_freq(int _freq)
 {
     int freq = ESP.getCpuFreqMHz();
-    if (freq < 80){
+    if (freq < _freq){
         Serial.end();
         bool cpuset = setCpuFrequencyMhz(80);
         Serial.begin(115200);

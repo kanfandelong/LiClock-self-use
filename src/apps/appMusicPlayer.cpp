@@ -693,6 +693,7 @@ void AppMusicPlayer::player_set(){
  * 音乐播放器主任务函数，由AppManager调用
  */
 void AppMusicPlayer::setup(){
+    hal.cheak_freq(160);
     pinMode(25, ANALOG);
     pinMode(26, ANALOG);
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);

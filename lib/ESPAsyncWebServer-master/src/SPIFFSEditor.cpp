@@ -362,7 +362,7 @@ static void loadExcludeList(fs::FS &_fs, const char *filename){
 
 static bool isExcluded(fs::FS &_fs, const char *filename) {
   if(excludes == NULL){
-      loadExcludeList(_fs, excludeListFile);
+      // loadExcludeList(_fs, excludeListFile);
   }
   ExcludeList *e = excludes;
   while(e){
@@ -387,6 +387,10 @@ SPIFFSEditor::SPIFFSEditor(const String& username, const String& password, const
 ,_authenticated(false)
 ,_startTime(0)
 {}
+
+void SPIFFSEditor::setFileSystem(fs::FS &fs) {
+  _fs = fs;
+}
 
 bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request){
   if(request->url().equalsIgnoreCase("/edit")){

@@ -138,7 +138,7 @@ extern bool serverRunning;
 #define PARAM_CLOCKONLY "p8"
 
 void processRain(float max);
-void beginFileServer();
+void beginFileServer(bool for_TF = false);
 void beginWebServer();
 void updateWebServer();
 const uint8_t *getBatteryIcon(bool forceEmptyIcon = false);

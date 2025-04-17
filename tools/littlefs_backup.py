@@ -72,7 +72,7 @@ class ESP32FileManager:
         if item_type == "folder":
             # 修复路径拼接问题
             base_path = self.current_path.rstrip('/')
-            new_path = f"{base_path}/{name}/"
+            new_path = f"{base_path}/{name}"
             self.refresh_list(new_path)
 
     def navigate_up(self):

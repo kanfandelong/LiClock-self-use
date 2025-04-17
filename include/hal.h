@@ -56,7 +56,7 @@ public:
     char* get_char_sha_key(const char *str);
     IPAddress getip();
     bool cheak_firmware_update();
-    void cheak_freq();
+    void cheak_freq(int _freq = 80);
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();
     void ReqWiFiConfig();
