@@ -30,10 +30,11 @@ void AppLBM::setup(){
         appManager.goBack();
         return;
     }
-    if (filename == NULL || hal.btnr.isPressing()) 
+    if (filename == NULL || hal.btnr.isPressing()) {
         filename = GUI::fileDialog(title, false, "lbm");
-    sprintf(buf,"%s",filename);     //将filename指向的数据拷贝到buf
-    filename = buf;                 //将filename指向到buf
+        sprintf(buf,"%s",filename);     //将filename指向的数据拷贝到buf
+        filename = buf;                 //将filename指向到buf
+    }
     String _filename;
     bool is_root = false;
     bool in_littlefs = false;
@@ -45,6 +46,8 @@ void AppLBM::setup(){
         _filename = remove_path_prefix(filename,"/littlefs");
         in_littlefs = true;
     }
+    else
+        _filename = filename;
     int lastSlash = _filename.lastIndexOf('/');
     _dir = _filename.substring(0, lastSlash);
     if (_dir == ""){
@@ -76,6 +79,12 @@ void AppLBM::setup(){
     }
     dir.close();
     root.close();
+    if (song_count == 0){
+        appManager.noDeepSleep = false;
+        appManager.nextWakeup = 1;
+        filename = NULL;
+        return;
+    }
     int i = 0;
     while (titles[i] != NULL)
     {

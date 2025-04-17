@@ -37,7 +37,7 @@ AudioOutputI2SNoDAC *noDAC;                  // I2S输出
 // 以下变量保存至RTC内存，避免deepsleep后丢失
 RTC_DATA_ATTR uint16_t currentSongIndex = 0; // 当前播放索引（音乐列表数组位置）
 RTC_DATA_ATTR const char *music_file;        // 当前播放文件的指针
-RTC_DATA_ATTR char buf[300];                 // 实际存储当前播放文件路径字符串
+RTC_DATA_ATTR char buf[512];                 // 实际存储当前播放文件路径字符串
 RTC_DATA_ATTR bool file_is_ok = false;       // 用于判断播放器的启动状态（初次运行/从deepsleep恢复）
 
 class AppMusicPlayer : public AppBase

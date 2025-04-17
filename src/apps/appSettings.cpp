@@ -316,7 +316,7 @@ void AppSettings::menu_time()
                 else if (res == 9)
                 {
                     // 自定义
-                    int hour = GUI::msgbox_number("2-999", 3, hal.pref.putUChar(SETTINGS_PARAM_NTP_INTERVAL, 1));
+                    int hour = GUI::msgbox_number("2-999h", 3, hal.pref.putUChar(SETTINGS_PARAM_NTP_INTERVAL, 1));
                     if (hour > 1)
                     {
                         hal.pref.putUChar(SETTINGS_PARAM_NTP_INTERVAL, hour);
