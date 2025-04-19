@@ -94,6 +94,7 @@ static void appebook_exit()
     }
     hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
     Serial.printf("退出电子书，当前页：%d\n", currentPage);
+    currentPage = -1;
     ebook_run = false;
 }
 static void appebook_deepsleep()

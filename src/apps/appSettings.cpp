@@ -765,7 +765,6 @@ void AppSettings::menu_network()
                         }
                     }
                 }
-                server.reset();
                 beginFileServer(GUI::msgbox_yn("提示", "请选择文件服务器目标文件系统", "TF卡", "内置存储"));
                 u8g2Fonts.setCursor(120, (128 - (13 * 2)) / 2);
                 GUI::autoIndentDraw(str1.c_str(), 296, 120, 13);
@@ -775,7 +774,6 @@ void AppSettings::menu_network()
                         if (GUI::waitLongPress(PIN_BUTTONL)){
                             while(hal.btnl.isPressing())delay(20);
                             server.end();
-                            server.reset();
                             WiFi.disconnect(true);
                             break;
                         }

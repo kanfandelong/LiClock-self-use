@@ -261,6 +261,18 @@ void beginFileServer(bool for_TF)
     } else {
         server.addHandler(new SPIFFSEditor(LittleFS));
     }
+    server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
+              {
+                                file_for_TF =! file_for_TF;
+                                if (file_for_TF) {
+                                    if (!peripherals.isSDLoaded())
+                                        peripherals.load(PERIPHERALS_SD_BIT);
+                                    spiffs_upload_handler->setFileSystem(SD);
+                                } else {
+                                    spiffs_upload_handler->setFileSystem(LittleFS);
+                                }
+                                request->send(200, "text/plain", "OK");
+                                 });
     // 启动服务器
     server.begin();
     Serial.println("SPIFFS File Server started");

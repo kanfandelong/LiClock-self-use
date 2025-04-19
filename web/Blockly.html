@@ -1257,7 +1257,7 @@
             xhr.onreadystatechange = function () {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                displayJson(0, "请求发送成功");
+                displayJson(0, "成功切换文件系统");
                 } else {
                 displayJson(1, "请求失败，错误代码：" + xhr.status.toString() + xhr.statusText);
                 }
@@ -1675,26 +1675,6 @@
                 mkdir(input_Mkdir.value.trim());
             }
         }
-        var btnCustomRequest = document.getElementById('btnCustomRequest');
-        btnCustomRequest.onclick = function () {
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/switch_file_system', true); // 将 '/custom_endpoint' 替换为你的后端处理路径
-            // 设置请求完成后的回调函数
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState == 4) {
-                    if (xhr.status == 200) {
-                        // 请求成功，处理响应
-                        var response = xhr.responseText;
-                        displayJson(0, "请求成功: " + response);
-                    } else {
-                        // 请求失败，处理错误
-                        displayJson(1, "请求失败: " + xhr.statusText);
-                    }
-                }
-            };
-            // 发送请求
-            xhr.send();
-        };
         function clearLBM() {
             document.getElementById("canvas").style.display = "none";
             var canvas = document.querySelector('#canvas')
