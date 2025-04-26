@@ -36,30 +36,38 @@ void HAL::printBatteryInfo() {
     Serial.println("---------------------------------\n");
 }
 
-void HAL::task_bat_info_update(){
-    //while(1){    
-        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-        hal.bat_info.voltage = (float)lipo.voltage() / 1000.0;
-        hal.bat_info.soc = lipo.soc(FILTERED);
-        hal.bat_info.soh = lipo.soh();
-        hal.bat_info.power = lipo.power();
-        hal.bat_info.temp = (float)lipo.temperature(BATTERY) / 100.0;
-        hal.bat_info.capacity.remain = lipo.capacity(REMAIN);
-        hal.bat_info.capacity.full = lipo.capacity(FULL);
-        hal.bat_info.capacity.avail = lipo.capacity(AVAIL);
-        hal.bat_info.capacity.avail_full = lipo.capacity(AVAIL_FULL);
-        hal.bat_info.capacity.remain_f = lipo.capacity(REMAIN_F);
-        hal.bat_info.capacity.full_f = lipo.capacity(FULL_F);
-        hal.bat_info.capacity.design = lipo.capacity(DESIGN);
-        hal.bat_info.current.avg = lipo.current(AVG);
-        hal.bat_info.current.max = lipo.current(MAX);
-        hal.bat_info.current.stby = lipo.current(STBY);
-        hal.bat_info.flag.CHG = lipo.chgFlag();
-        hal.bat_info.flag.DSG = lipo.dsgFlag();
-        hal.bat_info.flag.FC = lipo.fcFlag();
-        xSemaphoreGive(peripherals.i2cMutex);
-        delay(1000);
-    //}
+void task_bat_info(void *){
+    TickType_t xDelay = 2500 / portTICK_PERIOD_MS;
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    while(1){    
+        if (xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY) == pdTRUE) {
+            hal.bat_info.voltage = (float)lipo.voltage() / 1000.0;
+            hal.bat_info.soc = lipo.soc(FILTERED);
+            hal.bat_info.soh = lipo.soh();
+            hal.bat_info.power = lipo.power();
+            hal.bat_info.temp = (float)lipo.temperature(INTERNAL_TEMP) / 100.0;
+            hal.bat_info.capacity.remain = lipo.capacity(REMAIN);
+            hal.bat_info.capacity.full = lipo.capacity(FULL);
+            hal.bat_info.capacity.avail = lipo.capacity(AVAIL);
+            hal.bat_info.capacity.avail_full = lipo.capacity(AVAIL_FULL);
+            hal.bat_info.capacity.remain_f = lipo.capacity(REMAIN_F);
+            hal.bat_info.capacity.full_f = lipo.capacity(FULL_F);
+            hal.bat_info.capacity.design = lipo.capacity(DESIGN);
+            hal.bat_info.current.avg = lipo.current(AVG);
+            hal.bat_info.current.max = lipo.current(MAX);
+            hal.bat_info.current.stby = lipo.current(STBY);
+            hal.bat_info.flag.CHG = lipo.chgFlag();
+            hal.bat_info.flag.DSG = lipo.dsgFlag();
+            hal.bat_info.flag.FC = lipo.fcFlag();
+            xSemaphoreGive(peripherals.i2cMutex);
+            xDelay = 2500 / portTICK_PERIOD_MS;
+        }
+        else {
+            xDelay = 100 / portTICK_PERIOD_MS;
+        }
+        // delay(1000);
+        xTaskDelayUntil(&xLastWakeTime, xDelay); 
+    }
 }
 
 void task_hal_update(void *)
@@ -375,7 +383,7 @@ IPAddress HAL::getip(){
 #define url_firmware "https://kanfandelong.github.io/liclock-web-flash/firmware-info.json"
 #define CAcert_file "/System/_.github.io.crt"
 /* const char* root_ca= \
-"-----BEGIN CERTIFICATE-----\n" \
+"-----BEGIN CERTIFICATE-----\n"  \  
 "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n" \
 "MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3\n" \
 "d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH\n" \
@@ -823,15 +831,15 @@ void HAL::coredump_file(){
     }
 }
 
-static const char esp_rst_str[12][64] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
-static const char esp_sleep_str[13][64] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
+static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
+static const char esp_sleep_str[13][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
 bool HAL::init()
 {
     int16_t total_gnd = 0;
     bool timeerr = false;
     bool initial = true;
     Serial.begin(115200);
-    log_i("系统初始化，固件版本:%s", code_version);
+    log_i("系统初始化，固件版本:%s  构建日期:%s %s", code_version, __DATE__, __TIME__);
     // 读取时钟偏移
     pref.begin("clock");
 
@@ -980,7 +988,7 @@ bool HAL::init()
     if (esp_reset_reason() == ESP_RST_PANIC)
         coredump_file();
     loadConfig();
-    setenv("TZ", config[Time_Zone].as<const char *>(), 1);
+    setenv("TZ", "CST-8", 1); // 设置时区为东八区
     tzset();
     peripherals.init();
     weather.begin();
@@ -990,12 +998,12 @@ bool HAL::init()
         xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     cmd.begin();
-    //xTaskCreate(task_bat_info_update, "bat_info_update", 2048, NULL, 10, NULL);
+    xTaskCreate(task_bat_info, "bat_info_update", 2048, NULL, 2, NULL);
     getTime();
     if ((timeinfo.tm_year < (2016 - 1900)))
     {
         timeerr = true;              // 需要同步时间
-        pref.putUInt("lastsync", 1); // 清除上次同步时间，但不清除时钟偏移信息
+        pref.putUInt("lastsync", 1); // 清除上次同步时间，但不清除时钟偏移信息。
         lastsync = 1;
     }
     if (initial == false && timeerr == false)
@@ -1461,7 +1469,6 @@ void HAL::rm_rf(const char *path)
     struct dirent *entry;
     struct stat statbuf;
 
-    GUI::info_msgbox("提示", "正在删除文件夹...");
     // 打开目录
     if ((dp = opendir(path)) == NULL)
     {

@@ -94,18 +94,20 @@ void renameHandler(AsyncWebServerRequest *request)
     {
         String path = request->arg("path");
         String newpath = request->arg("new");
-        if (file_for_TF)
+        if (file_for_TF) {
             if (SD.rename(path, newpath))
             {
                 request->send(200, "text/plain", "OK");
                 return;
             }
-        else
+        }
+        else {
             if (LittleFS.rename(path, newpath))
             {
                 request->send(200, "text/plain", "OK");
                 return;
             }
+        }
     }
     request->send(500, "text/plain", "EER");
 }
@@ -114,18 +116,20 @@ void mkdirHandler(AsyncWebServerRequest *request)
     if (request->hasArg("path"))
     {
         String path = request->arg("path");
-        if (file_for_TF)
+        if (file_for_TF){
             if (SD.mkdir(path))
             {
                 request->send(200, "text/plain", "OK");
                 return;
             }
-        else
+        }
+        else{
             if (LittleFS.mkdir(path))
             {
                 request->send(200, "text/plain", "OK");
                 return;
             }
+        }
     }
     request->send(500, "text/plain", "EER");
 }
@@ -256,23 +260,68 @@ void beginFileServer(bool for_TF)
         } });
     
     // 添加SPIFFS文件编辑器
-    if (for_TF) {
-        server.addHandler(new SPIFFSEditor(SD));
+    file_for_TF = for_TF;
+    if (file_for_TF) {
+        if (!peripherals.isSDLoaded())
+            peripherals.load(PERIPHERALS_SD_BIT);
+        spiffs_upload_handler = new SPIFFSEditor(SD);
     } else {
-        server.addHandler(new SPIFFSEditor(LittleFS));
+        spiffs_upload_handler = new SPIFFSEditor(LittleFS);
     }
+    spiffs_upload_handler->setlittlefs(LittleFS);
+    server.addHandler(spiffs_upload_handler);
+    server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
+            {     
+                const char *buildTime = __DATE__ " " __TIME__ " GMT";
+                if (request->header("If-Modified-Since").equals(buildTime))
+                {
+                    request->send(304);
+                }
+                else
+                {
+                    AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/ace.js.gz", "application/javascript", false);
+                    response->addHeader("Content-Encoding", "gzip");
+                    response->addHeader("Last-Modified", buildTime);
+                    request->send(response);
+                }});
     server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
-              {
+            {
                                 file_for_TF =! file_for_TF;
                                 if (file_for_TF) {
-                                    if (!peripherals.isSDLoaded())
-                                        peripherals.load(PERIPHERALS_SD_BIT);
-                                    spiffs_upload_handler->setFileSystem(SD);
+                                    if (!peripherals.isSDLoaded()) {
+                                        if (peripherals.load(PERIPHERALS_SD_BIT)) {
+                                            spiffs_upload_handler->setFileSystem(SD);
+                                            request->send(200, "text/plain", "SD");
+                                        }
+                                        else {
+                                            file_for_TF =! file_for_TF;
+                                            peripherals.tf_unload();
+                                            if (digitalRead(PIN_SD_CARDDETECT) == HIGH)
+                                                request->send(409, "text/plain", "SD卡不存在");
+                                            else
+                                                request->send(409, "text/plain", "SD卡挂载失败");
+                                        }
+                                    }
+                                    else {   
+                                        spiffs_upload_handler->setFileSystem(SD);
+                                        request->send(200, "text/plain", "SD");
+                                    }
                                 } else {
                                     spiffs_upload_handler->setFileSystem(LittleFS);
+                                    request->send(200, "text/plain", "LittleFS");
                                 }
-                                request->send(200, "text/plain", "OK");
-                                 });
+                                                });
+    server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+                                if (file_for_TF) {
+                                    request->send(200, "text/plain", "SD");
+                                } else {
+                                    request->send(200, "text/plain", "LittleFS");
+                                }
+                                                });                                                 
+    server.on("/rmrf", HTTP_POST, rmrfHandler);
+    server.on("/mkdir", HTTP_POST, mkdirHandler);
+    server.on("/rename", HTTP_POST, renameHandler);
     // 启动服务器
     server.begin();
     Serial.println("SPIFFS File Server started");
@@ -310,7 +359,20 @@ void beginWebServer()
               { sendreq(request, "application/javascript", __web_js_jss2_js_gz, __web_js_jss2_js_gz_len); });
     server.on("/js/jss3.js", HTTP_GET, [](AsyncWebServerRequest *request)
               { sendreq(request, "application/javascript", __web_js_jss3_js_gz, __web_js_jss3_js_gz_len); });
-
+    server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
+              {     
+                  const char *buildTime = __DATE__ " " __TIME__ " GMT";
+                  if (request->header("If-Modified-Since").equals(buildTime))
+                  {
+                      request->send(304);
+                  }
+                  else
+                  {
+                      AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/ace.js.gz", "application/javascript", false);
+                      response->addHeader("Content-Encoding", "gzip");
+                      response->addHeader("Last-Modified", buildTime);
+                      request->send(response);
+                  }});
     server.on("/info", HTTP_GET, [](AsyncWebServerRequest *request)
               {
                                 String message;
@@ -343,20 +405,40 @@ void beginWebServer()
                                 hal.powerOff(); });
 
     server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
-              {
+            {
                                 file_for_TF =! file_for_TF;
                                 if (file_for_TF) {
-                                    if (!peripherals.isSDLoaded())
-                                        peripherals.load(PERIPHERALS_SD_BIT);
-                                    spiffs_upload_handler->setFileSystem(SD);
+                                    if (!peripherals.isSDLoaded()) {
+                                        if (peripherals.load(PERIPHERALS_SD_BIT)) {
+                                            spiffs_upload_handler->setFileSystem(SD);
+                                            request->send(200, "text/plain", "SD");
+                                        }
+                                        else {
+                                            file_for_TF =! file_for_TF;
+                                            peripherals.tf_unload();
+                                            if (digitalRead(PIN_SD_CARDDETECT) == HIGH)
+                                                request->send(409, "text/plain", "SD卡不存在");
+                                            else
+                                                request->send(409, "text/plain", "SD卡挂载失败");
+                                        }
+                                    }
+                                    else {   
+                                        spiffs_upload_handler->setFileSystem(SD);
+                                        request->send(200, "text/plain", "SD");
+                                    }
                                 } else {
-                                    if (peripherals.isSDLoaded())
-                                        peripherals.tf_unload();
                                     spiffs_upload_handler->setFileSystem(LittleFS);
+                                    request->send(200, "text/plain", "LittleFS");
                                 }
-                                request->send(200, "text/plain", "OK");
-                                 });
-                  
+                                                });
+    server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
+            {
+                                if (file_for_TF) {
+                                    request->send(200, "text/plain", "SD");
+                                } else {
+                                    request->send(200, "text/plain", "LittleFS");
+                                }
+                                                });              
     server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request)
               { request->send(200, "application/json", config.as<String>()); });
 
@@ -374,10 +456,9 @@ void beginWebServer()
             peripherals.load(PERIPHERALS_SD_BIT);
         spiffs_upload_handler = new SPIFFSEditor(SD);
     } else {
-        if (peripherals.isSDLoaded())
-            peripherals.tf_unload();
         spiffs_upload_handler = new SPIFFSEditor(LittleFS);
     }
+    spiffs_upload_handler->setlittlefs(LittleFS);
     server.addHandler(spiffs_upload_handler);
     server.on("/rundebug", HTTP_GET, luaExecuteHandler);
     server.on("/terminate", HTTP_GET, luaTerminateHandler);

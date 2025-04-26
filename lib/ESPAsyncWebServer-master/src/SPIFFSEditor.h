@@ -5,6 +5,7 @@
 class SPIFFSEditor: public AsyncWebHandler {
   private:
     fs::FS _fs;
+    fs::FS _littlefs;
     String _username;
     String _password; 
     bool _authenticated;
@@ -15,6 +16,7 @@ class SPIFFSEditor: public AsyncWebHandler {
 #else
     SPIFFSEditor(const String& username=String(), const String& password=String(), const fs::FS& fs=SPIFFS);
 #endif
+    void setlittlefs(fs::FS &fs);
     void setFileSystem(fs::FS &fs);
     virtual bool canHandle(AsyncWebServerRequest *request) override final;
     virtual void handleRequest(AsyncWebServerRequest *request) override final;

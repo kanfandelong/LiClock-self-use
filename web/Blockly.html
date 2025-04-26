@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <style>
         #textarea_code {
-            height: 400px;
+            height: 50vh;
             margin: 1%;
             overflow-y: scroll;
             overflow-x: scroll;
@@ -17,7 +17,7 @@
         }
 
         #textarea_terminal {
-            height: 200px;
+            height: 30vh;
             margin: 1%;
             overflow-y: scroll;
             overflow-x: scroll;
@@ -32,12 +32,11 @@
         }
 
         .globalContainer {
-            margin-bottom: 20px;
-            padding-top: 10px;
-            padding-bottom: 10px;
-            padding-left: 10px;
-            padding-right: 20px;
+            margin: 10px 0;
+            padding: 15px;
             border-radius: 6px;
+            flex-grow: 1;  /* 新增 */
+            overflow: auto; /* 新增 */
         }
 
         #everything {
@@ -52,6 +51,11 @@
 
         .btn {
             margin-top: 5px;
+        }
+        @media (max-width: 768px) {
+            #blocklyArea { height: 60vh !important; }
+            #textarea_code { height: 40vh !important; }
+            #textarea_terminal { height: 25vh !important; }
         }
     </style>
     <link rel="stylesheet" href="css/csss.css" />
@@ -1115,38 +1119,42 @@
     <div class="container">
         <div id="everything">
             <div class="row">
-                <div id="blocklyArea" class="col-sm-8 globalContainer alert-warning shadow-4"
-                    style="width: fit-content; margin: 1%;">
-                    <div id="blocklyDiv" style="width: 800px; height: 800px; left: 0px; top: 0px;"></div>
+                <div class="col-md-8">
+                    <div id="blocklyArea" class="col-sm-8 globalContainer alert-warning shadow-4"
+                        style="height: 98%; width: 100%; margin: 1%;">
+                        <div id="blocklyDiv" style="height: 100%; width: 100%;"></div>
+                    </div>
                 </div>
-                <div class="col-sm-4">
-                    <div class="row globalContainer alert-info shadow-4">
-                        <textarea id="textarea_code" wrap="off" placeholder="这里将会是main.lua的内容"></textarea>
-                    </div>
-                    <div class="row globalContainer alert-success shadow-4">
-                        <textarea id="textarea_terminal" wrap="off" placeholder="这里是Lua输出" readonly="true"></textarea>
-                    </div>
-                    <div id="toolsArea" class="row globalContainer alert-primary shadow-4">
-                        <div>
-                            <button id="btnSave" class="btn btn-primary">保存工程</button>
-                            <input type="file" id="fileInputLd" style="visibility: hidden; width: 0px;height: 0px;">
-                            <button id="btnLoad" class="btn btn-primary">加载工程</button>
-                            <button type="button" class="btn btn-info" data-mdb-toggle="modal"
-                                data-mdb-target="#modalFileList" id="btnOpenFileManager">
-                                文件管理
-                            </button>
-                            <button type="button" id="switch_file_system" class="btn btn-primary" data-mdb-dismiss="modal">切换文件系统</button>
+                <div class="col-md-4 h-100">
+                    <div class="d-flex flex-column h-100">
+                        <div class="row globalContainer alert-info shadow-4">
+                            <textarea id="textarea_code" wrap="off" placeholder="这里将会是main.lua的内容"></textarea>
                         </div>
-                    </div>
-                    <div id="toolsArea" class="row globalContainer alert-primary shadow-4">
-                        <div>
-                            <button type="button" class="btn btn-warning" id="btnDebug">调试</button>
-                            <button type="button" class="btn btn-info" id="btnClearTerminal">清空终端</button>
-                            <button type="button" class="btn btn-danger" id="btnForceStop">强行停止</button>
-                            <button type="button" class="btn btn-primary" data-mdb-toggle="modal"
-                                data-mdb-target="#modalCreateApp">
-                                创建App
-                            </button>
+                        <div class="row globalContainer alert-success shadow-4">
+                            <textarea id="textarea_terminal" wrap="off" placeholder="这里是Lua输出" readonly="true"></textarea>
+                        </div>
+                        <div id="toolsArea" class="row globalContainer alert-primary shadow-4">
+                            <div>
+                                <button id="btnSave" class="btn btn-primary">保存工程</button>
+                                <input type="file" id="fileInputLd" style="visibility: hidden; width: 0px;height: 0px;">
+                                <button id="btnLoad" class="btn btn-primary">加载工程</button>
+                                <button type="button" class="btn btn-info" data-mdb-toggle="modal"
+                                    data-mdb-target="#modalFileList" id="btnOpenFileManager">
+                                    文件管理
+                                </button>
+                                <button type="button" id="switch_file_system" class="btn btn-primary" data-mdb-dismiss="modal">切换文件系统</button>
+                            </div>
+                        </div>
+                        <div id="toolsArea" class="row globalContainer alert-primary shadow-4">
+                            <div>
+                                <button type="button" class="btn btn-warning" id="btnDebug">调试</button>
+                                <button type="button" class="btn btn-info" id="btnClearTerminal">清空终端</button>
+                                <button type="button" class="btn btn-danger" id="btnForceStop">强行停止</button>
+                                <button type="button" class="btn btn-primary" data-mdb-toggle="modal"
+                                    data-mdb-target="#modalCreateApp">
+                                    创建App
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1184,7 +1192,12 @@
             sounds: true,
             oneBasedIndex: true
         });
-
+        window.addEventListener('resize', () => {
+            Blockly.svgResize(demoWorkspace);
+            document.querySelectorAll('textarea').forEach(t => {
+                t.style.height = window.innerHeight * 0.5 + 'px';
+            });
+        });
         function updateCode(event) {
             const code = lua.luaGenerator.workspaceToCode(demoWorkspace);
             document.getElementById('textarea_code').value = code;
@@ -1257,9 +1270,12 @@
             xhr.onreadystatechange = function () {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
-                displayJson(0, "成功切换文件系统");
+                    displayJson(0, "成功切换文件系统为" + xhr.responseText);
                 } else {
-                displayJson(1, "请求失败，错误代码：" + xhr.status.toString() + xhr.statusText);
+                    displayJson(1, "请求失败，错误代码：" + xhr.status.toString() + xhr.statusText);
+                }
+                if (xhr.status === 409) {
+                    displayJson(1, "切换文件系统失败，原因：" + xhr.responseText);
                 }
             }
             };

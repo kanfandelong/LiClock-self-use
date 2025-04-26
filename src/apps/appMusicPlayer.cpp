@@ -698,7 +698,7 @@ void AppMusicPlayer::setup(){
     pinMode(26, ANALOG);
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
     _count = hal.pref.getInt("rst_count", 20);
-    hal.task_bat_info_update();
+    // hal.task_bat_info_update();
     gain = hal.pref.getFloat("gain", 0.3);
     exit = player_exit;
     deepsleep = player_deepsleep;
@@ -735,7 +735,7 @@ void AppMusicPlayer::setup(){
                 display_count++;
             }
             else {
-                hal.task_bat_info_update();
+                // hal.task_bat_info_update();
                 show_display();
                 display_count++;
             }
@@ -833,7 +833,7 @@ void AppMusicPlayer::setup(){
             wait_time = millis();
         if (millis() - display_time > 3000) {
             if (display_count > 15) {
-                hal.task_bat_info_update();
+                // hal.task_bat_info_update();
                 display_count = 0;
                 display.clearScreen();
                 display.display();

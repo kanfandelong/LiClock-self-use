@@ -46,7 +46,7 @@ class HAL
 {
 public:
     void printBatteryInfo();
-    void task_bat_info_update();
+    // void task_bat_info_update();
     bool connected_wifi(const char* ssid, const char* pass);
     bool wifi_config_manger();
     void savewifiConfig(StaticJsonDocument<2048>& wifi_config);

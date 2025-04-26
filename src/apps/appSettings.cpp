@@ -746,7 +746,6 @@ void AppSettings::menu_network()
                     // beginWebServer();
                     str1 = WiFi.localIP().toString();
                 }else{
-                    hal.cheak_freq();
                     WiFi.softAP("WeatherClock", passwd.c_str());
                     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
                     dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
@@ -774,10 +773,14 @@ void AppSettings::menu_network()
                         if (GUI::waitLongPress(PIN_BUTTONL)){
                             while(hal.btnl.isPressing())delay(20);
                             server.end();
+                            if (!wifi)
+                                dnsServer.stop();
                             WiFi.disconnect(true);
                             break;
                         }
                     }
+                    else
+                        delay(20);
                 }
             }
             break;
@@ -1078,7 +1081,7 @@ void AppSettings::menu_other()
                 ppc = vcc * 4096 / adc;
                 hal.pref.putInt("ppc",ppc);
                 char buf[40];
-                sprintf(buf,"新的分压系数: %d\n%d->%d mV",ppc,vcc,hal.VCC);
+                sprintf(buf,"新的分压系数: %d\n%d->%d mV",ppc,hal.VCC,vcc);
                 GUI::msgbox("提示",buf);
             }
             break;
@@ -1290,7 +1293,7 @@ void AppSettings::menu_other()
                     xSemaphoreGive(peripherals.i2cMutex);
                 }
                 else{
-                    hal.task_bat_info_update();
+                    // hal.task_bat_info_update();
                     hal.printBatteryInfo();
                 }
             }

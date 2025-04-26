@@ -86,6 +86,7 @@ uint16_t Peripherals::checkAvailable(uint16_t bitmask)
 
 bool Peripherals::load(uint16_t bitmask)
 {
+    bool staitus = true;
     Serial.printf("[外设] 外设加载：0x%x -> 0x%x，当前安装：0x%x\n", peripherals_load, bitmask, peripherals_current);
     F_LOG("外设加载:0x%x -> 0x%x,当前安装,0x%x", peripherals_load, bitmask, peripherals_current);
     if (bitmask & PERIPHERALS_SD_BIT && (peripherals_load & PERIPHERALS_SD_BIT) == 0)
@@ -112,11 +113,13 @@ bool Peripherals::load(uint16_t bitmask)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");
                     SD.end();
+                    staitus = false;
                 }
             }
         }else{
             hal.TF_connected = false;
             log_w("[外设] 未插入TF卡");
+            staitus = false;
         }
     }
     else if ((bitmask & PERIPHERALS_SD_BIT) == 0 && peripherals_load & PERIPHERALS_SD_BIT)
@@ -192,7 +195,7 @@ bool Peripherals::load(uint16_t bitmask)
     }
     // DS3231无需初始化
     peripherals_load = bitmask;
-    return true;
+    return staitus;
 }
 void Peripherals::load_append(uint16_t bitmask)
 {
@@ -203,6 +206,7 @@ void Peripherals::load_append(uint16_t bitmask)
 }
 
 void Peripherals::tf_unload(bool save_power){
+    peripherals_load &= ~PERIPHERALS_SD_BIT;
     if (digitalRead(PIN_SD_CARDDETECT) == HIGH){
         log_w("[外设] TF卡不存在，无需卸载");
         return;
@@ -224,7 +228,6 @@ void Peripherals::tf_unload(bool save_power){
         log_i("[外设] 卸载并关闭TF卡供电\n");
         F_LOG("卸载并关闭TF卡供电");
     }
-    peripherals_load &= ~PERIPHERALS_SD_BIT;
 }
 
 void Peripherals::sleep()

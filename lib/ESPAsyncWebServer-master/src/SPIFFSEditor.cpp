@@ -382,11 +382,16 @@ SPIFFSEditor::SPIFFSEditor(const fs::FS& fs, const String& username, const Strin
 SPIFFSEditor::SPIFFSEditor(const String& username, const String& password, const fs::FS& fs)
 #endif
 :_fs(fs)
+,_littlefs(fs)
 ,_username(username)
 ,_password(password)
 ,_authenticated(false)
 ,_startTime(0)
 {}
+
+void SPIFFSEditor::setlittlefs(fs::FS &fs) {
+  _littlefs = fs;
+}
 
 void SPIFFSEditor::setFileSystem(fs::FS &fs) {
   _fs = fs;
@@ -501,7 +506,7 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
       if (request->header("If-Modified-Since").equals(buildTime)) {
         request->send(304);
       } else {
-        AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", edit_htm_gz, edit_htm_gz_len);
+        AsyncWebServerResponse *response = request->beginResponse(_littlefs, "/System/edit.html.gz", "text/html", false);
         response->addHeader("Content-Encoding", "gzip");
         response->addHeader("Last-Modified", buildTime);
         request->send(response);

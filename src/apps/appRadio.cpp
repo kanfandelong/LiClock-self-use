@@ -1,8 +1,8 @@
 #include "AppManager.h"
 #include "RDA5807.h"
 
-#define SDA_1 25
-#define SCL_1 26
+#define SDA_1 26
+#define SCL_1 25
 
 RTC_DATA_ATTR bool init_flag = false;
 

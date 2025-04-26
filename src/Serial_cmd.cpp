@@ -12,16 +12,16 @@ void fileserver_task(void *){
     if (wifi){
         str1 = WiFi.localIP().toString();
     }else{
-        hal.cheak_freq();
         WiFi.softAP("WeatherClock", passwd.c_str());
         WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
         dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
         str1 = "192.168.4.1";
     }
+    log_i("WiFi IP: %s\n", str1.c_str());
     beginWebServer();
     while(1){
-        if (!stop_fileserver){
-            if (wifi)
+        if (stop_fileserver){
+            if (!wifi)
                 dnsServer.stop();
             server.end();
             vTaskDelete(NULL);
@@ -242,7 +242,7 @@ void CMD::parseCommand(const char* command) {
             long tenths = (remaining % 1000) / 100; // 计算十分位（0-9）
             Serial.printf("Runtime: %3d:%02d:%02d.%d", hours, minutes, seconds, tenths);
         } else if (strcmp(cmd, get_bat_info) == 0){
-            hal.task_bat_info_update();
+            // hal.task_bat_info_update();
             hal.printBatteryInfo();
         } else if (strcmp(cmd, get_cpu_usage) == 0) {
             Serial.println("only use in ESP-IDF");
@@ -256,6 +256,7 @@ void CMD::parseCommand(const char* command) {
                 value = atoi(param);
             hal.wait_input(value);
         } else if (strcmp(cmd, file_server_begin) == 0) {
+            stop_fileserver = false;
             xTaskCreatePinnedToCore(fileserver_task, "fileserver", 8192, NULL, 1, NULL, 0);
         } else if (strcmp(cmd, file_server_end) == 0) {
             stop_fileserver = true;
