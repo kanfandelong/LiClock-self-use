@@ -507,6 +507,9 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
         request->send(304);
       } else {
         AsyncWebServerResponse *response = request->beginResponse(_littlefs, "/System/edit.html.gz", "text/html", false);
+        response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response->addHeader("Pragma", "no-cache");
+        response->addHeader("Expires", "0");
         response->addHeader("Content-Encoding", "gzip");
         response->addHeader("Last-Modified", buildTime);
         request->send(response);
