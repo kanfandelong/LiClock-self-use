@@ -994,7 +994,7 @@ bool HAL::init()
     weather.begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
-    if (hal.pref.getBool(get_char_sha_key("按键音"), false))
+    if (hal.pref.getBool(get_char_sha_key("按键音"), false))  
         xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     cmd.begin();

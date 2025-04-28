@@ -110,6 +110,34 @@ the sketch after each change to this file.
       padding: 10px;
     }
 
+    #playback-controls {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 20px;
+      border-radius: 25px;
+      color: white;
+    }
+
+    #playback-controls button {
+      background: none;
+      border: 1px solid #fff;
+      padding: 8px 12px;
+      border-radius: 15px;
+      color: white;
+      cursor: pointer;
+    }
+
+    #playback-controls button.active {
+      background: #409eff;
+      border-color: #409eff;
+    }
+
     @keyframes spinner-anim {
       0% {
         transform: rotate(0deg);
@@ -396,30 +424,242 @@ the sketch after each change to this file.
   <script>
     var tree;   // 编辑器需要在保存时刷新文件大小
     var fsInfo; // 需要更改SPIFFS上的刷新路径行为
-    var currentAudio = null;
-    // ==== 修改1：替换audioCache实现（约第35行）====
+    var fsSystem;
     const audioCache = {
-      cache: new Map(), // 使用Map作为内存缓存
-
+      maxItems: 50, // 最大缓存数量
+      cache: new Map(),
+    
       async get(path) {
-        return this.cache.get(path);
+        const item = this.cache.get(path);
+        if (item) item.timestamp = Date.now(); // 更新访问时间
+        return item;
       },
-
+    
       async set(path, blob) {
         this.cache.set(path, { 
           blob,
           timestamp: Date.now() 
         });
+        this.cleanup(); // 添加缓存清理
+      },
+    
+      // 新增缓存清理方法
+      cleanup() {
+        // 超过最大数量时，删除最旧的项
+        if (this.cache.size > this.maxItems) {
+          const entries = Array.from(this.cache.entries());
+          // 按时间戳排序，删除最早的
+          entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+          for (let i = 0; i < entries.length - this.maxItems; i++) {
+            this.cache.delete(entries[i][0]);
+          }
+        }
       }
     };
+
+    // 播放控制相关变量
+    var currentPlaylist = {
+      mode: 'list', // list/single/random
+      files: [],
+      currentIndex: -1,
+      nextDownload: null,
+      cacheQueue: []
+    };
+
+    function switchPlayMode(mode) {
+      currentPlaylist.mode = mode;
+      ['list', 'single', 'random'].forEach(m => {
+        const btn = document.getElementById(`mode-${m}`);
+        if(btn) btn.classList.remove('active');
+      });
+      const activeBtn = document.getElementById(`mode-${mode}`);
+      if(activeBtn) activeBtn.classList.add('active');
+      
+      console.log('播放模式:', mode);
+    }
+
+    
+    // ==== 播放结束处理 ====
+    async function handlePlayEnd(currentPath) {
+      
+      // 获取下一首路径
+      let nextPath = getNextTrack(currentPath);
+      
+      if (nextPath) {
+        // 尝试从缓存获取
+        const cached = await audioCache.get(nextPath);
+        if (cached) {
+          createAudioPlayer(cached.blob, nextPath);
+          const audio = document.getElementById("audioPlayer");
+          audio.play();
+        } else {
+          loadAudioPlayer(nextPath);
+
+        }
+      }
+    }
+
+    // ==== 预缓存逻辑 ====
+    async function preCacheNext(currentPath) {
+      if (currentPlaylist.mode === 'single') return;
+      
+      const nextPath = getNextTrack(currentPath);
+      if (!nextPath || currentPlaylist.cacheQueue.includes(nextPath)) return;
+
+      // 加入缓存队列
+      currentPlaylist.cacheQueue.push(nextPath);
+      
+      try {
+        const cached = await audioCache.get(nextPath);
+        if (cached) {
+          console.log("'" + nextPath + "'已缓存");
+        }
+        else {
+          console.log("开始预缓存'" + nextPath + "'...")
+          const response = await fetch(`/edit?download=${encodeURIComponent(nextPath)}`);
+          const blob = await response.blob();
+          audioCache.set(nextPath, new Blob([blob], { type: 'audio/mpeg' }));
+          console.log("'" + nextPath + "'预缓存完成");
+        }
+      } catch (e) {
+        console.error('预缓存失败:', e);
+      } finally {
+        currentPlaylist.cacheQueue = currentPlaylist.cacheQueue.filter(p => p !== nextPath);
+      }
+    }
+
+    // ==== 添加下一首选择逻辑 ====
+    function getNextTrack(currentPath) {
+      const folder = getParentFolder(currentPath);
+      const audioFiles = getFolderAudioFiles(folder);
+      
+      if (!audioFiles.length) return null;
+      
+      let index = audioFiles.findIndex(f => f.path === currentPath);
+      
+      switch(currentPlaylist.mode) {
+        case 'single':
+          return currentPath;
+          
+        case 'random': 
+          return audioFiles[Math.floor(Math.random() * audioFiles.length)].path;
+          
+        default: // list循环
+          return audioFiles[(index + 1) % audioFiles.length].path;
+      }
+    }
+
+    // ==== 添加获取文件夹音频文件函数 ====
+    function getFolderAudioFiles(folder) {
+      const folderEl = document.getElementById(folder);
+      if (!folderEl) return [];
+      
+      return Array.from(folderEl.querySelectorAll('li'))
+        .filter(li => {
+          const path = li.id;
+          return isAudioFile(path) && path.startsWith(folder);
+        })
+        .map(li => ({
+          path: li.id,
+          name: li.querySelector('span').textContent
+        }));
+    }
+
+    function isAudioFile(path){
+      var ext = /(?:\.([^.]+))?$/.exec(path)[1];
+      return ext && ext.toLowerCase() === "mp3";
+    }
+
+    async function loadAudioPlayer(path) {
+      document.getElementById("pathInput").value = path;
+      document.getElementById("editor").style.display = "none";
+      preview.style.display = "flex";
+
+      preview.innerHTML = `
+        <div class='show-close'></div>
+        <div class="audio-loading">
+          <div class="spinner-anim"></div>
+          <p>拼命加载音频中...</p>
+        </div>
+      `;
+
+      try {
+        // 尝试从内存缓存获取
+        const cached = await audioCache.get(path);
+        if (cached) {
+          console.log('从内存缓存播放');
+          return createAudioPlayer(cached.blob, path);
+        }
+
+        // 缓存未命中时下载
+        console.log("开始缓存'" + path + "'..." );
+        const response = await fetch('/edit?download=' + encodeURIComponent(path));
+        
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (response.headers.get('Content-Length') === '0') throw new Error('空文件');
+        
+        const blob = await response.blob();
+        const correctedBlob = new Blob([blob], { type: 'audio/mpeg' });
+        
+        // 存入内存缓存
+        await audioCache.set(path, correctedBlob);
+
+        console.log("音频'" + path + "'缓存完成")
+        
+        createAudioPlayer(correctedBlob, path);
+
+        const audio = document.getElementById("audioPlayer");
+        audio.play();
+
+      } catch (error) {
+        console.error('播放失败:', error);
+        preview.innerHTML = `
+          <div class='show-close'></div>
+          <div style="color:red;margin:auto">
+            播放失败：${error.message}<br>
+            <button onclick="loadAudioPlayer('${path}')">重试</button>
+          </div>
+        `;
+        const close = preview.querySelectorAll('.show-close')[0]
+        close.onclick = showClose
+      }
+    }
+
+    function createAudioPlayer(blob, path) {
+      preview.innerHTML = `
+        <div class='show-close'></div>
+        <audio id="audioPlayer" controls style="width:80%;margin:auto">
+          您的浏览器不支持音频播放
+        </audio>
+        <div id="playback-controls">
+          <button id="mode-list">列表循环</button>
+          <button id="mode-single">单曲循环</button>
+          <button id="mode-random">随机播放</button>
+        </div>
+      `;
+      const close = preview.querySelectorAll('.show-close')[0]
+        close.onclick = showClose
+
+      document.getElementById('mode-list').onclick = () => switchPlayMode('list');
+      document.getElementById('mode-single').onclick = () => switchPlayMode('single');
+      document.getElementById('mode-random').onclick = () => switchPlayMode('random');
+
+      const audio = document.getElementById("audioPlayer");
+      audio.src = URL.createObjectURL(blob);
+
+      // 初始化播放模式
+      switchPlayMode(currentPlaylist.mode);
+      
+      // 播放结束处理
+      audio.onended = () => handlePlayEnd(path);
+      
+      // 开始播放时预缓存下一首
+      audio.onplay = () => preCacheNext(path);
+    }
     /////////////////////////
     // UTILS
 
     function showClose(e) {
-      if(currentAudio) {
-        currentAudio.pause();
-        currentAudio = null;
-      }
       e.target.parentNode.style.display = "none";
     }
 
@@ -513,7 +753,17 @@ the sketch after each change to this file.
       return path.substring(0, path.lastIndexOf("/"));
     }
 
-
+    function fsSwitchButtonUpdate(fsSystem) {
+      var switchfilesystem = document.getElementById("switchfilesystem");
+      if (switchfilesystem) {
+        if (fsSystem == "LittleFS") {
+          switchfilesystem.innerHTML = "切换到 SD";
+        }
+        if (fsSystem == "SD") {
+          switchfilesystem.innerHTML = "切换到 LittleFS";
+        }
+      }
+    }
     /////////////////////////
     // HEADER with uploader, buttons ans status
 
@@ -548,7 +798,8 @@ the sketch after each change to this file.
       header.appendChild(mkfile);
 
       var switchfilesystem = document.createElement("button");
-      switchfilesystem.innerHTML = "切换文件系统";
+      switchfilesystem.id = "switchfilesystem"; // 设置按钮的 id
+      switchfilesystem.innerHTML = "切换到";
       header.appendChild(switchfilesystem);
 
       fileSelector.onchange = function (e) { // A file has been selected
@@ -622,83 +873,6 @@ the sketch after each change to this file.
         document.getElementById("download-frame").src = "?download=" + path;
       }
 
-      async function loadAudioPlayer(path) {
-        document.getElementById("pathInput").value = path;
-        document.getElementById("editor").style.display = "none";
-        preview.style.display = "flex";
-
-        preview.innerHTML = `
-          <div class='show-close'></div>
-          <div class="audio-loading">
-            <div class="spinner-anim"></div>
-            <p>拼命加载音频中...</p>
-          </div>
-        `;
-
-        try {
-          // 尝试从内存缓存获取
-          const cached = await audioCache.get(path);
-          if (cached) {
-            console.log('从内存缓存播放');
-            return createAudioPlayer(cached.blob);
-          }
-
-          // 缓存未命中时下载
-          console.log('开始下载');
-          const response = await fetch('/edit?download=' + encodeURIComponent(path));
-          
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          if (response.headers.get('Content-Length') === '0') throw new Error('空文件');
-          
-          const blob = await response.blob();
-          const correctedBlob = new Blob([blob], { type: 'audio/mpeg' });
-          
-          // 存入内存缓存
-          await audioCache.set(path, correctedBlob);
-          
-          createAudioPlayer(correctedBlob);
-        } catch (error) {
-          console.error('播放失败:', error);
-          preview.innerHTML = `
-            <div class='show-close'></div>
-            <div style="color:red;margin:auto">
-              播放失败：${error.message}<br>
-              <button onclick="loadAudioPlayer('${path}')">重试</button>
-            </div>
-          `;
-          const close = preview.querySelector('.show-close');
-          close.onclick = showClose;
-        }
-      }
-
-      function createAudioPlayer(blob) {
-        preview.innerHTML = `
-          <div class='show-close'></div>
-          <audio id="audioPlayer" controls style="width:80%;margin:auto">
-            您的浏览器不支持音频播放
-          </audio>
-        `;
-
-        const audio = document.getElementById("audioPlayer");
-        const blobURL = URL.createObjectURL(blob);
-        audio.src = blobURL;
-
-        // 自动播放处理
-        audio.oncanplay = () => {
-          audio.play().catch(() => {
-            preview.innerHTML += `<div style="color:orange">点击播放按钮开始播放</div>`;
-          });
-        };
-
-        // 关闭处理
-        const close = preview.querySelector('.show-close');
-        close.onclick = () => {
-          audio.pause();
-          URL.revokeObjectURL(blobURL);
-          showClose(event);
-        };
-      }
-
       /* 显示图片 */
       function loadImgPreview(path) {
         const ext = path.split('.').pop().toLowerCase();
@@ -710,8 +884,8 @@ the sketch after each change to this file.
           preview.innerHTML = `<div class='show-close'></div>
               <canvas id="canvas" width="592" height="256" 
                   style="image-rendering: pixelated; background: #FFF; margin: auto;"></canvas>`;
-          const close = preview.querySelector('.show-close');
-          close.onclick = showClose;
+          const close = preview.querySelectorAll('.show-close')[0]
+          close.onclick = showClose
           drawLBM(path);  // 调用LBM渲染函数
         }
         else {
@@ -725,7 +899,7 @@ the sketch after each change to this file.
             document.getElementById("editor").style.display = "none";
             // document.getElementById("editorButtons").style.display = "none";
             preview.style.display = "flex";
-            preview.innerHTML = "<div class='show-close'></div><img src='" + path + "' style='max-width:100%; max-height:100%; margin:auto; display:block;' />";
+            preview.innerHTML = "<div class='show-close'></div><img src='" + "/edit?download=" + path + "' style='max-width:100%; max-height:100%; margin:auto; display:block;' />";
             const close = preview.querySelectorAll('.show-close')[0]
             close.onclick = showClose
           }
@@ -811,11 +985,6 @@ the sketch after each change to this file.
         return false;
       }
 
-      function isAudioFile(path){
-        var ext = /(?:\.([^.]+))?$/.exec(path)[1];
-        return ext && ext.toLowerCase() === "mp3";
-      }
-
       function fillFolderMenu(el, path) {
         var list = document.createElement("ul");
         el.appendChild(list);
@@ -839,7 +1008,7 @@ the sketch after each change to this file.
           };
         }
         else {
-          expnd.innerHTML = "<span>Expand</span>";
+          expnd.innerHTML = "<span>展开</span>";
           expnd.onclick = function (e) {
             if (document.body.getElementsByClassName('contextMenu').length > 0) document.body.removeChild(el);
             document.getElementById(path).childNodes[0].checked = true;
@@ -1077,33 +1246,26 @@ the sketch after each change to this file.
        * This is done by pushing all paths to be refreshed in an array that will be pop'd in the callback function
        */
       this.refreshPath = function (path) {
-        if (true) {
-          // on SPIFFS : No parent node => refresh full tree
-          console.log("Refreshing '/'...");
+        console.log("Refreshing '" + path + "'...");
+        if (path.lastIndexOf("/") == -1) {
+          // No "/" => reset the root
           httpList("/");
         }
         else {
-          console.log("Refreshing '" + path + "'...");
-          if (path.lastIndexOf("/") == -1) {
-            // No "/" => reset the root
-            httpList("/");
+          var paths = [];
+          // Climb the tree until we get to an open node, adding paths to the array
+          var parentPath = path;
+          while ((parentPath.lastIndexOf("/") != -1) && !document.getElementById(parentPath)) {
+            paths.push(parentPath);
+            parentPath = getParentFolder(parentPath);
           }
-          else {
-            var paths = [];
-            // Climb the tree until we get to an open node, adding paths to the array
-            var parentPath = path;
-            while ((parentPath.lastIndexOf("/") != -1) && !document.getElementById(parentPath)) {
-              paths.push(parentPath);
-              parentPath = getParentFolder(parentPath);
-            }
 
-            // If we've reached the top
-            if (parentPath == "") paths.push("/"); // list the root
-            else paths.push(parentPath); // otherwise list the last folder
+          // If we've reached the top
+          if (parentPath == "") paths.push("/"); // list the root
+          else paths.push(parentPath); // otherwise list the last folder
 
-            // And list it back down by iterating on collected paths
-            listPaths(paths);
-          }
+          // And list it back down by iterating on collected paths
+          listPaths(paths);
         }
       }
 
@@ -1211,6 +1373,8 @@ the sketch after each change to this file.
               showHttpError(xhr);
             }
             if (xhr.status === 200) {
+              fsSystem = xhr.responseText;
+              fsSwitchButtonUpdate(fsSystem);
               setLoading(false);
               console.log("Refreshing '/'...");
               httpList("/");
@@ -1434,12 +1598,31 @@ the sketch after each change to this file.
     function onBodyLoad() {
       var vars = {};
       var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function (m, key, value) { vars[key] = value; });
-      if (typeof ace != "undefined") {
-        var editor = createEditor("editor", vars.file, vars.lang, vars.theme);
-      }
-      tree = createTree("tree", editor);
-      createHeader("header", tree, editor);
+      // if (typeof ace != "undefined") {
+      //   var editor = createEditor("editor", vars.file, vars.lang, vars.theme);
+      // }
+      // tree = createTree("tree", editor);
+      // createHeader("header", tree, editor);
       // refreshStatus();
+      // 发起请求获取文件系统类型
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/fs_get", true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          if (xhr.status === 200) {
+            fsSystem = xhr.responseText;
+            if (typeof ace != "undefined") {
+              var editor = createEditor("editor", vars.file, vars.lang, vars.theme);
+            }
+            tree = createTree("tree", editor);
+            createHeader("header", tree, editor);
+            fsSwitchButtonUpdate(fsSystem);
+          } else {
+            console.error("获取文件系统类型失败:", xhr.status, xhr.responseText);
+          }
+        }
+      };
+      xhr.send(null);
     };
     function drawLBM(url) {
       document.getElementById("canvas").style.display = "inline";

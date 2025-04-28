@@ -506,10 +506,22 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
       if (request->header("If-Modified-Since").equals(buildTime)) {
         request->send(304);
       } else {
+        if (_littlefs.exists("/System/edit.html.gz")) {
+          File file = _littlefs.open("/System/edit.html.gz", "r");
+          time_t lastWrite = file.getLastWrite(); // 获取UTC时间戳
+          file.close();
+    
+          struct tm tm;
+          gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+          
+          char timeStr[30];
+          strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+          buildTime = timeStr;
+        }
         AsyncWebServerResponse *response = request->beginResponse(_littlefs, "/System/edit.html.gz", "text/html", false);
-        response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-        response->addHeader("Pragma", "no-cache");
-        response->addHeader("Expires", "0");
+        // response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        // response->addHeader("Pragma", "no-cache");
+        // response->addHeader("Expires", "0");
         response->addHeader("Content-Encoding", "gzip");
         response->addHeader("Last-Modified", buildTime);
         request->send(response);

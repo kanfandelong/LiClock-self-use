@@ -368,6 +368,18 @@ void beginWebServer()
                   }
                   else
                   {
+                    if (LittleFS.exists("/System/ace.js.gz")) {
+                        File file = LittleFS.open("/System/ace.js.gz", "r");
+                        time_t lastWrite = file.getLastWrite(); // 获取UTC时间戳
+                        file.close();
+                  
+                        struct tm tm;
+                        gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+                        
+                        char timeStr[30];
+                        strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+                        buildTime = timeStr;
+                      }
                       AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/ace.js.gz", "application/javascript", false);
                       response->addHeader("Content-Encoding", "gzip");
                       response->addHeader("Last-Modified", buildTime);
