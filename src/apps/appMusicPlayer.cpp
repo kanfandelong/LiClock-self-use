@@ -27,6 +27,11 @@ typedef struct
     String title = "---";       // 标题
 } id3_info; // ID3信息结构体
     
+typedef struct {
+    unsigned long timeMs;
+    String text;
+}LyricLine;
+    
 SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
 TaskHandle_t player_loop_task_handle = NULL; // 音频任务句柄
 AudioFileSource *in = nullptr;               // 音频文件源
@@ -36,8 +41,8 @@ AudioOutputI2S *output;                      // I2S输出
 AudioOutputI2SNoDAC *noDAC;                  // I2S输出
 // 以下变量保存至RTC内存，避免deepsleep后丢失
 RTC_DATA_ATTR uint16_t currentSongIndex = 0; // 当前播放索引（音乐列表数组位置）
-RTC_DATA_ATTR const char *music_file;        // 当前播放文件的指针
 RTC_DATA_ATTR char buf[512];                 // 实际存储当前播放文件路径字符串
+RTC_DATA_ATTR const char *music_file;        // 当前播放文件的指针
 RTC_DATA_ATTR bool file_is_ok = false;       // 用于判断播放器的启动状态（初次运行/从deepsleep恢复）
 
 class AppMusicPlayer : public AppBase
@@ -56,6 +61,9 @@ public:
     }
     void set();
     // const char* remove_path_prefix(const char* path, const char* prefix);
+    String getLyricPath(const char* musicPath);
+    void loadLyrics(const char* path);
+    void getLyric(unsigned long currentTime);
     void select_file();
     void file_in(const char* path);
     void next_song(bool next = true, bool btn = false);
@@ -91,6 +99,16 @@ public:
     bool need_deep_sleep = false;           // 是否需要进入deepsleep
     int play_count = 1;                     // 播放歌曲数量
     int _count = 20;                        // 播放歌曲上限（控制重启）
+    int display_count = 0;
+    String currentLyric; // 当前显示的歌词
+    int currentLyricIndex = 0;
+    int lastLyricIndex = 0;
+    int _lrcoffset = 0;
+    unsigned long lastLyricUpdate = 0; // 上次歌词更新时间
+    int totalLyricLines = 0;
+    LyricLine* lyricArray = nullptr; // 使用动态数组存储歌词
+    bool lrcintf  = false;
+    bool lrcisload = false;
 };
 static AppMusicPlayer app;
 
@@ -198,13 +216,151 @@ void AppMusicPlayer::set(){
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
 } */
+
+String AppMusicPlayer::getLyricPath(const char* musicPath) {
+    String musicPathStr(musicPath);
+    
+    // 移除文件系统前缀（如/sd或/littlefs）
+    String basePath;
+    if (musicPathStr.startsWith("/sd")) {
+        basePath = musicPathStr.substring(3); // 去除"/sd"
+        lrcintf = true;
+    } else if (musicPathStr.startsWith("/littlefs")) {
+        basePath = musicPathStr.substring(9); // 去除"/littlefs"
+        lrcintf = false;
+    } else {
+        basePath = musicPathStr;
+    }
+
+    // 分离目录和文件名
+    int lastSlash = basePath.lastIndexOf('/');
+    String dir = basePath.substring(0, lastSlash);
+    String filename = basePath.substring(lastSlash + 1);
+
+    // 替换扩展名为.lrc
+    int dotIndex = filename.lastIndexOf('.');
+    if (dotIndex != -1) {
+        filename = filename.substring(0, dotIndex) + ".lrc";
+    } else {
+        filename += ".lrc";
+    }
+
+    // 拼接为完整路径
+    String lrcPath;
+    lrcPath = dir + "/lrc/" + filename;
+
+    return lrcPath;
+}
+
+// 预先计算歌词行数
+int countLyricLines(const char* path) {
+    int count = 0;
+    String lrcPath = path;
+    lrcPath.replace(".mp3", ".lrc");
+    
+    File file; 
+    if (app.lrcintf)
+        file = SD.open(lrcPath, "r");
+    else
+        file = LittleFS.open(lrcPath, "r");
+    if (!file) return -1;
+
+    while (file.available()) {
+        String line = file.readStringUntil('\n');
+        line.trim();
+        if (line.startsWith("[")) {
+            count++;
+        }
+    }
+    file.close();
+    return count;
+}
+
+// 解析并加载歌词
+void AppMusicPlayer::loadLyrics(const char* path) {
+
+    lrcisload = false;
+    String lrcPath = getLyricPath(path);
+    log_i("期望歌词路径：%s", lrcPath.c_str());
+    totalLyricLines = countLyricLines(lrcPath.c_str());
+    if (totalLyricLines == -1) {
+        log_w("歌词文件不存在");
+        return;
+    }
+
+    if (lyricArray != nullptr) {
+        delete[] lyricArray;
+        lyricArray = nullptr;
+    }
+    // 预先分配内存
+    lyricArray = new LyricLine[totalLyricLines];
+    
+    File file; 
+    if (lrcintf)
+        file = SD.open(lrcPath, "r");
+    else
+        file = LittleFS.open(lrcPath, "r");
+    if (!file) return;
+
+    int index = 0;
+    while (file.available() && index < totalLyricLines) {
+        String line = file.readStringUntil('\n');
+        line.trim();
+        if (line.startsWith("[")) {
+            int closeBracket = line.indexOf(']');
+            if (closeBracket != -1) {
+                String timeStr = line.substring(1, closeBracket);
+                String text = line.substring(closeBracket + 1);
+
+                // 解析时间戳
+                int colon = timeStr.indexOf(':');
+                int dot = timeStr.indexOf('.');
+                if (colon == -1 || dot == -1) continue;
+
+                int minutes = timeStr.substring(0, colon).toInt();
+                int seconds = timeStr.substring(colon + 1, dot).toInt();
+                String msStr = timeStr.substring(dot + 1);
+                while (msStr.length() < 3) msStr += "0";
+                int milliseconds = msStr.substring(0, 3).toInt();
+                unsigned long timestamp = minutes * 60000 + seconds * 1000 + milliseconds;
+
+                // 存储到预分配数组
+                lyricArray[index].timeMs = timestamp;
+                lyricArray[index].text = text;
+                index++;
+            }
+        }
+    }
+    file.close();
+    lrcisload = true;
+    currentLyricIndex = 0;
+    lastLyricIndex = 0;
+}
+
+void AppMusicPlayer::getLyric(unsigned long currentTime) {
+    // 从当前索引开始查找
+    while (currentLyricIndex < totalLyricLines) {
+        if (currentTime >= lyricArray[currentLyricIndex].timeMs) {
+            currentLyricIndex++;
+        } else {
+            break;
+        }
+    }
+
+    // 回退到正确位置
+    if (currentLyricIndex > 0) {
+        currentLyricIndex--;
+    }
+
+    currentLyric = lyricArray[currentLyricIndex].text;
+}
+
 /**
  * 文件选择函数，根据变量和preferences库读取数据判断文件选择方式
  */
 void AppMusicPlayer::select_file(){
     if (file_is_ok){
         if (strstr(music_file, ".mp3") != nullptr) {
-            // 示例：网络MP3流
             // if (strncmp(music_file, "/sd/", 4) == 0)
             // {
             //     in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
@@ -221,7 +377,6 @@ void AppMusicPlayer::select_file(){
     else
         music_file = GUI::fileDialog("选择音乐文件", false, "mp3", NULL);
     if (strstr(music_file, ".mp3") != nullptr) {
-        // 示例：网络MP3流
         // if (strncmp(music_file, "/sd/", 4) == 0)
         // {
         //     in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
@@ -252,13 +407,11 @@ void AppMusicPlayer::select_file(){
             currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
                                (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
         }
-        // sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
         if (strncmp(music_file, "/sd/", 4) == 0)
             sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
         else 
             sprintf(buf, "%s", ("/littlefs" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
         music_file = buf;
-        //in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
         file_in(music_file);
     }
     sprintf(buf, "%s", music_file);
@@ -268,6 +421,8 @@ void AppMusicPlayer::select_file(){
  * 文件输入函数，自动处理文件系统并传入AudioFileSource
  */
 void AppMusicPlayer::file_in(const char* path){
+    if  (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
+        loadLyrics(path);
     bool file_sd = false;
     const char* _path;
     if (strncmp(path, "/sd/", 4) == 0) {
@@ -515,6 +670,9 @@ static const menu_select menu_player[] =
     {true, "随机播放"},
     {true, "自动播放音乐列表"},
     {true, "使用蜂鸣器输出"},
+    {true, "audio_pll"},
+    {true, "lrc歌词"},
+    {false,"歌词显示补偿"},
     {false,"重启间隔"},
     {false,NULL},
 }; // 音乐播放器菜单
@@ -594,7 +752,11 @@ void AppMusicPlayer::player_menu(){
                 if (!nodac)
                     output->SetGain(gain);
                 break;
-            case 10:
+            case 12:
+                _lrcoffset = GUI::msgbox_number("单位ms", 4, _lrcoffset);
+                hal.pref.putInt("_lrcoffset", _lrcoffset);
+                break;
+            case 13:
                 _count = GUI::msgbox_number("重启间隔 0-999", 3, _count);
                 hal.pref.putInt("rst_count", _count);
                 break;
@@ -622,11 +784,22 @@ void AppMusicPlayer::begin_player_task(){
  * 屏幕信息显示函数
  */
 void AppMusicPlayer::show_display(){
-    display_time = millis();
     display.clearScreen();
     GUI::drawWindowsWithTitle("音乐播放器");
     u8g2Fonts.setCursor(3, 30);
-    u8g2Fonts.printf("播放：%s", music_file);
+    bool lrcupdate = false;
+    if (lrcisload) {
+        getLyric(millis() - play_time_start - _lrcoffset);
+        u8g2Fonts.print(currentLyric);
+        if (currentLyricIndex != lastLyricIndex) {
+            lastLyricIndex = currentLyricIndex;
+            lrcupdate = true;
+        }
+        else 
+            lrcupdate = false;
+    }
+    else
+       u8g2Fonts.printf("播放：%s", music_file); 
     u8g2Fonts.setCursor(3, 45);
     if (_play_end)
         u8g2Fonts.printf("播放结束");
@@ -654,7 +827,18 @@ void AppMusicPlayer::show_display(){
     u8g2Fonts.printf("Gain:%.2f vcc:%dmV bat:%.3fV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.voltage, hal.bat_info.soc, hal.bat_info.soh);
     u8g2Fonts.setCursor(3, 120);
     u8g2Fonts.printf("剩余堆内存：%.2fKB I:%dmA P:%dmW %dmAh", (float)ESP.getFreeHeap() / 1024.0, hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
-    display.display(true);
+    int max_count = (lrcisload ? 45 : 15);
+    if (millis() - display_time > 1000 || lrcupdate) {
+        if (display_count > max_count) {
+            display_count = 0;
+            display.display();
+        }
+        else {
+            display.display(true);
+        }
+        display_count++;
+        display_time = millis();
+    }
 }
 /**
  * 启动音乐播放任务的前置准备函数
@@ -669,7 +853,7 @@ void AppMusicPlayer::player_set(){
     }
     if (nodac){
         free(noDAC);
-        noDAC = new AudioOutputI2SNoDAC(1);
+        noDAC = new AudioOutputI2SNoDAC(0);
         noDAC->SetGain(gain);
         free(id3);
         id3 = new AudioFileSourceID3(in);
@@ -679,7 +863,7 @@ void AppMusicPlayer::player_set(){
         generator->begin(id3, noDAC);
     }else{
         free(output);
-        output= new AudioOutputI2S(0, 1);
+        output= new AudioOutputI2S(0, 1, 8, hal.pref.getBool(hal.get_char_sha_key("audio_pll"), false));
         output->SetGain(gain);
         free(id3);
         id3 = new AudioFileSourceID3(in);
@@ -698,8 +882,8 @@ void AppMusicPlayer::setup(){
     pinMode(26, ANALOG);
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
     _count = hal.pref.getInt("rst_count", 20);
-    // hal.task_bat_info_update();
     gain = hal.pref.getFloat("gain", 0.3);
+    _lrcoffset = hal.pref.getInt("_lrcoffset", -50);
     exit = player_exit;
     deepsleep = player_deepsleep;
     appManager.noDeepSleep = false;
@@ -710,13 +894,13 @@ void AppMusicPlayer::setup(){
     select_file();
     generator = new AudioGeneratorMP3();
     if (nodac){
-        noDAC = new AudioOutputI2SNoDAC(1);
+        noDAC = new AudioOutputI2SNoDAC(0);
         noDAC->SetGain(gain);
         id3 = new AudioFileSourceID3(in);
         id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
         generator->begin(id3, noDAC);
     }else {
-        output= new AudioOutputI2S(0, 1);
+        output= new AudioOutputI2S(0, 1, 8, hal.pref.getBool(hal.get_char_sha_key("audio_pll"), false));
         output->SetGain(gain);
         id3 = new AudioFileSourceID3(in);
         id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
@@ -725,19 +909,15 @@ void AppMusicPlayer::setup(){
     begin_player_task();
     show_display();
     _end = false;
-    int display_count = 0;
     unsigned long wait_time = millis();
     while(!_end && !need_deep_sleep){
         if (hal.btnc.isPressing()){
             if (GUI::waitLongPress(PIN_BUTTONC)){
                 player_menu();
                 show_display();
-                display_count++;
             }
             else {
-                // hal.task_bat_info_update();
                 show_display();
-                display_count++;
             }
         }
         if (hal.btnr.isPressing()) {
@@ -783,65 +963,15 @@ void AppMusicPlayer::setup(){
             need_deep_sleep = true;
             GUI::info_msgbox("提示", "出现暂未解决的BUG,将会在重启后恢复播放");
             break;
-        }/* 
-        if (hal.pref.getBool(hal.get_char_sha_key("循环播放"), false) && _play_end) {
-            free(in);
-            // if (strncmp(music_file, "/sd/", 4) == 0)
-            // {
-            //     in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
-            // }
-            // else if (strncmp(music_file, "/littlefs/", 10) == 0) 
-            // {
-            //     in = new AudioFileSourceLittleFS(remove_path_prefix(music_file,"/littlefs"));
-            // }
-            file_in(music_file);
-            // free(output);
-            // output= new AudioOutputI2S(0, 1);
-            // output->SetGain(gain);
-            // free(id3);
-            // id3 = new AudioFileSourceID3(in);
-            // id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
-            // free(generator);
-            // generator = new AudioGeneratorMP3();
-            // generator->begin(id3, output);
-            player_set();
-            begin_player_task();
-            sem();
         }
-        if (!hal.pref.getBool(hal.get_char_sha_key("循环播放"), false) && _play_end && hal.pref.getBool(hal.get_char_sha_key("自动播放音乐列表"), false)){
-            free(in);
-            if (hal.pref.getBool(hal.get_char_sha_key("随机播放"), false))
-                currentSongIndex = random(0, maxSong);
-            else
-                currentSongIndex++;
-            if (currentSongIndex > maxSong) {
-                currentSongIndex = 0;
-            }
-            sprintf(buf, "%s", ("/sd" + currentDir + "/" + (String)titles[currentSongIndex]).c_str());
-            music_file = buf;
-            // in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
-            file_in(music_file);
-            player_set();
-            begin_player_task();
-            sem();
-        } */
         if (_play_end) {
             next_song();
             show_display();
             delay(333);
         } else
             wait_time = millis();
-        if (millis() - display_time > 3000) {
-            if (display_count > 15) {
-                // hal.task_bat_info_update();
-                display_count = 0;
-                display.clearScreen();
-                display.display();
-                show_display();
-            }
-            else
-                show_display();
-            display_count++;
+        if (millis() - display_time > (lrcisload ? 100 : 2000)) {
+            show_display();
         }
         if (millis() - wait_time > 30000){
             hal.wait_input();

@@ -772,7 +772,7 @@ void AppSettings::menu_network()
                     if (hal.btnl.isPressing()){
                         if (GUI::waitLongPress(PIN_BUTTONL)){
                             while(hal.btnl.isPressing())delay(20);
-                            server.end();
+                            server->end();
                             if (!wifi)
                                 dnsServer.stop();
                             WiFi.disconnect(true);
@@ -882,10 +882,9 @@ void AppSettings::menu_network()
                 sprintf(buf[0], "网页配置界面");
                 sprintf(buf[1], "Blockly界面");
                 u8g2Fonts.setCursor(120, 30);
-                GUI::autoIndentDraw(buf[0], 135, 120, 12);
+                GUI::autoIndentDraw(buf[0], 137, 120, 12);
                 u8g2Fonts.setCursor(160, 21);
-                GUI::autoIndentDraw(buf[1], 167, 160, 12);
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+                GUI::autoIndentDraw(buf[1], 177, 160, 12);
                 display.display();
                 while (1)
                 {
@@ -896,11 +895,9 @@ void AppSettings::menu_network()
                     {
                         while(hal.btnl.isPressing())delay(20);
                         if(wifi) {
-                            server.end();
-                            server.reset();
+                            server->end();
                         } else {
-                            server.end();
-                            server.reset();
+                            server->end();
                             if (ap)
                                 dnsServer.stop();
                         }

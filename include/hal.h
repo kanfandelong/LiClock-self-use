@@ -33,12 +33,13 @@ typedef struct
 {
     uint8_t soc;            // 电池百分比电量
     uint8_t soh;            // 电池健康度
-    float temp;          // 温度
-    float voltage;       // 电池电压
+    float temp;             // 温度
+    float voltage;          // 电池电压
     _bat_current current;   // 电池电流
     _bat_capacity capacity; // 电池容量
     int16_t power;          // 电池平均功率
-    _bat_flag flag;
+    _bat_flag flag;         // 电池标志
+    uint32_t update_time;   // 电池信息更新时间(毫秒),自芯片复位以来，
 } _bat_info;
 
 

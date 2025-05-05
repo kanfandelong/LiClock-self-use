@@ -32,6 +32,8 @@ void HAL::printBatteryInfo() {
     Serial.print("Discharging: "); Serial.println(hal.bat_info.flag.DSG ? "Yes" : "No");
     Serial.print("Fully Charged: "); Serial.println(hal.bat_info.flag.FC ? "Yes" : "No");
     Serial.print("Charging Allowed: "); Serial.println(hal.bat_info.flag.CHG ? "Yes" : "No");
+
+    Serial.printf("Update Time: [%06d]\n", hal.bat_info.update_time);
   
     Serial.println("---------------------------------\n");
 }
@@ -59,6 +61,7 @@ void task_bat_info(void *){
             hal.bat_info.flag.CHG = lipo.chgFlag();
             hal.bat_info.flag.DSG = lipo.dsgFlag();
             hal.bat_info.flag.FC = lipo.fcFlag();
+            hal.bat_info.update_time = esp_log_timestamp();
             xSemaphoreGive(peripherals.i2cMutex);
             xDelay = 2500 / portTICK_PERIOD_MS;
         }
@@ -635,7 +638,7 @@ void HAL::WiFiConfigManual()
             break;
         }
     }
-}
+} 
 void HAL::ReqWiFiConfig()
 {
     display.fillScreen(GxEPD_WHITE);

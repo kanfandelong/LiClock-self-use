@@ -12,8 +12,8 @@ the sketch after each change to this file.
   <meta charset='utf-8'>
   <title>高级文件管理器</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="shortcut icon" href="/edit?download=/System/favicon.ico" type="image/vnd.microsoft.icon">
-  <link rel="icon" href="/edit?download=/System/favicon.ico" type="image/vnd.microsoft.icon">
+  <link rel="shortcut icon" href="/edit?edit=/System/favicon.ico" type="image/vnd.microsoft.icon">
+  <link rel="icon" href="/edit?edit=/System/favicon.ico" type="image/vnd.microsoft.icon">
   <style>
     @font-face {
       font-family: 'iconfont';
@@ -94,6 +94,10 @@ the sketch after each change to this file.
       display: inline-block;
       color: white;
       font-size: 32px;
+      white-space: normal;    /* 允许自动换行 */
+      word-break: break-word; /* 强制长单词换行 */
+      max-width: 80vw;        /* 限制最大宽度 */
+      padding: 0 20px;        /* 增加两侧留白 */
     }
 
     #preview canvas {
@@ -110,12 +114,23 @@ the sketch after each change to this file.
       padding: 10px;
     }
 
+    #preview .song-title {
+      font-size: 1.2em;
+      text-align: center;
+      color: #000000;
+      margin: 10px 0;
+      padding: 5px;
+      background: rgba(255, 255, 255, 0.582);
+      border-radius: 4px;
+    }
+
     #playback-controls {
       position: fixed;
       bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
+      justify-content: center;
       gap: 15px;
       align-items: center;
       background: rgba(0,0,0,0.7);
@@ -214,6 +229,21 @@ the sketch after each change to this file.
 
     .audio-loading p {
       margin-top: 1em;
+    }
+
+    .player-container {
+      width: 80%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .song-title {
+      color: #ffffff;
+      font-size: 1.2em;
+      text-align: center;
+      word-break: break-word;
     }
   </style>
   <style type="text/css" media="screen">
@@ -375,7 +405,10 @@ the sketch after each change to this file.
         width: 0;
         height: 0;
       }
-
+      #loading-msg {
+        font-size: 6vw;
+        line-height: 1.5;
+      }
       #editor,
       #preview {
         position: fixed;
@@ -582,6 +615,8 @@ the sketch after each change to this file.
           <p>拼命加载音频中...</p>
         </div>
       `;
+      const close = preview.querySelectorAll('.show-close')[0]
+        close.onclick = showClose
 
       try {
         // 尝试从内存缓存获取
@@ -613,6 +648,8 @@ the sketch after each change to this file.
 
       } catch (error) {
         console.error('播放失败:', error);
+        document.getElementById("editor").style.display = "none";
+        preview.style.display = "flex";
         preview.innerHTML = `
           <div class='show-close'></div>
           <div style="color:red;margin:auto">
@@ -626,15 +663,20 @@ the sketch after each change to this file.
     }
 
     function createAudioPlayer(blob, path) {
+      var fileName = path.split("/").pop();
+      document.getElementById("pathInput").value = path;
+      document.getElementById("editor").style.display = "none";
+      preview.style.display = "flex";
       preview.innerHTML = `
         <div class='show-close'></div>
-        <audio id="audioPlayer" controls style="width:80%;margin:auto">
-          您的浏览器不支持音频播放
-        </audio>
-        <div id="playback-controls">
-          <button id="mode-list">列表循环</button>
-          <button id="mode-single">单曲循环</button>
-          <button id="mode-random">随机播放</button>
+        <div class="player-container">
+          <div class="song-title">${fileName}</div>
+          <audio id="audioPlayer" controls></audio>
+          <div id="playback-controls">
+            <button id="mode-list">列表循环</button>
+            <button id="mode-single">单曲循环</button>
+            <button id="mode-random">随机播放</button>
+          </div>
         </div>
       `;
       const close = preview.querySelectorAll('.show-close')[0]
@@ -666,6 +708,9 @@ the sketch after each change to this file.
     function setLoading(show, message) {
       if (message) console.log(message);
       document.getElementById("loading-msg").innerHTML = message ? message : "";
+      const baseSize = window.innerWidth <= 750 ? 24 : 32;
+      const loadingMsg = document.getElementById("loading-msg");
+      loadingMsg.style.fontSize = `${Math.min(baseSize, window.innerWidth/20)}px`;
       if (show) document.getElementById("loading").classList.add("shown");
       else document.getElementById("loading").classList.remove("shown");
       document.body.style.cursor = show ? "wait" : "default";
@@ -689,10 +734,11 @@ the sketch after each change to this file.
         if (xmlHttp.status != 200) showHttpError(xmlHttp);
         else {
           fsInfo = JSON.parse(xmlHttp.responseText);
-          var status = fsInfo.type + " - ";
+          var status = fsInfo.type + "    ";
+          status += readableSize(fsInfo.totalBytes - fsInfo.usedBytes) + " / " + readableSize(fsInfo.totalBytes) + " -   ";
           if (fsInfo.isOk) {
             var percent = (1 + Math.round(99 * fsInfo.usedBytes / fsInfo.totalBytes)); // fake to see the "used" bar in any case
-            var text = readableSize(fsInfo.totalBytes - fsInfo.usedBytes) + " ，最大 " + readableSize(fsInfo.totalBytes);
+            var text = "剩余 " + readableSize(fsInfo.totalBytes - fsInfo.usedBytes) + " ，总空间 " + readableSize(fsInfo.totalBytes);
             status += "<meter id='fsMeter' min='0' optimum='0'low='90' high='95' max='100' value='" + percent + "' title='" + text + "'>" + text + "</meter>"
             if (fsInfo.unsupportedFiles) {
               status += " <span id='warning'>WARNING<span class='tooltip'>"
@@ -705,9 +751,9 @@ the sketch after each change to this file.
             status += "<span style='background-color:red;color:white;font-weight:bold'>INIT ERROR !</span>";
           }
           document.getElementById("status").innerHTML = status;
-          if (fsInfo.type != "SPIFFS") {
-            document.getElementById("mkdir").style.display = "inline";
-          }
+          // if (fsInfo.type != "SPIFFS") {
+          //   document.getElementById("mkdir").style.display = "inline";
+          // }
         }
       };
       xmlHttp.open("GET", "/status", true);
@@ -801,6 +847,11 @@ the sketch after each change to this file.
       switchfilesystem.id = "switchfilesystem"; // 设置按钮的 id
       switchfilesystem.innerHTML = "切换到";
       header.appendChild(switchfilesystem);
+
+      var status = document.createElement("span");
+      status.id = "status";
+      status.innerHTML = "(加载)";
+      header.appendChild(status);
 
       fileSelector.onchange = function (e) { // A file has been selected
         if (fileSelector.files.length === 0) return;
@@ -962,6 +1013,7 @@ the sketch after each change to this file.
             case "py":
             case "lua":
             case "crt":
+            case "lrc":
               return true;
           }
         }
@@ -1030,7 +1082,7 @@ the sketch after each change to this file.
         delFolder.innerHTML = "<span>删除</span>";
         delFolder.onclick = function (e) {
           if (document.body.getElementsByClassName('contextMenu').length > 0) document.body.removeChild(el);
-          httpDelete(path);
+          httpDeletePath(path);
         };
       }
 
@@ -1234,6 +1286,20 @@ the sketch after each change to this file.
           }
         }
         else if (isImageFile(path)) loadImgPreview(path);
+        else if (isAudioFile(path)) {
+          var filename = path.split("/").pop();
+          document.getElementById("editor").style.display = "none";
+          preview.style.display = "flex";
+          preview.innerHTML = `
+            <div class='show-close'></div>
+            <div style="color:white;margin:auto">
+              <button id="music_play">播放  ${filename}</button>
+            </div>
+          `;
+          const close = preview.querySelectorAll('.show-close')[0]
+            close.onclick = showClose
+          document.getElementById('music_play').onclick = () => loadAudioPlayer(path);
+        }
         else clearMainPanel();
         // }
       }
@@ -1339,7 +1405,7 @@ the sketch after each change to this file.
               refreshPath(req.responseText);
             }
           }
-          // refreshStatus();
+          refreshStatus();
         }
       }
 
@@ -1371,6 +1437,7 @@ the sketch after each change to this file.
         if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 409) {
               showHttpError(xhr);
+              setLoading(false);
             }
             if (xhr.status === 200) {
               fsSystem = xhr.responseText;
@@ -1378,6 +1445,7 @@ the sketch after each change to this file.
               setLoading(false);
               console.log("Refreshing '/'...");
               httpList("/");
+              refreshStatus();
             }
           }
         };
@@ -1386,10 +1454,30 @@ the sketch after each change to this file.
 
 
       this.httpUpload = function (file, path) {
+        const freeBytes = fsInfo.totalBytes - fsInfo.usedBytes;
+        if (file.size > freeBytes) {
+          const needed = file.size - freeBytes;
+          preview.innerHTML = `
+            <div class='show-close'></div>
+            <div style="color:red;margin:auto">
+              剩余空间不足！还需要${readableSize(needed)}空间<br>
+              请清理后重试<br>
+            </div>
+          `;
+        const close = preview.querySelectorAll('.show-close')[0]
+        close.onclick = showClose
+          return; // 直接中止上传
+        }
         setLoading(true, "上传中 '" + path + "'...");
         if (!path.startsWith("/")) path = "/" + path;
         xmlHttp = new XMLHttpRequest();
         xmlHttp.onload = onOperationComplete(xmlHttp, path);
+        xmlHttp.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            setLoading(true, "上传 '" + path + "'... " + percent +"%");
+          }
+        });
         var formData = new FormData();
         formData.append("data", file, path);
         xmlHttp.open("POST", "/edit");
@@ -1440,6 +1528,15 @@ the sketch after each change to this file.
         xmlHttp.send(formData);
       }
 
+      function httpDeletePath(path) {
+        setLoading(true, "Deleting '" + path + "'...");
+        xmlHttp = new XMLHttpRequest();
+        xmlHttp.onload = onOperationComplete(xmlHttp);
+        var formData = new FormData();
+        formData.append("path", path);
+        xmlHttp.open("POST", "/rmrf");
+        xmlHttp.send(formData);
+      }
 
       httpList("/");
       return this;
@@ -1491,7 +1588,7 @@ the sketch after each change to this file.
         setLoading(false);
         if (xmlHttp.status != 200) showHttpError(xmlHttp);
         tree.refreshPath(getParentFolder(file)); // to update size in tree
-        // refreshStatus();
+        refreshStatus();
       }
       function postFile(path, data, type) {
         setLoading(true, "Saving '" + path + "'...");
@@ -1603,7 +1700,6 @@ the sketch after each change to this file.
       // }
       // tree = createTree("tree", editor);
       // createHeader("header", tree, editor);
-      // refreshStatus();
       // 发起请求获取文件系统类型
       var xhr = new XMLHttpRequest();
       xhr.open("POST", "/fs_get", true);
@@ -1616,6 +1712,7 @@ the sketch after each change to this file.
             }
             tree = createTree("tree", editor);
             createHeader("header", tree, editor);
+            refreshStatus();
             fsSwitchButtonUpdate(fsSystem);
           } else {
             console.error("获取文件系统类型失败:", xhr.status, xhr.responseText);
@@ -1624,13 +1721,13 @@ the sketch after each change to this file.
       };
       xhr.send(null);
     };
-    function drawLBM(url) {
+    function drawLBM(path) {
       document.getElementById("canvas").style.display = "inline";
       var canvas = document.querySelector('#canvas');
       var ctx = canvas.getContext('2d');
 
       function drawDot(x, y, grayValue) {
-        if (grayValue === 255) return; // 跳过白色像素
+        // if (grayValue === 255) return; // 跳过白色像素
         ctx.fillStyle = `rgba(${grayValue},${grayValue},${grayValue},1)`;
         ctx.fillRect(x * 2, y * 2, 2, 2);
       }
@@ -1645,7 +1742,7 @@ the sketch after each change to this file.
       clearCanvas();
 
       let xhr = new XMLHttpRequest();
-      xhr.open('get', "/edit?download=" + url, true);
+      xhr.open('get', "/edit?edit=" + path, true);
       xhr.responseType = "blob";
       xhr.onload = function () {
         if (this.status === 200) {

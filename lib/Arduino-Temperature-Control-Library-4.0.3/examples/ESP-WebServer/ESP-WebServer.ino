@@ -33,7 +33,7 @@ unsigned long lastReadTime = 0;
 
 OneWire oneWire(oneWireBus);
 DallasTemperature sensors(&oneWire);
-ESP8266WebServer server(80);
+//ESP8266WebServer server(80);
 
 String getAddressString(DeviceAddress deviceAddress);
 void handleRoot();

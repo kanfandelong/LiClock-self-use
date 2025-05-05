@@ -386,20 +386,18 @@ void Appwenjian::setup()
     if (run_first){
 fanhui:
         filename = GUI::fileDialog("文件管理", false, NULL, NULL);
+        if (filename == NULL)
+            goto fanhui;
         sprintf(buf,"%s",filename);     //将filename指向的数据拷贝到buf
         filename = buf;                 //将filename指向到buf
     }
     GUI::info_msgbox("提示", "获取文件系统信息...");
-    used = LittleFS.usedBytes()/1024;
     total = LittleFS.totalBytes()/1024;
+file_info:
+    used = LittleFS.usedBytes()/1024;
     free = total - used;
     sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
-    if (filename == NULL)
-    {
-        goto fanhui;
-    }
     // GUI::info_msgbox("提示", "正在获取文件信息...");
-file_info:
     if (strncmp(filename, "/sd/", 4) == 0) {
         a = getFileSize(filename,true);
         file_system = "TF";

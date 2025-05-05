@@ -23,7 +23,7 @@ void fileserver_task(void *){
         if (stop_fileserver){
             if (!wifi)
                 dnsServer.stop();
-            server.end();
+            server->end();
             vTaskDelete(NULL);
         }else
             vTaskDelay(100);

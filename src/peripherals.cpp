@@ -100,8 +100,6 @@ bool Peripherals::load(uint16_t bitmask)
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
-            //gpio_set_pull_mode((gpio_num_t)15, GPIO_PULLUP_ONLY);
-            //gpio_set_pull_mode((gpio_num_t)12, GPIO_PULLUP_ONLY);
             delay(50);
             uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
             Serial.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
@@ -113,13 +111,14 @@ bool Peripherals::load(uint16_t bitmask)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");
                     SD.end();
+                    bitmask &= ~PERIPHERALS_SD_BIT;
                     staitus = false;
                 }
             }
         }else{
             hal.TF_connected = false;
             log_w("[外设] 未插入TF卡");
-            staitus = false;
+            bitmask &= ~PERIPHERALS_SD_BIT;
         }
     }
     else if ((bitmask & PERIPHERALS_SD_BIT) == 0 && peripherals_load & PERIPHERALS_SD_BIT)

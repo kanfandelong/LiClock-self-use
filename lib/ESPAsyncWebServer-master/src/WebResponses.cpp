@@ -501,6 +501,9 @@ void AsyncFileResponse::_setContentType(const String& path){
   else if (path.endsWith(".pdf")) _contentType = "application/pdf";
   else if (path.endsWith(".zip")) _contentType = "application/zip";
   else if(path.endsWith(".gz")) _contentType = "application/x-gzip";
+  else if(path.endsWith(".pdf")) _contentType = "application/pdf";
+  else if(path.endsWith(".mp3")) _contentType = "audio/mpeg";
+  else if(path.endsWith(".mp4")) _contentType = "video/mp4";
   else _contentType = "text/plain";
 }
 

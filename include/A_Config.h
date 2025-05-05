@@ -20,8 +20,9 @@
 #include <esp_netif.h>
 #include <LittleFS.h>
 
+#include <ESP32-targz.h>
 
-#define code_version "2.0.a.b"  //代码版本号（16进制格式）
+#define code_version "2.0.a.c"  //代码版本号（16进制格式）
 // 屏幕型号选择宏定义
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C
@@ -88,7 +89,7 @@ typedef struct
     uint16_t height;
 } ico_desc;
 #include <ESPAsyncWebServer.h>
-extern AsyncWebServer server;
+extern AsyncWebServer *server;
 extern float rain_data_raw[];
 extern int ydata[];
 extern const ico_desc weather_icons_day[];

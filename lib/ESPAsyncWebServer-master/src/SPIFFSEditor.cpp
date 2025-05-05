@@ -499,7 +499,18 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request){
       output = String();
     }
     else if(request->hasParam("edit") || request->hasParam("download")){
-      request->send(request->_tempFile, request->_tempFile.name(), String(), request->hasParam("download"));
+      if(request->_tempFile == true){
+        AsyncWebServerResponse *response = request->beginResponse(request->_tempFile, request->_tempFile.name(), String(), request->hasParam("download"), nullptr);
+        time_t lastWrite = request->_tempFile.getLastWrite(); // 获取UTC时间戳
+        struct tm tm;
+        gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+        char timeStr[30];
+        strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+        const char *LastWriteTime = timeStr;
+        response->addHeader("Last-Modified", LastWriteTime);
+        request->send(response);
+      } else request->send(404);
+      // request->send(request->_tempFile, request->_tempFile.name(), String(), request->hasParam("download"));
     }
     else {
       const char * buildTime = __DATE__ " " __TIME__ " GMT";
