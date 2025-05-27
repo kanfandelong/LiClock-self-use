@@ -178,7 +178,7 @@ void AppSettings::setup()
                 display.display();
                 //u8g2Fonts.setCursor(5,30);
                 //u8g2Fonts.printf("类型：%s",SD.cardType());
-                if (hal.TF_connected){
+                if (peripherals.isSDLoaded()){
                     u8g2Fonts.setCursor(5,30);
                     float cardSizeMB = (float)SD.cardSize() / 1024.0 / 1024.0;
                     u8g2Fonts.printf("大小：%uBytes %.2fMB ",SD.cardSize(),cardSizeMB);
@@ -773,9 +773,12 @@ void AppSettings::menu_network()
                         if (GUI::waitLongPress(PIN_BUTTONL)){
                             while(hal.btnl.isPressing())delay(20);
                             server->end();
+                            free(server);
+                            MDNS.end();
                             if (!wifi)
                                 dnsServer.stop();
                             WiFi.disconnect(true);
+                            hal.can_sleep = true;
                             break;
                         }
                     }
@@ -896,12 +899,17 @@ void AppSettings::menu_network()
                         while(hal.btnl.isPressing())delay(20);
                         if(wifi) {
                             server->end();
+                            free(server);
+                            MDNS.end();
                         } else {
                             server->end();
+                            free(server);
+                            MDNS.end();
                             if (ap)
                                 dnsServer.stop();
                         }
                         WiFi.disconnect(true);
+                        hal.can_sleep = true;
                         break;
                     }
                 }

@@ -199,6 +199,7 @@ void newLuaApp(const String filename, const String path)
 
 void searchForLuaAPP()
 {
+    log_i("搜索LuaApp...");
     File root, file;
     root = LittleFS.open("/");
     if (!root)
@@ -221,4 +222,5 @@ void searchForLuaAPP()
         file = root.openNextFile();
     }
     root.close();
+    log_i("结束Lua应用搜索");
 }

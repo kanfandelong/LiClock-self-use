@@ -272,6 +272,7 @@ static void sendreq(AsyncWebServerRequest *request, const char *mime, const uint
 }
 void beginFileServer(bool for_TF)
 {
+	bool mdns = MDNS.begin("weatherclock");
     server = new AsyncWebServer(80);
     // 设置未找到路由的默认响应
     server->onNotFound([](AsyncWebServerRequest *request)
@@ -284,7 +285,6 @@ void beginFileServer(bool for_TF)
         {
             request->send(404);
         } });
-    
     // 添加SPIFFS文件编辑器
     file_for_TF = for_TF;
     if (file_for_TF) {
@@ -352,11 +352,18 @@ void beginFileServer(bool for_TF)
     server->on("/rename", HTTP_POST, renameHandler);
     // 启动服务器
     server->begin();
-    Serial.println("SPIFFS File Server started");
+    if (mdns) 
+		MDNS.addService("http", "tcp", 80);
+	else
+        Serial.println("Error setting up MDNS responder!");
+
+    Serial.println("File Server started");
     serverRunning = true;
+    hal.can_sleep = false;
 }
 void beginWebServer()
 {
+	bool mdns = MDNS.begin("weatherclock");
     server = new AsyncWebServer(80);
     if (LittleFS.exists("/webtmp") == false)
     {
@@ -512,8 +519,13 @@ void beginWebServer()
     server->on("/rename", HTTP_POST, renameHandler);
     server->on("/createapp", HTTP_POST, createAppHandler);
     server->begin();
+    if (mdns) 
+		MDNS.addService("http", "tcp", 80);
+	else
+        Serial.println("Error setting up MDNS responder!");
     Serial.println("HTTP server started");
     serverRunning = true;
+    hal.can_sleep = false;
 }
 void updateWebServer()
 {

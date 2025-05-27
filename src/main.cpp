@@ -31,16 +31,10 @@ void task_appManager(void *)
 #include <LittleFS.h>
 void setup()
 {
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // disable brownout detector
+    // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // 禁用掉电检测
     hal.init();
     hal.update();
-    esp_reset_reason_t reset_reason = esp_reset_reason();
-    if(reset_reason == ESP_RST_POWERON && config[autontpsync] == "1")
-    {
-        GUI::info_msgbox("提示", "正在对时...");
-        hal.autoConnectWiFi();
-        NTPSync();
-    }
+
     int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
     if(hal.VCC < auto_sleep_mv)
@@ -50,10 +44,19 @@ void setup()
         hal.powerOff(false);
     }
 
+    esp_reset_reason_t reset_reason = esp_reset_reason();
+    if(reset_reason == ESP_RST_POWERON && config[autontpsync] == "1")
+    {
+        GUI::info_msgbox("提示", "正在对时...");
+        hal.autoConnectWiFi();
+        NTPSync();
+    }
+
     alarms.load();
     alarms.check();
     Serial.print("当前CPU频率：");
     Serial.println(ESP.getCpuFreqMHz());
+    log_i("启动appManager...");
     xTaskCreate(task_appManager, "appManager", 8192, NULL, 3, NULL);
     if (hal.pref.getInt("oobe", 0) <= 2)
     {

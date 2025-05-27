@@ -44,8 +44,9 @@ void AppWebserver::setup()
         display.display(true);
         hal.autoConnectWiFi();
         beginWebServer();
-        u8g2Fonts.printf("请在浏览器中打开以下网址\n");
+        u8g2Fonts.printf("请在浏览器中打开以下网址访问\n");
         u8g2Fonts.printf("http://%s\n", WiFi.localIP().toString().c_str());
+        u8g2Fonts.println("http://weatherclock.local");
         u8g2Fonts.printf("Lua未运行时按左键关闭网页服务器\n");
         display.display(true);
         bool end = true;
@@ -58,7 +59,10 @@ void AppWebserver::setup()
             {
                 while(hal.btnl.isPressing())delay(20);
                 server->end();
+                free(server);
+                MDNS.end();
                 WiFi.disconnect(true);
+                hal.can_sleep = true;
                 end = false;
                 appManager.goBack();
                 break;

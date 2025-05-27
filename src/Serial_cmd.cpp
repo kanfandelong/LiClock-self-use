@@ -16,21 +16,25 @@ void fileserver_task(void *){
         WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
         dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
         str1 = "192.168.4.1";
+        log_i("WiFi pass: %s\n", passwd.c_str());
     }
     log_i("WiFi IP: %s\n", str1.c_str());
-    beginWebServer();
+    beginFileServer();
     while(1){
         if (stop_fileserver){
             if (!wifi)
                 dnsServer.stop();
             server->end();
+            serverRunning = false;
+            hal.can_sleep  = true;
+            hal.can_light_sleep  = true;
             vTaskDelete(NULL);
         }else
             vTaskDelay(100);
     }
 }
 
-void cmd_task(void *pvParameters) {
+void cmd_task(void *) {
     size_t bufIndex = 0;
     memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
     BLUE;
@@ -72,12 +76,17 @@ void cmd_task(void *pvParameters) {
     }
 }
 void CMD::begin(){
-    xTaskCreatePinnedToCore(cmd_task, "cmd_task", 4096, NULL, 1, cmd_task_handle, 0);
-    esp_sleep_enable_uart_wakeup(0);
+    xTaskCreatePinnedToCore(cmd_task, "cmd_task", 4096, NULL, 1, &cmd_task_handle, 0);
+}
+void CMD::stop(){
+    vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
+}
+void CMD::run(){ 
+    vTaskResume(cmd_task_handle);
 }
 void CMD::end(){
-    //vTaskSuspend(cmd_task_handle);
-    vTaskDelete(cmd_task_handle);
+    vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
+    vTaskDelete(cmd_task_handle);   // 删除串口指令任务
 }
 void CMD::printHelp(){
     Serial.println("===================================");
@@ -93,14 +102,23 @@ void CMD::printHelp(){
     Serial.printf("%-18s - %s\n", ((String)esp_light_sleep + "[]").c_str(), "使设备CPU停止（由按键唤醒）");
     Serial.printf("%-18s - %s\n", esp_restart_, "重启设备");
     Serial.printf("%-18s - %s\n", free_heap_size, "显示剩余内存");
+    Serial.printf("%-18s - %s\n", get_runtime, "显示运行时间（ms）");
+    Serial.printf("%-18s - %s\n", get_bat_info, "显示电池信息");
+    Serial.printf("%-18s - %s\n", file_server_begin, "启动文件服务器"); 
+    Serial.printf("%-18s - %s\n", file_server_end, "停止文件服务器");
+    Serial.printf("%-18s - %s\n", ((String)set_display_debug + "[]").c_str(), "启用屏幕debug信息输出");
 
     // 硬件控制
     Serial.println("[Hardware]");
+    Serial.printf("%-18s - %s\n", get_cpu_usage, "显示CPU使用率");
     Serial.printf("%-18s - %s\n", set_cpu_freq, "获取CPU频率（单位：MHz）");
     Serial.printf("%-18s - %s\n", ((String)set_cpu_freq + "[]").c_str(), "设置CPU频率（单位：MHz）,立即生效,注意应在[]中填入参数");
     Serial.printf("%-18s - %s\n", ((String)config_cpu_freq + "[]").c_str(), "保存CPU频率（单位：MHz）到设置,重启后生效,注意应在[]中填入参数");
     Serial.println("CPU频率可选值:240、160、80、40、20、10");
     Serial.printf("%-18s - %s\n", esp_chip_info_, "显示芯片信息");
+    Serial.printf("%-18s - %s\n", ((String)set_display + "[]").c_str(), "强制指定屏幕显示灰度");
+    Serial.printf("%-18s - %s\n", ((String)set_display_PLL + "[]").c_str(), "设置屏幕PLL时钟（ESP32复位后失效）");
+    Serial.printf("%-18s - %s\n", ((String)cfg_display_PLL + "[]").c_str(), "设置屏幕PLL时钟并保存到nvs");
 
     // 文件系统
     Serial.println("[Filesystem]");
@@ -113,7 +131,6 @@ void CMD::printHelp(){
     Serial.printf("%-18s - %s\n", set_long_press, "获取长按阈值（单位：ms）");
     Serial.printf("%-18s - %s\n", ((String)set_long_press + "[]").c_str(), "设置长按阈值（单位：ms）,注意应在[]中填入参数");
     Serial.printf("%-18s - %s\n", set_boot_app, "修改默认APP为clock");
-    Serial.printf("%-18s - %s\n", get_bat_info, "显示电池信息");
     
     Serial.println("Example:");
     Serial.println("#set_cpu_freq[240]*");
@@ -221,16 +238,18 @@ void CMD::parseCommand(const char* command) {
             char macStr[18]; // MAC字符串缓冲区（17字符+终止符）
             snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-            Serial.print("EfuseMac: ");
+            Serial.print("EfuseMac:        ");
             Serial.println(macStr);
-            Serial.printf("FlashChipSize:%d MB\n", ESP.getFlashChipSize() / 1048576);
+            Serial.printf("FlashChipSize:  %d MB\n", ESP.getFlashChipSize() / 1048576);
             uint32_t flash_id;
             uint64_t flash_unique_id;
             esp_flash_read_id(esp_flash_default_chip, &flash_id);
             esp_flash_read_unique_chip_id(esp_flash_default_chip, &flash_unique_id);
-            Serial.printf("flash_id:%04x\n", flash_id);
-            Serial.printf("flash_unique_id:%08x\n", flash_unique_id);
+            Serial.printf("flash_id:       %04x\n", flash_id);
+            Serial.printf("flash_unique_id:%016llx\n", flash_unique_id);
         } else if (strcmp(cmd, esp_restart_) == 0) {
+            hal.pref.end();
+            LittleFS.end();
             ESP.restart();
         } else if (strcmp(cmd, get_runtime) == 0) {
             long timeMillis = millis();
@@ -242,10 +261,16 @@ void CMD::parseCommand(const char* command) {
             long tenths = (remaining % 1000) / 100; // 计算十分位（0-9）
             Serial.printf("Runtime: %3d:%02d:%02d.%d", hours, minutes, seconds, tenths);
         } else if (strcmp(cmd, get_bat_info) == 0){
-            // hal.task_bat_info_update();
             hal.printBatteryInfo();
-        } else if (strcmp(cmd, get_cpu_usage) == 0) {
-            Serial.println("only use in ESP-IDF");
+        } else if (strcmp(cmd, get_cpu_usage) == 0) {   
+            TaskStatus_t *pxTaskStatusArray;
+            UBaseType_t uxArraySize, x; 
+            
+            uxArraySize = uxTaskGetNumberOfTasks();
+            pxTaskStatusArray = (TaskStatus_t *)pvPortMalloc(uxArraySize * sizeof(TaskStatus_t));
+
+            if (pxTaskStatusArray != NULL) 
+                uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, uxArraySize, NULL);
         } else if (strcmp(cmd, set_boot_app) == 0) {
             hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
         } else if (strcmp(cmd, help) == 0) {
@@ -257,10 +282,12 @@ void CMD::parseCommand(const char* command) {
             hal.wait_input(value);
         } else if (strcmp(cmd, file_server_begin) == 0) {
             stop_fileserver = false;
+            hal.can_sleep  = false;
+            hal.can_light_sleep  = false;
             xTaskCreatePinnedToCore(fileserver_task, "fileserver", 8192, NULL, 1, NULL, 0);
         } else if (strcmp(cmd, file_server_end) == 0) {
             stop_fileserver = true;
-            serverRunning = false;
+            delay(200);
         } else {
             RED;
             Serial.println("Error: Unknown command");

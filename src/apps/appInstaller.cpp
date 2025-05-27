@@ -227,7 +227,6 @@ void AppInstaller::setup()
                     {true, "数据"},
                     {true, "设置"},
                     {true, "OOBE"},
-                    {true, "targz"},
                     {true, "SGP30"},
                     {true, "AHT20"},
                     {true, "Debug"},

@@ -49,7 +49,7 @@ namespace GUI
      * @param isApp 是否为lua应用选择
      * @param endsWidth 文件尾缀筛选，默认不筛选，如果输入了文件尾缀，则只显示以该字符串结尾的文件
      * @param gotoendsWidth 文件尾缀筛选，默认筛选".i"后缀文件，文件列表不显示以该字符串结尾的文件
-     * @param gotoendsWidth 打开的目录，默认为根目录
+     * @param cwd 打开的目录，默认为根目录
      * @param file_system 文件系统，默认NULL(会提示用户选择文件系统),传入"TF"或"LittleFS"字符串以选择打开的文件系统
      * @note  传入NULL以禁用，endsWidth,gotoendsWidth,gotoendsWidth,file_system
      * @return 返回文件名，如果返回NULL，则用户取消选择

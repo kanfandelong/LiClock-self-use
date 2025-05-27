@@ -159,14 +159,16 @@ bool HAL::connected_wifi(const char* ssid, const char* pass){
     WiFi.begin(ssid, pass);
     log_i("Connecting to %s", ssid);
     unsigned long startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
-        delay(500);
+    while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < 10000) {
+        delay(100);
     }
     if (WiFi.status() == WL_CONNECTED) {
         log_i("Connected to %s", ssid);
         return true;
     } else {
         log_i("Connection failed");
+        log_i("failed reason: %d", WiFi.status());
+        WiFi.disconnect();
         return false;
     }
 }
@@ -633,7 +635,13 @@ void HAL::WiFiConfigManual()
         {
             while (hal.btnl.isPressing())
                 delay(20);
+            server->end();
+            dnsServer.stop();
+            MDNS.end();
+            WiFi.disconnect(true);
+            hal.can_sleep = true;
             LittleFS.end();
+            pref.end();
             ESP.restart();
             break;
         }
@@ -777,23 +785,33 @@ void refresh_partition_table()
         ESP.restart();
     }
 }
-
+#include "driver/uart.h"
 void HAL::wait_input(uint32_t sleeptime){
-    if (sleeptime == 0)
-        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-    else 
-        esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
-    esp_sleep_enable_uart_wakeup(0);
-    if (hal.btn_activelow){
-        gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
-        esp_sleep_enable_gpio_wakeup();
-        esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTONL, 0);
-        esp_sleep_enable_ext1_wakeup((1LL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ALL_LOW);
-    }else{
-        esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
+    if (hal.can_light_sleep) {
+        if (sleeptime == 0)
+            esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+        else 
+            esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
+        uart_set_wakeup_threshold(0, 3);
+        esp_sleep_enable_uart_wakeup(0);
+        if (hal.btn_activelow){
+            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
+            esp_sleep_enable_gpio_wakeup();
+            esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTONL, 0);
+            esp_sleep_enable_ext1_wakeup((1LL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ALL_LOW);
+        }else{
+            esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
+        }
+        log_i("进入lightsleep");
+        esp_light_sleep_start();
+    } else {
+        while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing())) {
+            delay(100);
+        }
+    }  
+    if(esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UART){
+        log_i("uart唤醒");
     }
-    log_i("进入lightsleep");
-    esp_light_sleep_start();
 }
 
 void HAL::coredump_file(){
@@ -842,7 +860,9 @@ bool HAL::init()
     bool timeerr = false;
     bool initial = true;
     Serial.begin(115200);
-    log_i("系统初始化，固件版本:%s  构建日期:%s %s", code_version, __DATE__, __TIME__);
+    log_i("系统初始化，固件版本:%s  构建日期:%s %s", code_version, __DATE__, __TIME__); 
+    setenv("TZ", "CST-8", 1); // 设置时区为东八区
+    tzset();vApplicationIdleHook();
     // 读取时钟偏移
     pref.begin("clock");
 
@@ -984,15 +1004,13 @@ bool HAL::init()
         log_file.write(0xBF);
         log_file.close();
     }
-    F_LOG("ESP32复位,原因:ESP_RST_%s", esp_rst_str[esp_reset_reason()]);
+    F_LOG("\nESP32复位,原因:ESP_RST_%s", esp_rst_str[esp_reset_reason()]);
     if(esp_reset_reason() == ESP_RST_DEEPSLEEP){
-        F_LOG("复位为DeepSleep,唤醒源:ESP_SLEEP_%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
+        F_LOG("唤醒源:ESP_SLEEP_%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
     }
     if (esp_reset_reason() == ESP_RST_PANIC)
         coredump_file();
     loadConfig();
-    setenv("TZ", "CST-8", 1); // 设置时区为东八区
-    tzset();
     peripherals.init();
     weather.begin();
     buzzer.init();
@@ -1009,6 +1027,7 @@ bool HAL::init()
         pref.putUInt("lastsync", 1); // 清除上次同步时间，但不清除时钟偏移信息。
         lastsync = 1;
     }
+    log_i("初始化完成");
     if (initial == false && timeerr == false)
     {
         return false;
@@ -1126,10 +1145,15 @@ void HAL::set_sleep_set_gpio_interrupt()
 #include "driver/ledc.h"
 static void pre_sleep()
 {
-    //cmd.end();
+    if (!hal.can_sleep)
+        log_i("等待睡眠允许标志位");
+    while (!hal.can_sleep){
+        delay(100);
+        Serial.print(".");
+    }
+    cmd.end();
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
-    display.hibernate();
     buzzer.waitForSleep();
     LittleFS.end();
     hal.pref.end();
@@ -1160,9 +1184,12 @@ void HAL::goSleep(uint32_t sec)
     {
         nextSleep = 1;
     }
+    // display.hibernate();
+    pre_sleep();
+    if (WiFi.isConnected())
+        WiFi.disconnect(true);
     Serial.printf("下次唤醒:%ld s\n", nextSleep);
     nextSleep = nextSleep * 1000000UL;
-    pre_sleep();
     esp_sleep_enable_timer_wakeup(nextSleep);
     wait_display();
     delay(1);
@@ -1191,8 +1218,10 @@ void HAL::powerOff(bool displayMessage)
         display.display();
     }
     force_full_update = true;
+    display.hibernate();
     pre_sleep();
-    WiFi.disconnect(true);
+    if (WiFi.isConnected())
+        WiFi.disconnect(true);
     set_sleep_set_gpio_interrupt();
     wait_display();
     delay(1);

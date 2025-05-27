@@ -393,11 +393,11 @@ fanhui:
     }
     GUI::info_msgbox("提示", "获取文件系统信息...");
     total = LittleFS.totalBytes()/1024;
-file_info:
     used = LittleFS.usedBytes()/1024;
     free = total - used;
     sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
     // GUI::info_msgbox("提示", "正在获取文件信息...");
+file_info:
     if (strncmp(filename, "/sd/", 4) == 0) {
         a = getFileSize(filename,true);
         file_system = "TF";
@@ -533,7 +533,10 @@ file_info:
                     char buf[512];
                     sprintf(buf,"从TF卡复制 %s 到littlefs,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
                     GUI::info_msgbox("提示",buf);
-                    delay(1500);
+                    used = LittleFS.usedBytes()/1024;
+                    free = total - used;
+                    sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
+                    delay(500);
                 }
             } 
             else if (strncmp(filename, "/littlefs/", 10) == 0) {
@@ -601,6 +604,9 @@ file_info:
                             } 
                             else if (strncmp(filename, "/littlefs/", 10) == 0) {
                                 OK = LittleFS.remove(remove_path_prefix(filename,"/littlefs"));
+                                used = LittleFS.usedBytes()/1024;
+                                free = total - used;
+                                sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
                             }
                             if(OK){
                                 sprintf(info,"成功删除%s",filename);
@@ -628,6 +634,9 @@ file_info:
                                 String dirname = "/littlefs" + String(directoryname);
                                 dirname[dirname.length() - 1] = '\0';
                                 hal.rm_rf(dirname.c_str());
+                                used = LittleFS.usedBytes()/1024;
+                                free = total - used;
+                                sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
                             }
                         }
                     }

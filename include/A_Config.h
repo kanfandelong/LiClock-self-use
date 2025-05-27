@@ -19,8 +19,9 @@
 #include <driver/rtc_io.h>
 #include <esp_netif.h>
 #include <LittleFS.h>
+#include <ESPmDNS.h>
 
-#include <ESP32-targz.h>
+// #include <ESP32-targz.h>
 
 #define code_version "2.0.a.c"  //代码版本号（16进制格式）
 // 屏幕型号选择宏定义
@@ -43,8 +44,9 @@
 // #define PIN_CHARGING 26
 
 #define PIN_RTC_IRQ 36
-#define PIN_SDVDD_CTRL 27
 #define PIN_CHARGING 32
+
+#define PIN_SDVDD_CTRL 27
 #define PIN_SD_CS 14
 #define PIN_SD_MOSI 12
 #define PIN_SD_SCLK 13
@@ -75,7 +77,7 @@
 #define SAMPLE_COUNT 10
 #define SAMPLE_STEP 1
 #define PX_PER_SAMPLE (SCREEN_WIDTH / SAMPLE_STEP / (SAMPLE_COUNT - 2))
-#define DEFAULT_CONFIG "{\"p1\":\"116.3975,39.9091\",\"p2\":\"15\",\"p3\":\"1\",\"p4\":\"23:30\",\"p5\":\"05:00\",\"p6\":\"\",\"p7\":\"\",\"p8\":\"0\",\"p9\":\"1\",\"p10\":\"1\",\"p11\":\"0\",\"p12\":\"\",\"p13\":\"CST-8\",\"p14\":\"/test.mp3\"}"
+#define DEFAULT_CONFIG "{\"p1\":\"116.3975,39.9091\",\"p2\":\"15\",\"p3\":\"1\",\"p4\":\"23:30\",\"p5\":\"05:00\",\"p6\":\" \",\"p7\":\" \",\"p8\":\"0\",\"p9\":\"1\",\"p10\":\"1\",\"p11\":\"0\",\"p12\":\"\",\"p13\":\"CST-8\",\"p14\":\"/test.mp3\"}"
 #define DEFAULT_WIFI_CONFIG "{\"networks\":[{\"ssid\":\"\",\"pass\":\"\"}]}"
 #define TFmode "p9"
 #define autontpsync "p10"

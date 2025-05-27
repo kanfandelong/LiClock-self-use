@@ -754,7 +754,7 @@ public:
     void setBand3_50_65_Mode(uint8_t band3Mode);
     uint8_t getBand3Status();
 
-    int getRssi();
+    uint8_t getRssi();
 
     /**
      * @ingroup GA03

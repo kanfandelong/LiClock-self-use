@@ -187,7 +187,7 @@ void AppEBook::setup()
             openMenu();
             display.display(true);
         }
-        if (hal.btnl.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) && ebook_run == true))
+        if (hal.btnl.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) && ebook_run == true && (!hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))))
         {
             if (currentPage == 0)
             {
@@ -205,7 +205,7 @@ void AppEBook::setup()
                 page_changed = true;
             }
         }
-        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true || (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && hal.pref.getBool(hal.get_char_sha_key("自动翻页")))))
+        if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true && (!hal.pref.getBool(hal.get_char_sha_key("禁用休眠"))) || (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && hal.pref.getBool(hal.get_char_sha_key("自动翻页")))))
         {
             if (GUI::waitLongPress(PIN_BUTTONR))
             {
@@ -238,13 +238,6 @@ void AppEBook::setup()
         {
             page_changed = false;
             drawCurrentPage();
-        }
-        if (GUI::waitLongPress(PIN_BUTTONR))
-        {
-            Serial.println("打开菜单");
-            // 打开菜单
-            openMenu();
-            display.display(true);
         }
         yield();
         if ((hal.pref.getBool(hal.get_char_sha_key("使用lightsleep")) || hal.pref.getBool(hal.get_char_sha_key("自动翻页"))) && exit_app == false)
@@ -283,8 +276,15 @@ void AppEBook::setup()
             }
         }
         while_run = hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"));
+        if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠"))){
+            while_run = true;
+            while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing()) && (!exit_app)) {
+                delay(50);
+            }
+        }
         if (exit_app || need_deepsleep)
         {
+            while_run = false;
             if (need_deepsleep)
             {
                 appManager.noDeepSleep = false;
@@ -1902,10 +1902,11 @@ void AppEBook::ebooksettings()
         {true, "自动翻页"},
         {false, "自动翻页延时"}, // 3
         {true, "使用lightsleep"},
-        {false, "最大lightsleep次数"}, // 5
+        {true, "禁用休眠"},
+        {false, "最大lightsleep次数"}, // 6
         {true, "反色显示"},
         {true, "快速显示"},
-        {false, "屏幕全刷间隔"}, // 8
+        {false, "屏幕全刷间隔"}, // 9
         {true, "使用备选txt解析程序1"},
         {true, "甘草索引程序"},
         {false, NULL},
@@ -1926,10 +1927,10 @@ void AppEBook::ebooksettings()
         case 3:
             hal.pref.putInt("auto_page", GUI::msgbox_number("输入时长s", 5, hal.pref.getInt("auto_page", 10)));
             break;
-        case 5:
+        case 6:
             hal.pref.putInt("max_lightsleep", GUI::msgbox_number("输入次数", 3, hal.pref.getInt("max_lightsleep", 20)));
             break;
-        case 8:
+        case 9:
             hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
             break;
         default:

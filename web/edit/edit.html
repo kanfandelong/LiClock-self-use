@@ -1390,8 +1390,13 @@ the sketch after each change to this file.
               var parentPath = getParentFolder(path);
 
               // Refresh returned path, if requested and different from path
-              if (req.responseText && req.responseText != parentPath) {
-                refreshPath(req.responseText);
+              if (req.responseText && req.responseText != "OK") {
+                var cleanedText = req.responseText.replace(/^UPLOADED: /, '');
+                cleanedText = cleanedText.replace(/^DELETE: /, '');
+                cleanedText = cleanedText.replace(/^CREATE: /, '');
+                var refresh_path = getParentFolder(cleanedText);
+                if (refresh_path != parentPath)
+                  refreshPath(refresh_path);
               }
 
               // Refresh original path
@@ -1402,7 +1407,10 @@ the sketch after each change to this file.
             }
             else {
               // Delete, only refresh returned path
-              refreshPath(req.responseText);
+              var cleanedText = req.responseText.replace(/^UPLOADED: /, '');
+              cleanedText = cleanedText.replace(/^DELETE: /, '');
+              cleanedText = cleanedText.replace(/^CREATE: /, '');
+              refreshPath(getParentFolder(cleanedText));
             }
           }
           refreshStatus();

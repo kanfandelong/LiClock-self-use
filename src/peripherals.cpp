@@ -49,7 +49,7 @@ void Peripherals::check()
 
 void Peripherals::init()
 {
-    Wire.begin(PIN_SDA, PIN_SCL);
+    Wire.begin(PIN_SDA, PIN_SCL,  100000ul);
     if (!lipo.begin())
         log_i("[外设] BQ27441初始化失败");
     i2cMutex = xSemaphoreCreateMutex();
@@ -95,7 +95,6 @@ bool Peripherals::load(uint16_t bitmask)
         // 首先测试TF卡是否存在
         if (digitalRead(PIN_SD_CARDDETECT) != 1)
         {
-            hal.TF_connected = true;
             Serial.println("[外设] 加载TF卡");
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
@@ -111,20 +110,21 @@ bool Peripherals::load(uint16_t bitmask)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");
                     SD.end();
-                    bitmask &= ~PERIPHERALS_SD_BIT;
+                    gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
+                    digitalWrite(PIN_SDVDD_CTRL, 1);
+                    gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
+                    bitmask &= ~PERIPHERALS_SD_BIT; // 加载失败，清加载标志
                     staitus = false;
                 }
             }
         }else{
-            hal.TF_connected = false;
             log_w("[外设] 未插入TF卡");
-            bitmask &= ~PERIPHERALS_SD_BIT;
+            bitmask &= ~PERIPHERALS_SD_BIT;// 加载失败，清加载标志
         }
     }
     else if ((bitmask & PERIPHERALS_SD_BIT) == 0 && peripherals_load & PERIPHERALS_SD_BIT)
     {
         // 卸载TF卡
-        hal.TF_connected = false;
         Serial.println("[外设] 卸载TF卡");
         SD.end();
         delay(50);

@@ -79,11 +79,9 @@ namespace GUI
     {
         // 首先选择文件系统
         bool useSD = false;
-        bool TF_freq_UP = false;
-        bool TF_freq_UP_failed = false;
         if (isApp == false)
         {
-            if (peripherals.isSDLoaded())
+            if (digitalRead(PIN_SD_CARDDETECT) == LOW)
             {
                 if (file_system != NULL){
                     if (strcmp(file_system, "TF") == 0)
@@ -108,6 +106,8 @@ namespace GUI
         {
             useSD = true;
         }
+        if ((!peripherals.isSDLoaded()) && useSD && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
         //String cwd = "/";
         File root;
         File file;
@@ -133,6 +133,7 @@ namespace GUI
                 ++total_entries;
             }
             total_entries = 1;
+open_root:            
             if (useSD)
             {
                 root = SD.open(cwd);
@@ -146,6 +147,8 @@ namespace GUI
             if (!root)
             {
                 Serial.println("[文件] root未打开");
+                cwd = "/";
+                goto open_root;
             }
             GUI::info_msgbox("提示", "正在创建文件列表...");
             file = root.openNextFile();

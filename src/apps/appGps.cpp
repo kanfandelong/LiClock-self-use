@@ -498,7 +498,7 @@ void AppGps::setup(){
         Serial1.setPins(RXD_2 ,TXD_2);
         Serial1.begin(hal.pref.getLong("gps_baud", 9600)); 
     }else{
-        Serial1.setPins(RXD_2, GPIO_NUM_NC);
+        Serial1.setPins(RXD_2, TXD_2);
         pinMode(RXD_2, INPUT);
         Serial1.begin(hal.pref.getLong("gps_baud", 9600));
         pinMode(GPS_POWER, OUTPUT);

@@ -1661,10 +1661,13 @@ void RDA5807::setLnaPortSel(uint8_t value)
  * @brief Gets the current Rssi
  * @details RSSI; 000000 = min; 111111 = max; RSSI scale is logarithmic.
  *
- * @return int
+ * @return uint_8
  */
-int RDA5807::getRssi()
+uint8_t RDA5807::getRssi()
 {
     getStatus(REG0B);
-    return reg0b->refined.RSSI;
+    uint8_t rssi = reg0b->refined.RSSI;
+    if (rssi > 63)
+        rssi = 63;
+    return rssi;
 }

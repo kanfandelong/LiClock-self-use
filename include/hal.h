@@ -63,7 +63,7 @@ public:
     void ReqWiFiConfig();
     /**
      * @brief 等待用户输入
-     * @param sleeptime 休眠时间，单位秒，0表示不休眠
+     * @param sleeptime 休眠时间，单位秒，0表示禁用定时器
      */
     void wait_input(uint32_t sleeptime = 0);
     void coredump_file();
@@ -102,8 +102,9 @@ public:
     _bat_info bat_info;
     bool USBPluggedIn = false;
     bool isCharging = false;
-    bool TF_connected = false;
     bool dis_DS3231 = false;
+    bool can_sleep = true;
+    bool can_light_sleep = true;
     OneButton btnr = OneButton(PIN_BUTTONR);
     OneButton btnl = OneButton(PIN_BUTTONL);
     OneButton btnc = OneButton(PIN_BUTTONC);

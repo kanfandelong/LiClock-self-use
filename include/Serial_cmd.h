@@ -14,20 +14,20 @@
 #define set_display_debug   "display_debug"
 #define set_display_PLL     "PLL"
 #define cfg_display_PLL     "cfgPLL"
-#define config_cpu_freq     "configcpufreq"
+#define config_cpu_freq     "cfgcpufreq"
 #define set_long_press      "longpress"
 #define get_runtime         "runtime"
-#define get_cpu_usage       "cpuusage"
+#define get_cpu_usage       "cpuuse"
 #define set_boot_app        "bootapp->clock"
 #define erase_nvs           "erasenvs"
-#define littlefs_format     "littlefsformat"
-#define littlefs_info       "littlefsinfo"
+#define littlefs_format     "lfsformat"
+#define littlefs_info       "lfsinfo"
 #define get_bat_info        "batinfo"
-#define free_heap_size      "freeheap"
+#define free_heap_size      "heap"
 #define esp_light_sleep     "lightsleep"
 #define esp_chip_info_      "chipinfo"
-#define file_server_begin   "fileserverbegin"
-#define file_server_end     "fileserverend"
+#define file_server_begin   "fserverbegin"
+#define file_server_end     "fserverend"
 #define esp_restart_        "rst"
 //串口颜色转义码
 #define RED     Serial.print("\033[31m")
@@ -42,10 +42,12 @@
 class CMD
 {
 private:
-    TaskHandle_t *cmd_task_handle = NULL;
+    TaskHandle_t cmd_task_handle = NULL;
 public:
     char cmdBuffer[COMMAND_BUFFER_SIZE];
     void begin();
+    void run();
+    void stop();
     void end();
     void printHelp();
     void parseCommand(const char* command);
