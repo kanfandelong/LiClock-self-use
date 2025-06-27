@@ -23,12 +23,15 @@ class Alarm
 {
 private:
 public:
-    alarm_t alarm_table[5];
+    uint8_t alarm_num;
+    alarm_t *alarm_table;
     void load();
     void save();
     void clearAll()
     {
-        memset(alarm_table, 0, sizeof(alarm_table));
+        alarm_num = 5;
+        alarm_table = new alarm_t[alarm_num];
+        memset(alarm_table, 0, sizeof(alarm_t) * alarm_num);
     }
     int8_t getNext(uint16_t week, uint16_t now); // 返回距离现在最近的闹钟序号，如果没有则返回-1
     void alarm();                             // 闹钟界面

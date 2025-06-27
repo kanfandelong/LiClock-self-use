@@ -1,0 +1,273 @@
+#include "AppManager.h"
+#include <SdFat.h>
+
+extern SPIClass SDSPI;
+SdFat sdFs; 
+
+    // 9 * 12
+static const uint8_t _imgfile_bits[] = {
+    0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc9, 0x01, 0x15, 0x01, 0x09, 0x01,
+    0x01, 0x01, 0x41, 0x01, 0xe1, 0x01, 0xf1, 0x01, 0xfd, 0x01, 0xff, 0x01};
+static const uint8_t _luafile_bits[] = {
+    0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x21, 0x01, 0x09, 0x01, 0x15, 0x01, 0x09, 0x01, 0x01, 0x01, 0xff, 0x01};
+static const uint8_t _musicfile_bits[] = {
+    0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x01, 0x01, 0x61, 0x01,
+    0x59, 0x01, 0x49, 0x01, 0x69, 0x01, 0x0d, 0x01, 0x01, 0x01, 0xff, 0x01};
+static const uint8_t _otherfile_bits[] = {
+    0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x01, 0x01, 0x01, 0x01,
+    0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0xff, 0x01};
+static const uint8_t _sysfile_bits[] = {
+    0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x01, 0x01, 0x11, 0x01,
+    0x11, 0x01, 0x11, 0x01, 0x01, 0x01, 0x11, 0x01, 0x01, 0x01, 0xff, 0x01};
+static const uint8_t _textfile_bits[] = {
+    0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x01, 0x01, 0x7d, 0x01,
+    0x01, 0x01, 0x7d, 0x01, 0x01, 0x01, 0x7d, 0x01, 0x01, 0x01, 0xff, 0x01};
+// 12*12
+static const uint8_t _folder_bits[] = {
+    0x00, 0x00, 0x1e, 0x00, 0x21, 0x00, 0xc1, 0x0f, 0x01, 0x08, 0x01, 0x08,
+    0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0xfe, 0x07, 0x00, 0x00};
+
+struct s_fileicondict
+{
+    const char *extension;
+    const uint8_t *ico;
+};
+static const struct s_fileicondict fileicondict[] = {
+    {"bmp", _imgfile_bits},
+    {"jpg", _imgfile_bits},
+    {"png", _imgfile_bits},
+    {"xbm", _imgfile_bits},
+    {"lua", _luafile_bits},
+    {"buz", _musicfile_bits},
+    {"mp3", _musicfile_bits},
+    {"flac", _musicfile_bits},
+    {"aac", _musicfile_bits},
+    {"i", _sysfile_bits},
+    {"json", _sysfile_bits},
+    {"bin", _sysfile_bits},
+    {"txt", _textfile_bits},
+    {"lbm", _imgfile_bits}, // 自定义的图片格式（实际上是XBM编码）
+    {NULL, NULL},
+};
+class AppSdFat : public AppBase
+{
+private:
+
+/**
+ *
+“lbm”格式定义：
+扩展名.lbm
+单色位图
+小端
+2字节宽度
+2字节高度
+之后是数据
+*/
+public:
+    AppSdFat()
+    {
+        name = "SdFat";
+        title = "模板";
+        description = "模板";
+        image = NULL;
+    }
+    void set();
+    void setup();
+    const char *_fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/", const char *file_system = NULL);
+};
+static AppSdFat app;
+
+static const uint8_t *_getFileIcon(const char *extension)
+{
+    for (int i = 0; fileicondict[i].extension != NULL; i++)
+    {
+        if (strcmp(fileicondict[i].extension, extension) == 0)
+        {
+            return fileicondict[i].ico;
+        }
+    }
+    return _otherfile_bits;
+}
+
+// 辅助函数：清理标题内存
+void cleanup_titles(char* titles[]) {
+    for (int i = 1; i < 256; i++) {
+        if (titles[i]) {
+            free(titles[i]);
+            titles[i] = NULL;
+        }
+    }
+}
+
+void AppSdFat::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
+
+void AppSdFat::setup()
+{
+    Serial.print(_fileDialog("sdfat测试"));
+    sdFs.end();
+}
+
+char filedialog_buffer[300];
+// 注意，下面这个函数完全没有考虑线程安全，no reentrent!!!
+const char *AppSdFat::_fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system) {
+    bool useSD = false;
+    if (!isApp) {
+        if (digitalRead(PIN_SD_CARDDETECT) == LOW) {
+            if (file_system != NULL) {
+                if (strcmp(file_system, "TF") == 0) useSD = true;
+                else if (strcmp(file_system, "LittleFS") == 0) useSD = false;
+            } else {
+                if (GUI::msgbox_yn("请选择文件系统", "左：LittleFS\n右：TF 卡", "TF 卡", "LittleFS")) {
+                    useSD = true;
+                }
+            }
+        }
+    } else {
+        useSD = true;
+    }
+
+    gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
+    digitalWrite(PIN_SDVDD_CTRL, 0);
+    gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
+    delay(200);
+    sdFs.begin(SdSpiConfig((SdCsPin_t)PIN_SD_CS, (uint8_t)1, (uint32_t)SD_SCK_MHZ(40), &SDSPI));
+    // 声明SdFat专用变量
+    SdFile root_sd;
+    SdFile file_sd;
+    File root_lfs;
+    File file_lfs;
+
+    int16_t total_entries = 0;
+    menu_item entries[256];
+    char *titles[256];
+    memset(entries, 0, sizeof(entries));
+    memset(titles, 0, sizeof(titles));
+    entries[0].icon = _folder_bits;
+    entries[0].title = "..";
+
+    while (1) {
+        Serial.printf("[文件浏览] 当前工作目录：%s\n", cwd.c_str());
+        total_entries = 1;
+        // 清理旧条目
+        for (int i = 1; i < 256; i++) {
+            if (titles[i]) {
+                free(titles[i]);
+                titles[i] = NULL;
+                entries[i].icon = NULL;
+                entries[i].title = NULL;
+            }
+        }
+
+        // 打开目录（分SD/LittleFS）
+        bool rootOpen = false;
+        if (useSD) {
+            rootOpen = root_sd.open(cwd.c_str());
+        } else {
+            root_lfs = LittleFS.open(cwd);
+            rootOpen = root_lfs;
+        }
+
+        if (!rootOpen) {
+            Serial.println("[文件] 目录打开失败");
+            cwd = "/";
+            continue;
+        }
+
+        GUI::info_msgbox("提示", "正在创建文件列表...");
+        unsigned long start_time = millis();
+
+        // 文件遍历逻辑
+        while (true) {
+            bool fileValid = false;
+            String filename;
+            bool isDir = false;
+
+            // SD卡处理 (SdFat)
+            if (useSD) {
+                fileValid = file_sd.openNext(&root_sd, O_READ);
+                if (!fileValid) break;
+
+                char fname[256];
+                file_sd.getName(fname, sizeof(fname));
+                filename = fname;
+                isDir = file_sd.isDir();
+            } 
+            // LittleFS处理 (原SD库)
+            else {
+                file_lfs = root_lfs.openNextFile();
+                if (!file_lfs) break;
+                
+                filename = file_lfs.name();
+                isDir = file_lfs.isDirectory();
+                fileValid = true;
+            }
+
+            // 跳过特定扩展名文件
+            if (gotoendsWidth && filename.endsWith(gotoendsWidth)) {
+                if (useSD) file_sd.close();
+                continue;
+            }
+
+            // 处理目录和文件
+            if (isDir) {
+                if (isApp && !filename.endsWith(".app")) continue;
+                entries[total_entries].icon = _folder_bits;
+            } else {
+                if (endsWidth) {
+                    int dotPos = filename.lastIndexOf('.');
+                    if (dotPos < 0) continue;
+                    String ext = filename.substring(dotPos + 1);
+                    if (ext != endsWidth) continue;
+                }
+                entries[total_entries].icon = isApp ? _luafile_bits : _getFileIcon(filename.substring(filename.lastIndexOf('.') + 1).c_str());
+            }
+
+            // 存储文件名
+            titles[total_entries] = strdup(filename.c_str());
+            if (!titles[total_entries]) {
+                GUI::msgbox("错误", "内存分配失败");
+                ESP.restart();
+            }
+            entries[total_entries].title = titles[total_entries];
+            
+            // 关闭文件句柄
+            if (useSD) file_sd.close();
+            
+            if (++total_entries >= 255) {
+                GUI::msgbox("警告", "文件数量超过上限");
+                break;
+            }
+        }
+
+        // 关闭目录
+        if (useSD) root_sd.close();
+        else root_lfs.close();
+
+        Serial.printf(" [文件] 列表创建耗时 %.2fms\n", (millis() - start_time) / 1000.0);
+
+        // 菜单显示和用户选择
+        int selected = GUI::menu(title, entries, 12, 12);
+        if (selected == 0) { // 上级目录
+            display.display(false);
+            if (cwd == "/") {
+                cleanup_titles(titles); // 清理内存
+                return NULL;
+            }
+            cwd = cwd.substring(0, cwd.lastIndexOf('/', cwd.length() - 2));
+        } else if (entries[selected].icon == _folder_bits) { // 进入目录
+            cwd += "/";
+            cwd += entries[selected].title;
+        } else { // 选择文件
+            snprintf(filedialog_buffer, sizeof(filedialog_buffer), 
+                    "%s%s/%s", 
+                    useSD ? "/sd" : "/littlefs", 
+                    cwd.c_str(), 
+                    entries[selected].title);
+            cleanup_titles(titles); // 清理内存
+            return filedialog_buffer;
+        }
+    }
+}

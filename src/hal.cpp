@@ -710,7 +710,7 @@ void HAL::ReqWiFiConfig()
 #define PARTITIONS_OFFSET 0x8000
 #define PARTITION_SPIFFS (4 - 1)
 
-void test_littlefs_size(bool format = true)
+/* void test_littlefs_size(bool format = true)
 {
     uint32_t size_request; // 存储目的分区大小
     size_t size_physical = 0;
@@ -722,8 +722,8 @@ void test_littlefs_size(bool format = true)
         hal.pref.putUInt("size", size_request);
         LittleFS.format();
     }
-}
-void refresh_partition_table()
+} */
+/* void refresh_partition_table()
 {
     md5_context_t ctx;
     static uint8_t table[16 * 20];
@@ -784,7 +784,7 @@ void refresh_partition_table()
         }
         ESP.restart();
     }
-}
+} */
 #include "driver/uart.h"
 void HAL::wait_input(uint32_t sleeptime){
     if (hal.can_light_sleep) {
@@ -848,7 +848,7 @@ void HAL::coredump_file(){
         LittleFS.remove(CoreDump_File);
     } else {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节\n", written);
-        GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf");
+        GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf", 5);
     }
 }
 
@@ -917,7 +917,7 @@ bool HAL::init()
     {
         pref.putUInt("size", p->size);
     }
-    refresh_partition_table();
+    // refresh_partition_table();
     if (pref.getUInt("lastsync") == 0)
     {
         pref.putUInt("lastsync", 1);  // 上次同步时间的准确时间
@@ -976,9 +976,9 @@ bool HAL::init()
             powerOff(false);
             ESP.restart();
         }
-        test_littlefs_size(false);
+        // test_littlefs_size(false);
     }
-    test_littlefs_size(true);
+    // test_littlefs_size(true);
     if(LittleFS.exists("/System") == false){LittleFS.mkdir("/System");}
     if(LittleFS.exists("/dat") == false){LittleFS.mkdir("/dat");}
     if (LittleFS.exists("/System/config.json") == false)
@@ -1249,8 +1249,14 @@ void HAL::update(void)
     long adc;
     adc = analogRead(PIN_ADC);
     adc = adc * ppc / 4096; // pref.getInt("ppc",7230)
-    VCC = adc;
-    // int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
+    if (adc > 4400){
+        VCC = adc;
+    }else{
+        if (hal.bat_info.voltage > 0)
+            VCC = (int16_t)(hal.bat_info.voltage * 1000);
+        else
+            VCC = adc;
+    }// int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
     if(hal.VCC < auto_sleep_mv)
     {

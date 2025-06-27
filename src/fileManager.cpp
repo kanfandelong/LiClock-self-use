@@ -1,3 +1,5 @@
+#pragma GCC optimize ("O3")
+
 #include <A_Config.h>
 #include <GUI.h>
 // 9 * 12
@@ -151,11 +153,12 @@ open_root:
                 goto open_root;
             }
             GUI::info_msgbox("提示", "正在创建文件列表...");
+            unsigned long  start_time = millis(), end_time;
             file = root.openNextFile();
+            String ext, tmp;
             while (file)
             {
-                String tmp = file.name();
-                String ext;
+                tmp = file.name();
                 if (tmp.lastIndexOf('.') != -1)
                 {
                     ext = tmp.substring(tmp.lastIndexOf('.') + 1);
@@ -230,11 +233,13 @@ open_root:
                 file.close();
                 file = root.openNextFile();
             }
+            end_time = millis() - start_time;
+            log_i(" [文件] 创建文件列表，耗时%.2fs", (float)end_time / 1000.0);
             int selected = menu(title, entries, 12, 12);
             if (selected == 0)
             {
                 // 上一级目录
-                display.display(false); // 全局刷新一次
+                display.display(); // 局部刷新一次
                 if (cwd == "/")
                 {
                     total_entries = 1;

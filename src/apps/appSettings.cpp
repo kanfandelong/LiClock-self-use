@@ -370,16 +370,7 @@ void AppSettings::menu_alarm()
 {
     int res = 0;
     bool end = false;
-    menu_item settings_menu_alarm[] = {
-        {NULL, "返回上一级"},
-        {NULL, NULL},
-        {NULL, NULL},
-        {NULL, NULL},
-        {NULL, NULL},
-        {NULL, NULL},
-        {NULL, "闹钟铃声"},
-        {NULL, NULL},
-    };
+    menu_item *settings_menu_alarm = new menu_item[alarms.alarm_num + 3];
     const menu_item settings_menu_alarm_sub[] = {
         {NULL, "返回"},
         {NULL, "时间"},
@@ -402,13 +393,15 @@ void AppSettings::menu_alarm()
         {NULL, "手动输入"},
         {NULL, NULL},
     };
-    char alarm_buf[5][30];
+    char alarm_buf[alarms.alarm_num][30];
     char alarm_buf_week[25];
     char bit_week[7] = {0};
     while (end == false && hasToApp == false)
     {
+        settings_menu_alarm[0].title = "返回";
+        settings_menu_alarm[0].icon = NULL;
         // 读取闹钟设置
-        for (int i = 0; i < 5; ++i)
+        for (int i = 0; i < alarms.alarm_num; ++i)
         {
             if (alarms.alarm_table[i].enable == 0)
             {
@@ -419,11 +412,16 @@ void AppSettings::menu_alarm()
                 sprintf(alarm_buf[i], "%d：%02d:%02d,%s", i + 1, alarms.alarm_table[i].time / 60, alarms.alarm_table[i].time % 60, alarms.getEnable(alarms.alarm_table + i).c_str());
             }
             settings_menu_alarm[i + 1].title = alarm_buf[i];
+			settings_menu_alarm[i + 1].icon = NULL;
         }
+        settings_menu_alarm[alarms.alarm_num + 1].title = "设置闹钟铃声";
+        settings_menu_alarm[alarms.alarm_num + 1].icon = NULL;
+        settings_menu_alarm[alarms.alarm_num + 2].title = NULL;
+        settings_menu_alarm[alarms.alarm_num + 2].icon = NULL;
         res = GUI::menu("闹钟设置", settings_menu_alarm);
         if (res == 0)
             break;
-        if (res == 6)
+        if (res == alarms.alarm_num + 1)
         {
             const char *str = GUI::fileDialog("请选择闹钟铃声文件", false, "buz");
             if (str)

@@ -14,14 +14,17 @@ void Alarm::load()
         return;
     }
     File f = LittleFS.open("/System/alarms.bin");
-    f.readBytes((char *)alarm_table, sizeof(alarm_table));
+    alarm_num = f.read();
+    alarm_table = new alarm_t[alarm_num];
+    f.readBytes((char *)alarm_table, sizeof(alarm_t) * alarm_num);
     f.close();
 }
 
 void Alarm::save()
 {
     File f = LittleFS.open("/System/alarms.bin", "w");
-    f.write((uint8_t *)alarm_table, sizeof(alarm_table));
+    f.write(alarm_num);
+    f.write((uint8_t *)alarm_table, sizeof(alarm_t) * alarm_num);
     f.close();
 }
 
@@ -30,7 +33,7 @@ int8_t Alarm::getNext(uint16_t week, uint16_t now)
     uint16_t bit_week = BIT(week);
     int next = -1;
     uint16_t next_time = 0;
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < alarm_num; ++i)
     {
         if ((alarm_table[i].enable & bit_week) || (alarm_table[i].enable & 0x80))
         {
@@ -301,7 +304,7 @@ String Alarm::getEnable(alarm_t *alarm)
     if (alarm->enable == 0b00111110)
         return "周一到周五";
     if (alarm->enable == 0b01000001)
-        return "周六和周日";
+        return "周日和周六";
     String result = "";
     for (uint8_t i = 0; i < 7; ++i)
     {

@@ -131,7 +131,7 @@ namespace GUI
      * @param title 窗口标题
      * @param msg  消息内容
      */
-    void msgbox(const char *title, const char *msg)
+    void msgbox(const char *title, const char *msg, uint16_t timeout)
     {
         // 160*100窗口，圆角5
         constexpr int start_x = (296 - 160) / 2;
@@ -160,7 +160,7 @@ namespace GUI
                 break;
             if (millis() - start > 30000)
             {
-                hal.wait_input(300);
+                hal.wait_input(timeout);
                 break;
             }
             delay(10);

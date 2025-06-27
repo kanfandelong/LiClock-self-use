@@ -40,7 +40,7 @@ void Peripherals::check()
     Serial.printf("Peripherals check OK: 0x%02x\n", i2cbitmask);
     F_LOG("Peripherals check OK: 0x%02x", i2cbitmask);
     Serial.println(msg);
-    GUI::msgbox("检测到的外设", msg.c_str());
+    GUI::msgbox("检测到的外设", msg.c_str(), 5);
     i2cbitmask |= PERIPHERALS_SD_BIT;
     hal.pref.putUShort(SETTINGS_PARAM_PHERIPHERAL_BITMASK, i2cbitmask);
     peripherals_current = i2cbitmask;

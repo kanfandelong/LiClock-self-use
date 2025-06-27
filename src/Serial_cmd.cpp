@@ -1,5 +1,6 @@
 #include "Serial_cmd.h"
 #include <nvs_flash.h>
+#include "chip-debug-report.h"
 CMD cmd;
 char task_list[1024];
 bool stop_fileserver = false; 
@@ -37,7 +38,7 @@ void fileserver_task(void *){
 void cmd_task(void *) {
     size_t bufIndex = 0;
     memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
-    BLUE;
+    CYAN;
     Serial.println("LiClock串口工具已启动");
     RESET;
     while(1) {
@@ -72,11 +73,20 @@ void cmd_task(void *) {
             }
         }
   
-        delay(10); // 适当释放CPU
+        vTaskSuspend(NULL);
     }
 }
+void IRAM_ATTR serialRxCallback() {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    // 唤醒 cmd_task
+    cmd.run();
+
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
 void CMD::begin(){
-    xTaskCreatePinnedToCore(cmd_task, "cmd_task", 4096, NULL, 1, &cmd_task_handle, 0);
+    xTaskCreate(cmd_task, "cmd_task", 4096, NULL, 4, &cmd_task_handle); // 创建 cmd_task，且不指定核心
+    Serial.onReceive(serialRxCallback, true);
 }
 void CMD::stop(){
     vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
@@ -89,10 +99,10 @@ void CMD::end(){
     vTaskDelete(cmd_task_handle);   // 删除串口指令任务
 }
 void CMD::printHelp(){
-    Serial.println("===================================");
-    Serial.println("欢迎使用LiClock串口工具");
-    Serial.println("此工具旨在帮助固件开发和调试，以及进行错误设置后的救砖操作");
-    Serial.println("命令格式: #command[param]*");
+    Serial.println(F("==================================="));
+    Serial.println(F("欢迎使用LiClock串口工具"));
+    Serial.println(F("此工具旨在帮助固件开发和调试，以及进行错误设置后的救砖操作"));
+    Serial.println(F("命令格式: #command[param]*"));
     Serial.println("\n=== Available Commands ===");
     
     // 系统命令
@@ -106,7 +116,8 @@ void CMD::printHelp(){
     Serial.printf("%-18s - %s\n", get_bat_info, "显示电池信息");
     Serial.printf("%-18s - %s\n", file_server_begin, "启动文件服务器"); 
     Serial.printf("%-18s - %s\n", file_server_end, "停止文件服务器");
-    Serial.printf("%-18s - %s\n", ((String)set_display_debug + "[]").c_str(), "启用屏幕debug信息输出");
+    Serial.printf("%-18s - %s\n", ((String)set_display_debug + "[]").c_str(), "启用屏幕驱动debug信息输出");
+    Serial.printf("%-18s - %s\n", esp_partition_info, "显示分区表信息");
 
     // 硬件控制
     Serial.println("[Hardware]");
@@ -114,7 +125,7 @@ void CMD::printHelp(){
     Serial.printf("%-18s - %s\n", set_cpu_freq, "获取CPU频率（单位：MHz）");
     Serial.printf("%-18s - %s\n", ((String)set_cpu_freq + "[]").c_str(), "设置CPU频率（单位：MHz）,立即生效,注意应在[]中填入参数");
     Serial.printf("%-18s - %s\n", ((String)config_cpu_freq + "[]").c_str(), "保存CPU频率（单位：MHz）到设置,重启后生效,注意应在[]中填入参数");
-    Serial.println("CPU频率可选值:240、160、80、40、20、10");
+    Serial.println(F("CPU频率可选值:240、160、80、40、20、10"));
     Serial.printf("%-18s - %s\n", esp_chip_info_, "显示芯片信息");
     Serial.printf("%-18s - %s\n", ((String)set_display + "[]").c_str(), "强制指定屏幕显示灰度");
     Serial.printf("%-18s - %s\n", ((String)set_display_PLL + "[]").c_str(), "设置屏幕PLL时钟（ESP32复位后失效）");
@@ -158,9 +169,9 @@ void CMD::parseCommand(const char* command) {
     // 命令处理
     if (parsed >= 1) {
         // Serial.printf("Command: %s\n", cmd);
-        if (parsed == 2) {
+        // if (parsed == 2) {
             // Serial.printf("Parameter: %s\n", param);
-        }
+        // }
         // 指令处理
         if (strcmp(cmd, set_cpu_freq) == 0) {
             if (parsed == 2){
@@ -259,18 +270,13 @@ void CMD::parseCommand(const char* command) {
             remaining %= 60000;                              // 剩余毫秒数
             long seconds = remaining / 1000;        // 计算秒
             long tenths = (remaining % 1000) / 100; // 计算十分位（0-9）
-            Serial.printf("Runtime: %3d:%02d:%02d.%d", hours, minutes, seconds, tenths);
+            Serial.printf("Runtime: %4d:%02d:%02d.%d", hours, minutes, seconds, tenths);
         } else if (strcmp(cmd, get_bat_info) == 0){
             hal.printBatteryInfo();
-        } else if (strcmp(cmd, get_cpu_usage) == 0) {   
-            TaskStatus_t *pxTaskStatusArray;
-            UBaseType_t uxArraySize, x; 
-            
-            uxArraySize = uxTaskGetNumberOfTasks();
-            pxTaskStatusArray = (TaskStatus_t *)pvPortMalloc(uxArraySize * sizeof(TaskStatus_t));
-
-            if (pxTaskStatusArray != NULL) 
-                uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, uxArraySize, NULL);
+        } else if (strcmp(cmd, get_cpu_usage) == 0) { 
+            RED;  
+            Serial.println("only use in ESP-IDF");
+            RESET;
         } else if (strcmp(cmd, set_boot_app) == 0) {
             hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
         } else if (strcmp(cmd, help) == 0) {
@@ -288,6 +294,11 @@ void CMD::parseCommand(const char* command) {
         } else if (strcmp(cmd, file_server_end) == 0) {
             stop_fileserver = true;
             delay(200);
+        } else if (strcmp(cmd, esp_partition_info) == 0) {
+            CYAN;
+            printPartitionsInfo();
+            chip_report_printf("------------------------------------------\n");
+            RESET;
         } else {
             RED;
             Serial.println("Error: Unknown command");

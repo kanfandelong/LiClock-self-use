@@ -26,6 +26,7 @@
 #define free_heap_size      "heap"
 #define esp_light_sleep     "lightsleep"
 #define esp_chip_info_      "chipinfo"
+#define esp_partition_info  "partitioninfo"
 #define file_server_begin   "fserverbegin"
 #define file_server_end     "fserverend"
 #define esp_restart_        "rst"
