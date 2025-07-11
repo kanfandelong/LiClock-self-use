@@ -499,7 +499,18 @@ static int16_t u8g2_font_draw_glyph(u8g2_font_t *u8g2, int16_t x, int16_t y, uin
   if ( glyph_data != NULL )
   {
     dx = u8g2_font_decode_glyph(u8g2, glyph_data);
+    return dx;
   }
+
+    // === 缺失字符处理：绘制问号 ===
+  const uint16_t QUESTION_MARK = 0x003F; // Unicode问号字符
+  const uint8_t *fallback_glyph_data = u8g2_font_get_glyph_data(u8g2, QUESTION_MARK);
+  
+  if (fallback_glyph_data != NULL) {
+    dx = u8g2_font_draw_glyph(u8g2, x, y, QUESTION_MARK);
+    return dx;
+  }
+
   return dx;
 }
 

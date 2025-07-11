@@ -58,6 +58,13 @@ void AppClockOnly::setup()
         peripherals.aht.getEvent(&humidity, &temp);
         xSemaphoreGive(peripherals.i2cMutex);
         u8g2Fonts.printf("温度:%.1f℃ 湿度:%.1f%%", temp.temperature, humidity.relative_humidity);
+    } else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
+    {
+        peripherals.load_append(PERIPHERALS_SHT30_BIT);
+        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        peripherals.sht.read();
+        xSemaphoreGive(peripherals.i2cMutex);
+        u8g2Fonts.printf("温度:%.1f℃ 湿度:%.1f%%", peripherals.sht.getTemperature(), peripherals.sht.getHumidity());
     }
     // 电池
     //display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);

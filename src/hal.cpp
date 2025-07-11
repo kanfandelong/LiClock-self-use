@@ -484,20 +484,38 @@ bool HAL::cheak_firmware_update(){
     return true;
 }
 /**
- * @brief 检查CPU频率，若低于80MHz则设置CPU频率为80MHz
+ * @brief 检查当前 CPU 频率，若低于指定频率或需要强制设置，则调整为指定频率
+ *
+ * 该函数用于确保 ESP32 的 CPU 运行在期望的频率上。用于系统初始化、低功耗控制或性能需求切换时调用。
+ *
+ * @param _freq 目标 CPU 频率（单位 MHz）
+ * @param setfreq 是否强制设置频率（忽略当前频率是否高于目标频率）
+ *
+ * ### 主要逻辑：
+ * - 获取当前 CPU 频率（单位 MHz）
+ * - 如果当前频率 **小于**目标 `_freq` 或者设置了 `setfreq=true` 且频率不一致：
+   - 停止串口通信以避免波特率错乱
+   - 调用 `setCpuFrequencyMhz()` 设置新的 CPU 频率
+   - 重新初始化串口并开启调试输出
+   - 输出日志记录频率变化结果
+
+ * ### 注意事项：
+ * - 若未强制设置 (`setfreq=false`)，仅当当前频率低于 `_freq` 才会调整
+ * - 默认检查参数为 80MHz（启用射频条件）
+ * - 日志同时通过 `ESP_LOGI/W` 和自定义日志函数 [F_LOG](file://e:\LiClock-dev_multithread\include\A_Config.h#L58-L71) 输出
  */
-void HAL::cheak_freq(int _freq)
+void HAL::cheak_freq(int _freq, bool setfreq)
 {
     int freq = ESP.getCpuFreqMHz();
-    if (freq < _freq){
+    if (freq < _freq || (setfreq && (freq != _freq))){
         Serial.end();
-        bool cpuset = setCpuFrequencyMhz(80);
+        bool cpuset = setCpuFrequencyMhz(setfreq ? _freq : 80);
         Serial.begin(115200);
         Serial.setDebugOutput(true);
-        ESP_LOGI("hal", "CpuFreq: %dMHZ -> 80MHZ", freq);
-        F_LOG("CpuFreq: %dMHZ -> 80MHZ", freq);
+        ESP_LOGI("hal", "CpuFreq: %dMHZ -> %dMHZ", freq, setfreq ? _freq : 80);
+        F_LOG("CpuFreq: %dMHZ -> %dMHZ", freq, setfreq ? _freq : 80);
         if(cpuset)
-            {ESP_LOGI("hal", "ok");F_LOG("已调节CPU频率至可启用WIFI的状态");}
+            {ESP_LOGI("hal", "ok");F_LOG("已调节CPU频率至目标频率");}
         else{ESP_LOGW("hal", "err");F_LOG("CPU频率调节失败");}
     }
 }

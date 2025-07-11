@@ -32,7 +32,7 @@ typedef struct
 typedef struct {
     unsigned long timeMs;
     String text;
-}LyricLine;
+}LyricLine;                     // 歌词行结构体
     
 SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
 TaskHandle_t player_loop_task_handle = NULL; // 音频任务句柄
@@ -43,9 +43,9 @@ AudioOutputI2S *output;                      // I2S输出
 AudioOutputI2SNoDAC *noDAC;                  // I2S输出
 // 以下变量保存至RTC内存，避免deepsleep后丢失
 RTC_DATA_ATTR uint16_t currentSongIndex = 0; // 当前播放索引（音乐列表数组位置）
-RTC_DATA_ATTR char buf[512] = "";                 // 实际存储当前播放文件路径字符串
-RTC_DATA_ATTR const char *music_file = NULL;        // 当前播放文件的指针
-RTC_DATA_ATTR bool is_ran = false;       // 用于判断播放器的启动状态（初次运行/已经运行过）
+RTC_DATA_ATTR char buf[512] = "";            // 实际存储当前播放文件路径字符串
+RTC_DATA_ATTR const char *music_file = NULL; // 当前播放文件的指针
+RTC_DATA_ATTR bool is_ran = false;           // 用于判断播放器的启动状态（初次运行/已经运行过）
 
 class AppMusicPlayer : public AppBase
 {
@@ -66,6 +66,7 @@ public:
     String getLyricPath(const char* musicPath);
     void loadLyrics(const char* path);
     void getLyric(unsigned long currentTime);
+    int  findSongIndexInFileList();
     void select_file(bool user = false);
     void file_in(const char* path);
     void next_song(bool next = true, bool btn = false);
@@ -78,14 +79,14 @@ public:
     void show_display();
     void player_set();
     void setup();
-    String currentDir = "/";        // 当前歌曲目录
-    String pathStr;                 // 当前歌曲位于的目录
-    bool is_root = false;           // 是否是根目录
-    menu_item *fileList = nullptr;            // 歌曲菜单数组
-    char *titles[256] = {nullptr};              // 歌曲名内存指针数组
-    char char_buf[512];             // 字符串拼接缓存
-    bool filelist_ok = false;       // 歌曲列表就绪标志
-    uint16_t maxSong = 0;           // 歌曲总数
+    String currentDir = "/";                // 当前歌曲目录
+    String pathStr;                         // 当前歌曲位于的目录
+    bool is_root = false;                   // 是否是根目录
+    menu_item *fileList = nullptr;          // 歌曲菜单数组
+    char *titles[256] = {nullptr};          // 歌曲名内存指针数组,存储歌曲名所在的内存位置
+    char char_buf[512];                     // 字符串拼接缓存
+    bool filelist_ok = false;               // 歌曲列表就绪标志
+    uint16_t maxSong = 0;                   // 歌曲总数
 
     bool _play_end = false;                 // 播放完成标志
     unsigned long play_time_start;          // 播放开始时间
@@ -101,18 +102,18 @@ public:
     bool need_deep_sleep = false;           // 是否需要进入deepsleep
     int play_count = 1;                     // 播放歌曲数量
     int _count = 20;                        // 播放歌曲上限（控制重启）
-    int display_count = 0;
-    char currentLyric[64]; // 当前显示的歌词
-    int currentLyricIndex = 0;
-    int lastLyricIndex = 0;
-    int _lrcoffset = 0;
-    unsigned long lastLyricUpdate = 0; // 上次歌词更新时间
-    int totalLyricLines = 0;
-    LyricLine* lyricArray = nullptr; // 使用动态数组存储歌词
-    bool lrcintf  = false;
-    bool lrcisload = false;
+    int display_count = 0;                  // 屏幕刷新次数
+    char currentLyric[64];                  // 当前显示的歌词
+    int currentLyricIndex = 0;              // 当前显示的歌词索引
+    int lastLyricIndex = 0;                 // 上次显示的歌词索引
+    int _lrcoffset = 0;                     // 歌词显示时间补偿
+    unsigned long lastLyricUpdate = 0;      // 上次歌词更新时间
+    int totalLyricLines = 0;                // 歌词总行数
+    LyricLine* lyricArray = nullptr;        // 使用动态数组存储歌词
+    bool lrcintf  = false;                  // 歌词位于的文件系统
+    bool lrcisload = false;                 // 歌词加载状态
 };
-static AppMusicPlayer app;
+static AppMusicPlayer app;                  // 创建App对象
 
 // 回调函数，用于处理ID3标签数据
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string) 
@@ -196,7 +197,7 @@ void player_loop(void *){
         }
         else
             delay(5);  // 避免意外情况
-        delay(1);
+        delay(1); // 释放cpu
     }
 }
 /**
@@ -224,6 +225,21 @@ void AppMusicPlayer::set(){
     return path;
 } */
 
+/**
+ * @brief 根据音乐文件路径生成对应的歌词文件（.lrc）路径
+ *
+ * 该函数用于将音乐文件的路径转换为对应的歌词文件路径。
+ * - 首先去除路径中的文件系统前缀（如 "/sd" 或 "/littlefs"）
+ * - 然后提取目录路径和文件名，并将文件扩展名替换为 ".lrc"
+ * - 最终拼接出歌词文件的完整路径，格式为 "[目录]/lrc/[文件名].lrc"
+ *
+ * 同时设置成员变量 `lrcintf` 来标识歌词文件应从哪个文件系统中读取：
+ * - true 表示歌词位于 SD 卡文件系统（/sd）
+ * - false 表示歌词位于 LittleFS 文件系统（/littlefs）
+ *
+ * @param musicPath 音乐文件的完整路径字符串（const char*）
+ * @return 返回生成的歌词文件路径（String 类型）
+ */
 String AppMusicPlayer::getLyricPath(const char* musicPath) {
     String musicPathStr(musicPath);
     
@@ -259,7 +275,19 @@ String AppMusicPlayer::getLyricPath(const char* musicPath) {
     return lrcPath;
 }
 
-// 预先计算歌词行数
+/**
+ * @brief 统计指定歌词文件中的有效歌词时间行数量
+ *
+ * 该函数用于统计 `.lrc` 歌词文件中以左方括号 '[' 开头的行数，
+ * 这些行通常表示带有时间戳的歌词内容，用于后续内存分配和歌词加载。
+ *
+ * - 输入路径为音乐文件路径，会自动将扩展名替换为 `.lrc`
+ * - 使用 `SD` 或 `LittleFS` 文件系统打开歌词文件
+ * - 每读取一行就判断是否为有效歌词时间行（即以 '[' 开头）
+ *
+ * @param path 音乐文件路径（用于生成对应的歌词文件路径）
+ * @return 返回有效歌词时间行的数量；若文件无法打开则返回 -1
+ */
 int countLyricLines(const char* path) {
     int count = 0;
     String lrcPath = path;
@@ -284,10 +312,30 @@ int countLyricLines(const char* path) {
     return count;
 }
 
-// 解析并加载歌词
+/**
+ * @brief 加载并解析指定路径的 `.lrc` 歌词文件内容
+ *
+ * 该函数负责加载和解析与当前播放音乐对应的歌词文件（`.lrc`），
+ * 包括以下主要步骤：
+ * - 清理已存在的歌词数据
+ * - 获取歌词文件路径
+ * - 统计歌词行数并分配内存
+ * - 打开歌词文件并逐行解析时间戳与歌词文本
+ * - 按照时间顺序存储至预分配的 `lyricArray` 数组中
+ *
+ * 支持两种文件系统：
+ * - SD 卡（通过 `SD.open()`）
+ * - LittleFS（通过 `LittleFS.open()`）
+ *
+ * 解析出的时间戳将被统一转换为毫秒格式，便于后续播放时同步显示。
+ *
+ * @param path 音乐文件路径（用于生成对应的歌词文件路径）
+ * @note 该函数会设置成员变量 `lrcisload = true` 表示加载成功
+ */
 void AppMusicPlayer::loadLyrics(const char* path) {
 
     lrcisload = false;
+    unsigned long loadlrcbegin = millis();
     if (lyricArray != nullptr) {
         delete[] lyricArray;
         lyricArray = nullptr;
@@ -296,20 +344,28 @@ void AppMusicPlayer::loadLyrics(const char* path) {
     log_i("期望歌词路径：%s", lrcPath.c_str());
     totalLyricLines = countLyricLines(lrcPath.c_str());
     if (totalLyricLines == -1) {
-        log_w("歌词文件不存在");
+        log_w("歌词文件不存在,中止加载操作");
         return;
     }
 
     // 预先分配内存
     lyricArray = new LyricLine[totalLyricLines];
+
+    if (lyricArray == nullptr) {
+        log_w("内存分配失败,中止加载操作");
+        return;
+    }
     
     File file; 
     if (lrcintf)
         file = SD.open(lrcPath, "r");
     else
         file = LittleFS.open(lrcPath, "r");
-    if (!file) return;
 
+    if (!file) {
+        log_w("歌词文件打开发生意外错误,中止加载操作");
+        return;
+    }
     log_i("开始加载歌词，歌词行数：%d", totalLyricLines);
 
     int index = 0;
@@ -349,8 +405,22 @@ void AppMusicPlayer::loadLyrics(const char* path) {
     lrcisload = true;
     currentLyricIndex = 0;
     lastLyricIndex = 0;
+    log_i("歌词加载完成，所有操作耗时：%lums", millis() - loadlrcbegin);
 }
-
+/**
+ * @brief 根据当前播放时间获取对应的歌词文本
+ *
+ * 该函数用于根据传入的播放时间 `currentTime` 查找并返回
+ * 当前应显示的歌词内容，实现播放进度与歌词的同步。
+ *
+ * 主要流程：
+ * - 从当前索引开始查找第一个大于当前播放时间的歌词项
+ * - 回退一个索引以确保获得的是当前应显示的歌词
+ * - 将歌词文本复制到显示缓冲区 `currentLyric`
+ *
+ * @param currentTime 当前播放时间（单位：毫秒）
+ * @note 显示歌词文本最大长度为 63 字节（由 [snprintf](file://C:\Users\admin\.platformio\packages\toolchain-xtensa-esp32\xtensa-esp32-elf\sys-include\stdio.h#L266) 控制）
+ */
 void AppMusicPlayer::getLyric(unsigned long currentTime) {
     // 从当前索引开始查找
     while (currentLyricIndex < totalLyricLines) {
@@ -367,6 +437,29 @@ void AppMusicPlayer::getLyric(unsigned long currentTime) {
     }
 
     snprintf(currentLyric, 64, "%s", lyricArray[currentLyricIndex].text.c_str());
+}
+
+int AppMusicPlayer::findSongIndexInFileList() {
+    if (music_file == NULL || !filelist_ok) {
+        return -1; // 参数无效
+    }
+
+    // 提取 music_file 的文件名部分
+    String filename = String(music_file);
+    int lastSlash = filename.lastIndexOf('/');
+    if (lastSlash != -1) {
+        filename = filename.substring(lastSlash + 1); // 取得文件名
+    }
+
+    // 遍历 title 查找匹配项
+    for (int i = 0; titles[i] != NULL; ++i) { // 跳过 "返回" 项（索引0）
+        if (filename.equals(String(titles[i]))) {
+            return i; // 找到匹配项，返回索引
+        }
+    }
+
+    log_w("未在歌曲列表中找到“%s”的找到匹配项", filename);
+    return -1; // 未找到匹配项
 }
 
 /**
@@ -409,8 +502,13 @@ select:
     filelist_ok = false;
     GUI::info_msgbox("提示", "正在创建音乐列表");
     bulid_music_list();
-    sprintf(buf, "%s", music_file);
-    music_file = buf;
+    sprintf(buf, "%s", music_file); //复制歌曲路径到缓冲区
+    music_file = buf;               //将歌曲路径指向缓冲器
+    int index = findSongIndexInFileList();
+    if (index == -1)
+        currentSongIndex = 1;
+    else
+        currentSongIndex = index;
 }
 /**
  * 文件输入函数，自动处理文件系统并传入AudioFileSource
@@ -822,6 +920,8 @@ void AppMusicPlayer::show_display(){
     } 
     uint32_t play_time = (millis() - play_time_start) / 1000;
     uint32_t total_time = play_time_total / 1000;
+    if (!hal.pref.getBool(hal.get_char_sha_key("循环播放"), false))
+        total_time = 0;
     u8g2Fonts.printf("  %02d:%02d/%02d:%02d  index:%d %d", play_time / 60, play_time % 60, total_time / 60, total_time % 60, currentSongIndex, play_count);
     u8g2Fonts.setCursor(3, 105);
     u8g2Fonts.printf("Gain:%.2f vcc:%dmV bat:%.3fV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.voltage, hal.bat_info.soc, hal.bat_info.soh);

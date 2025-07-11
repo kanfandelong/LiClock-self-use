@@ -937,7 +937,7 @@ namespace GUI
         }
         pop_buffer();
         hal.unhookButton();
-        display.display(); // 全局刷新一次
+        display.display(true); // 全局刷新一次
         return currentNumber;
     }
     /**
@@ -1079,7 +1079,7 @@ namespace GUI
 
         pop_buffer();
         hal.unhookButton();
-        display.display(); // 全局刷新
+        display.display(true); // 刷新
         return currentNumber;
     }
     int msgbox_time(const char *title, int pre_value)

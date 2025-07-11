@@ -16,7 +16,7 @@ void Peripherals::check()
     if (Wire.endTransmission() == 0)
     {
         i2cbitmask |= PERIPHERALS_AHT20_BIT;
-        msg += "AHT20温度传感器\n";
+        msg += "AHT20温湿度传感器\n";
     }
     Wire.beginTransmission(BMP280_ADDRESS);
     if (Wire.endTransmission() == 0)
@@ -35,6 +35,12 @@ void Peripherals::check()
     {
         i2cbitmask |= PERIPHERALS_DS3231_BIT;
         msg += "DS3231高精度RTC\n";
+    }
+    Wire.beginTransmission(0x44);
+    if (Wire.endTransmission() == 0)
+    {
+        i2cbitmask |= PERIPHERALS_SHT30_BIT;
+        msg += "SHT30温湿度传感器\n";
     }
     xSemaphoreGive(i2cMutex);
     Serial.printf("Peripherals check OK: 0x%02x\n", i2cbitmask);
@@ -167,6 +173,22 @@ bool Peripherals::load(uint16_t bitmask)
         else
             xSemaphoreGive(i2cMutex);
         ahtInited = true;
+    }
+    if ((bitmask & PERIPHERALS_SHT30_BIT) && (peripherals_current & PERIPHERALS_SHT30_BIT == 0))
+    {
+        Serial.println("[外设] 首次加载SHT30");
+        xSemaphoreTake(i2cMutex, portMAX_DELAY);
+        if (!sht.begin())
+        {
+            xSemaphoreGive(i2cMutex);
+            Serial.println("Could not find SHT30? Check wiring");
+            F_LOG("Could not find AHT? Check wiring");
+            check();
+        }
+        else{
+            uint16_t sht_stautus = sht.readStatus();
+            xSemaphoreGive(i2cMutex);
+        }
     }
     // if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     if (bitmask & PERIPHERALS_BMP280_BIT && peripherals_current & PERIPHERALS_BMP280_BIT && bmpInited == false)

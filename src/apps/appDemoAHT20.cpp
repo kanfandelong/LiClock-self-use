@@ -24,12 +24,24 @@ void AppDemoAHT20::set(){
 }
 void AppDemoAHT20::setup()
 {
-    sensors_event_t humidity, temp;
-    xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-    peripherals.aht.getEvent(&humidity, &temp); // populate temp and humidity objects with fresh data
-    xSemaphoreGive(peripherals.i2cMutex);
     char buf[50];
-    sprintf(buf, "温度: %g ℃\n相对湿度：%g% rH\n", temp.temperature,humidity.relative_humidity);
+    if (peripherals.peripherals_current & PERIPHERALS_AHT20_BIT)
+    {
+        sensors_event_t humidity, temp;
+        peripherals.load_append(PERIPHERALS_AHT20_BIT);
+        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        peripherals.aht.getEvent(&humidity, &temp);
+        xSemaphoreGive(peripherals.i2cMutex);
+        sprintf(buf, "温度: %g ℃\n相对湿度：%g% rH\n当前为AHT20传感器", temp.temperature,humidity.relative_humidity);
+    } else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
+    {
+        peripherals.load_append(PERIPHERALS_SHT30_BIT);
+        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        peripherals.sht.read();
+        xSemaphoreGive(peripherals.i2cMutex);
+        sprintf(buf, "温度: %g ℃\n相对湿度：%g% rH\n当前为SHT30传感器", peripherals.sht.getTemperature(), peripherals.sht.getHumidity());
+    }
+
     Serial.println(buf);
     GUI::msgbox("传感器信息", buf);
     appManager.goBack();

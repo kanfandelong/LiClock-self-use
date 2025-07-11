@@ -4,6 +4,7 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_SGP30.h>
 #include <SparkFunBQ27441.h>
+#include <SHT85.h>
 #include <Wire.h>
 #include <SD.h>
 #include <DS3231.h>
@@ -12,6 +13,7 @@
 #define PERIPHERALS_BMP280_BIT 4
 #define PERIPHERALS_SGP30_BIT 8
 #define PERIPHERALS_DS3231_BIT 16
+#define PERIPHERALS_SHT30_BIT 32
 
 class Peripherals
 {
@@ -38,6 +40,7 @@ public:
     void load_append(uint16_t bitmask);
     // 下面是传感器实例
     Adafruit_AHTX0 aht;
+    SHT sht = SHT30(0x44);
     Adafruit_BMP280 bmp;
     Adafruit_SGP30 sgp;
     DS3231 rtc;

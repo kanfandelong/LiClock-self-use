@@ -61,6 +61,7 @@ RTC_DATA_ATTR u8_t lightsleep_count = 0; // lightsleep次数
 static AppEBook app;
 static void appebook_exit()
 {
+    hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
     display.clearScreen();
     display.display(true);
     if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")))
@@ -140,6 +141,10 @@ void AppEBook::setup()
     app.currentFilename[0] = 0;
     if (hal.pref.getBool(hal.get_char_sha_key("快速显示")))
         display.epd2.PLL_set(0x3A);
+    else
+        display.epd2.PLL_set(0x3C);
+    if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))
+        hal.cheak_freq(40, true);
     display.clearScreen();
     size_t s = hal.pref.getBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, 256);
     if (hal.wakeUpFromDeepSleep == false || currentPage == -1)
@@ -277,6 +282,7 @@ void AppEBook::setup()
         }
         while_run = hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"));
         if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠"))){
+            hal.cheak_freq(40, true);
             while_run = true;
             while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing()) && (!exit_app)) {
                 delay(50);
@@ -1137,6 +1143,7 @@ bool AppEBook::indexcode_3()
 }
 bool AppEBook::indexFile()
 {
+    hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
     if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")) == false)
         return indexcode_2();
     else if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) == false && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")))
@@ -1913,7 +1920,6 @@ void AppEBook::ebooksettings()
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
     bool code2 = hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"));
-    bool pll = hal.pref.getBool(hal.get_char_sha_key("快速显示"));
     int res = 0;
     bool end = false;
     while (!end)
@@ -1938,13 +1944,7 @@ void AppEBook::ebooksettings()
             break;
         }
     }
-    if (code != hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")))
-    {
-        indexFile();
-        gotoPage(0);
-        drawCurrentPage();
-    }
-    if (code2 != hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")))
+    if (!(code == hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && code2 == hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"))))
     {
         indexFile();
         gotoPage(0);
@@ -1952,4 +1952,6 @@ void AppEBook::ebooksettings()
     }
     if (hal.pref.getBool(hal.get_char_sha_key("快速显示")))
         display.epd2.PLL_set(0x3A);
+    else
+        display.epd2.PLL_set(0x3C);
 }
