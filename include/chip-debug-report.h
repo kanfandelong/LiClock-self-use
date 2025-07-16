@@ -26,7 +26,7 @@
 // #include "esp32-hal-periman.h"
 
 #define chip_report_printf log_printf
-#define ARDUINO_HOST_OS "Windows11 x64 23H2 22631.5189"
+#define ARDUINO_HOST_OS "Windows10 x64 22H2 19045.6093"
 
 #define printMemCapsInfo(caps) _printMemCapsInfo(MALLOC_CAP_##caps, #caps)
 #define b2kb(b)                ((float)b / 1024.0)
