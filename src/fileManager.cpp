@@ -167,7 +167,14 @@ open_root:
                 {
                     ext = "";
                 }
-                Serial.println(tmp);
+                if (file.isDirectory())
+                    Serial.printf("\033[36m%s\033[0m\n", tmp.c_str());
+                else{
+                    if (tmp.endsWith(".lua"))
+                        Serial.printf("\033[32m%s\033[0m\n", tmp.c_str());
+                    else
+                        Serial.println(tmp);
+                }
                 if (gotoendsWidth != NULL)
                 {
                     if (tmp.endsWith(gotoendsWidth))

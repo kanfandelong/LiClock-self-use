@@ -32,14 +32,6 @@ static const uint8_t wenjian_bits[] = {
    0x80, 0x0f, 0xf8, 0x00, 0x00, 0x07, 0x70, 0x00, 0x00, 0x00, 0x00, 0x00,
    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-//#define wprintf(fmt, ...) printf("[%s:%d] " fmt, __FILE__, __LINE__, ##__VA_ARGS__)
-#define LOG(fmt, ...) \
-  do { \
-    Serial.printf("[%s:%d] ", __FILE__, __LINE__); \
-    Serial.printf(fmt, ##__VA_ARGS__); \
-  } while (0)
-
-
 // 定义bin 文件分页参数
 #define LINES_PER_PAGE   9       // 每页n行
 #define BYTES_PER_LINE   8       // 每行n个字节
@@ -346,8 +338,7 @@ int Appwenjian::getFileSize(const char* filePath, bool fromTF)
     
     if (!file)
     {
-        //Serial.println("[文件管理] 无法打开文件");
-        LOG("\033[31m无法打开文件%s\033[32m\n",filePath);
+        log_e("无法打开文件%s\n",filePath);
         F_LOG("无法打开文件%s\n",filePath);
         return 0;
     }
@@ -356,8 +347,8 @@ int Appwenjian::getFileSize(const char* filePath, bool fromTF)
     fileSize = file.size();
     
     file.close();
-    LOG("filename:%s\n",filePath);
-    LOG("size:%dBytes\n",fileSize);
+    log_i("filename:%s\n",filePath);
+    log_i("size:%dBytes\n",fileSize);
     return fileSize;
 }
 
@@ -505,14 +496,14 @@ file_info:
                 if (!file)
                 {
                    //Serial.println("[文件管理]file无法打开文件");
-                   LOG("\033[31m无法打开文件%s\033[32m\n",filename);
+                   log_e("\033[31m无法打开文件%s\033[32m\n",filename);
                    F_LOG("无法打开文件%s",filename);
                    break;
                 }
                 if (!newfile)
                 {
                    //Serial.println("[文件管理]newfile 无法打开文件");
-                   LOG("\033[31m无法打开文件%s\033[32m\n",combinePath(directoryname,getFileName(filename)));
+                   log_e("\033[31m无法打开文件%s\033[32m\n",combinePath(directoryname,getFileName(filename)));
                    F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
                    break;
                 }
@@ -546,13 +537,13 @@ file_info:
                 if (!file)
                 {
                    //Serial.println("[文件管理]file无法打开文件");
-                   LOG("\033[31m无法打开文件%s\033[32m\n",filename);
+                   log_e("\033[31m无法打开文件%s\033[32m\n",filename);
                    F_LOG("无法打开文件%s",filename);
                 }
                 if (!newfile)
                 {
                    //Serial.println("[文件管理]newfile 无法打开文件");
-                   LOG("\033[31m无法打开文件%s\033[32m\n",combinePath(directoryname,getFileName(filename)));
+                   log_e("\033[31m无法打开文件%s\033[32m\n",combinePath(directoryname,getFileName(filename)));
                    F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
                 }
                 unsigned long begin = millis();
@@ -794,7 +785,7 @@ const char* Appwenjian::get_houzhui(const char* filename) {
  */
 void Appwenjian::openfile()
 {
-    LOG("openfile,filename:%s\n",filename);
+    log_i("openfile,filename:%s\n",filename);
     const char* houzhui = get_houzhui(filename);
     if(strcmp(houzhui, "txt") == 0 || strcmp(houzhui, "TXT") == 0)
     {
@@ -946,6 +937,7 @@ void Appwenjian::openfile()
                 lua_call(L, 0, 0);
             }
         }
+        Serial.println("目标lua脚本执行完毕");
         GUI::info_msgbox("提示", "lua脚本执行完毕", 136, 32);
         hal.wait_input();
     }else {
@@ -968,7 +960,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = SD.open("/");
             if (!root)
             {
-                LOG("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m\n");
             }
             file = root.openNextFile();
         } 
@@ -976,7 +968,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = LittleFS.open("/");
             if (!root)
             {
-                LOG("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m\n");
             }
             file = root.openNextFile();
         }
@@ -986,7 +978,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = LittleFS.open("/");
             if (!root)
             {
-                LOG("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m\n");
             }
             file = root.openNextFile();
         } 
@@ -994,7 +986,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = SD.open("/");
             if (!root)
             {
-                LOG("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m\n");
             }
             file = root.openNextFile();
         }

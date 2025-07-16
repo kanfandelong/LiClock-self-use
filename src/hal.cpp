@@ -1022,21 +1022,28 @@ bool HAL::init()
         log_file.write(0xBF);
         log_file.close();
     }
-    F_LOG("\nESP32复位,原因:ESP_RST_%s", esp_rst_str[esp_reset_reason()]);
-    if(esp_reset_reason() == ESP_RST_DEEPSLEEP){
-        F_LOG("唤醒源:ESP_SLEEP_%s", esp_sleep_str[esp_sleep_get_wakeup_cause()]);
+    esp_reset_reason_t reset_reason = esp_reset_reason();
+    esp_sleep_wakeup_cause_t sleep_wakeup_cause = esp_sleep_get_wakeup_cause();
+    F_LOG("\nESP32复位,原因:ESP_RST_%s", esp_rst_str[reset_reason]);
+    if(reset_reason == ESP_RST_DEEPSLEEP){
+        F_LOG("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
     }
-    if (esp_reset_reason() == ESP_RST_PANIC)
+    if (reset_reason == ESP_RST_PANIC)
         coredump_file();
     loadConfig();
     peripherals.init();
     weather.begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
-    if (hal.pref.getBool(get_char_sha_key("按键音"), false))  
-        xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
-    cmd.begin();
+    if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER){
+        if (hal.pref.getBool(get_char_sha_key("按键音"), false))  
+            xTaskCreate(task_btn_buzzer, "btn_buzzer", 2048, NULL, 9, NULL);
+        cmd.begin();
+    }    
+    else{
+        log_i("由定时器唤醒，不加载串口工具和按键音");
+    }
     xTaskCreate(task_bat_info, "bat_info_update", 2048, NULL, 2, NULL);
     getTime();
     if ((timeinfo.tm_year < (2016 - 1900)))

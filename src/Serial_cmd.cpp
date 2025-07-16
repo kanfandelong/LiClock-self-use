@@ -95,8 +95,11 @@ void CMD::run(){
     vTaskResume(cmd_task_handle);
 }
 void CMD::end(){
-    vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
-    vTaskDelete(cmd_task_handle);   // 删除串口指令任务
+    if (cmd_task_handle != NULL){
+        vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
+        vTaskDelete(cmd_task_handle);   // 删除串口指令任务
+        cmd_task_handle = NULL;
+    }
 }
 void CMD::printHelp(){
     Serial.println(F("==================================="));

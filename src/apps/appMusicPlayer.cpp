@@ -581,7 +581,11 @@ void AppMusicPlayer::next_song(bool next, bool btn) {
 
     // 处理播放列表逻辑
     if (randomPlay) {
-        currentSongIndex = (uint16_t)random(0, maxSong - 1);
+        uint16_t random_val = (uint16_t)random(0, maxSong - 1);
+        while (currentSongIndex != random_val){
+            random_val = (uint16_t)random(0, maxSong - 1);
+        }
+        currentSongIndex = random_val;
         log_i("随机索引：%u", currentSongIndex);
     } else {
         // 统一处理前进/后退方向
