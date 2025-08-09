@@ -30,6 +30,7 @@
 #define file_server_begin   "fserverbegin"
 #define file_server_end     "fserverend"
 #define esp_restart_        "rst"
+#define temp_log            "templog"
 //串口颜色转义码
 #define RED     Serial.print("\033[31m")
 #define GREEN   Serial.print("\033[32m")

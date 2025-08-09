@@ -205,6 +205,7 @@ bool HAL::wifi_config_manger(){
 
     if (!isConnected) {
         GUI::info_msgbox("错误", "默认WIFI连接失败，开始尝试保存过的可用WIFI");
+        delay(1000);
         // 如果默认连接失败，搜索并连接已保存的WIFI
         JsonArray networks = wifi_config["networks"];
         WiFi.disconnect();
@@ -229,15 +230,15 @@ bool HAL::wifi_config_manger(){
                             char buf[128];
                             sprintf(buf, "成功连接：%s,默认WiFi已切换至此WiFi", WiFi.SSID().c_str());
                             GUI::info_msgbox("成功", buf);
+                            delay(1500);
                             break;
-                            WiFi.scanDelete();
                         }
                     }
                 }
-                if (isConnected) {
-                    WiFi.scanDelete();
-                    break;
-                }
+                // if (isConnected) {
+                //     WiFi.scanDelete();
+                //     break;
+                // }
             }
             WiFi.scanDelete();
         }

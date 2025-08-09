@@ -45,11 +45,32 @@ void setup()
     }
 
     esp_reset_reason_t reset_reason = esp_reset_reason();
-    if(reset_reason == ESP_RST_POWERON && config[autontpsync] == "1")
+    if(reset_reason == ESP_RST_POWERON)
     {
-        GUI::info_msgbox("提示", "正在对时...");
-        hal.autoConnectWiFi();
-        NTPSync();
+        if (config[autontpsync] == "1"){
+            GUI::info_msgbox("提示", "正在联网对时...");
+            hal.autoConnectWiFi();
+            NTPSync();
+        }
+        else {
+            if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT){
+                GUI::info_msgbox("提示", "正在使用DS3231为ESP32对时...");
+                delay(1000);
+                struct timeval tv;
+                struct tm *t;
+                t = new tm;
+                t->tm_year = hal.timeinfo.tm_year;
+                t->tm_mon = hal.timeinfo.tm_mon;
+                t->tm_mday = hal.timeinfo.tm_mday;
+                t->tm_hour = hal.timeinfo.tm_hour;
+                t->tm_min = hal.timeinfo.tm_min;
+                t->tm_sec = hal.timeinfo.tm_sec;
+                tv.tv_sec = mktime(t);
+                tv.tv_usec = 0;
+                settimeofday(&tv, NULL);
+                delete t;
+            }
+        }
     }
 
     alarms.load();
@@ -87,6 +108,39 @@ void setup()
     if (recoverLast == false)
     {
         appManager.gotoApp(appManager.getRealClock());
+    }
+    if (hal.pref.getBool("temp_log", true)){
+        log_i("进行温湿度记录");
+        File temp_file = LittleFS.open("/System/temp.log", "a");
+        if (temp_file.size() > 1024 * 512){
+            temp_file.close();
+            LittleFS.remove("/System/temp.log");
+            temp_file = LittleFS.open("/System/temp.log", "a");
+        }
+        temp_file.printf("%04d.%02d.%02d. %02d:%02d:%02d",
+            hal.timeinfo.tm_year + 1900,
+            hal.timeinfo.tm_mon + 1,
+            hal.timeinfo.tm_mday,
+            hal.timeinfo.tm_hour,
+            hal.timeinfo.tm_min,
+            hal.timeinfo.tm_sec);
+        if (peripherals.peripherals_current & PERIPHERALS_AHT20_BIT)
+        {
+            sensors_event_t humidity, temp;
+            peripherals.load_append(PERIPHERALS_AHT20_BIT);
+            xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+            peripherals.aht.getEvent(&humidity, &temp);
+            xSemaphoreGive(peripherals.i2cMutex);
+            temp_file.printf(" Temperature:%.2f℃ Humidity:%.2f%%\n", temp.temperature, humidity.relative_humidity);
+        } else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
+        {
+            peripherals.load_append(PERIPHERALS_SHT30_BIT);
+            xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+            peripherals.sht.read();
+            xSemaphoreGive(peripherals.i2cMutex);
+            temp_file.printf(" Temperature:%.2f℃ Humidity:%.2f%%\n", peripherals.sht.getTemperature(), peripherals.sht.getHumidity());
+        }
+        temp_file.close();
     }
     return;
 }

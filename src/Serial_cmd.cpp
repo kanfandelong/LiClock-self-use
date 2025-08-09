@@ -215,6 +215,11 @@ void CMD::parseCommand(const char* command) {
         } else if (strcmp(cmd, set_display_debug) == 0 && parsed == 2) {
             int value = atoi(param);
             hal.pref.putInt("display_debug", value);
+        } else if (strcmp(cmd, temp_log) == 0 && parsed == 2) {
+            int value = atoi(param);
+            hal.pref.putBool("temp_log", (bool)value);
+        } else if (strcmp(cmd, temp_log) == 0) {
+            log_i("温湿度记录%s", hal.pref.getBool("temp_log") ? "启用" : "禁用");
         } else if (strcmp(cmd, erase_nvs) == 0) {
             if (nvs_flash_erase() == ESP_OK)
                 Serial.println("NVS erased successfully");

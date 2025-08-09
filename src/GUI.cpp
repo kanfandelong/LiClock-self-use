@@ -232,8 +232,10 @@ namespace GUI
         while (1)
         {
             delay(10);
-            if (millis() - start > 30000)
+            if (millis() - start > 30000){
                 hal.wait_input();
+                start = millis();
+            }
             if (hal.btnr.isPressing())
             {
                 result = true;
@@ -383,8 +385,10 @@ namespace GUI
                 delay(10);
             }
             delay(10);
-            if (millis() - wait_time > 30000)
+            if (millis() - wait_time > 30000){
                 hal.wait_input();
+                wait_time = millis();
+            }
         }
         pop_buffer();
         hal.unhookButton();
@@ -577,8 +581,10 @@ namespace GUI
                 delay(10);
             }
             delay(10);
-            if (millis() - wait_time > 30000)
+            if (millis() - wait_time > 30000){
                 hal.wait_input();
+                wait_time = millis();
+            }
         }
         pop_buffer();
         hal.unhookButton();
@@ -788,8 +794,10 @@ namespace GUI
             }
             // delay(200); // 适当延迟，避免重复输入
             delay(10);
-            if (millis() - wait_time > 30000)
+            if (millis() - wait_time > 30000){
                 hal.wait_input();
+                wait_time = millis();
+            }
         }
         pop_buffer();
         hal.unhookButton();
@@ -932,8 +940,10 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
-            if (millis() - wait_time > 30000)
+            if (millis() - wait_time > 30000){
                 hal.wait_input();
+                wait_time = millis();
+            }
         }
         pop_buffer();
         hal.unhookButton();
@@ -1073,8 +1083,10 @@ namespace GUI
             }
 
             delay(10);
-            if (millis() - wait_time > 30000)
+            if (millis() - wait_time > 30000){
                 hal.wait_input();
+                wait_time = millis();
+            }
         }
 
         pop_buffer();
@@ -1191,8 +1203,10 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
-            if (millis() - wait_time > 30000)
+            if (millis() - wait_time > 30000){
                 hal.wait_input();
+                wait_time = millis();
+            }
         }
         pop_buffer();
         hal.unhookButton();

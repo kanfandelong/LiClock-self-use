@@ -46,7 +46,9 @@ void AppWebserver::setup()
         beginWebServer();
         u8g2Fonts.printf("请在浏览器中打开以下网址访问\n");
         u8g2Fonts.printf("http://%s\n", WiFi.localIP().toString().c_str());
+        log_i("http://%s\n", WiFi.localIP().toString().c_str());
         u8g2Fonts.println("http://weatherclock.local");
+        log_i("http://weatherclock.local");
         u8g2Fonts.printf("Lua未运行时按左键关闭网页服务器\n");
         display.display(true);
         bool end = true;

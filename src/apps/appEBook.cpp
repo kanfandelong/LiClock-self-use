@@ -144,7 +144,8 @@ void AppEBook::setup()
     else
         display.epd2.PLL_set(0x3C);
     if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))
-        hal.cheak_freq(40, true);
+        if (hal.pref.getBool(hal.get_char_sha_key("降频运行Ebook")))
+            hal.cheak_freq(40, true);
     display.clearScreen();
     size_t s = hal.pref.getBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, 256);
     if (hal.wakeUpFromDeepSleep == false || currentPage == -1)
@@ -462,6 +463,7 @@ bool AppEBook::indexcode_1()
             display.display(true);
             last = millis();
         }
+        delay(1);
     }
     fclose(indexFileHandle);
     indexFileHandle = NULL;
@@ -628,6 +630,7 @@ bool AppEBook::indexcode_2()
             display.display(true);
             last = millis();
         }
+        delay(1);
     }
     fclose(indexFileHandle);
     indexFileHandle = NULL;
@@ -856,7 +859,7 @@ bool AppEBook::indexcode_3()
             else
                 yswz_str += "000000" + String(yswz_uint32);
             yswz_count++;
-            if (yswz_count == 200) // 每500页控制屏幕显示一下当前进度
+            if (yswz_count == 500) // 每500页控制屏幕显示一下当前进度
             {
                 if (!indexesFile)
                 {
@@ -1102,12 +1105,11 @@ bool AppEBook::indexcode_3()
     {
         indexesFile.close();
         Serial.println("校验失败，索引文件无效，请重新创建");
-        if (strncmp(currentFilename, "/littlefs/", 10) == 0)
-            LittleFS.remove(indexesName);
-        else if (strncmp(currentFilename, "/sd/", 4) == 0)
-            SD.remove(indexesName);
-        GUI::msgbox("提示", "文件索引失败");
-        return false;
+        // if (strncmp(currentFilename, "/littlefs/", 10) == 0)
+        //     LittleFS.remove(indexesName);
+        // else if (strncmp(currentFilename, "/sd/", 4) == 0)
+        //     SD.remove(indexesName);
+        GUI::msgbox("警告", "索引文件大小与预期大小不符");
     }
 
     yswz_str = "";
@@ -1916,6 +1918,7 @@ void AppEBook::ebooksettings()
         {false, "屏幕全刷间隔"}, // 9
         {true, "使用备选txt解析程序1"},
         {true, "甘草索引程序"},
+        {true, "降频运行Ebook"},
         {false, NULL},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));

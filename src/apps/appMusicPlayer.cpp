@@ -54,7 +54,7 @@ private:
 public:
     AppMusicPlayer()
     {
-        name = "musicplater";
+        name = "musicplayer";
         title = "音乐";
         description = "暂无";
         noDefaultEvent = true;
@@ -82,36 +82,39 @@ public:
     String currentDir = "/";                // 当前歌曲目录
     String pathStr;                         // 当前歌曲位于的目录
     bool is_root = false;                   // 是否是根目录
-    menu_item *fileList = nullptr;          // 歌曲菜单数组
-    char *titles[256] = {nullptr};          // 歌曲名内存指针数组,存储歌曲名所在的内存位置
-    char char_buf[512];                     // 字符串拼接缓存
+    bool _play_end = false;                 // 播放完成标志
     bool filelist_ok = false;               // 歌曲列表就绪标志
     uint16_t maxSong = 0;                   // 歌曲总数
+    char *titles[256] = {nullptr};          // 歌曲名内存指针数组,存储歌曲名所在的内存位置
+    char char_buf[512];                     // 字符串拼接缓存
+    menu_item *fileList = nullptr;          // 歌曲菜单数组
 
-    bool _play_end = false;                 // 播放完成标志
     unsigned long play_time_start;          // 播放开始时间
     unsigned long play_time_end;            // 播放结束时间
+    unsigned long play_stop_time = 0;       // 播放停止时间
     unsigned long play_time_total = 0;      // 播放总时间
     unsigned long display_time = millis();  // 屏幕上次刷新时间
 
     id3_info info;                          // 歌曲ID3信息
     bool _end;                              // 播放器主任务函数while循环停止标志
+    bool user_stop = false;                 // 用户停止播放标志
     bool nodac = false;                     // 无DAC标志
     bool in_littlefs = false;               // 文件是否位于LittleFS
-    float gain = 0.3;                       // 音频输出增益（音量）
     bool need_deep_sleep = false;           // 是否需要进入deepsleep
+    bool lrcintf  = false;                  // 歌词位于的文件系统
+    bool lrcisload = false;                 // 歌词加载状态
+    bool app_exit = false;                  // 退出标志
+    char currentLyric[64];                  // 当前显示的歌词
+    float gain = 0.3;                       // 音频输出增益（音量）
     int play_count = 1;                     // 播放歌曲数量
     int _count = 20;                        // 播放歌曲上限（控制重启）
     int display_count = 0;                  // 屏幕刷新次数
-    char currentLyric[64];                  // 当前显示的歌词
     int currentLyricIndex = 0;              // 当前显示的歌词索引
     int lastLyricIndex = 0;                 // 上次显示的歌词索引
     int _lrcoffset = 0;                     // 歌词显示时间补偿
-    unsigned long lastLyricUpdate = 0;      // 上次歌词更新时间
     int totalLyricLines = 0;                // 歌词总行数
+    unsigned long lastLyricUpdate = 0;      // 上次歌词更新时间
     LyricLine* lyricArray = nullptr;        // 使用动态数组存储歌词
-    bool lrcintf  = false;                  // 歌词位于的文件系统
-    bool lrcisload = false;                 // 歌词加载状态
 };
 static AppMusicPlayer app;                  // 创建App对象
 
@@ -205,6 +208,7 @@ void player_loop(void *){
  */
 void AppMusicPlayer::set(){
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+    log_i("APP %s,版本:%s  构建日期:%s %s", name, "0.0.7", __DATE__, __TIME__); 
 }
 /**
  * 去除路径特定前缀函数
@@ -566,7 +570,7 @@ void AppMusicPlayer::next_song(bool next, bool btn) {
     free(in);
 
     // 循环播放模式
-    if (loopPlay) {
+    if (loopPlay && !btn) {
         file_in(music_file);
         player_set();
         begin_player_task();
@@ -577,13 +581,23 @@ void AppMusicPlayer::next_song(bool next, bool btn) {
         }
         log_i("释放信号量");
         return;
+    } else {
+        // 统一处理前进/后退方向
+        const int step = next ? 1 : -1;
+        currentSongIndex += step;
+        
+        // 统一边界处理
+        currentSongIndex = (currentSongIndex < 0) ? maxSong - 1 : 
+                           (currentSongIndex > maxSong - 1) ? 0 : currentSongIndex;
     }
 
     // 处理播放列表逻辑
-    if (randomPlay) {
+    if (randomPlay && !btn) {
         uint16_t random_val = (uint16_t)random(0, maxSong - 1);
-        while (currentSongIndex != random_val){
+        uint8_t a = 5;
+        while ((currentSongIndex != random_val) && (a > 0)){
             random_val = (uint16_t)random(0, maxSong - 1);
+            a--;
         }
         currentSongIndex = random_val;
         log_i("随机索引：%u", currentSongIndex);
@@ -634,8 +648,8 @@ void AppMusicPlayer::delete_playtask(){
     if (!_play_end){
         xSemaphoreTake(audio_control_sem, 200 / portTICK_PERIOD_MS);
         delay(100);
-        generator->stop();
         if (player_loop_task_handle != NULL){
+            generator->stop();
             vTaskDelete(player_loop_task_handle);
             player_loop_task_handle = NULL;
         }
@@ -798,9 +812,21 @@ void AppMusicPlayer::player_menu(){
                 free(id3);
                 free(generator);
                 appManager.goBack();
+                app_exit = true;
                 break;
             case 2:
-                sem();
+                if(!_play_end){
+                    if (user_stop){
+                        user_stop = false;
+                        play_stop_time = millis() - play_stop_time;
+                        sem();
+                    }
+                    else{
+                        user_stop = true;
+                        play_stop_time = millis();
+                        sem();
+                    }
+                }
                 break;
             case 3:
                 end = true;
@@ -870,6 +896,7 @@ void AppMusicPlayer::player_menu(){
  */
 void AppMusicPlayer::begin_player_task(){  
     _play_end = false;
+    play_stop_time = 0;
     uint8_t core = xPortGetCoreID();
     Serial.printf("run in core %d\r\n", core);  
     if (core == 0)
@@ -884,10 +911,10 @@ void AppMusicPlayer::begin_player_task(){
 void AppMusicPlayer::show_display(){
     display.clearScreen();
     bool lrcupdate = false;
-    if (lrcisload) {
-        GUI::drawWindowsWithTitle(music_file);
+    if (lrcisload && !user_stop) {
+        GUI::drawWindowsWithTitle(titles[currentSongIndex]);
         u8g2Fonts.setCursor(3, 30);
-        getLyric(millis() - play_time_start - _lrcoffset);
+        getLyric(millis() - play_time_start - _lrcoffset - play_stop_time);
         u8g2Fonts.print(currentLyric);
         if (currentLyricIndex != lastLyricIndex) {
             lastLyricIndex = currentLyricIndex;
@@ -900,8 +927,18 @@ void AppMusicPlayer::show_display(){
     else {
         GUI::drawWindowsWithTitle("音乐播放器");
         u8g2Fonts.setCursor(3, 30);
-        u8g2Fonts.printf("播放：%s", music_file); 
+        u8g2Fonts.print("无歌词"); 
     }
+    // 电池
+    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"),false) && hal.VCC < 4300 && !hal.isCharging){
+        display.drawXBitmap(274, 0, getBatteryIcon(true), 20, 16, 0);
+        display.fillRect(277, 6, getBatterysoc(), 4, GxEPD_BLACK);
+    }else
+        display.drawXBitmap(274, 0, getBatteryIcon(), 20, 16, 0);
+
+    u8g2Fonts.setCursor(2, 12);
+    u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
+
     u8g2Fonts.setCursor(3, 45);
     u8g2Fonts.printf("标题:%s", info.title.c_str());
     u8g2Fonts.setCursor(3, 60);
@@ -1034,6 +1071,8 @@ void AppMusicPlayer::setup(){
                 show_display();
             }
         }
+        if (app_exit)
+            return;
         if (hal.btnr.isPressing()) {
             if (GUI::waitLongPress(PIN_BUTTONR)) {
                 next_song(true, true);
@@ -1087,7 +1126,7 @@ void AppMusicPlayer::setup(){
         if (millis() - display_time > (lrcisload ? 100 : 2000)) { // 如果歌词加载成功，则每100ms检查一次歌词
             show_display();
         }
-        if (millis() - wait_time > 30000){
+        if ((millis() - wait_time > 30000) && _play_end){
             hal.wait_input();
             wait_time = millis();
         }
