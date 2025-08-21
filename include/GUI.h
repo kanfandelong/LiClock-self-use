@@ -34,7 +34,7 @@ namespace GUI
     void drawKeyboard(int selectedRow, int selectedCol);
     const char* englishInput(const char *name = "");
     int msgbox_time(const char *title, int pre_value);
-    int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8);
+    int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8, int default_selected = 0);
     int select_menu(const char *title, const menu_select options[]);
     void drawLBM(int16_t x, int16_t y,const char *filename, uint16_t color);
     void drawGrayScaleImage(bool is4Bit, int x, int y, int w, int h, const uint8_t *bitmap);

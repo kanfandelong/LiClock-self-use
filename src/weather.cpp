@@ -86,7 +86,11 @@ int8_t Weather::refresh()
     {
         DynamicJsonDocument doc(50000);
         auto s = http.getStream();
-        deserializeJson(doc, s);
+        DeserializationError error = deserializeJson(doc, s);
+        if (error) {
+            log_w("JSON解析失败: %s\n", error.c_str());
+            return -4;
+        }
         if (doc["status"] != "ok")
         { // API失效
             http.end();
@@ -109,8 +113,8 @@ int8_t Weather::refresh()
         {
             hasAlert = false;
         }
-        strcpy(desc1, doc["result"]["hourly"]["description"].as<String>().c_str());
-        strcpy(desc2, doc["result"]["minutely"]["description"].as<String>().c_str());
+        strcpy(desc1, doc["result"]["hourly"]["description"].as<const char*>());
+        strcpy(desc2, doc["result"]["minutely"]["description"].as<const char*>());
         for (uint8_t i = 0; i < 20; ++i)
         {
             // 下面获取当前时间
@@ -133,16 +137,18 @@ int8_t Weather::refresh()
             // 降水
             rain[i] = doc["result"]["minutely"]["precipitation_2h"][i].as<float>() * 100;
         }
+        const char* dateStr;
         for (uint8_t i = 0; i < 4; ++i)
         {
-            Serial.println(doc["result"]["daily"]["temperature"][i]["date"].as<String>());
-            F_LOG(doc["result"]["daily"]["temperature"][i]["date"]);
+            dateStr = doc["result"]["daily"]["temperature"][i]["date"].as<const char*>();
+            Serial.println(dateStr ? dateStr : "error");
+            // F_LOG(dateStr ? dateStr : "error");
             five_days[i].max = int16_t(doc["result"]["daily"]["temperature"][i]["max"].as<float>() * 10);
             five_days[i].min = int16_t(doc["result"]["daily"]["temperature"][i]["min"].as<float>() * 10);
-            five_days[i].weathernum = codeToNum(doc["result"]["daily"]["skycon"][i]["value"].as<String>().c_str());
+            five_days[i].weathernum = codeToNum(doc["result"]["daily"]["skycon"][i]["value"].as<const char*>());
         }
         // 实时天气
-        realtime.weathernum = codeToNum(doc["result"]["realtime"]["skycon"].as<String>().c_str());
+        realtime.weathernum = codeToNum(doc["result"]["realtime"]["skycon"].as<const char*>());
         realtime.temperature = int16_t(doc["result"]["realtime"]["temperature"].as<float>() * 10);
         realtime.humidity = uint16_t(doc["result"]["realtime"]["humidity"].as<float>() * 100);
         realtime.pressure = doc["result"]["realtime"]["pressure"];

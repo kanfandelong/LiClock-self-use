@@ -25,7 +25,7 @@ void fileserver_task(void *){
         if (stop_fileserver){
             if (!wifi)
                 dnsServer.stop();
-            server->end();
+            server.end();
             serverRunning = false;
             hal.can_sleep  = true;
             hal.can_light_sleep  = true;

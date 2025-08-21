@@ -91,7 +91,7 @@ typedef struct
     uint16_t height;
 } ico_desc;
 #include <ESPAsyncWebServer.h>
-extern AsyncWebServer *server;
+extern AsyncWebServer server;
 extern float rain_data_raw[];
 extern int ydata[];
 extern const ico_desc weather_icons_day[];

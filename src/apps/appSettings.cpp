@@ -770,12 +770,12 @@ void AppSettings::menu_network()
                     if (hal.btnl.isPressing()){
                         if (GUI::waitLongPress(PIN_BUTTONL)){
                             while(hal.btnl.isPressing())delay(20);
-                            server->end();
-                            free(server);
+                            // free(server);
                             MDNS.end();
                             if (!wifi)
                                 dnsServer.stop();
                             WiFi.disconnect(true);
+                            esp_restart();
                             hal.can_sleep = true;
                             break;
                         }
@@ -895,18 +895,8 @@ void AppSettings::menu_network()
                     if (hal.btnl.isPressing())
                     {
                         while(hal.btnl.isPressing())delay(20);
-                        if(wifi) {
-                            server->end();
-                            free(server);
-                            MDNS.end();
-                        } else {
-                            server->end();
-                            free(server);
-                            MDNS.end();
-                            if (ap)
-                                dnsServer.stop();
-                        }
                         WiFi.disconnect(true);
+                        esp_restart();
                         hal.can_sleep = true;
                         break;
                     }

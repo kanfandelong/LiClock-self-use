@@ -654,7 +654,6 @@ void HAL::WiFiConfigManual()
         {
             while (hal.btnl.isPressing())
                 delay(20);
-            server->end();
             dnsServer.stop();
             MDNS.end();
             WiFi.disconnect(true);

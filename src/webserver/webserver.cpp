@@ -13,7 +13,7 @@
 #include "blockly.h"
 #include "jss3.h"
 ////////////////////////////下面是lua部分//////////////////////////
-AsyncWebServer *server;
+AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 TaskHandle_t lua_server_handle = NULL;
 SPIFFSEditor *spiffs_upload_handler = NULL;
@@ -280,9 +280,9 @@ static void sendreq(AsyncWebServerRequest *request, const char *mime, const uint
 void beginFileServer(bool for_TF)
 {
     bool mdns = MDNS.begin("weatherclock");
-    server = new AsyncWebServer(80);
+    // server = new AsyncWebServer(80);
     // 设置未找到路由的默认响应
-    server->onNotFound([](AsyncWebServerRequest *request)
+    server.onNotFound([](AsyncWebServerRequest *request)
                        {
         if(WiFi.softAPgetStationNum() != 0)
         {
@@ -305,8 +305,8 @@ void beginFileServer(bool for_TF)
         spiffs_upload_handler = new SPIFFSEditor(LittleFS);
     }
     spiffs_upload_handler->setlittlefs(LittleFS);
-    server->addHandler(spiffs_upload_handler);
-    server->on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.addHandler(spiffs_upload_handler);
+    server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
                {     
                 const char *buildTime = __DATE__ " " __TIME__ " GMT";
                 if (request->header("If-Modified-Since").equals(buildTime))
@@ -320,7 +320,7 @@ void beginFileServer(bool for_TF)
                     response->addHeader("Last-Modified", buildTime);
                     request->send(response);
                 } });
-    server->on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                 file_for_TF =! file_for_TF;
                 if (file_for_TF) {
@@ -347,19 +347,19 @@ void beginFileServer(bool for_TF)
                     spiffs_upload_handler->setFileSystem(LittleFS);
                     request->send(200, "text/plain", "LittleFS");
                 } });
-    server->on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                                 if (file_for_TF) {
                                     request->send(200, "text/plain", "SD");
                                 } else {
                                     request->send(200, "text/plain", "LittleFS");
                                 } });
-    server->on("/status", HTTP_GET, fs_status);
-    server->on("/rmrf", HTTP_POST, rmrfHandler);
-    server->on("/mkdir", HTTP_POST, mkdirHandler);
-    server->on("/rename", HTTP_POST, renameHandler);
+    server.on("/status", HTTP_GET, fs_status);
+    server.on("/rmrf", HTTP_POST, rmrfHandler);
+    server.on("/mkdir", HTTP_POST, mkdirHandler);
+    server.on("/rename", HTTP_POST, renameHandler);
     // 启动服务器
-    server->begin();
+    server.begin();
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
@@ -372,12 +372,12 @@ void beginFileServer(bool for_TF)
 void beginWebServer()
 {
     bool mdns = MDNS.begin("weatherclock");
-    server = new AsyncWebServer(80);
+    // server = new AsyncWebServer(80);
     if (LittleFS.exists("/webtmp") == false)
     {
         LittleFS.mkdir("/webtmp");
     }
-    server->onNotFound([](AsyncWebServerRequest *request)
+    server.onNotFound([](AsyncWebServerRequest *request)
                        {
         if(WiFi.softAPgetStationNum() != 0)
         {
@@ -388,22 +388,22 @@ void beginWebServer()
             request->send(404);
         } });
     ws.onEvent(onWsEvent);
-    server->addHandler(&ws);
-    server->on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.addHandler(&ws);
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "text/html", __web_index_html_gz, __web_index_html_gz_len); });
-    server->on("/blockly", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/blockly", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "text/html", __web_Blockly_html_gz, __web_Blockly_html_gz_len); });
-    server->on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "image/x-icon", __favicon_ico_gz, __favicon_ico_gz_len); });
-    server->on("/css/csss.css", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/css/csss.css", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "text/css", __web_css_csss_css_gz, __web_css_csss_css_gz_len); });
-    server->on("/js/jss.js", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/js/jss.js", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "application/javascript", __web_js_jss_js_gz, __web_js_jss_js_gz_len); });
-    server->on("/js/jss2.js", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/js/jss2.js", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "application/javascript", __web_js_jss2_js_gz, __web_js_jss2_js_gz_len); });
-    server->on("/js/jss3.js", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/js/jss3.js", HTTP_GET, [](AsyncWebServerRequest *request)
                { sendreq(request, "application/javascript", __web_js_jss3_js_gz, __web_js_jss3_js_gz_len); });
-    server->on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
                {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
@@ -431,7 +431,7 @@ void beginWebServer()
                     else
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
-    server->on("/viewth", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/viewth", HTTP_GET, [](AsyncWebServerRequest *request)
                {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
@@ -459,7 +459,7 @@ void beginWebServer()
                     else
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
-    server->on("/info", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/info", HTTP_GET, [](AsyncWebServerRequest *request)
                {
                                 String message;
                                 message += "IP地址: ";
@@ -477,20 +477,20 @@ void beginWebServer()
                                 message += hal.isCharging?"<br/>正在充电":"<br/>未充电";
                                 request->send(200, "text/plain", message); });
 
-    server->on("/conf", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/conf", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                 Serial.println(request->getParam("json", true, false)->value());
                                 deserializeJson(config, request->getParam(0)->value());
                                 request->send(200, "text/plain", "OK");
                                 hal.saveConfig(); });
 
-    server->on("/poweroff", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/poweroff", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                                 request->send(200, "text/plain", "OK");
                                 delay(50);
                                 hal.powerOff(); });
 
-    server->on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                                 file_for_TF =! file_for_TF;
                                 if (file_for_TF) {
@@ -517,7 +517,7 @@ void beginWebServer()
                                     spiffs_upload_handler->setFileSystem(LittleFS);
                                     request->send(200, "text/plain", "LittleFS");
                                 } });
-    server->on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                                 if (file_for_TF) {
                                     request->send(200, "text/plain", "SD");
@@ -525,18 +525,18 @@ void beginWebServer()
                                     request->send(200, "text/plain", "LittleFS");
                                 } });
 
-    server->on("/status", HTTP_GET, fs_status);
+    server.on("/status", HTTP_GET, fs_status);
 
-    server->on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request)
                { request->send(200, "application/json", config.as<String>()); });
 
-    server->on("/reset", HTTP_POST, [](AsyncWebServerRequest *request)
+    server.on("/reset", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                                 request->send(200, "text/plain", "OK");
                                 delay(100);
                                 ESP.restart(); });
 
-    server->on("/heap", HTTP_GET, [](AsyncWebServerRequest *request)
+    server.on("/heap", HTTP_GET, [](AsyncWebServerRequest *request)
                { request->send(200, "text/plain", String(ESP.getFreeHeap())); });
 
     if (file_for_TF)
@@ -550,14 +550,14 @@ void beginWebServer()
         spiffs_upload_handler = new SPIFFSEditor(LittleFS);
     }
     spiffs_upload_handler->setlittlefs(LittleFS);
-    server->addHandler(spiffs_upload_handler);
-    server->on("/rundebug", HTTP_GET, luaExecuteHandler);
-    server->on("/terminate", HTTP_GET, luaTerminateHandler);
-    server->on("/rmrf", HTTP_POST, rmrfHandler);
-    server->on("/mkdir", HTTP_POST, mkdirHandler);
-    server->on("/rename", HTTP_POST, renameHandler);
-    server->on("/createapp", HTTP_POST, createAppHandler);
-    server->begin();
+    server.addHandler(spiffs_upload_handler);
+    server.on("/rundebug", HTTP_GET, luaExecuteHandler);
+    server.on("/terminate", HTTP_GET, luaTerminateHandler);
+    server.on("/rmrf", HTTP_POST, rmrfHandler);
+    server.on("/mkdir", HTTP_POST, mkdirHandler);
+    server.on("/rename", HTTP_POST, renameHandler);
+    server.on("/createapp", HTTP_POST, createAppHandler);
+    server.begin();
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else

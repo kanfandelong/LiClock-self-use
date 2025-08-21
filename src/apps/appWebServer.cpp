@@ -60,13 +60,12 @@ void AppWebserver::setup()
             if (hal.btnl.isPressing())
             {
                 while(hal.btnl.isPressing())delay(20);
-                server->end();
-                free(server);
+                // free(server);
                 MDNS.end();
                 WiFi.disconnect(true);
                 hal.can_sleep = true;
                 end = false;
-                appManager.goBack();
+                esp_restart();
                 break;
             }
         }

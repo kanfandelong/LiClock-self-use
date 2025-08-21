@@ -258,32 +258,43 @@ namespace GUI
      * @param options 菜单选择列表及对应图标数组
      * @param ico_w 图标宽度
      * @param ico_h 图标高度
+     * @param default_selected 默认选中的项目索引（默认为0）
      * @return int类型的选中的菜单项
      */
-    int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h)
+    int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h, int default_selected)
     {
         constexpr int start_x = (296 - 200) / 2;
         constexpr int start_y = (128 - 111) / 2; // 200*96
         constexpr int number_of_items = 6;
         constexpr int item_height = (96) / number_of_items; // 16
         constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
-        int pageStart = 0;                                  // 屏幕顶部第一个
-        int selected = 0;
         int total = 0;
-        int barHeight;
-        int barPos = 0;
-        bool updated = true;
         bool hasIcon = false;
-        bool waitc = false;
-        unsigned long wait_time = 0;
+        
+        // 计算总项目数和检查图标
         while (options[total].title != NULL)
         {
-            // 统计一共多少，顺便检查是否有图标
             if (options[total].icon != NULL)
                 hasIcon = true;
             ++total;
         }
-        barHeight = number_of_items * 96 / total;
+        
+        // 确保默认选中在有效范围内
+        int selected = constrain(default_selected, 0, total - 1);
+        int pageStart = 0;
+        
+        // 计算初始页面起始位置，确保默认选中项可见
+        if (total > number_of_items)
+        {
+            pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
+        }
+        
+        int barHeight = number_of_items * 96 / total;
+        int barPos = 0;
+        bool updated = true;
+        bool waitc = false;
+        unsigned long wait_time = 0;
+
         hal.hookButton();
         push_buffer();
         wait_time = millis();
