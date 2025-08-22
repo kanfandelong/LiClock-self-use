@@ -425,6 +425,11 @@ void GxEPD2_290::_SendLuts(uint8_t LutLevel){
       _writeData(pgm_read_byte(lut_fast+i));
   }
 }
+
+void GxEPD2_290::PLL_set(uint8_t PLL_set_val){
+  
+}
+
 void GxEPD2_290::_Init_Full()
 {
   _InitDisplay();
@@ -436,9 +441,9 @@ void GxEPD2_290::_Init_Full()
 void GxEPD2_290::_Init_Part()
 {
   _InitDisplay();
-  if (lutgray != 15)
-    _SendLuts(lutgray);
-  else
+  // if (lutgray != 15)
+  //   _SendLuts(lutgray);
+  // else
     _writeCommandDataPGM(LUTDefault_part, sizeof(LUTDefault_part));
   _PowerOn();
   _using_partial_mode = true;

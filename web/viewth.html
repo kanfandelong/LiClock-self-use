@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>温湿度数据可视化分析系统</title>
+    <title>温湿度数据可视化系统 - 时间范围选择</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.4/build/global/luxon.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
         * {
             margin: 0;
@@ -17,7 +19,7 @@
         }
         
         body {
-            background: linear-gradient(135deg, #1a2a6c, #1a1a2e);
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
             color: #f0f8ff;
             min-height: 100vh;
             padding: 20px;
@@ -229,6 +231,26 @@
             color: #4dabf7;
         }
         
+        .time-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .time-control {
+            flex: 1;
+        }
+        
+        .flatpickr-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 20, 40, 0.5);
+            border: 1px solid rgba(100, 180, 255, 0.3);
+            border-radius: 10px;
+            color: #f0f8ff;
+            font-size: 1rem;
+        }
+        
         .time-slider {
             width: 100%;
             height: 8px;
@@ -362,14 +384,18 @@
             h1 {
                 font-size: 2.2rem;
             }
+            
+            .time-controls {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-chart-line"></i> 温湿度数据可视化分析系统</h1>
-            <p class="subtitle">本系统支持从服务器获取温湿度数据或上传本地文件，自动解析并生成可视化图表。数据格式：YYYY.MM.DD. HH:MM:SS Temperature:XX.XX℃ Humidity:XX.XX%</p>
+            <h1><i class="fas fa-chart-line"></i> 温湿度数据可视化系统</h1>
+            <p class="subtitle">本系统支持时间范围选择，从服务器获取温湿度数据或上传本地文件，自动解析并生成可视化图表</p>
         </header>
         
         <div class="card-container">
@@ -408,6 +434,28 @@
                 </div>
                 
                 <div class="card">
+                    <h2><i class="far fa-clock"></i> 时间范围选择</h2>
+                    <div class="input-group">
+                        <label><i class="fas fa-calendar-start"></i> 开始时间：</label>
+                        <input type="text" id="startTimePicker" class="flatpickr-input" placeholder="选择开始时间">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label><i class="fas fa-calendar-end"></i> 结束时间：</label>
+                        <input type="text" id="endTimePicker" class="flatpickr-input" placeholder="选择结束时间">
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button id="applyTimeFilter">
+                            <i class="fas fa-filter"></i> 应用时间范围
+                        </button>
+                        <button id="resetTimeFilter" class="secondary">
+                            <i class="fas fa-redo"></i> 重置
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
                     <h2><i class="fas fa-chart-pie"></i> 统计信息</h2>
                     <div class="stats">
                         <div class="stat-card">
@@ -429,7 +477,7 @@
                     </div>
                     
                     <div class="input-group" style="margin-top: 25px;">
-                        <label for="timeRange"><i class="fas fa-sliders-h"></i> 时间范围控制</label>
+                        <label for="timeRange"><i class="fas fa-sliders-h"></i> 时间轴控制</label>
                         <input type="range" id="timeRange" min="0" max="100" value="100" class="time-slider">
                         <div class="slider-labels">
                             <span id="startTime">--:--</span>
@@ -459,7 +507,7 @@
         </div>
         
         <footer>
-            <p>温湿度数据可视化分析系统 | 支持实时数据获取与本地文件上传 | 专业级数据可视化</p>
+            <p>温湿度数据可视化系统 | 时间范围选择功能 | 专业级数据可视化 | 数据源: /edit?edit=/System/temp.log</p>
         </footer>
         
         <div class="notification" id="notification">
@@ -471,6 +519,7 @@
         // 全局变量
         let tempHumidityChart = null;
         let allDataPoints = [];
+        let filteredDataPoints = [];
         const DATA_URL = "/edit?edit=/System/temp.log";
         
         // DOM元素
@@ -490,6 +539,23 @@
         const chartLoading = document.getElementById('chartLoading');
         const notification = document.getElementById('notification');
         const notificationText = document.getElementById('notificationText');
+        const startTimePicker = document.getElementById('startTimePicker');
+        const endTimePicker = document.getElementById('endTimePicker');
+        const applyTimeFilter = document.getElementById('applyTimeFilter');
+        const resetTimeFilter = document.getElementById('resetTimeFilter');
+        
+        // 日期选择器配置
+        const datePickerConfig = {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true,
+            minuteIncrement: 1,
+            locale: "zh"
+        };
+        
+        // 初始化日期选择器
+        const startPicker = flatpickr(startTimePicker, datePickerConfig);
+        const endPicker = flatpickr(endTimePicker, datePickerConfig);
         
         // 初始化
         document.addEventListener('DOMContentLoaded', function() {
@@ -499,6 +565,8 @@
             fileUpload.addEventListener('change', handleFileUpload);
             fetchBtn.addEventListener('click', fetchServerData);
             timeRange.addEventListener('input', updateChartRange);
+            applyTimeFilter.addEventListener('click', applyTimeRangeFilter);
+            resetTimeFilter.addEventListener('click', resetTimeRangeFilter);
             
             // 初始从服务器获取数据
             fetchServerData();
@@ -524,10 +592,8 @@
             showNotification('正在从服务器获取温湿度数据...');
             chartLoading.style.display = 'flex';
             
-            // 在实际应用中，这里应该请求真实的数据接口
-            // 为了演示，我们使用一个模拟的fetch请求
+            // 模拟服务器返回的数据
 /*             setTimeout(() => {
-                // 模拟服务器返回的数据
                 const serverData = `2025.08.09. 01:49:02 Temperature:32.67℃ Humidity:67.61%
 2025.08.09. 01:50:03 Temperature:32.72℃ Humidity:67.68%
 2025.08.09. 01:51:03 Temperature:32.75℃ Humidity:67.73%
@@ -539,14 +605,18 @@
 2025.08.09. 01:56:33 Temperature:32.76℃ Humidity:67.89%
 2025.08.09. 01:57:02 Temperature:32.70℃ Humidity:67.75%
 2025.08.09. 01:58:03 Temperature:32.73℃ Humidity:67.80%
-2025.08.09. 01:59:03 Temperature:32.68℃ Humidity:67.72%`;
+2025.08.09. 01:59:03 Temperature:32.68℃ Humidity:67.72%
+2025.08.09. 02:00:04 Temperature:32.71℃ Humidity:67.65%
+2025.08.09. 02:01:03 Temperature:32.74℃ Humidity:67.70%
+2025.08.09. 02:02:03 Temperature:32.72℃ Humidity:67.68%
+2025.08.09. 02:03:03 Temperature:32.69℃ Humidity:67.63%
+2025.08.09. 02:04:03 Temperature:32.67℃ Humidity:67.60%
+2025.08.09. 02:05:04 Temperature:32.70℃ Humidity:67.62%`;
                 
                 dataInput.value = serverData;
                 parseData();
                 showNotification('数据获取成功！已加载最新温湿度数据');
             }, 1500); */
-            
-            // 实际使用时应使用以下代码（取消注释并修改为实际API）
             fetch(DATA_URL)
                 .then(response => {
                     if (!response.ok) throw new Error('网络响应异常');
@@ -562,6 +632,60 @@
                     showNotification(`获取数据失败: ${error.message}`, true);
                     chartLoading.style.display = 'none';
                 });
+        }
+        
+        // 应用时间范围过滤器
+        function applyTimeRangeFilter() {
+            const startValue = startPicker.selectedDates[0];
+            const endValue = endPicker.selectedDates[0];
+            
+            if (!startValue || !endValue) {
+                showNotification('请选择开始时间和结束时间', true);
+                return;
+            }
+            
+            if (startValue > endValue) {
+                showNotification('结束时间不能早于开始时间', true);
+                return;
+            }
+            
+            // 过滤数据点
+            filteredDataPoints = allDataPoints.filter(point => {
+                return point.timestamp >= startValue && point.timestamp <= endValue;
+            });
+            
+            if (filteredDataPoints.length === 0) {
+                showNotification('所选时间范围内没有数据', true);
+                return;
+            }
+            
+            // 更新UI
+            updateStats();
+            updateDataTable();
+            updateTimeRangeSlider();
+            renderChart();
+            
+            showNotification(`已显示 ${filteredDataPoints.length} 个数据点 (${formatDate(startValue)} 至 ${formatDate(endValue)})`);
+        }
+        
+        // 重置时间范围过滤器
+        function resetTimeRangeFilter() {
+            startPicker.clear();
+            endPicker.clear();
+            filteredDataPoints = [...allDataPoints];
+            
+            // 更新UI
+            updateStats();
+            updateDataTable();
+            updateTimeRangeSlider();
+            renderChart();
+            
+            showNotification('已重置时间范围，显示所有数据');
+        }
+        
+        // 格式化日期显示
+        function formatDate(date) {
+            return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         }
         
         // 解析数据
@@ -620,6 +744,9 @@
                     // 按时间排序
                     allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
                     
+                    // 初始化过滤数据为全部数据
+                    filteredDataPoints = [...allDataPoints];
+                    
                     // 更新UI
                     updateStats();
                     updateDataTable();
@@ -651,8 +778,8 @@
         
         // 更新统计信息
         function updateStats() {
-            const temps = allDataPoints.map(d => d.temperature);
-            const humids = allDataPoints.map(d => d.humidity);
+            const temps = filteredDataPoints.map(d => d.temperature);
+            const humids = filteredDataPoints.map(d => d.humidity);
             
             // 计算平均值
             const avgTempVal = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(2);
@@ -674,8 +801,15 @@
             // 清空表格
             dataTable.innerHTML = '';
             
+            if (filteredDataPoints.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="3" style="text-align: center;">没有匹配的数据</td>`;
+                dataTable.appendChild(row);
+                return;
+            }
+            
             // 添加新行
-            allDataPoints.forEach(point => {
+            filteredDataPoints.forEach(point => {
                 const row = document.createElement('tr');
                 
                 const timeCell = document.createElement('td');
@@ -699,16 +833,16 @@
         
         // 更新时间范围滑块
         function updateTimeRangeSlider() {
-            if (allDataPoints.length === 0) return;
+            if (filteredDataPoints.length === 0) return;
             
-            const firstTime = allDataPoints[0].timestamp;
-            const lastTime = allDataPoints[allDataPoints.length - 1].timestamp;
+            const firstTime = filteredDataPoints[0].timestamp;
+            const lastTime = filteredDataPoints[filteredDataPoints.length - 1].timestamp;
             
             startTime.textContent = formatTime(firstTime);
             endTime.textContent = formatTime(lastTime);
             
-            timeRange.max = allDataPoints.length - 1;
-            timeRange.value = allDataPoints.length - 1;
+            timeRange.max = filteredDataPoints.length - 1;
+            timeRange.value = filteredDataPoints.length - 1;
         }
         
         // 格式化时间 (HH:MM)
@@ -718,10 +852,10 @@
         
         // 更新图表范围
         function updateChartRange() {
-            if (!tempHumidityChart) return;
+            if (!tempHumidityChart || filteredDataPoints.length === 0) return;
             
             const endIndex = parseInt(timeRange.value);
-            const visibleData = allDataPoints.slice(0, endIndex + 1);
+            const visibleData = filteredDataPoints.slice(0, endIndex + 1);
             
             tempHumidityChart.data.labels = visibleData.map(d => formatTime(d.timestamp));
             tempHumidityChart.data.datasets[0].data = visibleData.map(d => d.temperature);
@@ -739,10 +873,15 @@
                 tempHumidityChart.destroy();
             }
             
+            if (filteredDataPoints.length === 0) {
+                chartLoading.style.display = 'none';
+                return;
+            }
+            
             // 准备数据
-            const labels = allDataPoints.map(d => formatTime(d.timestamp));
-            const temps = allDataPoints.map(d => d.temperature);
-            const humids = allDataPoints.map(d => d.humidity);
+            const labels = filteredDataPoints.map(d => formatTime(d.timestamp));
+            const temps = filteredDataPoints.map(d => d.temperature);
+            const humids = filteredDataPoints.map(d => d.humidity);
             
             // 创建图表
             tempHumidityChart = new Chart(ctx, {

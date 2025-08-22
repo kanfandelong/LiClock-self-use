@@ -71,6 +71,7 @@ class GxEPD2_290 : public GxEPD2_EPD
     void _PowerOff();
     void _InitDisplay();
     void _SendLuts(uint8_t LutLevel);
+    void PLL_set(uint8_t PLL_set_val);
     void _Init_Full();
     void _Init_Part();
     void _Update_Full();

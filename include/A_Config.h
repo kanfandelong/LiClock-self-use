@@ -25,11 +25,11 @@
 
 #define code_version "2.0.a.c"  //代码版本号（16进制格式）
 // 屏幕型号选择宏定义
-// #define E029A01
+#define E029A01
 // 屏幕多线程且驱动为UC8151C
-// #define Queue
+#define Queue
 // #define T5
-#define T5D
+// #define T5D
 // #define T5D_gray
 
 #define SCREEN_WIDTH 296
@@ -40,11 +40,11 @@
 #define PIN_BUTTONC 34
 #define PIN_BUTTONR 39
 
-// #define PIN_RTC_IRQ 25
-// #define PIN_CHARGING 26
+#define PIN_RTC_IRQ 25
+#define PIN_CHARGING 26
 
-#define PIN_RTC_IRQ 36
-#define PIN_CHARGING 32
+// #define PIN_RTC_IRQ 36
+// #define PIN_CHARGING 32
 
 #define PIN_SDVDD_CTRL 27
 #define PIN_SD_CS 14
