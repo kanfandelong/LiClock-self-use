@@ -529,7 +529,11 @@ namespace GUI
                                 break;
                             else
                             {
-                                hal.pref.putBool(sha_option_key[selected], !hal.pref.getBool(sha_option_key[selected], false));
+                                // 取反bool值并保存至NVS
+                                if (options[selected].key == nullptr)
+                                    hal.pref.putBool(sha_option_key[selected], !hal.pref.getBool(sha_option_key[selected]));
+                                else
+                                    hal.pref.putBool(options[selected].key, !hal.pref.getBool(options[selected].key));
                                 updated = true;
                             }
                         }
@@ -559,7 +563,13 @@ namespace GUI
                     int item_y = start_y + 15 + item_height * i;
                     if (options[i + pageStart].select == true)
                     {
-                        if (hal.pref.getBool(sha_option_key[i + pageStart]))
+                        bool option_val;
+                        if (options[i + pageStart].key == nullptr)
+                            option_val = hal.pref.getBool(sha_option_key[i + pageStart]);
+                        else
+                            option_val = hal.pref.getBool(options[i + pageStart].key);
+
+                        if (option_val)
                         {
                             display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, select_bits, ico_w, ico_h, 0);
                         }

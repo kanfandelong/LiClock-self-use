@@ -105,8 +105,8 @@ public:
     bool dis_DS3231 = false;
     bool can_sleep = true;
     bool can_light_sleep = true;
-    OneButton btnr = OneButton(PIN_BUTTONR);
-    OneButton btnl = OneButton(PIN_BUTTONL);
+    OneButton btnr; // = OneButton(PIN_BUTTONR)
+    OneButton btnl; // = OneButton(PIN_BUTTONL)
     OneButton btnc = OneButton(PIN_BUTTONC);
     bool btn_activelow = true;
     void hookButton()

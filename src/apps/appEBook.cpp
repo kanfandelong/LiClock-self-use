@@ -145,7 +145,7 @@ void AppEBook::setup()
         display.epd2.PLL_set(0x3C);
     if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))
         if (hal.pref.getBool(hal.get_char_sha_key("降频运行Ebook")))
-            hal.cheak_freq(40, true);
+            hal.cheak_freq(80, true);
     display.clearScreen();
     size_t s = hal.pref.getBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, 256);
     if (hal.wakeUpFromDeepSleep == false || currentPage == -1)
@@ -282,10 +282,13 @@ void AppEBook::setup()
             }
         }
         while_run = hal.pref.getBool(hal.get_char_sha_key("使用lightsleep"));
-        if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠"))){
-            hal.cheak_freq(40, true);
+        if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))
+        {
+            if (hal.pref.getBool(hal.get_char_sha_key("降频运行Ebook")))
+                hal.cheak_freq(80, true);
             while_run = true;
-            while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing()) && (!exit_app)) {
+            while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing()) && (!exit_app))
+            {
                 delay(50);
             }
         }
@@ -1145,7 +1148,10 @@ bool AppEBook::indexcode_3()
 }
 bool AppEBook::indexFile()
 {
-    hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+    if (hal.pref.getBool(hal.get_char_sha_key("降频运行Ebook")))
+        hal.cheak_freq(80, true);
+    else
+        hal.cheak_freq(hal.pref.getInt("CpuFreq", 240));
     if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")) == false)
         return indexcode_2();
     else if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) == false && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")))
@@ -1198,8 +1204,11 @@ bool AppEBook::openFile(const char *filename)
         }
         if (!txtFile)
             return false;
-        if (!indexesFile){
-            if (!indexFile())
+        if (!indexesFile)
+        {
+            bool index_ok = indexFile();
+            hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+            if (!index_ok)
                 return false;
         }
     }
@@ -1211,7 +1220,9 @@ bool AppEBook::openFile(const char *filename)
         indexFileHandle = fopen((String(currentFilename) + ".i").c_str(), "rb");
         if (indexFileHandle == NULL)
         {
-            if (!indexFile())
+            bool index_ok = indexFile();
+            hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+            if (!index_ok)
                 return false;
         }
     }
@@ -1834,12 +1845,12 @@ void AppEBook::openMenu()
     int moth = hal.timeinfo.tm_mon + 1, d = hal.timeinfo.tm_mday, dw = hal.timeinfo.tm_wday, h = hal.timeinfo.tm_hour, m = hal.timeinfo.tm_min, s = hal.timeinfo.tm_sec;
     char buf[64], vbat[64];
     sprintf(buf, "当前时间:%d月%d日 星期%s %d:%d:%d", moth, d, dayOfWeek[dw], h, m, s);
-    sprintf(vbat, "电源电压：%.2fV", (float)hal.VCC / 1000.0);
+    sprintf(vbat, "电源电压：%.2fV (%d%%)", (float)hal.VCC / 1000.0, hal.bat_info.soc);
     char *title = (char *)malloc(128);
     int totalPages = getTotalPages();
     sprintf(title, "%d/%d %d%%", currentPage + 1, totalPages, (currentPage + 1) * 100 / totalPages);
     const menu_item items[] = {
-        {NULL, "返回"},
+        {NULL, "< 返回"},
         {NULL, "退出"},
         {NULL, "换文件.."},
         {NULL, "重建当前文件索引"},
@@ -1880,20 +1891,20 @@ void AppEBook::openMenu()
         need_deepsleep = true;
         break;
     case 4:
-    {
-        int page = GUI::msgbox_number("跳转到..", get_digits(totalPages), currentPage + 1);
-        if (page > 0)
         {
-            if (gotoPage(page - 1) == false)
+            int page = GUI::msgbox_number("跳转到..", get_digits(totalPages), currentPage + 1);
+            if (page > 0)
             {
-                GUI::msgbox("跳转失败", "页码超出范围");
-                F_LOG("跳转失败，%d超出范围", page - 1);
-                gotoPage(currentPage);
+                if (gotoPage(page - 1) == false)
+                {
+                    GUI::msgbox("跳转失败", "页码超出范围");
+                    F_LOG("跳转失败，%d超出范围", page - 1);
+                    gotoPage(currentPage);
+                }
+                drawCurrentPage();
             }
-            drawCurrentPage();
         }
-    }
-    break;
+        break;
     case 6:
         ebooksettings();
         break;
@@ -1906,20 +1917,20 @@ void AppEBook::openMenu()
 void AppEBook::ebooksettings()
 {
     static const menu_select ebook_set[] = {
-        {false, "返回"},
-        {true, "根据唤醒源翻页"},
-        {true, "自动翻页"},
-        {false, "自动翻页延时"}, // 3
-        {true, "使用lightsleep"},
-        {true, "禁用休眠"},
-        {false, "最大lightsleep次数"}, // 6
-        {true, "反色显示"},
-        {true, "快速显示"},
-        {false, "屏幕全刷间隔"}, // 9
-        {true, "使用备选txt解析程序1"},
-        {true, "甘草索引程序"},
-        {true, "降频运行Ebook"},
-        {false, NULL},
+        {false, "< 返回", nullptr},
+        {true, "根据唤醒源翻页", nullptr},
+        {true, "自动翻页", nullptr},
+        {false, "自动翻页延时", nullptr}, // 3
+        {true, "使用lightsleep", nullptr},
+        {true, "禁用休眠", nullptr},
+        {false, "最大lightsleep次数", nullptr}, // 6
+        {true, "反色显示", nullptr},
+        {true, "快速显示", nullptr},
+        {false, "屏幕全刷间隔", nullptr}, // 9
+        {true, "使用备选txt解析程序1", nullptr},
+        {true, "甘草索引程序", nullptr},
+        {true, "降频运行Ebook", nullptr},
+        {false, NULL, nullptr},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
     bool code2 = hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"));

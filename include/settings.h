@@ -46,3 +46,4 @@
 */
 #define SETTINGS_PARAM_ALARM_TONE "p6"
 
+#define set_rtc_in_rst "p7"

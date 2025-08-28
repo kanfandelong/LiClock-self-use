@@ -23,7 +23,7 @@
 
 // #include <ESP32-targz.h>
 
-#define code_version "2.0.a.c"  //代码版本号（16进制格式）
+#define code_version "2.0.a.c" // 代码版本号（16进制格式）
 // 屏幕型号选择宏定义
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C
@@ -55,20 +55,6 @@
 #define PIN_BUZZER 21
 #define PIN_SDA 23
 #define PIN_SCL 22
-
-#define F_LOG(fmt, ...) \
-  do { \
-    File file_log = LittleFS.open("/System/log.txt", "a"); \
-    if (file_log) { \
-      file_log.printf("[%06d]", esp_log_timestamp());\
-      file_log.printf("[%s:%d] ", __FILE__, __LINE__); \
-      file_log.printf(fmt, ##__VA_ARGS__); \
-      file_log.println(); \
-    } else { \
-      Serial.println("无法打开日志文件"); \
-    } \
-    file_log.close(); \
-  } while (0)
 
 #define wifi_config_file "/System/wifi_config.json"
 
@@ -104,31 +90,31 @@ extern const char *ipv6_to_str(const esp_ip6_addr_t *addr);
 extern void enableIPv6();
 void refreshIPV6Addr();
 bool file_exist(const char *path);
-const char* remove_path_prefix(const char* path, const char* prefix);
+const char *remove_path_prefix(const char *path, const char *prefix);
 
 extern DynamicJsonDocument config;
 extern DynamicJsonDocument cfu;
 #if defined(E029A01)
-  extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
+extern GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display;
 #else
-  #if defined(T5D)
-    extern GxEPD2_BW<GxEPD2_290_T5D, GxEPD2_290_T5D::HEIGHT> display;
-  #endif
-  #if defined(T5)
-    extern GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display;
-  #endif
-  #if defined(T5D_gray)
-    extern GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display;
-  #endif
+#if defined(T5D)
+extern GxEPD2_BW<GxEPD2_290_T5D, GxEPD2_290_T5D::HEIGHT> display;
+#endif
+#if defined(T5)
+extern GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display;
+#endif
+#if defined(T5D_gray)
+extern GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display;
+#endif
 #endif
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 extern TJpg_Decoder TJpgDec;
 
 extern bool force_full_update;
 extern int part_refresh_count;
-extern uint8_t night_sleep;          // 夜间模式屏幕状态，0：不在夜间模式，1：晚安，2：早上好
+extern uint8_t night_sleep;       // 夜间模式屏幕状态，0：不在夜间模式，1：晚安，2：早上好
 extern uint8_t night_sleep_today; // 今天是否进入过夜间模式
-extern bool LuaRunning;            //全局变量，表示Lua服务器是否运行，用于防止调试时误退出
+extern bool LuaRunning;           // 全局变量，表示Lua服务器是否运行，用于防止调试时误退出
 extern bool serverRunning;
 
 #define PARAM_GPS "p1"
@@ -160,3 +146,10 @@ uint8_t getBatterysoc();
 #include "Serial_cmd.h"
 extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);
+extern File file_log;;
+extern void log_flush();
+extern void log_write(const char *file, int line, const char *fmt, ...);
+
+
+// 替换原有的宏定义
+#define F_LOG(fmt, ...) log_write(__FILE__, __LINE__, fmt, ##__VA_ARGS__)

@@ -43,7 +43,7 @@ AppBase *AppManager::getRealClock()
     }
     if (bootapp == "clock")
     {
-        if (config[PARAM_CLOCKONLY] == "1")
+        if (hal.pref.getBool(hal.get_char_sha_key("离线模式")))
         {
             bootapp = "clockonly";
         }

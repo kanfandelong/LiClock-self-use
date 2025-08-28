@@ -8,8 +8,9 @@ typedef struct
 
 typedef struct
 {
-    const bool select; // 是否显示复选框
+    const bool select;   // 是否显示复选框
     const char *title;   // 标题
+    const char *key;
 } menu_select;
 
 typedef struct

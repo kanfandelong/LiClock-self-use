@@ -870,22 +870,22 @@ bool AppMusicPlayer::music_list_menu(bool play)
 }
 static const menu_select menu_player[] =
     {
-        {false, "返回"},
-        {false, "退出"},
-        {false, "播放/暂停"},
-        {false, "播放列表"},
-        {false, "选择文件"},
-        {false, "音量设置"},
-        {true, "循环播放"},
-        {true, "随机播放"},
-        {true, "自动播放音乐列表"},
-        {true, "使用25/26/0输出"},
-        {true, "使用蜂鸣器输出"},
-        {true, "audio_pll"},
-        {true, "lrc歌词"},
-        {false, "歌词显示补偿"},
-        {false, "重启间隔"},
-        {false, NULL},
+        {false, "返回", nullptr},
+        {false, "退出", nullptr},
+        {false, "播放/暂停", nullptr},
+        {false, "播放列表", nullptr},
+        {false, "选择文件", nullptr},
+        {false, "音量设置", nullptr},
+        {true, "循环播放", nullptr},
+        {true, "随机播放", nullptr},
+        {true, "自动播放音乐列表", nullptr},
+        {true, "使用25/26/0输出", nullptr},
+        {true, "使用蜂鸣器输出", nullptr},
+        {true, "audio_pll", nullptr},
+        {true, "lrc歌词", nullptr},
+        {false, "歌词显示补偿", nullptr},
+        {false, "重启间隔", nullptr},
+        {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
  * 音乐播放器菜单函数，处理用户对应操作
@@ -1041,7 +1041,14 @@ void AppMusicPlayer::show_display()
     {
         GUI::drawWindowsWithTitle("音乐播放器");
         u8g2Fonts.setCursor(3, 30);
-        u8g2Fonts.print("无歌词");
+        if (info.title.equalsIgnoreCase((String) "---"))
+        {
+            u8g2Fonts.print(titles[currentSongIndex]);
+        }
+        else
+        {
+            u8g2Fonts.print("无歌词");
+        }
     }
     // 电池
     if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4300 && !hal.isCharging)

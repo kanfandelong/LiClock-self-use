@@ -47,7 +47,7 @@ void setup()
     esp_reset_reason_t reset_reason = esp_reset_reason();
     if(reset_reason == ESP_RST_POWERON)
     {
-        if (config[autontpsync] == "1"){
+        if (hal.pref.getBool(set_rtc_in_rst)){
             GUI::info_msgbox("提示", "正在联网对时...");
             hal.autoConnectWiFi();
             NTPSync();
@@ -70,6 +70,8 @@ void setup()
                 settimeofday(&tv, NULL);
                 delete t;
             }
+            else
+                log_w("没有DS3231，将无法在未联网的情况下校正本地时间!");
         }
     }
 
