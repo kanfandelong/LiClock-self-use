@@ -92,6 +92,7 @@ void AppSettings::setup()
         {NULL, "关于"},
         {NULL, NULL},
     };
+    display.display(false); // 每次进入设置全局刷新一次
     while (end == false && hasToApp == false)
     {
         // display.display(false); // 每次进入设置全局刷新一次
@@ -157,7 +158,7 @@ void AppSettings::menu_time()
         {false, "手动触发NTP", nullptr},
         {false, "时间同步间隔设置", nullptr},
         {false, "RTC线性偏移修正", nullptr},
-        {true,  "在上电复位时对时", set_rtc_in_rst},
+        {true,  "在上电复位时使用联网对时", set_rtc_in_rst},
         {false, "闹钟设置", nullptr},
         {false, NULL, nullptr},
     };
@@ -358,26 +359,27 @@ void AppSettings::menu_network()
 {
     int res = 0;
     bool end = false;
-    static const menu_item settings_menu_network[] =
+    static const menu_select settings_menu_network[] =
         {
-            {NULL, "< 返回"},
-            {NULL, "选择默认WiFi"},
-            {NULL, "搜索周围的WIFI"},
-            {NULL, "设置WiFi发射功率"},
-            {NULL, "ESPTouch配网"},
-            {NULL, "启动HTTP服务器"},
-            {NULL, "启动文件服务器"},
-            {NULL, "ESPNow设备扫描"},
-            {NULL, "蓝牙扫描"},
-            {NULL, "退出Bilibili账号"},
-            {NULL, "分享当前配置的WiFi"},
-            {NULL, "配置界面和Blockly"},
-            {NULL, NULL},
+            {false, "< 返回", nullptr},
+            {false, "选择默认WiFi", nullptr},
+            {false, "搜索周围的WIFI", nullptr},
+            {false, "设置WiFi发射功率", nullptr},
+            {false, "ESPTouch配网", nullptr},
+            {false, "启动HTTP服务器", nullptr},
+            {false, "启动文件服务器", nullptr},
+            {true, "启用mDNS", "en_mdns"},
+            {false, "ESPNow设备扫描", nullptr},
+            {false, "蓝牙扫描", nullptr},
+            {false, "退出Bilibili账号", nullptr},
+            {false, "分享当前配置的WiFi", nullptr},
+            {false, "配置界面和Blockly", nullptr},
+            {false, NULL, nullptr},
     };
     DNSServer dnsServer;
     while (end == false && hasToApp == false)
     {
-        res = GUI::menu("网络设置", settings_menu_network);
+        res = GUI::select_menu("网络设置", settings_menu_network);
         switch (res)
         {
         case 0:
@@ -1095,6 +1097,7 @@ void AppSettings::menu_system(){
         {true,  "停用DS3231",         nullptr},  //12
         {true,  "系统日志",           "sys_log"},//13
         {false, "NVS备份和恢复",      nullptr},
+        {false, "core_dump",         nullptr},
         {false, "恢复出厂设置",       nullptr},
         {false, NULL, nullptr},
     };
@@ -1371,6 +1374,9 @@ void AppSettings::menu_system(){
             }
             break;
         case 15:
+            hal.coredump_file();
+            break;
+        case 16:
             // 恢复出厂设置
             {
                 if (GUI::msgbox_yn("此操作不可撤销", "是否恢复出厂设置？"))
@@ -1614,6 +1620,8 @@ void AppSettings::cheak_config(char *a)
         config[PARAM_SSID] = a;
         hal.saveConfig();
     }
+    else
+        return;
     if(GUI::msgbox_yn("密码是否仅有数字",a,"是","否"))
     {
         char pass[32];

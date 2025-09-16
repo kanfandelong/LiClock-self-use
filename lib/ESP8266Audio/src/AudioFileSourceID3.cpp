@@ -212,14 +212,15 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
       }
 
       // Read the value and send to callback
-      char value[64];
+      char value[128];
       uint32_t i;
       bool isUnicode = (id3.getByte()==1) ? true : false;
       for (i=0; i<(uint32_t)framesize-1; i++) {
         if (i<sizeof(value)-1) value[i] = id3.getByte();
         else (void)id3.getByte();
       }
-      value[i<sizeof(value)-1?i:sizeof(value)-1] = 0; // Terminate the string...
+      value[i<sizeof(value)-1 ? i : sizeof(value)-1] = '\0'; // Terminate the string...
+      value[i<sizeof(value)-2 ? i + 1 : sizeof(value)-2] = '\0'; // Terminate the string...
       if ( (frameid[0]=='T' && frameid[1]=='A' && frameid[2]=='L' && frameid[3] == 'B' ) ||
            (frameid[0]=='T' && frameid[1]=='A' && frameid[2]=='L' && rev==2) ) {
         cb.md("Album", isUnicode, value);

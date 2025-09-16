@@ -279,7 +279,10 @@ static void sendreq(AsyncWebServerRequest *request, const char *mime, const uint
 }
 void beginFileServer(bool for_TF)
 {
-    bool mdns = MDNS.begin("weatherclock");
+    bool mdns;
+    if (hal.pref.getBool("en_mdns")){
+        mdns = MDNS.begin("weatherclock");
+    }
     // server = new AsyncWebServer(80);
     // 设置未找到路由的默认响应
     server.onNotFound([](AsyncWebServerRequest *request)
@@ -308,18 +311,60 @@ void beginFileServer(bool for_TF)
     server.addHandler(spiffs_upload_handler);
     server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
                {     
-                const char *buildTime = __DATE__ " " __TIME__ " GMT";
-                if (request->header("If-Modified-Since").equals(buildTime))
-                {
-                    request->send(304);
-                }
-                else
-                {
-                    AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/ace.js.gz", "application/javascript", false);
-                    response->addHeader("Content-Encoding", "gzip");
-                    response->addHeader("Last-Modified", buildTime);
-                    request->send(response);
-                } });
+                  const char *buildTime = __DATE__ " " __TIME__ " GMT";
+                  if (request->header("If-Modified-Since").equals(buildTime))
+                  {
+                      request->send(304);
+                  }
+                  else
+                  {
+                    if (LittleFS.exists("/System/ace.js.gz")) {
+                        File file = LittleFS.open("/System/ace.js.gz", "r");
+                        time_t lastWrite = file.getLastWrite(); // 获取UTC时间戳
+                        file.close();
+                  
+                        struct tm tm;
+                        gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+                        
+                        char timeStr[64];
+                        strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+                        buildTime = timeStr;
+                        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/ace.js.gz", "application/javascript", false);
+                        response->addHeader("Content-Encoding", "gzip");
+                        response->addHeader("Last-Modified", buildTime);
+                        request->send(response);
+                    }
+                    else
+                        request->send(404, "text/plain", "资源文件不存在");
+                  } });
+    server.on("/iconfont.ttf", HTTP_GET, [](AsyncWebServerRequest *request)
+               {     
+                  const char *buildTime = __DATE__ " " __TIME__ " GMT";
+                  if (request->header("If-Modified-Since").equals(buildTime))
+                  {
+                      request->send(304);
+                  }
+                  else
+                  {
+                    if (LittleFS.exists("/System/iconfont.ttf")) {
+                        File file = LittleFS.open("/System/iconfont.ttf", "r");
+                        time_t lastWrite = file.getLastWrite(); // 获取UTC时间戳
+                        file.close();
+                  
+                        struct tm tm;
+                        gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+                        
+                        char timeStr[64];
+                        strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+                        buildTime = timeStr;
+                        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/iconfont.ttf", "font/ttf", false);
+                        // response->addHeader("Content-Encoding", "gzip");
+                        response->addHeader("Last-Modified", buildTime);
+                        request->send(response);
+                    }
+                    else
+                        request->send(404, "text/plain", "资源文件不存在");
+                  } });
     server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
                {
                 file_for_TF =! file_for_TF;
@@ -371,7 +416,10 @@ void beginFileServer(bool for_TF)
 }
 void beginWebServer()
 {
-    bool mdns = MDNS.begin("weatherclock");
+    bool mdns;
+    if (hal.pref.getBool("en_mdns")){
+        mdns = MDNS.begin("weatherclock");
+    }
     // server = new AsyncWebServer(80);
     if (LittleFS.exists("/webtmp") == false)
     {
@@ -420,11 +468,39 @@ void beginWebServer()
                         struct tm tm;
                         gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
                         
-                        char timeStr[30];
+                        char timeStr[64];
                         strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
                         buildTime = timeStr;
                         AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/ace.js.gz", "application/javascript", false);
                         response->addHeader("Content-Encoding", "gzip");
+                        response->addHeader("Last-Modified", buildTime);
+                        request->send(response);
+                    }
+                    else
+                        request->send(404, "text/plain", "资源文件不存在");
+                  } });
+    server.on("/iconfont.ttf", HTTP_GET, [](AsyncWebServerRequest *request)
+               {     
+                  const char *buildTime = __DATE__ " " __TIME__ " GMT";
+                  if (request->header("If-Modified-Since").equals(buildTime))
+                  {
+                      request->send(304);
+                  }
+                  else
+                  {
+                    if (LittleFS.exists("/System/iconfont.ttf")) {
+                        File file = LittleFS.open("/System/iconfont.ttf", "r");
+                        time_t lastWrite = file.getLastWrite(); // 获取UTC时间戳
+                        file.close();
+                  
+                        struct tm tm;
+                        gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+                        
+                        char timeStr[64];
+                        strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+                        buildTime = timeStr;
+                        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/iconfont.ttf", "font/ttf", false);
+                        // response->addHeader("Content-Encoding", "gzip");
                         response->addHeader("Last-Modified", buildTime);
                         request->send(response);
                     }
@@ -448,7 +524,7 @@ void beginWebServer()
                         struct tm tm;
                         gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
                         
-                        char timeStr[30];
+                        char timeStr[64];
                         strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
                         buildTime = timeStr;
                         AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/viewth.html.gz", "text/html", false);

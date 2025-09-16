@@ -17,7 +17,7 @@ the sketch after each change to this file.
   <style>
     @font-face {
       font-family: 'iconfont';
-      src: url('/edit?download=/System/iconfont.ttf') format('truetype');
+      src: url('iconfont.ttf') format('truetype');
     }
   </style>
   <style>
@@ -457,6 +457,8 @@ the sketch after each change to this file.
   <script>
     var tree;   // 编辑器需要在保存时刷新文件大小
     var fsInfo; // 需要更改SPIFFS上的刷新路径行为
+    var fileinfo = {path: '', size: 0};
+    var espfileinfo = {path: '', size: 0};
     var fsSystem;
     const audioCache = {
       maxItems: 50, // 最大缓存数量
@@ -549,7 +551,7 @@ the sketch after each change to this file.
         }
         else {
           console.log("开始预缓存'" + nextPath + "'...")
-          const response = await fetch(`/edit?download=${encodeURIComponent(nextPath)}`);
+          const response = await fetch(`/edit?edit=${encodeURIComponent(nextPath)}`);
           const blob = await response.blob();
           audioCache.set(nextPath, new Blob([blob], { type: 'audio/mpeg' }));
           console.log("'" + nextPath + "'预缓存完成");
@@ -628,7 +630,7 @@ the sketch after each change to this file.
 
         // 缓存未命中时下载
         console.log("开始缓存'" + path + "'..." );
-        const response = await fetch('/edit?download=' + encodeURIComponent(path));
+        const response = await fetch('/edit?edit=' + encodeURIComponent(path));
         
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         if (response.headers.get('Content-Length') === '0') throw new Error('空文件');
@@ -950,7 +952,7 @@ the sketch after each change to this file.
             document.getElementById("editor").style.display = "none";
             // document.getElementById("editorButtons").style.display = "none";
             preview.style.display = "flex";
-            preview.innerHTML = "<div class='show-close'></div><img src='" + "/edit?download=" + path + "' style='max-width:100%; max-height:100%; margin:auto; display:block;' />";
+            preview.innerHTML = "<div class='show-close'></div><img src='" + "/edit?edit=" + path + "' style='max-width:100%; max-height:100%; margin:auto; display:block;' />";
             const close = preview.querySelectorAll('.show-close')[0]
             close.onclick = showClose
           }
@@ -1352,6 +1354,15 @@ the sketch after each change to this file.
               var lastChild = parentEl.lastElementChild;
               if (lastChild && lastChild.tagName == "UL") parentEl.removeChild(lastChild);
             }
+            const filelist = JSON.parse(req.responseText);
+            var list_len =  filelist.length;
+            for (var i = 0; i < list_len; i++) {
+              const file = filelist[i];
+              if (file.type === "file" && file.name === fileinfo.name) {
+                espfileinfo.size = file.size;
+                break;
+              }
+            }
             // And reinsert the received ones instead
             addFileNodes(parentPath, JSON.parse(req.responseText));
             if (document.getElementById(parentPath).childNodes[0].checked !== undefined) {
@@ -1413,6 +1424,19 @@ the sketch after each change to this file.
               refreshPath(getParentFolder(cleanedText));
             }
           }
+          if (espfileinfo.size !== espfileinfo.size){
+            document.getElementById("editor").style.display = "none";
+            preview.style.display = "flex";
+            preview.innerHTML = `
+              <div class='show-close'></div>
+              <div style="color:red;margin:auto">
+                文件上传异常,文件大小不匹配br>
+                源文件大小${fileinfo.size},ESP32文件大小${espfileinfo.size}<br>
+              </div>
+            `;
+            const close = preview.querySelectorAll('.show-close')[0]
+          }
+
           refreshStatus();
         }
       }
@@ -1465,6 +1489,8 @@ the sketch after each change to this file.
         const freeBytes = fsInfo.totalBytes - fsInfo.usedBytes;
         if (file.size > freeBytes) {
           const needed = file.size - freeBytes;
+          document.getElementById("editor").style.display = "none";
+          preview.style.display = "flex";
           preview.innerHTML = `
             <div class='show-close'></div>
             <div style="color:red;margin:auto">
@@ -1476,6 +1502,8 @@ the sketch after each change to this file.
         close.onclick = showClose
           return; // 直接中止上传
         }
+        fileinfo.size = file.size;
+        fileinfo.path = file.name;
         setLoading(true, "上传中 '" + path + "'...");
         if (!path.startsWith("/")) path = "/" + path;
         xmlHttp = new XMLHttpRequest();
@@ -1576,7 +1604,7 @@ the sketch after each change to this file.
         return lang;
       }
 
-      if (typeof file === "undefined") file = "/index.htm";
+      if (typeof file === "undefined") file = "";
 
       if (typeof lang === "undefined") {
         lang = getLangFromFilename(file);
@@ -1625,10 +1653,12 @@ the sketch after each change to this file.
         else tree.clearMainPanel();
       }
       function loadFile(path) {
+        if (path == "")
+          return
         setLoading(true, "Loading '" + path + "'...");
         xmlHttp = new XMLHttpRequest();
         xmlHttp.onload = fileLoaded;
-        xmlHttp.open("GET", "/edit?download=" + path, true);
+        xmlHttp.open("GET", "/edit?edit=" + path, true);
         xmlHttp.send(null);
       }
 

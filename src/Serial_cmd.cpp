@@ -1,6 +1,7 @@
 #include "Serial_cmd.h"
 #include <nvs_flash.h>
 #include "chip-debug-report.h"
+extern SPIClass SDSPI;
 CMD cmd;
 char task_list[1024];
 bool stop_fileserver = false; 
@@ -233,6 +234,34 @@ void CMD::parseCommand(const char* command) {
             }
             if (!LittleFS.begin())
                 Serial.println("Error: Failed to begin LittleFS");
+        } else if (strcmp(cmd, format_tf) == 0) {
+            // 需要加载TF卡
+            // 首先测试TF卡是否存在
+            if (digitalRead(PIN_SD_CARDDETECT) != 1)
+            {
+                Serial.println("[外设] 加载TF卡");
+                gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
+                digitalWrite(PIN_SDVDD_CTRL, 0);
+                gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
+                delay(50);
+                uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
+                Serial.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
+                if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
+                {
+                    delay(100);
+                    F_LOG("TF卡挂载失败,尝试重新挂载");
+                    if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
+                    {
+                        GUI::msgbox("错误", "存在TF卡，但无法挂载");
+                        SD.end();
+                        gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
+                        digitalWrite(PIN_SDVDD_CTRL, 1);
+                        gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
+                    }
+                }
+            }else{
+                log_w("[外设] 未插入TF卡");
+            }
         } else if (strcmp(cmd, littlefs_info) == 0) {
             size_t total = LittleFS.totalBytes(), used = LittleFS.usedBytes();
             Serial.printf("LittleFS total space: %d KB\n", total / 1024);
@@ -240,8 +269,8 @@ void CMD::parseCommand(const char* command) {
             Serial.printf("LittleFS free space:  %d KB\n", (total - used) / 1024);
         } else if (strcmp(cmd, free_heap_size) == 0) {
             uint32_t heap = ESP.getHeapSize(), free_heap = ESP.getFreeHeap();
-            Serial.printf("All heap size:  %d KB\n", heap / 1024);
-            Serial.printf("Free heap size: %d KB\n", free_heap / 1024);
+            Serial.printf("All heap size:  %.2f KB\n", (float)heap / 1024.0);
+            Serial.printf("Free heap size: %.2f KB\n", (float)free_heap / 1024.0);
             Serial.printf("内存占用:        %.02f%%\n", ((float)heap - (float)free_heap) / (float)heap * 100.0);
         } else if (strcmp(cmd, esp_chip_info_) == 0) {
             Serial.printf("ChipModel:    %s\n", ESP.getChipModel());

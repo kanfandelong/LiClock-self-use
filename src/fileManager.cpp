@@ -1,5 +1,3 @@
-#pragma GCC optimize ("O3")
-
 #include <A_Config.h>
 #include <GUI.h>
 // 9 * 12
@@ -41,6 +39,9 @@ static const struct s_fileicondict fileicondict[] = {
     {"mp3", musicfile_bits},
     {"flac", musicfile_bits},
     {"aac", musicfile_bits},
+    {"m4a", musicfile_bits},
+    {"ogg", musicfile_bits},
+    {"opus", musicfile_bits}, // 添加opus格式支持
     {"i", sysfile_bits},
     {"json", sysfile_bits},
     {"bin", sysfile_bits},
@@ -76,9 +77,39 @@ namespace GUI
     char filedialog_buffer[300];
     void push_buffer();
     void pop_buffer();
-    // 注意，下面这个函数完全没有考虑线程安全，no reentrent!!!
     const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system)
     {
+        // 注意，这个函数完全没有考虑线程安全，no reentrent!!!
+        // 处理多扩展名过滤
+        char **extensionList = NULL;
+        int extensionCount = 0;
+        
+        // 如果endsWidth不为NULL且包含换行符，则分割字符串
+        if (endsWidth != NULL && strchr(endsWidth, '\n') != NULL) {
+            // 计算扩展名数量
+            const char *ptr = endsWidth;
+            extensionCount = 1; // 至少有一个扩展名
+            while (*ptr) {
+                if (*ptr == '\n') extensionCount++;
+                ptr++;
+            }
+            
+            // 分配内存存储扩展名
+            extensionList = (char **)malloc(extensionCount * sizeof(char *));
+            if (extensionList != NULL) {
+                // 复制字符串并分割
+                char *copy = strdup(endsWidth);
+                if (copy != NULL) {
+                    int idx = 0;
+                    char *token = strtok(copy, "\n");
+                    while (token != NULL && idx < extensionCount) {
+                        extensionList[idx++] = strdup(token);
+                        token = strtok(NULL, "\n");
+                    }
+                    free(copy);
+                }
+            }
+        }
         // 首先选择文件系统
         bool useSD = false;
         if (isApp == false)
@@ -194,7 +225,26 @@ open_root:
                     {
                         if (endsWidth != NULL)
                         {
-                            if (strcmp(endsWidth, ext.c_str()) != 0)
+                            // if (strcmp(endsWidth, ext.c_str()) != 0)
+                            // {
+                            //     file.close();
+                            //     file = root.openNextFile();
+                            //     continue;
+                            // }
+                            bool match = false;
+                            if (extensionList != NULL) {
+                                // 多扩展名匹配
+                                for (int i = 0; i < extensionCount; i++) {
+                                    if (extensionList[i] != NULL && strcmp(extensionList[i], ext.c_str()) == 0) {
+                                        match = true;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                // 单扩展名匹配 (保持原有逻辑)
+                                match = (strcmp(endsWidth, ext.c_str()) == 0);
+                            }
+                            if (!match)
                             {
                                 file.close();
                                 file = root.openNextFile();
@@ -246,7 +296,7 @@ open_root:
             if (selected == 0)
             {
                 // 上一级目录
-                display.display(); // 局部刷新一次
+                display.display(true); // 局部刷新一次
                 if (cwd == "/")
                 {
                     total_entries = 1;
@@ -255,6 +305,14 @@ open_root:
                         free(titles[total_entries]);
                         titles[total_entries] = NULL;
                         ++total_entries;
+                    }
+                    if (extensionList != NULL) {
+                        for (int i = 0; i < extensionCount; i++) {
+                            if (extensionList[i] != NULL) {
+                                free(extensionList[i]);
+                            }
+                        }
+                        free(extensionList);
                     }
                     return NULL;
                 }
@@ -293,6 +351,14 @@ open_root:
             free(titles[total_entries]);
             titles[total_entries] = NULL;
             ++total_entries;
+        }
+        if (extensionList != NULL) {
+            for (int i = 0; i < extensionCount; i++) {
+                if (extensionList[i] != NULL) {
+                    free(extensionList[i]);
+                }
+            }
+            free(extensionList);
         }
         return filedialog_buffer;
     }

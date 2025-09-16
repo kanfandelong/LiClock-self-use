@@ -425,6 +425,7 @@ void SPIFFSEditor::setFileSystem(fs::FS &fs)
 
 bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request)
 {
+    log_i("检查客户端请求是否有效");
     if (request->url().equalsIgnoreCase("/edit"))
     {
         if (request->method() == HTTP_GET)
@@ -436,8 +437,15 @@ bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request)
                 String arg = request->arg("edit");
                 if (arg.charAt(0) != '/')
                     arg = "/" + arg;
-                request->_tempFile = _fs.open(arg, "r");
-                if (!request->_tempFile)
+                if (_fs.exists(arg))
+                {
+                    request->_tempFile = _fs.open(arg, "r");
+                    if (!request->_tempFile)
+                    {
+                        return false;
+                    }
+                }
+                else
                 {
                     return false;
                 }
@@ -454,8 +462,15 @@ bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request)
                 String arg = request->arg("download");
                 if (arg.charAt(0) != '/')
                     arg = "/" + arg;
-                request->_tempFile = _fs.open(arg, "r");
-                if (!request->_tempFile)
+                if (_fs.exists(arg))
+                {
+                    request->_tempFile = _fs.open(arg, "r");
+                    if (!request->_tempFile)
+                    {
+                        return false;
+                    }
+                }
+                else
                 {
                     return false;
                 }
@@ -482,6 +497,7 @@ bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request)
 
 void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
 {
+    log_i("处理客户端请求");
     if (_username.length() && _password.length() && !request->authenticate(_username.c_str(), _password.c_str()))
         return request->requestAuthentication();
 
@@ -540,20 +556,24 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
         }
         else if (request->hasParam("edit") || request->hasParam("download"))
         {
-            if (request->_tempFile == true)
+            if (request->_tempFile)
             {
                 AsyncWebServerResponse *response = request->beginResponse(request->_tempFile, request->_tempFile.name(), String(), request->hasParam("download"), nullptr);
                 time_t lastWrite = request->_tempFile.getLastWrite(); // 获取UTC时间戳
                 struct tm tm;
                 gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
-                char timeStr[30];
+                char timeStr[64];
                 strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
                 const char *LastWriteTime = timeStr;
                 response->addHeader("Last-Modified", LastWriteTime);
                 request->send(response);
+                log_i("%s %s %d", request->_tempFile.name(), timeStr, request->_tempFile.size());
             }
             else
+            {
                 request->send(404);
+                log_i("404");
+            }
             // request->send(request->_tempFile, request->_tempFile.name(), String(), request->hasParam("download"));
         }
         else
@@ -574,10 +594,10 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
                     struct tm tm;
                     gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
 
-                    char timeStr[30];
+                    char timeStr[64];
                     strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
                     buildTime = timeStr;
-                    AsyncWebServerResponse *response = request->beginResponse(_littlefs, "/System/edit.html.gz", "text/html", false);
+                    AsyncWebServerResponse *response = request->beginResponse(_littlefs, "/System/edit.html.gz", "text/html", false, nullptr);
                     // response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
                     // response->addHeader("Pragma", "no-cache");
                     // response->addHeader("Expires", "0");
@@ -586,7 +606,9 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
                     request->send(response);
                 }
                 else
+                {
                     request->send(404, "text/plain", "资源文件不存在");
+                }
             }
         }
     }
@@ -598,14 +620,18 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
             request->send(200, "", "DELETE: " + request->getParam("path", true)->value());
         }
         else
+        {
             request->send(404);
+        }
     }
     else if (request->method() == HTTP_POST)
     {
         if (request->hasParam("data", true, true) && _fs.exists(request->getParam("data", true, true)->value()))
             request->send(200, "", "UPLOADED: " + request->getParam("data", true, true)->value());
         else
+        {
             request->send(500);
+        }
     }
     else if (request->method() == HTTP_PUT)
     {
@@ -632,7 +658,9 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
             }
         }
         else
+        {
             request->send(400);
+        }
     }
 }
 

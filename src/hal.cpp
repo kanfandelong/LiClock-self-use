@@ -379,6 +379,10 @@ void HAL::loadConfig()
         return;
     }
     deserializeJson(config, configFile);
+    if (hal.pref.getBool(hal.get_char_sha_key("离线模式")))
+        config[PARAM_CLOCKONLY] == "1";
+    else
+        config[PARAM_CLOCKONLY] == "0";
     configFile.close();
 }
 
@@ -604,12 +608,12 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     int freq = ESP.getCpuFreqMHz();
     if (freq < _freq || (setfreq && (freq != _freq)))
     {
-        bool cpuset = setCpuFrequencyMhz(setfreq ? _freq : 80);
+        bool cpuset = setCpuFrequencyMhz(_freq);
         Serial.end();
         Serial.begin(115200);
         Serial.setDebugOutput(true);
-        ESP_LOGI("hal", "CpuFreq: %dMHZ -> %dMHZ", freq, setfreq ? _freq : 80);
-        F_LOG("CpuFreq: %dMHZ -> %dMHZ", freq, setfreq ? _freq : 80);
+        ESP_LOGI("hal", "CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
+        F_LOG("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
         {
             ESP_LOGI("hal", "ok");
@@ -990,7 +994,10 @@ void HAL::coredump_file()
     else
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节\n", written);
-        GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf", 5);
+        if (esp_reset_reason() == ESP_RST_PANIC)
+            GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf", 5);
+        else
+            GUI::msgbox("提示", "coredump分区已转储至/System/coredump.elf", 5);
     }
 }
 
@@ -1354,7 +1361,7 @@ static void pre_sleep()
     if (file_log)
         file_log.close();
     LittleFS.end();
-    hal.pref.end();
+    // hal.pref.end();
     delay(10);
     ledcDetachPin(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);

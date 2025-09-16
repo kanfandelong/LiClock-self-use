@@ -206,7 +206,7 @@ private:
                 wait_time = millis();
             }if (hal.btnc.isPressing()) {
                 static const menu_item appMenu_main[] = {
-                    {NULL, "返回"},
+                    {NULL, "< 返回"},
                     {NULL, "退出"},
                     {NULL, "跳转页"},
                     {NULL, "跳转至偏移量"},
@@ -416,7 +416,7 @@ file_info:
         sprintf(Str, "大小 %.2fGB %d.%d.%d %d:%d", (float)a / 1073741824.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
     }
     static const menu_item appMenu_main[] = {
-    {NULL, "返回"},
+    {NULL, "< 返回"},
     {NULL, "新建"},
     {NULL, "复制文件"},
     {NULL, "重命名"},

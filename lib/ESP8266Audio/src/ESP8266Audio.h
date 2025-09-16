@@ -4,7 +4,7 @@
 
 // Input stage
 #include "AudioFileSourceBuffer.h"
-#include "AudioFileSourceFATFS.h"
+// #include "AudioFileSourceFATFS.h"
 #include "AudioFileSourceFS.h"
 #include "AudioFileSource.h"
 #include "AudioFileSourceHTTPStream.h"

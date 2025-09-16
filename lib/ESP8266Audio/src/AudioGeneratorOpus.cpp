@@ -42,16 +42,31 @@ AudioGeneratorOpus::~AudioGeneratorOpus()
 bool AudioGeneratorOpus::begin(AudioFileSource *source, AudioOutput *output)
 {
   buff = (int16_t*)malloc(OPUS_BUFF * sizeof(int16_t));
-  if (!buff) return false;
+  if (!buff) {
+    log_e("malloc() failed");
+    return false;
+  }
 
-  if (!source) return false;
+  if (!source) {
+    log_e("No source");
+    return false;
+  }
   file = source;
-  if (!output) return false;
+  if (!output) {
+    log_e("No output");
+    return false;
+  }
   this->output = output;
-  if (!file->isOpen()) return false; // Error
+  if (!file->isOpen()) {
+    log_e("File not open");
+    return false; // Error
+  }
 
   of = op_open_callbacks((void*)this, &cb, nullptr, 0, nullptr);
-  if (!of) return false;
+  if (!of) {
+    log_e("op_open_callbacks() failed");
+    return false;
+  }
 
   prev_li = -1;
   lastSample[0] = 0;

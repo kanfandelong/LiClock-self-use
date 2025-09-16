@@ -197,6 +197,9 @@ static const menu_item appMenu_TF[] = {
     {NULL, NULL},
 };
 
+extern AppBase *appList[128];
+extern int tail;
+
 void AppInstaller::setup()
 {
     while (end == false)
@@ -218,35 +221,19 @@ void AppInstaller::setup()
         case 3:
             {
                 appManager.App_Preferences_init();
-                static const menu_select appMenu_select[] = {
-                    {false, "返回", nullptr},
-                    {true, "音乐", nullptr},
-                    {true, "图片", nullptr},
-                    {true, "定位", nullptr},
-                    {true, "电源", nullptr},
-                    {true, "数据", nullptr},
-                    {true, "设置", nullptr},
-                    {true, "OOBE", nullptr},
-                    {true, "SGP30", nullptr},
-                    {true, "AHT20", nullptr},
-                    {true, "Debug", nullptr},
-                    {true, "BMP280", nullptr},
-                    {true, "收音机", nullptr},
-                    {true, "蜂鸣器", nullptr},
-                    {true, "电子书", nullptr},
-                    {true, "贪吃蛇", nullptr},
-                    {true, "仅时钟", nullptr},
-                    {true, "天气时钟", nullptr},
-                    {true, "APP管理", nullptr},
-                    {true, "B站粉丝", nullptr},
-                    {true, "误差补偿", nullptr},
-                    {true, "天气预警", nullptr},
-                    {true, "网页配置", nullptr},
-                    {true, "文件管理", nullptr},
-                    {true, "DS18B20", nullptr},
-                    {false, NULL, nullptr},
-                };
-                GUI::select_menu("APP显示设置", appMenu_select);
+                menu_select *dyn_appMenu_select = new menu_select[tail + 2];
+                // 第一项是返回
+                dyn_appMenu_select[0] = {false, "< 返回", nullptr};
+                
+                // 为每个已注册的App创建菜单项
+                for (int i = 0; i < tail; i++) {
+                    dyn_appMenu_select[i + 1] = {true, appList[i]->title, nullptr};
+                }
+                
+                // 最后一项设置为空，表示结束
+                dyn_appMenu_select[tail + 1] = {false, NULL, nullptr};
+                GUI::select_menu("APP显示设置", dyn_appMenu_select);
+                delete[] dyn_appMenu_select; // 释放动态分配的内存
             }
             break;
         case 4:
