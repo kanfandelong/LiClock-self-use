@@ -22,6 +22,7 @@
 
 #include "AudioOutput.h"
 
+#include "driver/i2s.h"
 #if defined(ARDUINO_ARCH_RP2040)
 #include <Arduino.h>
 #include <I2S.h>
@@ -52,6 +53,7 @@ class AudioOutputI2S : public AudioOutput
     bool SetOutputModeMono(bool mono);  // Force mono output no matter the input
     bool SetLsbJustified(bool lsbJustified);  // Allow supporting non-I2S chips, e.g. PT8211 
     bool SetMclk(bool enabled);  // Enable MCLK output (if supported)
+    bool Set_bits_per_chan(i2s_bits_per_chan_t i2s_per_chan);
     bool SwapClocks(bool swap_clocks);  // Swap BCLK and WCLK
 
   protected:
@@ -66,6 +68,7 @@ class AudioOutputI2S : public AudioOutput
     int use_apll;
     bool use_mclk;
     bool swap_clocks;
+    i2s_bits_per_chan_t bits_per_chan;
     // We can restore the old values and free up these pins when in NoDAC mode
     uint32_t orig_bck;
     uint32_t orig_ws;

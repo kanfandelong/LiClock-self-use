@@ -365,8 +365,7 @@ void HAL::saveConfig()
     if (config[PARAM_CLOCKONLY] == "1")
         if (!hal.pref.getBool(hal.get_char_sha_key("离线模式")))
             hal.pref.putBool(hal.get_char_sha_key("离线模式"), true);
-    else
-        if (hal.pref.getBool(hal.get_char_sha_key("离线模式")))
+        else if (hal.pref.getBool(hal.get_char_sha_key("离线模式")))
             hal.pref.putBool(hal.get_char_sha_key("离线模式"), false);
     configFile.close();
 }
@@ -1016,10 +1015,13 @@ bool HAL::init()
     // 读取时钟偏移
     pref.begin("clock");
 
-    if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3){
+    if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3)
+    {
         hal.btnl = OneButton(PIN_BUTTONL);
         hal.btnr = OneButton(PIN_BUTTONR);
-    }else{
+    }
+    else
+    {
         hal.btnl = OneButton(PIN_BUTTONR);
         hal.btnr = OneButton(PIN_BUTTONL);
     }
@@ -1147,7 +1149,7 @@ bool HAL::init()
     esp_reset_reason_t reset_reason = esp_reset_reason();
     esp_sleep_wakeup_cause_t sleep_wakeup_cause = esp_sleep_get_wakeup_cause();
     if (!fast_boot)
-    {    
+    {
         if (LittleFS.exists("/System") == false)
         {
             LittleFS.mkdir("/System");
@@ -1247,15 +1249,17 @@ void HAL::rtc_offset()
     // 计算误差率（ppm）
     double errorRate_ppm = (error / (double)deltaT) * 1e6;
 
-    // 调整振荡器的频率。每个LSB代表大约0.12ppm的频率变化，正值会减慢时间基准，负值会加快时间基准
+    // 调整振荡器的频率。每个LSB代表大约0.12ppm的频率变化，负值会减慢时间基准，正值会加快时间基准
     // 计算校准值offset（注意符号方向）
     int8_t offset = round(-errorRate_ppm / 0.12); // 负号修正误差方向
 
     // 限制offset在±127范围内
     offset = constrain(offset, -127, 127);
 
+    xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
     // 写入Aging Offset寄存器
     peripherals.rtc.writeOffset(offset);
+    xSemaphoreGive(peripherals.i2cMutex);
 }
 
 bool HAL::autoConnectWiFi(bool need_wifi_config)

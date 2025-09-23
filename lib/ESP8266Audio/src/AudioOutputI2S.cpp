@@ -20,7 +20,6 @@
 
 #include <Arduino.h>
 #ifdef ESP32
-  #include "driver/i2s.h"
 #elif defined(ARDUINO_ARCH_RP2040) || ARDUINO_ESP8266_MAJOR >= 3
   #include <I2S.h>
 #elif ARDUINO_ESP8266_MAJOR < 3
@@ -39,7 +38,7 @@ AudioOutputI2S::AudioOutputI2S(int port, int output_mode, int dma_buf_count, int
   }
   this->output_mode = output_mode;
   this->use_apll = use_apll;
-
+  bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT;
   //set defaults
   mono = false;
   lsb_justified = false;
@@ -191,6 +190,11 @@ bool AudioOutputI2S::SetMclk(bool enabled){
   return true;
 }
 
+bool AudioOutputI2S::Set_bits_per_chan(i2s_bits_per_chan_t bits_per_chan){
+  
+  return true;
+}
+
 bool AudioOutputI2S::begin(bool txDAC)
 {
   #ifdef ESP32
@@ -225,7 +229,6 @@ bool AudioOutputI2S::begin(bool txDAC)
         return false;      
 #endif
       }
-
       i2s_comm_format_t comm_fmt;
       if (output_mode == INTERNAL_DAC)
       {
@@ -266,7 +269,7 @@ bool AudioOutputI2S::begin(bool txDAC)
           .fixed_mclk = use_mclk, // Unused
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
           .mclk_multiple = I2S_MCLK_MULTIPLE_256, // Unused
-          .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT // Use bits per sample
+          .bits_per_chan = bits_per_chan // Use bits per sample
 #endif
       };
       audioLogger->printf("+%d %p\n", portNo, &i2s_config_dac);

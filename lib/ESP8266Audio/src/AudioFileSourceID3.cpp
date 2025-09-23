@@ -236,6 +236,8 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
       } else if ( (frameid[0]=='T' && frameid[1]=='R' && frameid[2]=='C' && frameid[3] == 'K') ||
                   (frameid[0]=='T' && frameid[1]=='R' && frameid[2]=='K' && rev==2) ) {
         cb.md("track", isUnicode, value);
+      } else if ( (frameid[0]=='T' && frameid[1]=='L' && frameid[2]=='E' && frameid[3] == 'N') ) {
+        cb.md("tlen", isUnicode, value);
       } else if ( (frameid[0]=='T' && frameid[1]=='P' && frameid[2]=='O' && frameid[3] == 'S') ||
                   (frameid[0]=='T' && frameid[1]=='P' && frameid[2]=='A' && rev==2) ) {
         cb.md("Set", isUnicode, value);
