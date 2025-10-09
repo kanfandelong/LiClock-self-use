@@ -47,7 +47,7 @@ AudioOutputI2S::AudioOutputI2S(int port, int output_mode, int dma_buf_count, int
   hertz = 44100;
   bclkPin = 26;
   wclkPin = 25;
-  doutPin = 22;
+  doutPin = 21;
   mclkPin = 0;
   SetGain(1.0);
 }
@@ -190,8 +190,8 @@ bool AudioOutputI2S::SetMclk(bool enabled){
   return true;
 }
 
-bool AudioOutputI2S::Set_bits_per_chan(i2s_bits_per_chan_t bits_per_chan){
-  
+bool AudioOutputI2S::Set_bits_per_chan(i2s_bits_per_chan_t _bits_per_chan){
+  bits_per_chan = _bits_per_chan;
   return true;
 }
 

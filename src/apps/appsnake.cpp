@@ -315,8 +315,8 @@ void Appsnake::menu()
             break;
         case 1:
             saveHighscore();
-            detachInterrupt(digitalPinToInterrupt(PIN_BUTTONL));
-            detachInterrupt(digitalPinToInterrupt(PIN_BUTTONR));
+            detachInterrupt(digitalPinToInterrupt(hal.btnl.pin()));
+            detachInterrupt(digitalPinToInterrupt(hal.btnr.pin()));
             end = true;
             appManager.goBack();
             break;
@@ -357,8 +357,8 @@ void Appsnake::setup()
     } */
     hal.wait_input();
     display.fillScreen(GxEPD_WHITE);
-    attachInterrupt(digitalPinToInterrupt(PIN_BUTTONR), changeR, FALLING);
-    attachInterrupt(digitalPinToInterrupt(PIN_BUTTONL), changeL, FALLING);
+    attachInterrupt(digitalPinToInterrupt(hal.btnr.pin()), changeR, FALLING);
+    attachInterrupt(digitalPinToInterrupt(hal.btnl.pin()), changeL, FALLING);
     spawnFood();
     resetGame();
     int a = 0;

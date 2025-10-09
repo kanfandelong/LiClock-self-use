@@ -109,22 +109,28 @@ public:
     OneButton btnl; // = OneButton(PIN_BUTTONL)
     OneButton btnc = OneButton(PIN_BUTTONC);
     bool btn_activelow = true;
-    void hookButton()
+    void hookButton(bool no_wait = false)
     {
         _hookButton = true;
-        while (btnr.isPressing() || btnl.isPressing() || btnc.isPressing())
+        if (!no_wait)
         {
-            delay(10);
-        }
+            while (btnr.isPressing() || btnl.isPressing() || btnc.isPressing())
+            {
+                delay(10);
+            }
+        }    
         delay(10);
         Serial.println("Hooked");
     }
-    void unhookButton()
+    void unhookButton(bool no_wait = false)
     {
-        while (btnr.isPressing() || btnl.isPressing() || btnc.isPressing())
+        if (!no_wait)
         {
-            delay(10);
-        }
+            while (btnr.isPressing() || btnl.isPressing() || btnc.isPressing())
+            {
+                delay(10);
+            }
+        }  
         delay(10);
         _hookButton = false;
         Serial.println("Unhooked");

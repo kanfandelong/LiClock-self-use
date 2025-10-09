@@ -13,7 +13,7 @@
 #include "GxEPD2_290_T5D.h"
 
 GxEPD2_290_T5D::GxEPD2_290_T5D(int16_t cs, int16_t dc, int16_t rst, int16_t busy) :
-  GxEPD2_EPD(cs, dc, rst, busy, LOW, 10000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
+  GxEPD2_EPD(cs, dc, rst, busy, LOW, 15000000, WIDTH, HEIGHT, panel, hasColor, hasPartialUpdate, hasFastPartialUpdate)
 {
 }
 
@@ -40,13 +40,30 @@ void GxEPD2_290_T5D::writeScreenBufferAgain(uint8_t value)
 
 void GxEPD2_290_T5D::_writeScreenBuffer(uint8_t command, uint8_t value)
 {
-  _writeCommand(command);
-  _startTransfer();
-  for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 8; i++)
-  {
-    _transfer(value);
+  if (T5D){
+    _writeCommand(command);
+    _startTransfer();
+    for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 8; i++)
+    {
+      _transfer(value);
+    }
+    _endTransfer();
   }
-  _endTransfer();
+  else{
+    _writeCommand(0x13); // set current
+    for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 8; i++)
+    {
+      _writeData(value);
+    }
+    if (_initial_refresh)
+    {
+      _writeCommand(0x10); // preset previous
+      for (uint32_t i = 0; i < uint32_t(WIDTH) * uint32_t(HEIGHT) / 8; i++)
+      {
+        _writeData(0xFF); // 0xFF is white
+      }
+    }
+  }
 }
 
 void GxEPD2_290_T5D::writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert, bool mirror_y, bool pgm)
@@ -152,7 +169,7 @@ void GxEPD2_290_T5D::_writeImagePart(uint8_t command, const uint8_t bitmap[], in
   if (!_using_partial_mode) _Init_Part();
   _writeCommand(0x91); // partial in
   _setPartialRamArea(x1, y1, w1, h1);
-  _writeCommand(command);
+  _writeCommand(T5D ? command : 0x13);
   _startTransfer();
   for (int16_t i = 0; i < h1; i++)
   {
@@ -319,7 +336,7 @@ void GxEPD2_290_T5D::_PowerOn()
   if (!_power_is_on)
   {
     _writeCommand(0x04);
-    _waitWhileBusy("_PowerOn", power_on_time);
+    _waitWhileBusy("_PowerOn", T5D ? 100 : 400);
   }
   _power_is_on = true;
 }
@@ -327,7 +344,7 @@ void GxEPD2_290_T5D::_PowerOn()
 void GxEPD2_290_T5D::_PowerOff()
 {
   _writeCommand(0x02); // power off
-  _waitWhileBusy("_PowerOff", power_off_time);
+  _waitWhileBusy("_PowerOff", T5D ? 50 : 250);
   _power_is_on = false;
   _using_partial_mode = false;
 }
@@ -335,17 +352,97 @@ void GxEPD2_290_T5D::_PowerOff()
 void GxEPD2_290_T5D::_InitDisplay()
 {
   if (_hibernating) _reset();
-  _writeCommand(0x00); // panel setting
-  _writeData(0x1f);    // LUT from OTP, 128x296
-  _writeCommand(0x61); //resolution setting
-  _writeData (WIDTH);
-  _writeData (HEIGHT >> 8);
-  _writeData (HEIGHT & 0xFF);
-  _writeCommand(0x50); // VCOM AND DATA INTERVAL SETTING
-  _writeData(0x97);    // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
-  PLL_set(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz
+  if (T5D){
+    _writeCommand(0x00); // panel setting
+    _writeData(0x1f);    // LUT from OTP, 128x296
+    _writeCommand(0x61); //resolution setting
+    _writeData (WIDTH);
+    _writeData (HEIGHT >> 8);
+    _writeData (HEIGHT & 0xFF);
+    _writeCommand(0x50); // VCOM AND DATA INTERVAL SETTING
+    _writeData(0x97);    // WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+    PLL_set(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz
+  }
+  else{
+    _writeCommand(0x01); //POWER SETTING
+    _writeData (0x03);
+    _writeData (0x00);
+    _writeData (0x2b);
+    _writeData (0x2b);
+    _writeData (0x03);
+    _writeCommand(0x06); //boost soft start
+    _writeData (0x17);   //A
+    _writeData (0x17);   //B
+    _writeData (0x17);   //C
+    _writeCommand(0x00); //panel setting
+    //_writeData(0xbf);    //LUT from register, 128x296
+    //_writeData(0x1f);    //LUT from OTP, 128x296
+    _writeData(hasFastPartialUpdate ? 0xbf : 0x1f); // for test with OTP LUT
+    _writeData(0x0d);    //VCOM to 0V fast
+    PLL_set(PLL_val); //0x3a(58):100Hz, 0x29(37):150Hz 39 200HZ 31 171HZ
+    _writeCommand(0x61); //resolution setting
+    _writeData (WIDTH);
+    _writeData (HEIGHT >> 8);
+    _writeData (HEIGHT & 0xFF);
+  }
 }
 
+//full screen update LUT
+const unsigned char GxEPD2_290_T5D::lut_20_vcomDC[] PROGMEM =
+{
+  0x00, 0x08, 0x00, 0x00, 0x00, 0x02,
+  0x60, 0x28, 0x28, 0x00, 0x00, 0x01,
+  0x00, 0x14, 0x00, 0x00, 0x00, 0x01,
+  0x00, 0x12, 0x12, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00,
+};
+
+const unsigned char GxEPD2_290_T5D::lut_21_ww[] PROGMEM =
+{
+  0x40, 0x08, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x28, 0x28, 0x00, 0x00, 0x01,
+  0x40, 0x14, 0x00, 0x00, 0x00, 0x01,
+  0xA0, 0x12, 0x12, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+const unsigned char GxEPD2_290_T5D::lut_22_bw[] PROGMEM =
+{
+  0x40, 0x08, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x28, 0x28, 0x00, 0x00, 0x01,
+  0x40, 0x14, 0x00, 0x00, 0x00, 0x01,
+  0xA0, 0x12, 0x12, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+const unsigned char GxEPD2_290_T5D::lut_23_wb[] PROGMEM =
+{
+  0x80, 0x08, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x28, 0x28, 0x00, 0x00, 0x01,
+  0x80, 0x14, 0x00, 0x00, 0x00, 0x01,
+  0x50, 0x12, 0x12, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
+const unsigned char GxEPD2_290_T5D::lut_24_bb[] PROGMEM =
+{
+  0x80, 0x08, 0x00, 0x00, 0x00, 0x02,
+  0x90, 0x28, 0x28, 0x00, 0x00, 0x01,
+  0x80, 0x14, 0x00, 0x00, 0x00, 0x01,
+  0x50, 0x12, 0x12, 0x00, 0x00, 0x01,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
 //partial screen update LUT
 //#define Tx19 0x19 // original value is 25 (phase length)
 #define Tx19 0x20   // new value for test is 32 (phase length)
@@ -432,9 +529,31 @@ void GxEPD2_290_T5D::PLL_set(uint8_t PLL_set_val){
   _writeData(PLL_set_val); //0x3a(58):100Hz, 0x29(37):150Hz
   PLL_val = PLL_set_val;
 }
+
+void GxEPD2_290_T5D::T5D_mode(bool mode){
+  T5D = mode;
+}
+
 void GxEPD2_290_T5D::_Init_Full()
 {
   _InitDisplay();
+  if (!T5D)
+  {
+    _writeCommand(0x82); //vcom_DC setting
+    _writeData (0x08);
+    _writeCommand(0X50); //VCOM AND DATA INTERVAL SETTING
+    _writeData(0x97);    //WBmode:VBDF 17|D7 VBDW 97 VBDB 57   WBRmode:VBDF F7 VBDW 77 VBDB 37  VBDR B7
+    _writeCommand(0x20);
+    _writeDataPGM(lut_20_vcomDC, sizeof(lut_20_vcomDC));
+    _writeCommand(0x21);
+    _writeDataPGM(lut_21_ww, sizeof(lut_21_ww));
+    _writeCommand(0x22);
+    _writeDataPGM(lut_22_bw, sizeof(lut_22_bw));
+    _writeCommand(0x23);
+    _writeDataPGM(lut_23_wb, sizeof(lut_23_wb));
+    _writeCommand(0x24);
+    _writeDataPGM(lut_24_bb, sizeof(lut_24_bb));
+  }
   _PowerOn();
   _using_partial_mode = false;
 }
@@ -442,8 +561,10 @@ void GxEPD2_290_T5D::_Init_Full()
 void GxEPD2_290_T5D::_Init_Part()
 {
   _InitDisplay();
-  _writeCommand(0x00); //panel setting
-  _writeData(hasFastPartialUpdate ? 0xbf : 0x1f); // for test with OTP LUT
+  if (T5D){
+    _writeCommand(0x00); //panel setting
+    _writeData(hasFastPartialUpdate ? 0xbf : 0x1f); // for test with OTP LUT
+  }
   _writeCommand(0x82); //vcom_DC setting
   _writeData (0x08);
   _writeCommand(0x50);
@@ -469,11 +590,11 @@ void GxEPD2_290_T5D::_Init_Part()
 void GxEPD2_290_T5D::_Update_Full()
 {
   _writeCommand(0x12); //display refresh
-  _waitWhileBusy("_Update_Full", full_refresh_time);
+  _waitWhileBusy("_Update_Full", T5D ? 3500 : 2100);
 }
 
 void GxEPD2_290_T5D::_Update_Part()
 {
   _writeCommand(0x12); //display refresh
-  _waitWhileBusy("_Update_Part", partial_refresh_time);
+  _waitWhileBusy("_Update_Part", T5D ? 750 : 400);
 }

@@ -213,7 +213,7 @@ void AppEBook::setup()
         }
         if (hal.btnr.isPressing() || ((hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1) && ebook_run == true && (!hal.pref.getBool(hal.get_char_sha_key("禁用休眠"))) || (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && hal.pref.getBool(hal.get_char_sha_key("自动翻页")))))
         {
-            if (GUI::waitLongPress(PIN_BUTTONR))
+            if (GUI::waitLongPress(hal.btnr.pin()))
             {
                 Serial.println("打开菜单");
                 // 打开菜单
@@ -1938,7 +1938,7 @@ void AppEBook::ebooksettings()
     bool end = false;
     while (!end)
     {
-        res = GUI::select_menu("电子书设置", ebook_set);
+        res = GUI::select_menu("电子书设置", ebook_set, res);
         switch (res)
         {
         case 0:

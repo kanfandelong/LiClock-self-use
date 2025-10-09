@@ -367,7 +367,7 @@ void AppInstaller::loadApp(const String path) // 加载TF卡App
 void Appwenjian::setup() 
 {
     char char_buf[64];
-    int used = 0, total = 0, free = 0;
+    int used = 0, total = 0, free = 0, res = 0;
     String _filename, dir;
     u32_t a;
     const char *file_system;
@@ -407,35 +407,36 @@ file_info:
     filetimeinfo = localtime(&LastWrite_time);
     char Str[128];
     if (a <= 1024){
-        sprintf(Str, "大小 %dBytes %d.%d.%d %d:%d", (int)a, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min); 
+        sprintf(Str, "大小 %dBytes %d.%d.%d %02d:%02d", (int)a, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min); 
     }else if (a <= 1048576){
-        sprintf(Str, "大小 %.2fKB %d.%d.%d %d:%d", (float)a / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+        sprintf(Str, "大小 %.2fKB %d.%d.%d %02d:%02d", (float)a / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
     }else if (a <= 1073741824){
-        sprintf(Str, "大小 %.2fMB %d.%d.%d %d:%d", (float)a / 1048576.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+        sprintf(Str, "大小 %.2fMB %d.%d.%d %02d:%02d", (float)a / 1048576.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
     }else{
-        sprintf(Str, "大小 %.2fGB %d.%d.%d %d:%d", (float)a / 1073741824.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+        sprintf(Str, "大小 %.2fGB %d.%d.%d %02d:%02d", (float)a / 1073741824.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
     }
     static const menu_item appMenu_main[] = {
-    {NULL, "< 返回"},
-    {NULL, "新建"},
-    {NULL, "复制文件"},
-    {NULL, "重命名"},
-    {NULL, "删除"},
-    {NULL, Str},
-    {NULL, "打开"},
-    {NULL, "切换文件系统"},
-    {NULL, "退出"},
-    {NULL, char_buf},
-    {NULL, NULL},
+        {NULL, "< 返回"},
+        {NULL, "打开"},
+        {NULL, "删除"},
+        {NULL, "复制文件"},  
+        {NULL, Str},   // 文件信息
+        {NULL, "新建"}, // 不常用操作后置      
+        {NULL, "重命名"},  
+        {NULL, "以hex打开"},      
+        {NULL, "切换文件系统"},
+        {NULL, "退出"},
+        {NULL, char_buf},         // 存储空间信息
+        {NULL, NULL},
     };
-    int res = 0;
     while (hasToApp == false)
     {
-        int res = GUI::menu(filename, appMenu_main);
+        res = GUI::menu(filename, appMenu_main, 8, 8, res);
         switch (res)
         {
-        case 0:
+        case 0: //返回
             {
+                res = 0;
                 filename = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system);
                 if (filename == NULL)
                 {
@@ -449,137 +450,10 @@ file_info:
                 goto file_info;
             }
             break;
-        case 1:
-            {
-                const char* newfile;
-                bool ok = false;
-                if(GUI::msgbox_yn("文件管理","新建","文件夹","文件"))
-                {
-                    newfile = GUI::englishInput("输入路径，例如：/testing");
-                    if(GUI::msgbox_yn("文件管理","新建文件夹到","littlefs","sd"))
-                    {
-                        ok = LittleFS.mkdir(newfile);
-                    }
-                    else{
-                        ok = SD.mkdir(newfile);
-                    }
-                    if (!ok)
-                    {GUI::msgbox("文件管理器","无法创建文件夹");
-                    F_LOG("无法创建文件夹");
-                    }
-                }else{
-                    newfile = GUI::englishInput("输入路径，例如：/testing.txt");
-                    File f;
-                    if(GUI::msgbox_yn("文件管理","新建文件到","littlefs","sd"))
-                    {
-                        f = LittleFS.open(newfile,"w");
-                        f.close();
-                    }
-                    else{
-                        f = SD.open(newfile,"w");
-                        f.close();
-                    }
-                }
-                delete[] newfile;
-            }
+        case 1: //打开
+            openfile();
             break;
-        case 2:
-            {  
-            if(LittleFS.exists("/userdat") == false){LittleFS.mkdir("/userdat");}
-            if(SD.exists("/userdat") == false){SD.mkdir("/userdat");}
-            selctwenjianjia();
-            File newfile,file;
-            if (strncmp(filename, "/sd/", 4) == 0) {
-                newfile = LittleFS.open(combinePath(directoryname,getFileName(filename)),"w");
-                file = SD.open(remove_path_prefix(filename,"/sd"));
-                float filesize = (float)file.size() / 1024.0;
-                if (!file)
-                {
-                   //Serial.println("[文件管理]file无法打开文件");
-                   log_e("\033[31m无法打开文件%s\033[32m\n",filename);
-                   F_LOG("无法打开文件%s",filename);
-                   break;
-                }
-                if (!newfile)
-                {
-                   //Serial.println("[文件管理]newfile 无法打开文件");
-                   log_e("\033[31m无法打开文件%s\033[32m\n",combinePath(directoryname,getFileName(filename)));
-                   F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
-                   break;
-                }
-                if(file.size() > LittleFS.totalBytes() - LittleFS.usedBytes())
-                {
-                    GUI::msgbox("警告","littlefs剩余的空间不足以复制当前的文件,自动取消当前复制!");
-                    newfile.close();
-                    file.close();
-                    LittleFS.remove(combinePath(directoryname,getFileName(filename)));
-                    break;
-                }
-                unsigned long begin = millis();
-                if(!hal.copy(newfile,file)){
-                    GUI::msgbox("提示","复制失败!");
-                    LittleFS.remove(combinePath(directoryname,getFileName(filename)));
-                }else{
-                    unsigned long usetime = millis() - begin;
-                    char buf[512];
-                    sprintf(buf,"从TF卡复制 %s 到littlefs,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
-                    GUI::info_msgbox("提示",buf);
-                    used = LittleFS.usedBytes()/1024;
-                    free = total - used;
-                    sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
-                    delay(500);
-                }
-            } 
-            else if (strncmp(filename, "/littlefs/", 10) == 0) {
-                newfile = SD.open(combinePath(directoryname,getFileName(filename)),"w");
-                file = LittleFS.open(remove_path_prefix(filename,"/littlefs"));
-                float filesize = (float)file.size() / 1024.0;
-                if (!file)
-                {
-                   //Serial.println("[文件管理]file无法打开文件");
-                   log_e("\033[31m无法打开文件%s\033[32m\n",filename);
-                   F_LOG("无法打开文件%s",filename);
-                }
-                if (!newfile)
-                {
-                   //Serial.println("[文件管理]newfile 无法打开文件");
-                   log_e("\033[31m无法打开文件%s\033[32m\n",combinePath(directoryname,getFileName(filename)));
-                   F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
-                }
-                unsigned long begin = millis();
-                if(!hal.copy(newfile,file)){
-                    GUI::msgbox("提示","复制失败!");
-                    SD.remove(combinePath(directoryname,getFileName(filename)));
-                }else{
-                    unsigned long usetime = millis() - begin;
-                    char buf[512];
-                    sprintf(buf,"从littlefs复制 %s 到TF卡,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
-                    GUI::info_msgbox("提示",buf);
-                    delay(1500);
-                }
-            }
-            //newfile.close();
-            //file.close();
-            }
-            break;
-        case 3:
-            {
-                const char *newname;
-                bool ok = false;
-                if (strncmp(filename, "/sd/", 4) == 0)
-                {
-                    newname = GUI::englishInput(remove_path_prefix(filename,"/sd"));
-                    ok = SD.rename(remove_path_prefix(filename,"/sd"),newname);
-                }
-                else if (strncmp(filename, "/littlefs/", 10) == 0) 
-                {
-                    newname = GUI::englishInput(remove_path_prefix(filename,"/littlefs"));
-                    ok = LittleFS.rename(remove_path_prefix(filename,"/littlefs"),newname);
-                }
-                delete[] newname;
-            }
-            break;
-        case 4:
+        case 2: //删除
             {  
                 bool OK = false;
                 char info[256];
@@ -634,7 +508,86 @@ file_info:
                 }
             }
             break;
-        case 5:
+        case 3: //复制
+            {  
+            if(LittleFS.exists("/userdat") == false){LittleFS.mkdir("/userdat");}
+            if(SD.exists("/userdat") == false){SD.mkdir("/userdat");}
+            selctwenjianjia();
+            File newfile,file;
+            if (strncmp(filename, "/sd/", 4) == 0) {
+                newfile = LittleFS.open(combinePath(directoryname,getFileName(filename)),"w");
+                file = SD.open(remove_path_prefix(filename,"/sd"));
+                float filesize = (float)file.size() / 1024.0;
+                if (!file)
+                {
+                   //Serial.println("[文件管理]file无法打开文件");
+                   log_e("无法打开文件%s",filename);
+                   F_LOG("无法打开文件%s",filename);
+                   break;
+                }
+                if (!newfile)
+                {
+                   //Serial.println("[文件管理]newfile 无法打开文件");
+                   log_e("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
+                   F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
+                   break;
+                }
+                if(file.size() > LittleFS.totalBytes() - LittleFS.usedBytes())
+                {
+                    GUI::msgbox("警告","littlefs剩余的空间不足以复制当前的文件,自动取消当前复制!");
+                    newfile.close();
+                    file.close();
+                    LittleFS.remove(combinePath(directoryname,getFileName(filename)));
+                    break;
+                }
+                unsigned long begin = millis();
+                if(!hal.copy(newfile,file)){
+                    GUI::msgbox("提示","复制失败!");
+                    LittleFS.remove(combinePath(directoryname,getFileName(filename)));
+                }else{
+                    unsigned long usetime = millis() - begin;
+                    char buf[512];
+                    sprintf(buf,"从TF卡复制 %s 到littlefs,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
+                    GUI::info_msgbox("提示",buf);
+                    used = LittleFS.usedBytes()/1024;
+                    free = total - used;
+                    sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
+                    delay(500);
+                }
+            } 
+            else if (strncmp(filename, "/littlefs/", 10) == 0) {
+                newfile = SD.open(combinePath(directoryname,getFileName(filename)),"w");
+                file = LittleFS.open(remove_path_prefix(filename,"/littlefs"));
+                float filesize = (float)file.size() / 1024.0;
+                if (!file)
+                {
+                   //Serial.println("[文件管理]file无法打开文件");
+                   log_e("无法打开文件%s",filename);
+                   F_LOG("无法打开文件%s",filename);
+                }
+                if (!newfile)
+                {
+                   //Serial.println("[文件管理]newfile 无法打开文件");
+                   log_e("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
+                   F_LOG("无法打开文件%s",combinePath(directoryname,getFileName(filename)));
+                }
+                unsigned long begin = millis();
+                if(!hal.copy(newfile,file)){
+                    GUI::msgbox("提示","复制失败!");
+                    SD.remove(combinePath(directoryname,getFileName(filename)));
+                }else{
+                    unsigned long usetime = millis() - begin;
+                    char buf[512];
+                    sprintf(buf,"从littlefs复制 %s 到TF卡,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
+                    GUI::info_msgbox("提示",buf);
+                    delay(1500);
+                }
+            }
+            //newfile.close();
+            //file.close();
+            }
+            break;
+        case 4: //大小
             { 
             int a;
             if (strncmp(filename, "/sd/", 4) == 0) {
@@ -648,22 +601,69 @@ file_info:
             GUI::msgbox("文件大小",Str);
             }
             break;
-        case 6:
+        case 5: //新建
             {
-                if(GUI::msgbox_yn("提示","使用默认的方式打开文件？否则使用bin文件查看器(hex)打开", "默认方式", "hex"))
-                    openfile();
-                else
-                    openbin(); 
+                const char* newfile;
+                bool ok = false;
+                if(GUI::msgbox_yn("文件管理","新建","文件夹","文件"))
+                {
+                    newfile = GUI::englishInput("输入路径，例如：/testing");
+                    if(GUI::msgbox_yn("文件管理","新建文件夹到","littlefs","sd"))
+                    {
+                        ok = LittleFS.mkdir(newfile);
+                    }
+                    else{
+                        ok = SD.mkdir(newfile);
+                    }
+                    if (!ok)
+                    {GUI::msgbox("文件管理器","无法创建文件夹");
+                    F_LOG("无法创建文件夹");
+                    }
+                }else{
+                    newfile = GUI::englishInput("输入路径，例如：/testing.txt");
+                    File f;
+                    if(GUI::msgbox_yn("文件管理","新建文件到","littlefs","sd"))
+                    {
+                        f = LittleFS.open(newfile,"w");
+                        f.close();
+                    }
+                    else{
+                        f = SD.open(newfile,"w");
+                        f.close();
+                    }
+                }
+                delete[] newfile;
+            }
+            break;
+        case 6: //重命名
+            {
+                const char *newname;
+                bool ok = false;
+                if (strncmp(filename, "/sd/", 4) == 0)
+                {
+                    newname = GUI::englishInput(remove_path_prefix(filename,"/sd"));
+                    ok = SD.rename(remove_path_prefix(filename,"/sd"),newname);
+                }
+                else if (strncmp(filename, "/littlefs/", 10) == 0) 
+                {
+                    newname = GUI::englishInput(remove_path_prefix(filename,"/littlefs"));
+                    ok = LittleFS.rename(remove_path_prefix(filename,"/littlefs"),newname);
+                }
+                delete[] newname;
             }
             break;
         case 7:
+            openbin(); 
+            break;
+        case 8: //切换文件系统
+            res = 0;
             goto fanhui;
             break;
-        case 8:
+        case 9: //退出
             appManager.goBack(); 
             return;
             break;
-        case 9:
+        case 10:
             break;
         default:
             GUI::msgbox("提示", "无效的选项");
@@ -787,7 +787,7 @@ void Appwenjian::openfile()
 {
     log_i("openfile,filename:%s\n",filename);
     const char* houzhui = get_houzhui(filename);
-    if(strcmp(houzhui, "txt") == 0 || strcmp(houzhui, "TXT") == 0)
+    if(strcasecmp(houzhui, "txt") == 0)
     {
         if(GUI::msgbox_yn("提示","将会覆盖原有的历史纪录"))
         {
@@ -798,7 +798,7 @@ void Appwenjian::openfile()
             appManager.gotoApp(toApp.c_str());
         }
     }
-    else if(strcmp(houzhui, "buz") == 0)
+    else if(strcasecmp(houzhui, "buz") == 0)
     {
         buzzer.playFile(filename);
         display.display(false); // 全局刷新一次
@@ -812,11 +812,11 @@ void Appwenjian::openfile()
         }
         GUI::msgbox("提示","播放已停止");
     }
-    else if(strcmp(houzhui, "bin") == 0)
+    else if(strcasecmp(houzhui, "bin") == 0)
     {
         openbin();
     }
-    else if(strcmp(houzhui, "lbm") == 0)
+    else if(strcasecmp(houzhui, "lbm") == 0)
     {
         /*
         File file;
@@ -855,7 +855,7 @@ void Appwenjian::openfile()
         }
         display.setgray(15);
     }
-    else if(strcmp(houzhui, "bmp") == 0 || strcmp(houzhui, "BMP") == 0)
+    else if(strcasecmp(houzhui, "bmp") == 0)
     {
         display.clearScreen();
         display.display();
@@ -879,7 +879,7 @@ void Appwenjian::openfile()
             }
             hal.wait_input();
         }
-    }else if(strcmp(houzhui, "JPG") == 0 || strcmp(houzhui, "jpg") == 0){
+    }else if(strcasecmp(houzhui, "jpg") == 0){
         display.clearScreen();
         display.display();
         if (strncmp(filename, "/sd/", 4) == 0) {
@@ -902,7 +902,7 @@ void Appwenjian::openfile()
             }
             hal.wait_input();
         }
-    }else if(strcmp(houzhui, "LUA") == 0 || strcmp(houzhui, "lua") == 0){
+    }else if(strcasecmp(houzhui, "lua") == 0){
         setPath(filepath);
         Serial.printf("pach:%s\n", filepath);
         String _str = "./" + (String)getFileName(filename);
@@ -940,6 +940,10 @@ void Appwenjian::openfile()
         Serial.println("目标lua脚本执行完毕");
         GUI::info_msgbox("提示", "lua脚本执行完毕", 136, 32);
         hal.wait_input();
+    }else if(strcasecmp(houzhui, "mp3") == 0 || strcasecmp(houzhui, "wav") == 0 || strcasecmp(houzhui, "aac") == 0 || strcasecmp(houzhui, "opus") == 0 || strcasecmp(houzhui, "flac") == 0){
+        hasToApp = true;
+        toApp = "musicplayer";
+        appManager.gotoApp(toApp.c_str());
     }else {
         GUI::msgbox("提示","文件格式没有支持的显示或处理方式，将使用16进制(bin)模式打开");
         openbin();

@@ -191,6 +191,79 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
   (void) decoder;
   (void) metadata;
   audioLogger->printf_P(PSTR("Metadata\n"));
+/*   if (!metadataCallback) return; // 如果没有注册回调，直接返回
+  
+  switch (metadata->type) {
+      case FLAC__METADATA_TYPE_STREAMINFO:
+          // 处理流信息（采样率、声道数等）
+          audioLogger->printf_P(PSTR("FLAC StreamInfo: %lu Hz, %u channels, %lu samples\n"),
+                                metadata->data.stream_info.sample_rate,
+                                metadata->data.stream_info.channels,
+                                (unsigned long)metadata->data.stream_info.total_samples);
+          if (metadata->data.stream_info.total_samples > 0 && 
+              metadata->data.stream_info.sample_rate > 0) {
+              
+              uint32_t duration_ms = (uint32_t)((metadata->data.stream_info.total_samples * 1000) / 
+                                              metadata->data.stream_info.sample_rate);
+              
+              // 通过回调传递时长信息
+              char durationStr[20];
+              snprintf(durationStr, sizeof(durationStr), "%lu", duration_ms);
+              metadataCallback(metadataCallbackData, "tlen", false, durationStr);
+          }
+          break;
+          
+      case FLAC__METADATA_TYPE_VORBIS_COMMENT:
+          // 处理 Vorbis 注释（标签信息）
+          audioLogger->printf_P(PSTR("FLAC Vorbis Comments: %u comments\n"),
+                                metadata->data.vorbis_comment.num_comments);
+          
+          // 遍历所有注释
+          for (unsigned int i = 0; i < metadata->data.vorbis_comment.num_comments; i++) {
+              FLAC__StreamMetadata_VorbisComment_Entry entry = metadata->data.vorbis_comment.comments[i];
+              
+              // 将注释转换为字符串
+              String commentStr;
+              for (unsigned int j = 0; j < entry.length; j++) {
+                  commentStr += (char)entry.entry[j];
+              }
+              
+              // 分离键值对
+              int equalsPos = commentStr.indexOf('=');
+              if (equalsPos > 0) {
+                  String key = commentStr.substring(0, equalsPos);
+                  String value = commentStr.substring(equalsPos + 1);
+                  
+                  // 映射到 ID3 标签类型
+                  const char* id3Type = nullptr;
+                  if (key.equalsIgnoreCase("TITLE")) id3Type = "title";
+                  else if (key.equalsIgnoreCase("ARTIST")) id3Type = "performer";
+                  else if (key.equalsIgnoreCase("ALBUM")) id3Type = "album";
+                  else if (key.equalsIgnoreCase("DATE")) id3Type = "date";
+                  else if (key.equalsIgnoreCase("GENRE")) id3Type = "genre";
+                  else if (key.equalsIgnoreCase("TRACKNUMBER")) id3Type = "track";
+                  else if (key.equalsIgnoreCase("COMMENT")) id3Type = "comment";
+                  
+                  if (id3Type) {
+                      // 调用现有的 MDCallback 函数
+                      metadataCallback(metadataCallbackData, id3Type, false, value.c_str());
+                  }
+              }
+          }
+          break;
+          
+      case FLAC__METADATA_TYPE_PICTURE:
+          // 处理专辑封面图片
+          audioLogger->printf_P(PSTR("FLAC Picture: %u x %u, %u bytes\n"),
+                                metadata->data.picture.width,
+                                metadata->data.picture.height,
+                                metadata->data.picture.data_length);
+          break;   
+      default:
+          // 其他类型的元数据
+          audioLogger->printf_P(PSTR("FLAC Metadata type: %d\n"), metadata->type);
+          break;
+  } */
 }
 char AudioGeneratorFLAC::error_cb_str[64];
 void AudioGeneratorFLAC::error_cb(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status)

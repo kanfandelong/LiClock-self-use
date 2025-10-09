@@ -104,7 +104,7 @@ void AppSettings::setup()
     while (end == false && hasToApp == false)
     {
         // display.display(false); // 每次进入设置全局刷新一次
-        res = GUI::menu("设置", settings_menu_main);
+        res = GUI::menu("设置", settings_menu_main, 8, 8, res);
         switch (res)
         {
         case 0:
@@ -172,7 +172,7 @@ void AppSettings::menu_time()
         };
     while (end == false && hasToApp == false)
     {
-        res = GUI::select_menu("时间设置", settings_menu_time);
+        res = GUI::select_menu("时间设置", settings_menu_time, res);
         switch (res)
         {
         case 0:
@@ -387,7 +387,7 @@ void AppSettings::menu_network()
     DNSServer dnsServer;
     while (end == false && hasToApp == false)
     {
-        res = GUI::select_menu("网络设置", settings_menu_network);
+        res = GUI::select_menu("网络设置", settings_menu_network, res);
         switch (res)
         {
         case 0:
@@ -669,7 +669,7 @@ void AppSettings::menu_network()
             {
                 if (hal.btnl.isPressing())
                 {
-                    if (GUI::waitLongPress(PIN_BUTTONL))
+                    if (GUI::waitLongPress(hal.btnl.pin()))
                     {
                         while (hal.btnl.isPressing())
                             delay(20);
@@ -827,11 +827,12 @@ void AppSettings::menu_display()
             {false, "屏幕全刷间隔", nullptr},
             {false, "屏幕PLL设定", nullptr},
             {false, "按键音设置", nullptr},
+            {true,  "UC8151C兼容模式", "UC8151C"},
             {false, NULL},
         };
     while (end == false && hasToApp == false)
     {
-        res = GUI::select_menu("显示与声音", settings_menu_display);
+        res = GUI::select_menu("显示与声音", settings_menu_display, res);
         switch (res)
         {
         case 0:
@@ -875,7 +876,7 @@ void AppSettings::menu_display()
             bool end = false;
             while (!end)
             {
-                res = GUI::select_menu("按键音设置", settings_btn_buz);
+                res = GUI::select_menu("按键音设置", settings_btn_buz, res);
                 switch (res)
                 {
                 case 0:
@@ -917,7 +918,7 @@ void AppSettings::menu_power()
         };
     while (end == false && hasToApp == false)
     {
-        res = GUI::select_menu("电源管理", settings_menu_display);
+        res = GUI::select_menu("电源管理", settings_menu_display, res);
         switch (res)
         {
         case 0:
@@ -1044,7 +1045,7 @@ void AppSettings::menu_peripherals()
         };
     while (end == false && hasToApp == false)
     {
-        res = GUI::select_menu("存储与外设", settings_menu_peripherals);
+        res = GUI::select_menu("存储与外设", settings_menu_peripherals, res);
         switch (res)
         {
         case 0:
@@ -1157,11 +1158,13 @@ void AppSettings::menu_system()
             {true, "快速启动", "fast_boot"}, // 6
             {false, "CPU频率设置", nullptr},
             {false, "TF卡时钟频率设置", nullptr},
+            {false, "I2C时钟频率设置", nullptr},
             {false, "长按识别时间", nullptr},
+            {true, "交换左右按键", "switch_btn"},
             {false, "检查更新", nullptr},
-            {true, "离线模式", nullptr},   // 11
-            {true, "停用DS3231", nullptr}, // 12
-            {true, "系统日志", "sys_log"}, // 13
+            {true, "离线模式", nullptr},   // 13
+            {true, "停用DS3231", nullptr}, // 14
+            {true, "系统日志", "sys_log"}, // 15
             {false, "NVS备份和恢复", nullptr},
             {false, "core_dump", nullptr},
             {false, "恢复出厂设置", nullptr},
@@ -1169,7 +1172,7 @@ void AppSettings::menu_system()
         };
     while (end == false && hasToApp == false)
     {
-        res = GUI::select_menu("系统设置", settings_menu_system);
+        res = GUI::select_menu("系统设置", settings_menu_system, res);
         switch (res)
         {
         case 0:
@@ -1270,7 +1273,7 @@ void AppSettings::menu_system()
             bool end = false;
             while (!end)
             {
-                res = GUI::select_menu("电子书设置", ebook_set);
+                res = GUI::select_menu("电子书设置", ebook_set, res);
                 switch (res)
                 {
                 case 0:
@@ -1325,11 +1328,17 @@ void AppSettings::menu_system()
         break;
         case 9:
         {
+            int new_clk_freq = GUI::msgbox_number("I2C时钟", 7, hal.pref.getInt("I2C_freq", 100000));
+            hal.pref.putInt("I2C_freq", new_clk_freq);
+        }
+        break;
+        case 10:
+        {
             int long_pres_time = GUI::msgbox_number("长按时间", 4, hal.pref.getInt("lpt", 25) * 10);
             hal.pref.putInt("lpt", long_pres_time / 10);
         }
         break;
-        case 10:
+        case 12:
         {
             if (GUI::msgbox_yn("提示", "是否联网更新CFU.json文件？"))
             {
@@ -1373,7 +1382,7 @@ void AppSettings::menu_system()
             hal.wait_input();
         }
         break;
-        case 14:
+        case 16:
         {
 #define NVS_BACKUP_FILE "/System/nvs.bin"
             // 获取NVS分区信息
@@ -1470,10 +1479,10 @@ void AppSettings::menu_system()
             hal.pref.begin("clock");
         }
         break;
-        case 15:
+        case 17:
             hal.coredump_file();
             break;
-        case 16:
+        case 18:
             // 恢复出厂设置
             {
                 if (GUI::msgbox_yn("此操作不可撤销", "是否恢复出厂设置？"))
@@ -1533,10 +1542,10 @@ void AppSettings::menu_SWQ()
     static const menu_select settings_menu_DS3231_SWQ[] =
         {
             {false, "< 返回", nullptr},
-            {true, "后备电源振荡器使能", nullptr},
-            {true, "后备电源1Hz输出", nullptr},
+            {true, "bat振荡器禁用", "tf"},
+            {true, "后备电源1Hz输出", "bat"},
             {false, "频率设置", nullptr},
-            {true, "1Hz方波输出", nullptr},
+            {true, "1Hz方波输出", "1hz"},
             {false, NULL, nullptr},
         };
     int res = 0;
@@ -1544,14 +1553,11 @@ void AppSettings::menu_SWQ()
 
     bool tf, bat, hz;
     byte frequency;
-    tf = hal.pref.getBool("tf", true);
-    bat = hal.pref.getBool("bat", true);
     frequency = hal.pref.getInt("frequency", 0);
-    hz = hal.pref.getBool("hz", true);
 
     while (!end)
     {
-        res = GUI::select_menu("振荡器设置", settings_menu_DS3231_SWQ);
+        res = GUI::select_menu("振荡器设置", settings_menu_DS3231_SWQ, res);
         switch (res)
         {
         case 0:
@@ -1562,17 +1568,13 @@ void AppSettings::menu_SWQ()
             frequency = GUI::msgbox_number("输入频率代号", 1, 0);
             hal.pref.putInt("frequency", frequency);
             break;
-        case 4:
-        {
-            bool TF = GUI::msgbox_yn("1Hz方波输出", "是否开启1Hz方波输出", "开启", "关闭");
-            xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-            Srtc.enable1Hz(TF);
-            xSemaphoreGive(peripherals.i2cMutex);
-        }
         default:
             break;
         }
     }
+    tf = hal.pref.getBool("tf", true);
+    bat = hal.pref.getBool("bat", true);
+    hz = hal.pref.getBool("1hz", true);
     xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
     Srtc.enable1Hz(hz);
     Srtc.enableOscillator(tf, bat, frequency);
@@ -1599,7 +1601,7 @@ void AppSettings::menu_DS3231()
     bool end = false;
     while (end == false)
     {
-        res = GUI::menu("DS3231设置", settings_menu_DS3231);
+        res = GUI::menu("DS3231设置", settings_menu_DS3231, 8, 8, res);
         switch (res)
         {
         case 0:
@@ -1682,12 +1684,12 @@ void AppSettings::menu_DS3231()
         {
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
             Srtc.setSecond(GUI::msgbox_number("输入秒", 2, 0));
-            Srtc.setMinute(GUI::msgbox_number("输入分", 2, 0));
-            Srtc.setHour(GUI::msgbox_number("输入时", 2, 0));
-            Srtc.setDoW(GUI::msgbox_number("输入星期", 1, 0));
-            Srtc.setDate(GUI::msgbox_number("输入日", 2, 0));
-            Srtc.setMonth(GUI::msgbox_number("输入月", 2, 0));
-            Srtc.setYear(GUI::msgbox_number("输入年的后两位", 2, 0));
+            Srtc.setMinute(GUI::msgbox_number("输入分", 2, Srtc.getMinute()));
+            Srtc.setHour(GUI::msgbox_number("输入时", 2, Srtc.getHour()));
+            Srtc.setDoW(GUI::msgbox_number("输入星期", 1, Srtc.getDoW()));
+            Srtc.setDate(GUI::msgbox_number("输入日", 2, Srtc.getDate()));
+            Srtc.setMonth(GUI::msgbox_number("输入月", 2, Srtc.getMonth()));
+            Srtc.setYear(GUI::msgbox_number("输入年的后两位", 2, Srtc.getYear()));
             xSemaphoreGive(peripherals.i2cMutex);
         }
         break;

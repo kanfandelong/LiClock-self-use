@@ -45,7 +45,7 @@ public:
     // THE ABOVE COMMENT IS CORRECT FOR LOCAL TIME; TO USE THIS COMMAND TO
     // OBTAIN TRUE UNIX TIME SINCE EPOCH, YOU MUST CALL THIS COMMAND AFTER
     // SETTING YOUR CLOCK TO UTC
-    uint32_t unixtime(void) const;
+    uint64_t unixtime(void) const;
 protected:
     uint8_t yOff, m, d, hh, mm, ss;
 };

@@ -53,7 +53,7 @@ class AudioOutputI2S : public AudioOutput
     bool SetOutputModeMono(bool mono);  // Force mono output no matter the input
     bool SetLsbJustified(bool lsbJustified);  // Allow supporting non-I2S chips, e.g. PT8211 
     bool SetMclk(bool enabled);  // Enable MCLK output (if supported)
-    bool Set_bits_per_chan(i2s_bits_per_chan_t i2s_per_chan);
+    bool Set_bits_per_chan(i2s_bits_per_chan_t _i2s_per_chan);
     bool SwapClocks(bool swap_clocks);  // Swap BCLK and WCLK
 
   protected:

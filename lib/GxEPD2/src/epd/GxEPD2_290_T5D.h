@@ -32,6 +32,7 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     static const uint16_t partial_refresh_time = 750; // ms, e.g. 704907us
     int lutgray = 15;
     uint8_t PLL_val = 0x39;
+    bool T5D = true;
     // constructor
     GxEPD2_290_T5D(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
     // methods (virtual)
@@ -68,6 +69,7 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     void hibernate(); // turns powerOff() and sets controller to deep sleep for minimum power use, ONLY if wakeable by RST (rst >= 0)
     void SendLuts(uint8_t LutLevel);
     void PLL_set(uint8_t PLL_set_val);
+    void T5D_mode(bool mode);
   private:
     void _writeScreenBuffer(uint8_t command, uint8_t value);
     void _writeImage(uint8_t command, const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
@@ -82,6 +84,11 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     void _Update_Full();
     void _Update_Part();
   private:
+    static const unsigned char lut_20_vcomDC[];
+    static const unsigned char lut_21_ww[];
+    static const unsigned char lut_22_bw[];
+    static const unsigned char lut_23_wb[];
+    static const unsigned char lut_24_bb[];
     static const unsigned char lut_20_vcomDC_partial[];
     static const unsigned char lut_21_ww_partial[];
     static const unsigned char lut_22_bw_partial[];

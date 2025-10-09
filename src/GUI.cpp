@@ -425,7 +425,7 @@ namespace GUI
      * @param options 菜单选择列表与是否显示复选框(bool表示是否显示复选框)
      * @return int类型的选中的菜单项
      */
-    int select_menu(const char *title, const menu_select options[])
+    int select_menu(const char *title, const menu_select options[], int default_selected)
     {
         uint8_t ico_h = 12, ico_w = 12;
         constexpr int start_x = (296 - 200) / 2;
@@ -473,6 +473,16 @@ namespace GUI
             ++i;
         }
         ets_sha_disable();
+
+        // 确保默认选中在有效范围内
+        selected = constrain(default_selected, 0, total - 1);
+        
+        // 计算初始页面起始位置，确保默认选中项可见
+        if (total > number_of_items)
+        {
+            pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
+        }
+
         wait_time = millis();
         while (1)
         {
@@ -868,7 +878,7 @@ namespace GUI
             if (hal.btnl.isPressing())
             {
                 // 减
-                if (waitLongPress(PIN_BUTTONL))
+                if (waitLongPress(hal.btnl.pin()))
                 {
                     if (current_digit == digits)
                     {
@@ -889,7 +899,7 @@ namespace GUI
             else if (hal.btnr.isPressing())
             {
                 // 加
-                if (waitLongPress(PIN_BUTTONR))
+                if (waitLongPress(hal.btnr.pin()))
                 {
                     if (current_digit == 0)
                     {
@@ -1016,7 +1026,7 @@ namespace GUI
             /* 按钮处理优化 */
             if (hal.btnl.isPressing())
             { // 左键
-                const bool long_press = waitLongPress(PIN_BUTTONL);
+                const bool long_press = waitLongPress(hal.btnl.pin());
                 if (long_press)
                 { // 长按切换位
                     current_digit = (current_digit == digits - 1) ? 0 : current_digit + 1;
@@ -1034,7 +1044,7 @@ namespace GUI
             }
             else if (hal.btnr.isPressing())
             { // 右键
-                const bool long_press = waitLongPress(PIN_BUTTONR);
+                const bool long_press = waitLongPress(hal.btnr.pin());
                 if (long_press)
                 { // 长按切换位
                     current_digit = (current_digit == 0) ? digits - 1 : current_digit - 1;
@@ -1139,7 +1149,7 @@ namespace GUI
             if (hal.btnl.isPressing())
             {
                 // 减
-                if (waitLongPress(PIN_BUTTONL))
+                if (waitLongPress(hal.btnl.pin()))
                 {
                     if (current_digit == 3)
                     {
@@ -1164,7 +1174,7 @@ namespace GUI
             else if (hal.btnr.isPressing())
             {
                 // 加
-                if (waitLongPress(PIN_BUTTONR))
+                if (waitLongPress(hal.btnr.pin()))
                 {
                     if (current_digit == 0)
                     {

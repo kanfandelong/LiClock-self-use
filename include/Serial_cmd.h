@@ -42,6 +42,18 @@
 #define WHITE   Serial.print("\033[37m")
 #define RESET   Serial.print("\033[0m")
 
+#define ERROR_COLOR     Serial.print("\033[91m")  // 亮红色
+#define WARNING_COLOR   Serial.print("\033[93m")  // 亮黄色  
+#define SUCCESS_COLOR   Serial.print("\033[92m")  // 亮绿色
+#define INFO_COLOR      Serial.print("\033[96m")  // 亮青色
+#define HEADER_COLOR    Serial.print("\033[95m")  // 亮紫色
+#define RESET_COLOR     Serial.print("\033[0m")
+
+#define PRINT_ERROR(msg)     do { ERROR_COLOR; Serial.print("ERROR: "); Serial.println(msg); RESET_COLOR; } while(0)
+#define PRINT_WARNING(msg)   do { WARNING_COLOR; Serial.print("WARNING: "); Serial.println(msg); RESET_COLOR; } while(0)
+#define PRINT_SUCCESS(msg)   do { SUCCESS_COLOR; Serial.print("SUCCESS: "); Serial.println(msg); RESET_COLOR; } while(0)
+#define PRINT_INFO(msg)      do { INFO_COLOR; Serial.println(msg); RESET_COLOR; } while(0)
+
 class CMD
 {
 private:

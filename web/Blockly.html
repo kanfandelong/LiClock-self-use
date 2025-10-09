@@ -1760,7 +1760,7 @@
                                 let value = (byte & mask) >>> shift;
 
                                 // 值域转换（0为白，最大值为黑）
-                                value = (header.gray === 1) ? 1 - value : value; // 黑白模式取反
+                                // value = (header.gray === 1) ? 1 - value : value; // 黑白模式取反
                                 const grayValue = 255 - Math.round((value / ((1 << header.gray) - 1)) * 255);
                         
                                 drawDot(startX + x, startY + y, grayValue);

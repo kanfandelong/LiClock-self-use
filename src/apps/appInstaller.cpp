@@ -202,9 +202,10 @@ extern int tail;
 
 void AppInstaller::setup()
 {
+    int res = 0;
     while (end == false)
     {
-        int res = GUI::menu("App管理器", appMenu_main);
+        res = GUI::menu("App管理器", appMenu_main, 8, 8, res);
         switch (res)
         {
         case 0:

@@ -42,6 +42,12 @@ void Peripherals::check()
         i2cbitmask |= PERIPHERALS_SHT30_BIT;
         msg += "SHT30温湿度传感器\n";
     }
+    Wire.beginTransmission(0x55);
+    if (Wire.endTransmission() == 0)
+    {
+        i2cbitmask |= PERIPHERALS_BQ27441_BIT;
+        msg += "BQ27441电量计\n";
+    }
     xSemaphoreGive(i2cMutex);
     Serial.printf("Peripherals check OK: 0x%02x\n", i2cbitmask);
     F_LOG("Peripherals check OK: 0x%02x", i2cbitmask);
@@ -55,7 +61,7 @@ void Peripherals::check()
 
 void Peripherals::init()
 {
-    Wire.begin(PIN_SDA, PIN_SCL,  100000ul);
+    Wire.begin(PIN_SDA, PIN_SCL, hal.pref.getInt("I2C_freq", 100000));
     if (!lipo.begin())
         log_i("[外设] BQ27441初始化失败");
     i2cMutex = xSemaphoreCreateMutex();

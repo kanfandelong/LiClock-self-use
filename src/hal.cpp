@@ -1015,7 +1015,7 @@ bool HAL::init()
     // 读取时钟偏移
     pref.begin("clock");
 
-    if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3)
+    if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3 || pref.getBool("switch_btn"))
     {
         hal.btnl = OneButton(PIN_BUTTONL);
         hal.btnr = OneButton(PIN_BUTTONR);
@@ -1110,6 +1110,7 @@ bool HAL::init()
 #if defined(Queue)
     display.epd2.startQueue();
 #endif
+    display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     display.init(pref.getInt("display_debug", 115200), initial);
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(GxEPD_BLACK);
@@ -1218,7 +1219,10 @@ bool HAL::init()
     //     hal.btnr = OneButton(PIN_BUTTONL);
     //     hal.btnl = OneButton(PIN_BUTTONR);
     // }
-    xTaskCreate(task_bat_info, "bat_info_update", 2048, NULL, 2, NULL);
+    if (peripherals.peripherals_current & PERIPHERALS_BQ27441_BIT)
+        xTaskCreate(task_bat_info, "bat_info_update", 2048, NULL, 2, NULL);
+    else
+        log_e("未安装BQ27441电量计，无法运行电池信息更新任务");
     getTime();
     if ((timeinfo.tm_year < (2016 - 1900)))
     {
@@ -1244,14 +1248,19 @@ void HAL::rtc_offset()
 
     // DS3231的误差ΔT（秒）
     // 负数代表DS3231慢于实际时间，正数代表DS3231快于实际时间
-    time_t error = pref.getInt("rtc_offset", 0);
+    int error = pref.getInt("rtc_offset", 0);
+
+    if (abs(error) < 3){
+        log_i("误差较小，不进行计算");
+        return;
+    }
 
     // 计算误差率（ppm）
-    double errorRate_ppm = (error / (double)deltaT) * 1e6;
+    double errorRate_ppm = ((double)error / (double)deltaT) * 1e6;
 
-    // 调整振荡器的频率。每个LSB代表大约0.12ppm的频率变化，负值会减慢时间基准，正值会加快时间基准
+    // 调整振荡器的频率。每个LSB代表大约0.12ppm的频率变化，正值会减慢时间基准，负值会加快时间基准
     // 计算校准值offset（注意符号方向）
-    int8_t offset = round(-errorRate_ppm / 0.12); // 负号修正误差方向
+    int8_t offset = (int8_t)round(-errorRate_ppm / 0.12); // 负号修正误差方向
 
     // 限制offset在±127范围内
     offset = constrain(offset, -127, 127);
@@ -1681,7 +1690,7 @@ bool HAL::copy(File &newFile, File &file)
             time = millis();
             newFile.flush();
         }
-        if (GUI::waitLongPress(PIN_BUTTONL))
+        if (GUI::waitLongPress(hal.btnl.pin()))
             return false;
         if (GUI::waitLongPress(PIN_BUTTONC))
         {

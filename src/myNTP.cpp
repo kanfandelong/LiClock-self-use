@@ -78,32 +78,41 @@ void NTPSync()
         }
     }
     struct timeval tv;
+    time_t now;
     tv.tv_sec = timenow;
     tv.tv_usec = 0;
+
+    time(&now);
+    settimeofday(&tv, NULL);
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !hal.dis_DS3231)
     {
         tm t;
         localtime_r(&timenow, &t);
-        hal.pref.putInt("rtc_offset", (peripherals.rtc.getMinute() * 60 + peripherals.rtc.getSecond()) - (t.tm_min * 60 + t.tm_sec));
-        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-        //peripherals.rtc.setYear(t.tm_year + 1900 - 2000);
-        peripherals.rtc.setSecond(t.tm_sec);
-        peripherals.rtc.setMinute(t.tm_min);
-        peripherals.rtc.setHour(t.tm_hour);
-        peripherals.rtc.setDate(t.tm_mday);
-        peripherals.rtc.setMonth(t.tm_mon + 1);
-        peripherals.rtc.setYear(t.tm_year - 100);
-        if (t.tm_wday == 0)
-            peripherals.rtc.setDoW(7);
-        else
-            peripherals.rtc.setDoW(t.tm_wday);
-        xSemaphoreGive(peripherals.i2cMutex);
+        int rtc_offset = ((peripherals.rtc.getMinute() * 60 + peripherals.rtc.getSecond()) - (t.tm_sec + t.tm_min * 60));
+        log_i("rtc_offset:%d", rtc_offset);
+        if (abs(rtc_offset) > 2)
+        {    
+            hal.pref.putLong("rtc_sync", timenow);
+            hal.pref.putInt("rtc_offset", rtc_offset);
+            xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+            //peripherals.rtc.setYear(t.tm_year + 1900 - 2000);
+            peripherals.rtc.setSecond(t.tm_sec);
+            peripherals.rtc.setMinute(t.tm_min);
+            peripherals.rtc.setHour(t.tm_hour);
+            peripherals.rtc.setDate(t.tm_mday);
+            peripherals.rtc.setMonth(t.tm_mon + 1);
+            peripherals.rtc.setYear(t.tm_year - 100);
+            if (t.tm_wday == 0)
+                peripherals.rtc.setDoW(7);
+            else
+                peripherals.rtc.setDoW(t.tm_wday);
+            xSemaphoreGive(peripherals.i2cMutex);
+            hal.rtc_offset();
+            Serial.printf("DS3231偏移秒数:%d,更新后的偏移寄存器值:%d\n", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
+            F_LOG("DS3231误差秒数:%d,更新后的偏移寄存器值:%d", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
+        }    
         //Serial.printf("%d.%d.%d %d %d:%d:%d\n", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_wday, t.tm_hour, t.tm_min, t.tm_sec);
     }
-    time_t now;
-
-    time(&now);
-    settimeofday(&tv, NULL);
     // 用原数据计算误差
     {
         int64_t tmp;
@@ -147,9 +156,6 @@ void NTPSync()
         Serial.printf("首次同步时间, now=%u\n", tv.tv_sec);
         F_LOG("首次同步时间, now=%u", tv.tv_sec);
     }
-    hal.rtc_offset();
-    Serial.printf("DS3231偏移秒数:%d,更新后的偏移寄存器值:%d\n", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
-    F_LOG("DS3231误差秒数:%d,更新后的偏移寄存器值:%d", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
     hal.pref.putUInt("lastsync", tv.tv_sec);
     hal.lastsync = tv.tv_sec;
 }
