@@ -1040,6 +1040,7 @@ void AppSettings::menu_peripherals()
             {true, "温湿度日志", "temp_log"},
             {false, "扫描I2C外设", nullptr},
             {false, "格式化LittleFS", nullptr},
+            {false, "清除nvs存储", nullptr},
             {false, "DS3231设置", nullptr},
             {false, NULL, nullptr},
         };
@@ -1135,6 +1136,32 @@ void AppSettings::menu_peripherals()
         }
         break;
         case 7:
+        {
+            if (GUI::msgbox_yn("警告", "这将丢失设置数据", "确定", "取消"))
+            {
+                if (GUI::msgbox_yn("警告", "这是最后一次提醒，是否仍要清除", "取消", "确定"))
+                {
+                }
+                else
+                {
+                    if (hal.pref.clear())
+                    {
+                        GUI::msgbox("提示", "LiClock成功清除了nvs数据");
+                    }
+                    else
+                    {
+                        for (int i = 0; i < 3; i++)
+                        {
+                            buzzer.append(3000, 200);
+                            delay(350);
+                        }
+                        GUI::msgbox("提示", "LiClock在清除nvs时发生了错误,nvs未能清除完成");
+                    }
+                }
+            }
+        }
+        break;
+        case 8:
             menu_DS3231();
             break;
         default:

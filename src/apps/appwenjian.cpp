@@ -457,13 +457,17 @@ file_info:
             {  
                 bool OK = false;
                 char info[256];
+                String show_info = "确定删除";
                 if(GUI::msgbox_yn("提示","删除的为","文件夹","文件") == false)
                 {
-                    if(GUI::msgbox_yn("提示","确定删除") == false)
+                    if (dir == "/System"){
+                        show_info = "当前位于System文件夹，请谨慎操作，\n你确定要删除该文件吗";
+                    }
+                    if(GUI::msgbox_yn("提示",show_info.c_str()) == false)
                     {
                         break;
                     }else{
-                        if(GUI::msgbox_yn("提示","确定删除", "取消", "确定") == false){
+                        if(GUI::msgbox_yn("提示",show_info.c_str(), "取消", "确定") == false){
                             if (strncmp(filename, "/sd/", 4) == 0) {
                                 OK = SD.remove(remove_path_prefix(filename,"/sd"));
                             } 
@@ -484,11 +488,14 @@ file_info:
                     }
                 }else{
                     selctwenjianjia(true);
-                    if(GUI::msgbox_yn("提示","确定删除") == false)
+                    if (strcmp(directoryname, "/System/") == 0){
+                        show_info = "你选择了System文件夹，删除此文件夹将丢失资源文件和配置信息，\n你确定要删除该文件夹吗";
+                    }
+                    if(GUI::msgbox_yn("提示",show_info.c_str()) == false)
                     {
                         break;
                     }else{
-                        if(GUI::msgbox_yn("提示","确定删除", "取消", "确定") == false){
+                        if(GUI::msgbox_yn("提示",show_info.c_str(), "取消", "确定") == false){
                             if (strncmp(filename, "/sd/", 4) == 0) {
                                 //OK = SD.rmdir(directoryname);
                                 String dirname = "/sd" + String(directoryname);

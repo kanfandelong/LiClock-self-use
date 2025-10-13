@@ -54,7 +54,7 @@ public:
     void saveConfig();
     void loadConfig();
     void getTime();
-    char* get_char_sha_key(const char *str);
+    char* get_char_sha_key(const char *str, bool mode = false);
     IPAddress getip();
     bool cheak_firmware_update();
     void cheak_freq(int _freq = 80, bool setfreq = false);
@@ -105,6 +105,7 @@ public:
     bool dis_DS3231 = false;
     bool can_sleep = true;
     bool can_light_sleep = true;
+    char key[16]; // 存储经过SHA-256运算后结果的前15个字符
     OneButton btnr; // = OneButton(PIN_BUTTONR)
     OneButton btnl; // = OneButton(PIN_BUTTONL)
     OneButton btnc = OneButton(PIN_BUTTONC);

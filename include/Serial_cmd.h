@@ -32,6 +32,9 @@
 #define esp_restart_        "rst"
 #define temp_log            "templog"
 #define format_tf           "formattf"
+
+#define getnvs              "getnvs"
+#define putnvs              "putnvs"
 //串口颜色转义码
 #define RED     Serial.print("\033[31m")
 #define GREEN   Serial.print("\033[32m")

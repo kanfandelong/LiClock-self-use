@@ -43,6 +43,7 @@ public:
     int getTotalPages();
     void openMenu();
     void ebooksettings();
+    Preferences ebook_nvs;
     FILE *indexFileHandle = NULL;
     FILE *currentFileHandle = NULL;
     File txtFile, indexesFile;
@@ -93,7 +94,8 @@ static void appebook_exit()
         u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
         u8g2Fonts.setForegroundColor(GxEPD_BLACK);
     }
-    hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
+    // hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
+    app.ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
     Serial.printf("退出电子书，当前页：%d\n", currentPage);
     currentPage = -1;
     ebook_run = false;
@@ -136,13 +138,10 @@ void AppEBook::set()
 void AppEBook::setup()
 {
     bool page_changed = false;
+    ebook_nvs.begin("ebook");    
     app.exit = appebook_exit;
     app.deepsleep = appebook_deepsleep;
     app.currentFilename[0] = 0;
-    if (hal.pref.getBool(hal.get_char_sha_key("快速显示")))
-        display.epd2.PLL_set(0x3A);
-    else
-        display.epd2.PLL_set(0x3C);
     if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))
         if (hal.pref.getBool(hal.get_char_sha_key("降频运行Ebook")))
             hal.cheak_freq(80, true);
@@ -150,13 +149,15 @@ void AppEBook::setup()
     size_t s = hal.pref.getBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, 256);
     if (hal.wakeUpFromDeepSleep == false || currentPage == -1)
     {
-        currentPage = hal.pref.getInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
+        // currentPage = hal.pref.getInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
         if (s == 0)
         {
+            currentPage = 0;
             openFile();
         }
         else
         {
+            currentPage = ebook_nvs.getUInt(hal.get_char_sha_key(app.currentFilename, true), 0);
             Serial.printf("电子书：上次打开的文件：%s，上次打开的页：%d\n", app.currentFilename, currentPage);
             if (openFile(app.currentFilename) == false)
             {
@@ -1182,9 +1183,14 @@ bool AppEBook::openFile(const char *filename)
             app.indexFileHandle = NULL;
         }
     }
-    if (filename == NULL)
-        strcpy(currentFilename, GUI::fileDialog("请选择文件"));
-    else
+    if (filename == NULL){
+        const char *name = NULL;
+        while (name == NULL)
+        {
+            name = GUI::fileDialog("请选择文件");
+        }
+        strcpy(currentFilename, name);
+    }else
         strcpy(currentFilename, filename);
     if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")))
     {
@@ -1798,6 +1804,10 @@ bool AppEBook::draw_page3()
 }
 void AppEBook::drawCurrentPage()
 {
+    if (hal.pref.getBool(hal.get_char_sha_key("快速显示")))
+        display.epd2.PLL_set(0x3A);
+    else
+        display.epd2.PLL_set(0x3C);
     bool state;
     if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")) == false)
     {
@@ -1813,6 +1823,7 @@ void AppEBook::drawCurrentPage()
     }
     if (!state)
         GUI::info_msgbox("错误", "绘制文本中出现错误");
+    display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
 }
 
 int AppEBook::getTotalPages()
@@ -1870,13 +1881,15 @@ void AppEBook::openMenu()
         exit_app = true;
         break;
     case 2:
+        ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
         peripherals.load(PERIPHERALS_SD_BIT);
         if (openFile() == false)
         {
             GUI::msgbox("打开文件失败", currentFilename);
             F_LOG("文件%s打开失败", currentFilename);
         }
-        gotoPage(0);
+        currentPage = ebook_nvs.getUInt(hal.get_char_sha_key(app.currentFilename, true), 0);
+        gotoPage(currentPage);
         drawCurrentPage();
         break;
     case 3:
@@ -1914,8 +1927,13 @@ void AppEBook::openMenu()
     }
 }
 
+#include <nvs.h>
+
 void AppEBook::ebooksettings()
 {
+    char nvs_info[32];
+    nvs_stats_t stats = ebook_nvs.getStats();
+    sprintf(nvs_info, "%d/%d", stats.used_entries, stats.total_entries);
     static const menu_select ebook_set[] = {
         {false, "< 返回", nullptr},
         {true, "根据唤醒源翻页", nullptr},
@@ -1930,6 +1948,7 @@ void AppEBook::ebooksettings()
         {true, "使用备选txt解析程序1", nullptr},
         {true, "甘草索引程序", nullptr},
         {true, "降频运行Ebook", nullptr},
+        {false, nvs_info, nullptr},//13
         {false, NULL, nullptr},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
@@ -1952,6 +1971,14 @@ void AppEBook::ebooksettings()
             break;
         case 9:
             hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
+            break;
+        case 13:
+            if (GUI::msgbox_yn("清除所有记录", nvs_info, "清除", "取消")){
+                if (ebook_nvs.clear())
+                    GUI::info_msgbox("清除所有记录", "OK");
+                else
+                    GUI::info_msgbox("清除所有记录", "error");
+            }   
             break;
         default:
             GUI::info_msgbox("错误", "无效的选项");

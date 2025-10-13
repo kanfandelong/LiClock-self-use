@@ -419,30 +419,39 @@ void HAL::getTime()
     }
 }
 #include <esp32\rom\sha.h>
-char key[16]; // 存储经过SHA-256运算后结果的前15个字符
 /**
  * @brief 计算字符串的SHA-256哈希值，并返回前15个字符组成的字符串
  * @param str 要计算哈希值的字符串
  * @return 返回前15个字符组成的字符串
  */
-char *HAL::get_char_sha_key(const char *str)
+char *HAL::get_char_sha_key(const char *str, bool mode)
 {
     SHA_CTX ctx;
-    uint8_t temp[32];
+    uint8_t hash[32];  // SHA-256产生32字节哈希
     char hex_hash[65]; // 64 字节的十六进制字符串 + 1 字节的 null 终止符
     ets_sha_enable();
     ets_sha_init(&ctx);                                                    // 初始化上下文
     ets_sha_update(&ctx, SHA2_256, (const uint8_t *)str, strlen(str) * 8); // 更新哈希值
-    ets_sha_finish(&ctx, SHA2_256, temp);                                  // 完成哈希计算
-    // 将哈希值转换为十六进制字符串
-    for (int j = 0; j < 32; j++)
-    {
-        sprintf(hex_hash + j * 2, "%02x", temp[j]);
-    }
-    // 截取前 15 个字符作为 key
-    strncpy(key, hex_hash, 15);
-    key[15] = '\0'; // 确保字符串以 null 结尾
+    ets_sha_finish(&ctx, SHA2_256, hash);                                  // 完成哈希计算
     ets_sha_disable();
+    if (mode)
+    {
+        for (int i = 0; i < 15; i++)
+        {
+            // 将字节映射到可打印ASCII字符范围 (33-126)
+            key[i] = (hash[i] % 94) + 33;
+        }
+    }
+    else
+    {
+        for (int j = 0; j < 32; j++)
+        {
+            sprintf(hex_hash + j * 2, "%02x", hash[j]);
+        }
+        strncpy(key, hex_hash, 15);
+    } // 截取前 15 个字符作为 key
+    key[15] = '\0'; // 确保字符串以 null 结尾
+    // log_i("%s", key);
     return key;
 }
 /**
@@ -1190,8 +1199,10 @@ bool HAL::init()
         {
             F_LOG("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
         }
-        if (reset_reason == ESP_RST_PANIC)
+        if (reset_reason == ESP_RST_PANIC){
             coredump_file();
+            ESP.restart();
+        }
     }
     loadConfig();
     peripherals.init();
@@ -1250,7 +1261,8 @@ void HAL::rtc_offset()
     // 负数代表DS3231慢于实际时间，正数代表DS3231快于实际时间
     int error = pref.getInt("rtc_offset", 0);
 
-    if (abs(error) < 3){
+    if (abs(error) < 3)
+    {
         log_i("误差较小，不进行计算");
         return;
     }
