@@ -796,14 +796,14 @@ void Appwenjian::openfile()
     const char* houzhui = get_houzhui(filename);
     if(strcasecmp(houzhui, "txt") == 0)
     {
-        if(GUI::msgbox_yn("提示","将会覆盖原有的历史纪录"))
-        {
+        // if(GUI::msgbox_yn("提示","将会覆盖原有的历史纪录"))
+        // {
             hal.pref.putBytes(SETTINGS_PARAM_LAST_EBOOK, filename, strlen(filename));
-            hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
+            // hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
             hasToApp = true;
             toApp = "ebook";
             appManager.gotoApp(toApp.c_str());
-        }
+        // }
     }
     else if(strcasecmp(houzhui, "buz") == 0)
     {
@@ -911,13 +911,13 @@ void Appwenjian::openfile()
         }
     }else if(strcasecmp(houzhui, "lua") == 0){
         setPath(filepath);
-        Serial.printf("pach:%s\n", filepath);
+        log_i("pach:%s\n", filepath);
         String _str = "./" + (String)getFileName(filename);
         String _str2 = (String)filepath + "/conf.lua";
         const char* _file = _str.c_str();
-        Serial.println("准备运行Lua脚本...");
+        log_i("准备运行Lua脚本...");
         if (file_exist(_str2.c_str())){
-            Serial.printf("存在配置文件%s，加载配置文件...\n", _str2.c_str());
+            log_i("存在配置文件%s，加载配置文件...\n", _str2.c_str());
             closeLua();
             openLua_simple();
             lua_pushinteger(L, 0);
@@ -931,7 +931,7 @@ void Appwenjian::openfile()
             lua_settop(L, 0);
             closeLua();
         }
-        Serial.printf("目标运行脚本: %s\n", getRealPath(_file));
+        log_i("目标运行脚本: %s\n", getRealPath(_file));
         closeLua();
         openLua();
         if (file_exist(getRealPath(_file)))
@@ -944,8 +944,10 @@ void Appwenjian::openfile()
                 lua_call(L, 0, 0);
             }
         }
-        Serial.println("目标lua脚本执行完毕");
-        GUI::info_msgbox("提示", "lua脚本执行完毕", 136, 32);
+        log_i("目标lua脚本执行完毕");
+        display.drawPixel(295, 127, GxEPD_BLACK);
+        display.display(true);
+        // GUI::info_msgbox("提示", "lua脚本执行完毕", 136, 32);
         hal.wait_input();
     }else if(strcasecmp(houzhui, "mp3") == 0 || strcasecmp(houzhui, "wav") == 0 || strcasecmp(houzhui, "aac") == 0 || strcasecmp(houzhui, "opus") == 0 || strcasecmp(houzhui, "flac") == 0){
         hasToApp = true;

@@ -618,7 +618,7 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     {
         bool cpuset = setCpuFrequencyMhz(_freq);
         Serial.end();
-        Serial.begin(115200);
+        Serial.begin(pref.getUInt("uart_baud", 115200));
         Serial.setDebugOutput(true);
         ESP_LOGI("hal", "CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         F_LOG("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
@@ -1003,9 +1003,9 @@ void HAL::coredump_file()
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节\n", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
-            GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf", 5);
+            GUI::msgbox("系统异常", "检测到程序运行错误，coredump分区已转储至/System/coredump.elf", 5);
         else
-            GUI::msgbox("提示", "coredump分区已转储至/System/coredump.elf", 5);
+            GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
     }
 }
 
@@ -1017,7 +1017,11 @@ bool HAL::init()
     bool timeerr = false;
     bool initial = true;
     bool fast_boot;
-    Serial.begin(115200);
+    Serial.begin(pref.getUInt("uart_baud", 115200));
+    log_i("\n\n" \
+        "    © 2024 看番の龙 | LiClock\n" \
+        "       Powered by 看番の龙\n" \
+        "     github.com/kanfandelong\n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s", code_version, __DATE__, __TIME__);
     setenv("TZ", "CST-8", 1); // 设置时区为东八区
     tzset();
@@ -1041,7 +1045,7 @@ bool HAL::init()
     {
         Serial.end();
         bool cpuset = setCpuFrequencyMhz(date);
-        Serial.begin(115200);
+        Serial.begin(pref.getUInt("uart_baud", 115200));
         Serial.setDebugOutput(true);
         ESP_LOGI("HAL", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
         if (cpuset)
@@ -1117,7 +1121,7 @@ bool HAL::init()
 
     WiFi.mode(WIFI_OFF);
 #if defined(Queue)
-    display.epd2.startQueue();
+    display.epd2.startQueue(hal.pref.getUInt("display_list", 3), hal.pref.getUInt("disp_priority", 1));
 #endif
     display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     display.init(pref.getInt("display_debug", 115200), initial);
@@ -1203,12 +1207,17 @@ bool HAL::init()
             coredump_file();
             ESP.restart();
         }
+        if (reset_reason == ESP_RST_BROWNOUT)
+        {
+            GUI::msgbox("电源警告", "欠压检测器被触发，请检查系统电源状态");
+        }
     }
     loadConfig();
     peripherals.init();
     weather.begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
+    ttf.setFramebuffer(296, 128, 1);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {

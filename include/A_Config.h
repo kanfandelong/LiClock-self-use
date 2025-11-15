@@ -27,7 +27,7 @@
 // 屏幕型号选择宏定义
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C
-// #define Queue
+#define Queue
 // #define T5
 #define T5D
 // #define T5D_gray
@@ -144,6 +144,7 @@ uint8_t getBatterysoc();
 #include "Buzzer.h"
 #include "lua_trans.h"
 #include "Serial_cmd.h"
+#include "truetype.h"
 extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);
 extern File file_log;;

@@ -1659,6 +1659,9 @@ the sketch after each change to this file.
         xmlHttp = new XMLHttpRequest();
         xmlHttp.onload = fileLoaded;
         xmlHttp.open("GET", "/edit?edit=" + path, true);
+        xmlHttp.setRequestHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        xmlHttp.setRequestHeader("Pragma", "no-cache");
+        xmlHttp.setRequestHeader("Expires", "0");
         xmlHttp.send(null);
       }
 
@@ -1781,6 +1784,9 @@ the sketch after each change to this file.
 
       let xhr = new XMLHttpRequest();
       xhr.open('get', "/edit?edit=" + path, true);
+      xhr.setRequestHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      xhr.setRequestHeader("Pragma", "no-cache");
+      xhr.setRequestHeader("Expires", "0");
       xhr.responseType = "blob";
       xhr.onload = function () {
         if (this.status === 200) {

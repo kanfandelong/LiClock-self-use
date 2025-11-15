@@ -43,7 +43,7 @@ void cmd_task(void *) {
     CYAN;
     HEADER_COLOR;
     Serial.println("LiClock Serial Tool");
-    Serial.println("Type '#help*' for available commands");
+    Serial.println("Type '#help*' for available commands\n");
     RESET_COLOR;
     RESET;
     while(1) {
@@ -245,12 +245,12 @@ void CMD::parseCommand(const char* command) {
             int freq = atoi(param[0]);
             Serial.end();
             if (setCpuFrequencyMhz(freq)){
-                Serial.begin(115200);
+                Serial.begin(hal.pref.getUInt("uart_baud", 115200));
                 Serial.setDebugOutput(true);
                 PRINT_SUCCESS("CPU frequency set successfully");
                 Serial.printf("New frequency: %d MHz\n", freq);
             } else {
-                Serial.begin(115200);
+                Serial.begin(hal.pref.getUInt("uart_baud", 115200));
                 Serial.setDebugOutput(true);
                 PRINT_ERROR("Failed to set CPU frequency");
                 PRINT_INFO("Valid frequencies: 240, 160, 80, 40, 20, 10");

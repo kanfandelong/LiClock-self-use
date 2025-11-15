@@ -1,4 +1,5 @@
 #include "AppManager.h"
+#include <rtc_wdt.h>
 static const uint8_t ebook_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x03,
@@ -40,6 +41,7 @@ public:
     bool draw_page2();
     bool draw_page3();
     void drawCurrentPage();
+    int findchapterTitle(bool up = false);
     int getTotalPages();
     void openMenu();
     void ebooksettings();
@@ -137,6 +139,13 @@ void AppEBook::set()
 
 void AppEBook::setup()
 {
+    esp_task_wdt_init(portMAX_DELAY, false);
+    rtc_wdt_protect_off();
+    rtc_wdt_set_length_of_reset_signal(RTC_WDT_SYS_RESET_SIG, RTC_WDT_LENGTH_3_2us);
+    rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_INTERRUPT);
+    rtc_wdt_set_time(RTC_WDT_STAGE0, 30000); // 30秒超时
+    rtc_wdt_enable();
+    rtc_wdt_protect_on();
     bool page_changed = false;
     ebook_nvs.begin("ebook");    
     app.exit = appebook_exit;
@@ -208,7 +217,7 @@ void AppEBook::setup()
             }
             else
             {
-                Serial.println("上一页");
+                Serial.printf("上一页 当期页:%ld\n", currentPage);
                 page_changed = true;
             }
         }
@@ -230,7 +239,7 @@ void AppEBook::setup()
             {
                 if (gotoPage(currentPage + 1))
                 {
-                    Serial.println("下一页");
+                    Serial.printf("下一页 当期页:%ld\n", currentPage);
                     page_changed = true;
                 }
                 else
@@ -272,10 +281,13 @@ void AppEBook::setup()
             }
             esp_sleep_enable_gpio_wakeup();
             log_i("进入lightsleep");
+            rtc_wdt_disable();
             esp_light_sleep_start();
+            rtc_wdt_enable();
+            rtc_wdt_feed();
             log_i("退出lightsleep");
             lightsleep_count++;
-            if (lightsleep_count > hal.pref.getInt("max_lightsleep", 20))
+            if (hal.pref.getInt("max_lightsleep", 20) != -1 && lightsleep_count > hal.pref.getInt("max_lightsleep", 20))
             {
                 need_deepsleep = true;
                 hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
@@ -817,8 +829,8 @@ bool AppEBook::indexcode_3()
 
     uint32_t pageCount = 1;                 // 页数计数
     boolean line0_state = 1;                // 每页页首记录状态位
-    uint32_t yswz_count = 0;                // 待写入文件统计
-    String yswz_str = "";                   // 待写入的文件
+    // uint32_t yswz_count = 0;                // 待写入文件统计
+    // String yswz_str = "";                   // 待写入的文件
     uint32_t txtTotalSize = txtFile.size(); // 记录该TXT文件的大小，插入到索引的倒数14-8位
     long begin = millis(), last;
     if (indexesFile)
@@ -835,6 +847,18 @@ bool AppEBook::indexcode_3()
             indexesFile = LittleFS.open(indexesName, "a");
         }
     }
+    if (!indexesFile)
+    {
+        if (file_fs_sd)
+        {
+            indexesFile = SD.open(indexesName, FILE_APPEND);
+        }
+        else
+        {
+            indexesFile = LittleFS.open(indexesName, "a");
+        }
+    }
+    indexesFile.setBufferSize(8192);
     while (txtFile.available())
     {
         if (line_old != line) // 行首4个空格检测状态重置
@@ -848,7 +872,10 @@ bool AppEBook::indexcode_3()
             line0_state = 0;
             uint32_t yswz_uint32 = txtFile.position(); // 获取当前位置 yswz=页数位置
             // 页数位置编码处理
-            if (yswz_uint32 >= 1000000)
+
+            indexesFile.write((uint8_t *)&yswz_uint32, 4);
+
+/*             if (yswz_uint32 >= 1000000)
                 yswz_str += String(yswz_uint32);
             else if (yswz_uint32 >= 100000)
                 yswz_str += "0" + String(yswz_uint32);
@@ -861,9 +888,9 @@ bool AppEBook::indexcode_3()
             else if (yswz_uint32 >= 10)
                 yswz_str += "00000" + String(yswz_uint32);
             else
-                yswz_str += "000000" + String(yswz_uint32);
-            yswz_count++;
-            if (yswz_count == 500) // 每500页控制屏幕显示一下当前进度
+                yswz_str += "000000" + String(yswz_uint32); */
+/*             yswz_count++;
+            if (yswz_count == 500)
             {
                 if (!indexesFile)
                 {
@@ -880,7 +907,7 @@ bool AppEBook::indexcode_3()
                 indexesFile.flush();
 
                 yswz_str = "";  // 待写入文件清空
-                yswz_count = 0; // 待写入计数清空
+                yswz_count = 0; // 待写入计数清空 */
 
                 // 计算剩余量,进度条
                 if (millis() - last > 1000)
@@ -900,7 +927,7 @@ bool AppEBook::indexcode_3()
                     last = millis();
                 }
                 // Serial.println("写入索引文件");
-            }
+            // }
             // Serial.print("第"); Serial.print(pageCount); Serial.print("页，页首位置："); Serial.println(yswz_uint32);
         }
 
@@ -1030,7 +1057,7 @@ bool AppEBook::indexcode_3()
     }
 
     // 剩余的字节写入索引文件，并在末尾加入文件大小校验位14-8 页数记录位7-1
-    uint32_t size_uint32 = txtTotalSize; // 获取当前TXT文件的大小
+/*     uint32_t size_uint32 = txtTotalSize; // 获取当前TXT文件的大小
     String size_str = "";
     // TXT文件大小编码处理
     if (size_uint32 >= 1000000)
@@ -1046,37 +1073,43 @@ bool AppEBook::indexcode_3()
     else if (size_uint32 >= 10)
         size_str += String("00000") + String(size_uint32);
     else
-        size_str += String("000000") + String(size_uint32);
+        size_str += String("000000") + String(size_uint32); */
 
-    if (yswz_count != 0) // 还有剩余页数就在末尾加入 剩余的页数+文件大小位+当前位置位（初始0）
-    {
-        if (!indexesFile)
-        {
-            if (file_fs_sd)
-            {
-                indexesFile = SD.open(indexesName, FILE_APPEND);
-            }
-            else
-            {
-                indexesFile = LittleFS.open(indexesName, "a");
-            }
-        }
-        indexesFile.print(yswz_str + size_str + "0000000");
-        indexesFile.flush();
-    }
-    else // 没有剩余页数了就在末尾加入文件大小位+当前位置位
-    {
-        if (!indexesFile)
-        {
-            if (file_fs_sd)
-                indexesFile = SD.open(indexesName, FILE_APPEND);
-            else
-                indexesFile = LittleFS.open(indexesName, "a");
-        }
-        indexesFile.print(size_str + "0000000");
-        indexesFile.flush();
-    }
+    // if (yswz_count != 0) // 还有剩余页数就在末尾加入 剩余的页数+文件大小位+当前位置位（初始0）
+    // {
+    //     if (!indexesFile)
+    //     {
+    //         if (file_fs_sd)
+    //         {
+    //             indexesFile = SD.open(indexesName, FILE_APPEND);
+    //         }
+    //         else
+    //         {
+    //             indexesFile = LittleFS.open(indexesName, "a");
+    //         }
+    //     }
+    //     // indexesFile.print(yswz_str + size_str + "0000000");
+    //     indexesFile.print(yswz_str);
+    //     indexesFile.flush();
+    //     indexesFile.close();
+    // }
+    // else // 没有剩余页数了就在末尾加入文件大小位+当前位置位
+    // {
+    //     if (!indexesFile)
+    //     {
+    //         if (file_fs_sd)
+    //             indexesFile = SD.open(indexesName, FILE_APPEND);
+    //         else
+    //             indexesFile = LittleFS.open(indexesName, "a");
+    //     }
+    //     indexesFile.print(size_str + "0000000");
+    //     indexesFile.flush();
+    //     indexesFile.close();
+    // }
+    
+    indexesFile.flush();
     indexesFile.close();
+
     if (file_fs_sd)
         indexesFile = SD.open(indexesName, "r");
     else
@@ -1084,40 +1117,43 @@ bool AppEBook::indexcode_3()
     uint32_t indexes_size = indexesFile.size();
     Serial.print("索引文件大小：");
     Serial.println(indexes_size);
-    Serial.print("yswz_count：");
-    Serial.println(yswz_count);
+    // Serial.print("yswz_count：");
+    // Serial.println(yswz_count);
     Serial.print("pageCount：");
     Serial.println(pageCount);
 
     // 校验索引是否正确建立
     // 算法：一页为7个字节（从第二页开始记录所以要总页数-1），加上文件大小位7个字节，加上当前页数位7个字节
     // 所以为：7*((总页数-1)+1+1))
-    if (indexes_size == 7 * ((pageCount - 1) + 1 + 1))
+    // if (indexes_size == 7 * ((pageCount - 1) + 1 + 1))
+    // 算法：一页为4个字节（从第二页开始记录所以要总页数-1）
+    if (indexes_size == 4 * ((pageCount - 1)))
     {
+        indexesFile.close();
         display.clearScreen();
         u8g2Fonts.setCursor(0, 15);
         u8g2Fonts.printf("文件名称：%s", currentFilename);
         u8g2Fonts.setCursor(0, 30);
         u8g2Fonts.printf("文件大小：%0.2fKB", float(txtTotalSize) / 1024.0);
         u8g2Fonts.setCursor(0, 45);
-        u8g2Fonts.printf("剩余大小：%0KB");
+        u8g2Fonts.printf("剩余大小：0KB");
         u8g2Fonts.setCursor(0, 60);
         u8g2Fonts.printf("索引进度：100%%");
-        display.display();
+        display.display(true);
     }
     else
     {
         indexesFile.close();
-        Serial.println("校验失败，索引文件无效，请重新创建");
+        Serial.println("校验失败，索引文件大小与预期大小不符");
         // if (strncmp(currentFilename, "/littlefs/", 10) == 0)
         //     LittleFS.remove(indexesName);
         // else if (strncmp(currentFilename, "/sd/", 4) == 0)
         //     SD.remove(indexesName);
-        GUI::msgbox("警告", "索引文件大小与预期大小不符");
+        GUI::msgbox("警告", "索引文件大小与预期大小不符", 5);
     }
 
-    yswz_str = "";
-    yswz_count = 0;
+    // yswz_str = "";
+    // yswz_count = 0;
 
     txtFile.close();
 
@@ -1128,7 +1164,7 @@ bool AppEBook::indexcode_3()
 
     char *tmp = (char *)malloc(256);
     sprintf(tmp, "耗时：%0.2fS,共%d页", (float)need / 1000.0, pageCount);
-    GUI::msgbox("索引成功", tmp);
+    GUI::msgbox("索引结束", tmp);
     free(tmp);
     if (strncmp(currentFilename, "/littlefs/", 10) == 0)
         indexesFile = LittleFS.open(indexesName);
@@ -1256,24 +1292,31 @@ bool AppEBook::gotoPage(uint32_t page)
         }
         else
         {
-            uint32_t gbwz = 0;    // 计算上一页的页首位置
-            String gbwz_str = ""; // 光标位置String
+            // uint32_t gbwz = 0;    // 计算上一页的页首位置
+            // String gbwz_str = ""; // 光标位置String
             // Serial.print("当前页1："); Serial.println(pageCurrent);
             // 计算上一页的页首位置
             // 因为第一页不需要记录所以要减1，因为我要的是上一页所以再减1
-            gbwz = (page + 1) * 7 - 7;
+            // gbwz = (page + 1) * 7 - 7;
+            // gbwz = (page + 1) * 4 - 4;
             // Serial.print("gbwz："); Serial.println(gbwz);
             // 打开索引，寻找上一页的页首位置
-            indexesFile.seek(gbwz, SeekSet);
+            indexesFile.seek((page - 1) * 4, SeekSet);
             // 获取索引的数据
-            for (uint8_t i = 0; i < 7; i++)
+/*             for (uint8_t i = 0; i < 7; i++)
             {
                 char c = indexesFile.read();
                 gbwz_str += c;
             }
-            uint32_t gbwz_uint32 = atol(gbwz_str.c_str()); // 装换成int格式
+            uint32_t gbwz_uint32 = atol(gbwz_str.c_str()); // 装换成int格式 */
+            uint32_t gbwz_uint32;
+            if (indexesFile.read((uint8_t *)&gbwz_uint32, 4) == 0)
+                return false;
             // indexesFile.close();
             currentFileOffset = gbwz_uint32;
+            // log_i("%ld", gbwz_uint32);
+            // if (currentFileOffset > txtFile.size())
+            //     return false;
             txtFile.seek(currentFileOffset, SeekSet);
             currentPage = page;
             return true;
@@ -1783,12 +1826,15 @@ bool AppEBook::draw_page3()
         else if (txt[i][0] == 0xE3 && txt[i][1] == 0x80 && txt[i][2] == 0x80) // 检查首行是否为全角空格 0x3000 = E3 80 80
         {
             // 继续检测后2位是否为全角空格，检测到连续的2个全角空格，偏移2个像素
-            if (txt[i][3] == 0xE3 && txt[i][4] == 0x80 && txt[i][5] == 0x80)
-                offset = 2;
+            // if (txt[i][3] == 0xE3 && txt[i][4] == 0x80 && txt[i][5] == 0x80)
+            //     offset = 2;
+            txt[i].replace(String((char)0xE3) + String((char)0x80) + String((char)0x80), "  ");
+            offset = 0;
         }
-
+        txt[i].replace(String("—"), "--");
         u8g2Fonts.setCursor(1 + offset, i * 14 + 13);
         u8g2Fonts.print(txt[i]);
+        log_i("%s", txt[i].c_str());
     }
     if (partcount < hal.pref.getInt("display_count", 15))
     {
@@ -1826,12 +1872,237 @@ void AppEBook::drawCurrentPage()
     display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
 }
 
+/**
+ * 检查字符串是否包含章节标题
+ * @param str 输入的字符串
+ * @return 如果符合章节规则返回true，否则返回false
+ */
+bool isChapterTitle(const String& str) {
+    // 快速预检查：必须同时包含"第"和"章"
+    // log_i("%s", str.c_str());
+    int diIndex = str.indexOf("第");
+    int zhangIndex = str.indexOf("章");
+    
+    // log_i("%d %d", diIndex, zhangIndex);
+    if (diIndex == -1 || zhangIndex == -1) {
+        return false;
+    }
+    // return true;
+    // 检查"第"必须在"章"之前
+    if (diIndex >= zhangIndex) {
+        return false;
+    }
+    
+    // 检查中间部分长度（字节数）
+    int contentStart = diIndex + 3;  // "第"在UTF-8中占3字节
+    int contentLength = zhangIndex - contentStart;
+    
+    if (contentLength <= 0 || contentLength > 30) {
+        return false;
+    }
+    
+    // return isValidChapterContent(str.substring(contentStart, zhangIndex));
+    return true;
+}
+
+int AppEBook::findchapterTitle(bool up)
+{
+    String txt[9 + 1] = {}; // 0-8行为一页 共9行
+    char c;                 // 中间数据
+    int8_t line = 0;        // 当前行
+    uint16_t en_count = 0;  // 统计ascii和ascii扩展字符 1-2个字节
+    uint16_t ch_count = 0;  // 统计中文等 3个字节的字符
+    uint8_t line_old = 0;   // 记录旧行位置
+    boolean hskgState = 1;  // 行首4个空格检测 0-检测过 1-未检测
+    uint32_t save_page = currentPage;
+    bool is_find = false;
+    if (!txtFile)
+    {
+        if (file_fs_sd)
+        {
+            txtFile = SD.open(remove_path_prefix(currentFilename, "/sd"));
+        }
+        else
+        {
+            txtFile = LittleFS.open(remove_path_prefix(currentFilename, "/littlefs"));
+        }
+        gotoPage(currentPage);
+    }
+begin:
+    if (up){
+        if (!gotoPage(currentPage - 1))
+            return save_page + 1;
+    } else {
+        if (!gotoPage(currentPage + 1))
+            return save_page + 1;
+    }
+    log_i("查找%Ld页", currentPage);
+    line = 0;        // 当前行
+    en_count = 0;  // 统计ascii和ascii扩展字符 1-2个字节
+    ch_count = 0;  // 统计中文等 3个字节的字符
+    line_old = 0;   // 记录旧行位置
+    hskgState = 1;  // 行首4个空格检测 0-检测过 1-未检测
+    while (line < 9)
+    {
+        if (line_old != line) // 行首4个空格检测状态重置
+        {
+            line_old = line;
+            hskgState = 1;
+        }
+
+        c = txtFile.read(); // 读取一个字节
+
+        while (c == '\n' && line <= 8) // 检查换行符,并将多个连续空白的换行合并成一个
+        {
+            // 检测到首行并且为空白则不需要插入换行
+            if (line == 0) // 等于首行，并且首行不为空，才插入换行
+            {
+                if (txt[line].length() > 0)
+                    line++; // 换行
+                else
+                    txt[line].clear();
+            }
+            else // 非首行的换行检测
+            {
+                // 连续空白的换行合并成一个
+                if (txt[line].length() > 0)
+                    line++;
+                else if (txt[line].length() == 0 && txt[line - 1].length() > 0)
+                    line++;
+                /*else if (txt[line].length() == 1 && txt[line - 1].length() == 1) hh = 0;*/
+            }
+            if (line <= 8)
+                c = txtFile.read();
+            en_count = 0;
+            ch_count = 0;
+        }
+
+        if (c == '\t') // 检查水平制表符 tab
+        {
+            if (txt[line].length() == 0)
+                txt[line] += "    "; // 行首的一个水平制表符 替换成4个空格
+            else
+                txt[line] += "       "; // 非行首的一个水平制表符 替换成7个空格
+        }
+        else if ((c >= 0 && c <= 31) || c == 127) // 检查没有实际显示功能的字符
+        {
+            // ESP.wdtFeed();  // 喂狗
+        }
+        else
+            txt[line] += c;
+        // 检查字符的格式 + 数据处理 + 长度计算
+        boolean asciiState = 0;
+        byte a = B11100000;
+        byte b = c & a;
+
+        if (b == B11100000) // 中文等 3个字节
+        {
+            ch_count++;
+            c = txtFile.read();
+            txt[line] += c;
+            c = txtFile.read();
+            txt[line] += c;
+        }
+        else if (b == B11000000) // ascii扩展 2个字节
+        {
+            en_count += 12;
+            c = txtFile.read();
+            txt[line] += c;
+        }
+        else if (c == '\t') // 水平制表符，代替两个中文位置，12*2
+        {
+            if (txt[line] == "    ")
+                en_count += 20; // 行首，因为后面会检测4个空格再加4所以这里是20
+            else
+                en_count += 24; // 非行首
+        }
+        else if (c >= 0 && c <= 255)
+        {
+            en_count += getCharLength(c) + 1;
+            asciiState = 1;
+        }
+
+        uint16_t StringLength = en_count + (ch_count * 12);
+
+        if (StringLength >= 260 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
+        {
+            if (txt[line][0] == ' ' && txt[line][1] == ' ' &&
+                txt[line][2] == ' ' && txt[line][3] == ' ')
+            {
+                en_count += 4;
+            }
+            hskgState = 0;
+        }
+
+        /*if (line == 4)
+          {
+          Serial.println("");
+          Serial.println(txt[line]);
+          Serial.print("ch_count:"); Serial.println(ch_count);
+          Serial.print("en_count:"); Serial.println(en_count);
+          Serial.print("预计像素长度:"); Serial.println(StringLength);
+          Serial.print("实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+          }*/
+
+        if (StringLength >= 283) // 检查是否已填满屏幕 283
+        {
+            // Serial.println("");
+            // Serial.print("行"); Serial.print(line); Serial.print(" 预计像素长度:"); Serial.println(StringLength);
+            // Serial.print("行"); Serial.print(line); Serial.print(" 实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+            if (asciiState == 0) // 最后一个字符是中文，直接换行
+            {
+                line++;
+                en_count = 0;
+                ch_count = 0;
+            }
+            else if (StringLength >= 286) // 286 最后一个字符不是中文，在继续检测
+            {
+                char t = txtFile.read();
+                txtFile.seek(-1, SeekCur); // 往回移
+                int8_t cz = 294 - StringLength;
+                int8_t t_length = getCharLength(t);
+                /*Serial.print("字符t:"); Serial.println(t);
+                  Serial.print("字符t:"); Serial.println(t, HEX);
+                  Serial.print("t长度:"); Serial.println(t_length);
+                  Serial.print("差值:"); Serial.println(cz);*/
+                byte a = B11100000;
+                byte b = t & a;
+                if (b == B11100000 || b == B11000000) // 中文 ascii扩展
+                {
+                    line++;
+                    en_count = 0;
+                    ch_count = 0;
+                }
+                else if (t_length > cz)
+                {
+                    line++;
+                    en_count = 0;
+                    ch_count = 0;
+                }
+            }
+        }
+    }
+    for (uint8_t i = 0; i < 9; i++)
+    {
+        if (isChapterTitle(txt[i])){
+            is_find = true;
+            log_i("%s", txt[i].c_str());
+            return currentPage + 1;
+        }
+    }
+    if (!is_find){
+        goto begin;
+    }
+    return currentPage + 1;
+}
+
 int AppEBook::getTotalPages()
 {
     if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")))
     {
         int indexesFileSize = indexesFile.size();
-        return (indexesFileSize / 7) - 1;
+        // return (indexesFileSize / 7) - 1;
+        return (indexesFileSize / 4) + 1;
     }
     else
     {
@@ -1856,19 +2127,25 @@ void AppEBook::openMenu()
     int moth = hal.timeinfo.tm_mon + 1, d = hal.timeinfo.tm_mday, dw = hal.timeinfo.tm_wday, h = hal.timeinfo.tm_hour, m = hal.timeinfo.tm_min, s = hal.timeinfo.tm_sec;
     char buf[64], vbat[64];
     sprintf(buf, "当前时间:%d月%d日 星期%s %d:%d:%d", moth, d, dayOfWeek[dw], h, m, s);
-    sprintf(vbat, "电源电压：%.2fV (%d%%)", (float)hal.VCC / 1000.0, hal.bat_info.soc);
+    sprintf(vbat, "电源电压：%.2fV (%d%%)", hal.bat_info.voltage, hal.bat_info.soc);
     char *title = (char *)malloc(128);
     int totalPages = getTotalPages();
     sprintf(title, "%d/%d %d%%", currentPage + 1, totalPages, (currentPage + 1) * 100 / totalPages);
     const menu_item items[] = {
         {NULL, "< 返回"},
         {NULL, "退出"},
-        {NULL, "换文件.."},
-        {NULL, "重建当前文件索引"},
         {NULL, "跳转到.."},
+        {NULL, "重建当前文件索引"},
+        {NULL, "换文件.."},
         {NULL, buf},
         {NULL, "设置"},
         {NULL, vbat},
+        {NULL, NULL},
+    };
+    const menu_item page_goto_items[] = {
+        {NULL, "跳转至页"},
+        {NULL, "跳转至下一章"},
+        {NULL, "跳转至上一章"},
         {NULL, NULL},
     };
     int ret = GUI::menu(title, items);
@@ -1881,16 +2158,37 @@ void AppEBook::openMenu()
         exit_app = true;
         break;
     case 2:
-        ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
-        peripherals.load(PERIPHERALS_SD_BIT);
-        if (openFile() == false)
         {
-            GUI::msgbox("打开文件失败", currentFilename);
-            F_LOG("文件%s打开失败", currentFilename);
+            int ret = GUI::menu(title, page_goto_items);
+            int page;
+            switch(ret)
+            {
+                case 0:
+                    page = GUI::msgbox_number("跳转到..", get_digits(totalPages), currentPage + 1);
+                break;
+                case 1:
+                    GUI::info_msgbox("跳转至下一章", "正在查找......");
+                    page = findchapterTitle();
+                break;    
+                case 2:
+                    GUI::info_msgbox("跳转至下一章", "正在查找......");
+                    page = findchapterTitle(true);
+                break;  
+                default:
+                    GUI::msgbox("错误", "无效的选项,或此选项为空");
+                break;
+            }
+            if (page > 0)
+            {
+                if (gotoPage(page - 1) == false)
+                {
+                    GUI::msgbox("跳转失败", "页码超出范围");
+                    F_LOG("跳转失败，%d超出范围", page - 1);
+                    gotoPage(currentPage);
+                }
+                drawCurrentPage();
+            }
         }
-        currentPage = ebook_nvs.getUInt(hal.get_char_sha_key(app.currentFilename, true), 0);
-        gotoPage(currentPage);
-        drawCurrentPage();
         break;
     case 3:
         display.clearScreen();
@@ -1904,19 +2202,16 @@ void AppEBook::openMenu()
         need_deepsleep = true;
         break;
     case 4:
+        ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
+        peripherals.load(PERIPHERALS_SD_BIT);
+        if (openFile() == false)
         {
-            int page = GUI::msgbox_number("跳转到..", get_digits(totalPages), currentPage + 1);
-            if (page > 0)
-            {
-                if (gotoPage(page - 1) == false)
-                {
-                    GUI::msgbox("跳转失败", "页码超出范围");
-                    F_LOG("跳转失败，%d超出范围", page - 1);
-                    gotoPage(currentPage);
-                }
-                drawCurrentPage();
-            }
+            GUI::msgbox("打开文件失败", currentFilename);
+            F_LOG("文件%s打开失败", currentFilename);
         }
+        currentPage = ebook_nvs.getUInt(hal.get_char_sha_key(app.currentFilename, true), 0);
+        gotoPage(currentPage);
+        drawCurrentPage();
         break;
     case 6:
         ebooksettings();
@@ -1931,9 +2226,9 @@ void AppEBook::openMenu()
 
 void AppEBook::ebooksettings()
 {
-    char nvs_info[32];
+    char nvs_info[48];
     nvs_stats_t stats = ebook_nvs.getStats();
-    sprintf(nvs_info, "%d/%d", stats.used_entries, stats.total_entries);
+    sprintf(nvs_info, "NVS使用 %d/%d", stats.used_entries, stats.total_entries);
     static const menu_select ebook_set[] = {
         {false, "< 返回", nullptr},
         {true, "根据唤醒源翻页", nullptr},
@@ -1948,7 +2243,8 @@ void AppEBook::ebooksettings()
         {true, "使用备选txt解析程序1", nullptr},
         {true, "甘草索引程序", nullptr},
         {true, "降频运行Ebook", nullptr},
-        {false, nvs_info, nullptr},//13
+        {false, "保存页数", nullptr},//13
+        {false, nvs_info, nullptr},
         {false, NULL, nullptr},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
@@ -1973,7 +2269,13 @@ void AppEBook::ebooksettings()
             hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
             break;
         case 13:
-            if (GUI::msgbox_yn("清除所有记录", nvs_info, "清除", "取消")){
+            app.ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
+            GUI::info_msgbox("提示", "已保存当前页到nvs");
+            break;
+        case 14:
+            char buf[64];
+            sprintf(buf, "%s\n清除所有阅读进度或返回", nvs_info);
+            if (!GUI::msgbox_yn("提示", buf, "返回", "清除")){
                 if (ebook_nvs.clear())
                     GUI::info_msgbox("清除所有记录", "OK");
                 else

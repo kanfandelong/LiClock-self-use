@@ -18,6 +18,7 @@ AsyncWebSocket ws("/ws");
 TaskHandle_t lua_server_handle = NULL;
 SPIFFSEditor *spiffs_upload_handler = NULL;
 bool serverRunning = false;
+bool wsRunning = false;
 bool file_for_TF = false;
 bool LuaRunning = false; // 全局变量，表示Lua服务器是否运行，用于防止调试时误退出
 extern "C" void lua_printf(const char *format, ...)
@@ -26,13 +27,13 @@ extern "C" void lua_printf(const char *format, ...)
     va_start(argptr, format);
     char str[1024];
     vsprintf(str, format, argptr);
-    if (serverRunning)
+    if (wsRunning)
     {
         ws.textAll(str);
     }
     else
     {
-        puts(str);
+        log_i("%s", str);
     }
     va_end(argptr);
 }
@@ -435,6 +436,7 @@ void beginWebServer()
         {
             request->send(404);
         } });
+    wsRunning = true;
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)

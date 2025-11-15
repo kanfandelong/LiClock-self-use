@@ -298,6 +298,7 @@ namespace GUI
         hal.hookButton();
         push_buffer();
         wait_time = millis();
+        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -309,7 +310,12 @@ namespace GUI
                     {
                         selected = total;
                     }
-                    --selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected -= 2;
+                    else
+                        --selected;
+                    if (selected < 0)
+                        selected = 0;
                     updated = true;
                 }
                 wait_time = millis();
@@ -320,7 +326,12 @@ namespace GUI
                 delay(20);
                 if (hal.btnr.isPressing())
                 {
-                    ++selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected += 2;
+                    else
+                        ++selected;
+                    if (selected > total)
+                        selected = total;
                     if (selected == total)
                     {
                         selected = 0;
@@ -401,6 +412,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
+        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         return selected;
@@ -484,6 +496,7 @@ namespace GUI
         }
 
         wait_time = millis();
+        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -495,7 +508,12 @@ namespace GUI
                     {
                         selected = total;
                     }
-                    --selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected -= 2;
+                    else
+                        --selected;
+                    if (selected < 0)
+                        selected = 0;
                     updated = true;
                 }
                 wait_time = millis();
@@ -506,7 +524,12 @@ namespace GUI
                 delay(20);
                 if (hal.btnr.isPressing())
                 {
-                    ++selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected += 2;
+                    else
+                        ++selected;
+                    if (selected > total)
+                        selected = total;
                     if (selected == total)
                     {
                         selected = 0;
@@ -617,6 +640,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
+        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         return selected;
@@ -873,6 +897,7 @@ namespace GUI
         }
         bool changed = true;
         wait_time = millis();
+        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -976,6 +1001,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
+        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         display.display(true); // 全局刷新一次
@@ -1021,6 +1047,7 @@ namespace GUI
         bool changed = true;
         wait_time = millis();
 
+        display.epd2.set_interactive_mode(true);
         while (1)
         {
             /* 按钮处理优化 */
@@ -1120,6 +1147,7 @@ namespace GUI
             }
         }
 
+        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         display.display(true); // 刷新
@@ -1144,6 +1172,7 @@ namespace GUI
         int current_value = pre_value;
         bool changed = true;
         wait_time = millis();
+        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -1239,6 +1268,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
+        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         display.display(); // 全局刷新一次

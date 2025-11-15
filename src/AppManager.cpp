@@ -273,6 +273,7 @@ AppBase *AppManager::appSelector(bool showHidden)
         // 下面是选择
         idleTime = 0;
         waitc = false;
+        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -371,6 +372,7 @@ AppBase *AppManager::appSelector(bool showHidden)
                 break;
             }
         }
+        display.epd2.set_interactive_mode(false);
         if (finished == false)
         {
             int16_t x, y;

@@ -100,10 +100,9 @@ void AppSettings::setup()
             {NULL, "关于"},
             {NULL, NULL},
         };
-    display.display(false); // 每次进入设置全局刷新一次
+    display.display(true);
     while (end == false && hasToApp == false)
     {
-        // display.display(false); // 每次进入设置全局刷新一次
         res = GUI::menu("设置", settings_menu_main, 8, 8, res);
         switch (res)
         {
@@ -136,7 +135,6 @@ void AppSettings::setup()
             break;
         case 7:
             // 关于
-            GUI::info_msgbox("提示", "loading...");
             about();
             break;
         default:
@@ -827,6 +825,8 @@ void AppSettings::menu_display()
             {false, "屏幕全刷间隔", nullptr},
             {false, "屏幕PLL设定", nullptr},
             {false, "按键音设置", nullptr},
+            {false, "屏幕队列深度", nullptr},
+            {false, "屏幕线程优先级", nullptr},
             {true,  "UC8151C兼容模式", "UC8151C"},
             {false, NULL},
         };
@@ -848,7 +848,7 @@ void AppSettings::menu_display()
             {
                 hal.pref.putUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 1);
             }
-            display.display();
+            // display.display();
             GUI::msgbox("提示", "按键控制方式请修改GPIO宏定义"); // 为了节省内存并加快速度
             break;
         case 2:
@@ -896,6 +896,18 @@ void AppSettings::menu_display()
             }
         }
         break;
+        case 5:
+            {
+                uint32_t _time = GUI::msgbox_number("设置屏幕队列深度", 2, hal.pref.getUInt("display_list", 3));
+                hal.pref.putUInt("display_list", _time);
+            }
+            break;
+        case 6:
+            {
+                uint32_t priority = GUI::msgbox_number("设置屏幕线程优先级", 2, hal.pref.getUInt("disp_priority", 1));
+                hal.pref.putUInt("disp_priority", priority);
+            }
+            break;
         default:
             break;
         }
@@ -1194,6 +1206,8 @@ void AppSettings::menu_system()
             {true, "系统日志", "sys_log"}, // 15
             {false, "NVS备份和恢复", nullptr},
             {false, "core_dump", nullptr},
+            {false, "设置菜单快速滚动阈值", nullptr},
+            {false, "串口波特率设置", nullptr},
             {false, "恢复出厂设置", nullptr},
             {false, NULL, nullptr},
         };
@@ -1510,6 +1524,18 @@ void AppSettings::menu_system()
             hal.coredump_file();
             break;
         case 18:
+            {
+                int _time = GUI::msgbox_number("设置时间(ms)", 4, hal.pref.getUInt("menu_fast_t", 450));
+                hal.pref.putUInt("menu_fast_t", _time);
+            }
+            break;
+        case 19:
+            {
+                uint32_t baud = GUI::msgbox_number("设置波特率", 7, hal.pref.getUInt("uart_baud", 115200));
+                hal.pref.putUInt("uart_baud", baud);
+            }
+            break;
+        case 20:
             // 恢复出厂设置
             {
                 if (GUI::msgbox_yn("此操作不可撤销", "是否恢复出厂设置？"))
@@ -1518,7 +1544,7 @@ void AppSettings::menu_system()
                     {
                         display.clearScreen();
                         u8g2Fonts.drawUTF8(30, 40, "正在格式化NVS存储");
-                        display.display();
+                        display.display(true);
                         nvs_flash_erase();
                         display.clearScreen();
                         u8g2Fonts.drawUTF8(30, 40, "正在格式化LittleFS存储");
@@ -1808,7 +1834,6 @@ void AppSettings::tfcard_info()
 {
     display.clearScreen();
     GUI::drawWindowsWithTitle("TF卡信息", 0, 0, 296, 128);
-    display.display();
     // u8g2Fonts.setCursor(5,30);
     // u8g2Fonts.printf("类型：%s",SD.cardType());
     if (peripherals.isSDLoaded())
@@ -1848,7 +1873,7 @@ void AppSettings::tfcard_info()
             break;
         }
         u8g2Fonts.printf("TF卡类型:%s", tf_type);
-        display.display(true);
+        display.display();
     }
     else
     {

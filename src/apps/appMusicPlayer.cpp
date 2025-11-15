@@ -1091,6 +1091,16 @@ void AppMusicPlayer::bulid_music_list()
     {
         uint16_t song_count = 0;
         File root;
+        uint64_t start = millis(), end;
+        // 定义链表节点结构
+        struct MusicNode {
+            char* name;
+            MusicNode* next;
+        };
+        
+        MusicNode* head = nullptr;
+        MusicNode* tail = nullptr;
+
         if (is_root)
         {
             if (!in_littlefs)
@@ -1112,78 +1122,88 @@ void AppMusicPlayer::bulid_music_list()
         while (dir)
         {
             name = dir.name();
-            if (!dir.isDirectory() && (name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac")))
+            if (!dir.isDirectory() && 
+                (name.endsWith(".mp3") || name.endsWith(".wav") || 
+                 name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac")))
             {
+                // 创建新节点
+                MusicNode* newNode = new MusicNode;
+                newNode->name = strdup(dir.name()); // 复制文件名
+                newNode->next = nullptr;
+                
+                // 添加到链表尾部
+                if (head == nullptr)
+                {
+                    head = newNode;
+                    tail = newNode;
+                }
+                else
+                {
+                    tail->next = newNode;
+                    tail = newNode;
+                }
+                
                 song_count++;
+                Serial.printf("%s\n", dir.name());
             }
             dir.close();
             dir = root.openNextFile();
         }
-        dir.close();
+        dir.close();        
         root.close();
+        // 清理之前的资源
         if (titles != nullptr && maxSong != 0)
         {
             for (int i = 0; i < maxSong; i++)
             {
                 if (titles[i] != nullptr)
                 {
-                    free(titles[i]); // 释放每个字符串的内存
+                    free(titles[i]);
                     titles[i] = nullptr;
                 }
             }
             delete[] titles;
             titles = nullptr;
         }
-        if (is_root)
-        {
-            if (!in_littlefs)
-                root = SD.open("/");
-            else
-                root = LittleFS.open("/");
-        }
-        else
-        {
-            if (!in_littlefs)
-                root = SD.open(currentDir);
-            else
-                root = LittleFS.open(currentDir);
-        }
-        dir = root.openNextFile();
-        maxSong = song_count;
+        
         if (fileList != nullptr)
         {
             delete[] fileList;
             fileList = nullptr;
         }
+
+        // 分配数组内存
+        maxSong = song_count;
         fileList = new menu_item[song_count + 2];
-        titles = new char *[song_count];
-        memset(titles, 0, sizeof(char *[song_count]));
+        titles = new char*[song_count];
+        memset(titles, 0, sizeof(char*[song_count]));
+
+        // 设置返回项
         fileList[0].title = "返回";
         fileList[0].icon = NULL;
+
+        // 将链表数据转移到数组
+        MusicNode* current = head;
         int i = 1;
-        while (dir)
+        while (current != nullptr && i <= song_count)
         {
-            if (!dir.isDirectory())
-            {
-                name = dir.name();
-                if (name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac"))
-                {
-                    titles[i - 1] = (char *)malloc(strlen(dir.name()) + 1);
-                    strcpy(titles[i - 1], dir.name());
-                    fileList[i].title = titles[i - 1];
-                    fileList[i].icon = NULL;
-                    i++;
-                    Serial.printf("%s\n", dir.name());
-                }
-            }
-            dir.close();
-            dir = root.openNextFile();
+            titles[i-1] = current->name; // 直接使用链表中的字符串指针
+            fileList[i].title = titles[i-1];
+            fileList[i].icon = NULL;
+            
+            MusicNode* temp = current;
+            current = current->next;
+            delete temp; // 释放节点，但不释放字符串内存
+            i++;
         }
-        dir.close();
-        root.close();
+
+        // 设置结束标志
         fileList[i].title = NULL;
         fileList[i].icon = NULL;
         filelist_ok = true;
+        
+        end = millis();
+        log_i("创建音乐列表结束，共计%ld个音频文件，耗时 %lld ms", song_count, end - start);
     }
 }
 /**
@@ -1425,7 +1445,7 @@ void AppMusicPlayer::show_display_debug()
 {
     display.clearScreen();
     bool lrcupdate = false;
-    if (lrcisload && !user_stop)
+    if (lrcisload) //  && !user_stop
     {
         if (titles[currentSongIndex] != nullptr)
         {
@@ -1573,7 +1593,7 @@ void AppMusicPlayer::show_display_mormal()
 {
     display.clearScreen();
     bool lrcupdate = false;
-    if (lrcisload && !user_stop)
+    if (lrcisload) //  && !user_stop
     {
         if (titles[currentSongIndex] != nullptr)
         {
@@ -1886,8 +1906,16 @@ void AppMusicPlayer::setup()
 
     if (music_file == NULL)
     {
-        sprintf(buf, "%s", hal.pref.getString("music_file").c_str());
-        music_file = buf;
+        String file = buf;
+        if (file.endsWith(".mp3") || file.endsWith(".wav") || 
+            file.endsWith(".aac") || file.endsWith(".opus") || file.endsWith(".flac"))
+        {
+            music_file = buf;
+        }
+        else{
+            sprintf(buf, "%s", hal.pref.getString("music_file").c_str());
+            music_file = buf;
+        }
     }
     select_file();
 
@@ -1997,10 +2025,9 @@ void AppMusicPlayer::setup()
         }
         if (_play_end)
         {
-            delay(100);
+            delay(10);
             next_song();
             show_display();
-            delay(333);
         }
         else
             wait_time = millis();
