@@ -43,6 +43,7 @@ def after_build(source, target, env):
     command = [
         system_python,
         f'"{script_path}"' if " " in script_path else script_path,  # 处理脚本路径中的空格
+        "--format table",
         arg1
     ]
 
