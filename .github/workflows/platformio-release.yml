@@ -245,17 +245,45 @@ jobs:
     - name: Download all build artifacts
       uses: actions/download-artifact@v4
       with:
+        name: firmware-artifacts
         path: all_artifacts
     
     - name: Prepare release files
       run: |
+        echo "当前目录结构:"
+        find all_artifacts -type f | head -20
+        echo ""
+        
         mkdir -p release_files
         
-        cp all_artifacts/packages/*.tar.gz release_files/ 2>/dev/null || true
-        cp all_artifacts/packages/*.zip release_files/ 2>/dev/null || true
+        # 复制压缩包
+        if [ -d "all_artifacts/packages" ]; then
+          echo "复制压缩包文件..."
+          cp all_artifacts/packages/*.tar.gz release_files/ 2>/dev/null || true
+          cp all_artifacts/packages/*.zip release_files/ 2>/dev/null || true
+        else
+          echo "警告: packages目录不存在"
+          find all_artifacts -name "*.tar.gz" -o -name "*.zip" | while read file; do
+            echo "找到文件: $file"
+            cp "$file" release_files/ 2>/dev/null || true
+          done
+        fi
         
+        # 复制原始文件目录
         mkdir -p release_files/original_files
-        cp -r all_artifacts/artifacts/* release_files/original_files/ 2>/dev/null || true
+        if [ -d "all_artifacts/artifacts" ]; then
+          echo "复制原始文件..."
+          cp -r all_artifacts/artifacts/* release_files/original_files/ 2>/dev/null || true
+        fi
+        
+        echo "release_files目录内容:"
+        ls -la release_files/
+        echo ""
+        echo "release_files/*.tar.gz 匹配结果:"
+        ls -la release_files/*.tar.gz 2>/dev/null || echo "没有找到.tar.gz文件"
+        echo ""
+        echo "release_files/*.zip 匹配结果:"
+        ls -la release_files/*.zip 2>/dev/null || echo "没有找到.zip文件"
         
         echo "# 文件列表" > release_files/FILE_LIST.md
         echo "" >> release_files/FILE_LIST.md
@@ -270,6 +298,7 @@ jobs:
         echo "## 压缩包" >> release_files/FILE_LIST.md
         echo "" >> release_files/FILE_LIST.md
         
+        # 统计文件大小并记录
         for file in release_files/*.tar.gz release_files/*.zip; do
           if [ -f "$file" ]; then
             size=$(du -h "$file" | cut -f1)
