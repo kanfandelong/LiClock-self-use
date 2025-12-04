@@ -1,0 +1,238 @@
+name: PlatformIO Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 匹配 v1.0.0, v1.2.3 等标签
+      - 'release-*'  # 或者自定义的release标签
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        # 配置你要构建的环境，对应 platformio.ini 中的 envs
+        env: [esp32solo1]
+    
+    steps:
+    - name: "检出代码"
+      uses: actions/checkout@v4
+
+    - name: "设置缓存"
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.platformio
+          .pio/build
+          .pio/libdeps
+        key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'lib/**/*.h', 'lib/**/*.cpp') }}
+        
+    - name: "处理linux和Windows的路径"
+      run: |
+        sed 's|#include <esp32\\rom\\sha.h>|#include <esp32/rom/sha.h>|' src/hal.cpp -i
+    
+    - name: "准备python"
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: "安装 platformio"
+      run: |
+        python -m pip install --upgrade pip
+        pip install platformio
+    
+    - name: "使用platformio构建"
+      run: |
+        echo "Building for environment: ${{ matrix.env }}"
+        pio run -e ${{ matrix.env }}
+    
+    - name: "收集固件"
+      run: |
+        # 创建目录结构
+        mkdir -p artifacts/flash_16mb
+        mkdir -p artifacts/flash_8mb
+        mkdir -p artifacts/flash_4mb
+        
+        # 复制16MB Flash大小的文件
+        cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/flash_16mb/
+        cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/flash_16mb/
+        cp .pio/build/${{ matrix.env }}/partitions.bin artifacts/flash_16mb/
+        cp .pio/build/${{ matrix.env }}/bootloader.bin artifacts/flash_16mb/
+        
+        # 复制8MB Flash大小的文件（共用固件）
+        cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/flash_8mb/
+        cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/flash_8mb/
+        cp dist/partitions-8MB.bin artifacts/flash_8mb/partitions.bin
+        cp dist/bootloader-8MB.bin artifacts/flash_8mb/bootloader.bin
+        
+        # 复制4MB Flash大小的文件（共用固件）
+        cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/flash_4mb/
+        cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/flash_4mb/
+        cp dist/partitions-4MB.bin artifacts/flash_4mb/partitions.bin
+        cp dist/bootloader-4MB.bin artifacts/flash_4mb/bootloader.bin
+        
+        # 创建说明文件
+        for size in 4mb 8mb 16mb; do
+          cat > artifacts/flash_${size}/README.txt << EOF
+          固件包说明
+          ==========
+
+          Flash 大小: ${size^^}
+          固件版本: ${{ github.ref_name }}
+          构建时间: $(date)
+          Git Commit: ${{ github.sha }}
+
+          包含文件:
+          - firmware.bin: 主固件文件
+          - firmware.elf: 调试文件
+          - partitions.bin: 分区表文件
+          - bootloader.bin: 引导程序文件
+
+          刷写顺序:
+          1. bootloader.bin @ 0x1000
+          2. partitions.bin @ 0x8000
+          3. firmware.bin @ 0x10000
+
+          注意: 请根据您的设备Flash大小选择合适的包
+          EOF
+        done
+    
+    - name: "创建固件压缩包"
+      run: |
+        # 创建压缩包目录
+        mkdir -p packages
+        
+        # 为每个Flash大小创建tar.gz和zip包
+        for size in 4mb 8mb 16mb; do
+          echo "创建 Flash ${size^^} 的压缩包..."
+          
+          # 进入目录创建tar.gz
+          cd artifacts/flash_${size}
+          tar -czf ../../packages/firmware_${size^^}.tar.gz *
+          cd ../..
+          
+          # 创建zip包
+          cd artifacts/flash_${size}
+          zip -r ../../packages/firmware_${size^^}.zip *
+          cd ../..
+        done
+        
+        # 创建通用压缩包（包含所有大小）
+        echo "创建通用压缩包..."
+        cd artifacts
+        tar -czf ../packages/all_flash_sizes.tar.gz *
+        zip -r ../packages/all_flash_sizes.zip *
+        cd ..
+        
+        # 列出所有包
+        echo "生成的压缩包："
+        ls -lh packages/
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-artifacts
+        path: |
+          artifacts/
+          packages/
+        if-no-files-found: error
+  
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: all_artifacts
+    
+    - name: Prepare release files
+      run: |
+        # 移动文件到release目录
+        mkdir -p release_files
+        
+        # 复制压缩包到release目录
+        cp all_artifacts/packages/*.tar.gz release_files/ 2>/dev/null || true
+        cp all_artifacts/packages/*.zip release_files/ 2>/dev/null || true
+        
+        # 也可以包含原始文件（可选）
+        mkdir -p release_files/original_files
+        cp -r all_artifacts/artifacts/* release_files/original_files/ 2>/dev/null || true
+        
+        # 创建文件列表
+        echo "# 文件列表" > release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        echo "## 压缩包" >> release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        
+        for file in release_files/*.tar.gz release_files/*.zip; do
+          if [ -f "$file" ]; then
+            size=$(du -h "$file" | cut -f1)
+            echo "- $(basename "$file") ($size)" >> release_files/FILE_LIST.md
+          fi
+        done
+        
+        echo "" >> release_files/FILE_LIST.md
+        echo "## 原始文件目录" >> release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        echo "- flash_4mb/: 4MB Flash 版本" >> release_files/FILE_LIST.md
+        echo "- flash_8mb/: 8MB Flash 版本" >> release_files/FILE_LIST.md
+        echo "- flash_16mb/: 16MB Flash 版本" >> release_files/FILE_LIST.md
+    
+    - name: "创建发行版"
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Release ${{ github.ref_name }}
+        tag_name: ${{ github.ref_name }}
+        body: |
+          ## ESP32 固件发行版
+          
+          **版本:** ${{ github.ref_name }}
+          **构建时间:** ${{ github.event.repository.updated_at }}
+          
+          ### 支持三种Flash大小
+          1. **4MB Flash**: 适用于4MB Flash的ESP32设备
+          2. **8MB Flash**: 适用于8MB Flash的ESP32设备  
+          3. **16MB Flash**: 适用于16MB Flash的ESP32设备
+          
+          ### 文件说明
+          - **firmware_4MB.tar.gz/zip**: 4MB Flash完整包
+          - **firmware_8MB.tar.gz/zip**: 8MB Flash完整包
+          - **firmware_16MB.tar.gz/zip**: 16MB Flash完整包
+          - **all_flash_sizes.tar.gz/zip**: 包含所有版本
+          
+          每个压缩包包含：
+          - `firmware.bin`: 主固件（所有版本共用）
+          - `firmware.elf`: 调试文件
+          - `partitions.bin`: 对应Flash大小的分区表
+          - `bootloader.bin`: 对应Flash大小的引导程序
+          - `README.txt`: 使用说明
+          
+          ### 刷写说明
+          使用 esptool.py 刷写：
+          ```bash
+          esptool.py --port /dev/ttyUSB0 write_flash \
+            0x1000 bootloader.bin \
+            0x8000 partitions.bin \
+            0x10000 firmware.bin
+          ```
+          
+          ### 构建信息
+          - **Commit:** ${{ github.sha }}
+          - **触发者:** ${{ github.actor }}
+          - **board:** esp32dev
+        
+        draft: false
+        prerelease: false
+        files: |
+          release_files/*.tar.gz
+          release_files/*.zip
