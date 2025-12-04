@@ -169,31 +169,31 @@ jobs:
         cp dist/bootloader-4MB.bin artifacts/flash_4mb/bootloader.bin
         
         for size in 4mb 8mb 16mb; do
-          cat > artifacts/flash_${size}/README.txt << EOF
-          固件包说明
-          ==========
-
-          Flash 大小: ${size^^}
-          固件版本: ${{ needs.setup.outputs.version }}
-          分支: ${{ needs.setup.outputs.branch_name }}
-          构建时间: $(date)
-          Git Commit: ${{ github.sha }}
-          触发方式: ${{ github.event_name }}
-          触发者: ${{ github.actor }}
-
-          包含文件:
-          - firmware.bin: 主固件文件
-          - firmware.elf: 调试文件
-          - partitions.bin: 分区表文件
-          - bootloader.bin: 引导程序文件
-
-          刷写顺序:
-          1. bootloader.bin @ 0x1000
-          2. partitions.bin @ 0x8000
-          3. firmware.bin @ 0x10000
-
-          注意: 请根据您的设备Flash大小选择合适的包
-          EOF
+          {
+            echo "固件包说明"
+            echo "=========="
+            echo ""
+            echo "Flash 大小: ${size^^}"
+            echo "固件版本: ${{ needs.setup.outputs.version }}"
+            echo "分支: ${{ needs.setup.outputs.branch_name }}"
+            echo "构建时间: $(date)"
+            echo "Git Commit: ${{ github.sha }}"
+            echo "触发方式: ${{ github.event_name }}"
+            echo "触发者: ${{ github.actor }}"
+            echo ""
+            echo "包含文件:"
+            echo "- firmware.bin: 主固件文件"
+            echo "- firmware.elf: 调试文件"
+            echo "- partitions.bin: 分区表文件"
+            echo "- bootloader.bin: 引导程序文件"
+            echo ""
+            echo "刷写顺序:"
+            echo "1. bootloader.bin @ 0x1000"
+            echo "2. partitions.bin @ 0x8000"
+            echo "3. firmware.bin @ 0x10000"
+            echo ""
+            echo "注意: 请根据您的设备Flash大小选择合适的包"
+          } > artifacts/flash_${size}/README.txt
         done
     
     - name: "创建固件压缩包"
