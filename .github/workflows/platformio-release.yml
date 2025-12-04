@@ -5,9 +5,104 @@ on:
     tags:
       - 'v*'  # 匹配 v1.0.0, v1.2.3 等标签
       - 'release-*'  # 或者自定义的release标签
+  workflow_dispatch:  # 手动触发
+    inputs:
+      branch:
+        description: '要构建的分支（留空使用默认分支）'
+        required: false
+        default: ''
+      release_type:
+        description: '发布类型'
+        required: true
+        default: 'beta'
+        type: choice
+        options:
+          - beta
+          - release-candidate
+          - stable
+      version_override:
+        description: '版本号覆盖（如 1.0.0-beta.1）'
+        required: false
+        default: ''
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_name: ${{ steps.setup_vars.outputs.tag_name }}
+      is_prerelease: ${{ steps.setup_vars.outputs.is_prerelease }}
+      release_name: ${{ steps.setup_vars.outputs.release_name }}
+      version: ${{ steps.setup_vars.outputs.version }}
+      branch_name: ${{ steps.setup_vars.outputs.branch_name }}
+    
+    steps:
+    - name: "确定触发类型和参数"
+      id: setup_vars
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "手动触发"
+          
+          # 获取分支名
+          if [ -n "${{ github.event.inputs.branch }}" ]; then
+            BRANCH_NAME="${{ github.event.inputs.branch }}"
+          else
+            BRANCH_NAME="${{ github.ref_name }}"
+          fi
+          
+          # 确定版本号
+          if [ -n "${{ github.event.inputs.version_override }}" ]; then
+            VERSION="${{ github.event.inputs.version_override }}"
+          else
+            # 使用时间戳生成beta版本号
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            VERSION="beta-$TIMESTAMP"
+          fi
+          
+          # 设置tag
+          TAG_NAME="$VERSION"
+          IS_PRERELEASE="true"
+          RELEASE_NAME="Beta Release $VERSION"
+          RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          
+          # 根据发布类型调整
+          if [ "$RELEASE_TYPE" = "release-candidate" ]; then
+            TAG_NAME="rc-$TIMESTAMP"
+            RELEASE_NAME="Release Candidate $TIMESTAMP"
+          elif [ "$RELEASE_TYPE" = "stable" ]; then
+            RELEASE_NAME="Stable Release $VERSION"
+            IS_PRERELEASE="false"
+          fi
+          
+        else
+          echo "Tag触发"
+          BRANCH_NAME="${{ github.ref_name }}"
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${{ github.ref_name }}"
+          RELEASE_NAME="Release ${{ github.ref_name }}"
+          
+          # 判断是否为预发布版（beta, rc, alpha等）
+          if [[ "${{ github.ref_name }}" =~ -(beta|rc|alpha|dev) ]]; then
+            IS_PRERELEASE="true"
+          else
+            IS_PRERELEASE="false"
+          fi
+        fi
+        
+        echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+        echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+        
+        echo "设置完成:"
+        echo "分支: $BRANCH_NAME"
+        echo "Tag: $TAG_NAME"
+        echo "版本: $VERSION"
+        echo "预发布: $IS_PRERELEASE"
+        echo "发布名称: $RELEASE_NAME"
+
   build:
+    needs: setup
     runs-on: ubuntu-latest
     
     strategy:
@@ -18,6 +113,8 @@ jobs:
     steps:
     - name: "检出代码"
       uses: actions/checkout@v4
+      with:
+        ref: ${{ needs.setup.outputs.branch_name }}
 
     - name: "设置缓存"
       uses: actions/cache@v4
@@ -28,7 +125,7 @@ jobs:
           .pio/build
           .pio/libdeps
         key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini', 'lib/**/*.h', 'lib/**/*.cpp') }}
-        
+
     - name: "处理linux和Windows的路径"
       run: |
         sed 's|#include <esp32\\rom\\sha.h>|#include <esp32/rom/sha.h>|' src/hal.cpp -i
@@ -46,43 +143,43 @@ jobs:
     - name: "使用platformio构建"
       run: |
         echo "Building for environment: ${{ matrix.env }}"
+        echo "版本: ${{ needs.setup.outputs.version }}"
+        echo "分支: ${{ needs.setup.outputs.branch_name }}"
         pio run -e ${{ matrix.env }}
     
     - name: "收集固件"
       run: |
-        # 创建目录结构
         mkdir -p artifacts/flash_16mb
         mkdir -p artifacts/flash_8mb
         mkdir -p artifacts/flash_4mb
         
-        # 复制16MB Flash大小的文件
         cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/flash_16mb/
         cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/flash_16mb/
         cp .pio/build/${{ matrix.env }}/partitions.bin artifacts/flash_16mb/
         cp .pio/build/${{ matrix.env }}/bootloader.bin artifacts/flash_16mb/
         
-        # 复制8MB Flash大小的文件（共用固件）
         cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/flash_8mb/
         cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/flash_8mb/
         cp dist/partitions-8MB.bin artifacts/flash_8mb/partitions.bin
         cp dist/bootloader-8MB.bin artifacts/flash_8mb/bootloader.bin
         
-        # 复制4MB Flash大小的文件（共用固件）
         cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/flash_4mb/
         cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/flash_4mb/
         cp dist/partitions-4MB.bin artifacts/flash_4mb/partitions.bin
         cp dist/bootloader-4MB.bin artifacts/flash_4mb/bootloader.bin
         
-        # 创建说明文件
         for size in 4mb 8mb 16mb; do
           cat > artifacts/flash_${size}/README.txt << EOF
           固件包说明
           ==========
 
           Flash 大小: ${size^^}
-          固件版本: ${{ github.ref_name }}
+          固件版本: ${{ needs.setup.outputs.version }}
+          分支: ${{ needs.setup.outputs.branch_name }}
           构建时间: $(date)
           Git Commit: ${{ github.sha }}
+          触发方式: ${{ github.event_name }}
+          触发者: ${{ github.actor }}
 
           包含文件:
           - firmware.bin: 主固件文件
@@ -101,10 +198,8 @@ jobs:
     
     - name: "创建固件压缩包"
       run: |
-        # 创建压缩包目录
         mkdir -p packages
         
-        # 为每个Flash大小创建tar.gz和zip包
         for size in 4mb 8mb 16mb; do
           echo "创建 Flash ${size^^} 的压缩包..."
           
@@ -119,14 +214,12 @@ jobs:
           cd ../..
         done
         
-        # 创建通用压缩包（包含所有大小）
         echo "创建通用压缩包..."
         cd artifacts
         tar -czf ../packages/all_flash_sizes.tar.gz *
         zip -r ../packages/all_flash_sizes.zip *
         cd ..
         
-        # 列出所有包
         echo "生成的压缩包："
         ls -lh packages/
     
@@ -140,7 +233,7 @@ jobs:
         if-no-files-found: error
   
   create-release:
-    needs: build
+    needs: [setup, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -156,19 +249,23 @@ jobs:
     
     - name: Prepare release files
       run: |
-        # 移动文件到release目录
         mkdir -p release_files
         
-        # 复制压缩包到release目录
         cp all_artifacts/packages/*.tar.gz release_files/ 2>/dev/null || true
         cp all_artifacts/packages/*.zip release_files/ 2>/dev/null || true
         
-        # 也可以包含原始文件（可选）
         mkdir -p release_files/original_files
         cp -r all_artifacts/artifacts/* release_files/original_files/ 2>/dev/null || true
         
-        # 创建文件列表
         echo "# 文件列表" > release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        echo "## 构建信息" >> release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        echo "- **版本:** ${{ needs.setup.outputs.version }}" >> release_files/FILE_LIST.md
+        echo "- **分支:** ${{ needs.setup.outputs.branch_name }}" >> release_files/FILE_LIST.md
+        echo "- **触发方式:** ${{ github.event_name }}" >> release_files/FILE_LIST.md
+        echo "- **触发者:** ${{ github.actor }}" >> release_files/FILE_LIST.md
+        echo "- **Commit:** ${{ github.sha }}" >> release_files/FILE_LIST.md
         echo "" >> release_files/FILE_LIST.md
         echo "## 压缩包" >> release_files/FILE_LIST.md
         echo "" >> release_files/FILE_LIST.md
@@ -187,17 +284,37 @@ jobs:
         echo "- flash_8mb/: 8MB Flash 版本" >> release_files/FILE_LIST.md
         echo "- flash_16mb/: 16MB Flash 版本" >> release_files/FILE_LIST.md
     
+    - name: "创建Tag（仅手动触发且tag不存在时）"
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        TAG_NAME="${{ needs.setup.outputs.tag_name }}"
+        # 检查tag是否已存在
+        echo "检查tag $TAG_NAME 是否存在..."
+        
+        if ! git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+          echo "创建新tag: $TAG_NAME"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a "$TAG_NAME" -m "Beta release created by GitHub Actions"
+          git push origin "$TAG_NAME"
+        else
+          echo "Tag $TAG_NAME 已存在，跳过创建"
+        fi
+    
     - name: "创建发行版"
       id: create_release
       uses: softprops/action-gh-release@v1
       with:
-        name: Release ${{ github.ref_name }}
-        tag_name: ${{ github.ref_name }}
+        name: ${{ needs.setup.outputs.release_name }}
+        tag_name: ${{ needs.setup.outputs.tag_name }}
         body: |
           ## ESP32 固件发行版
           
-          **版本:** ${{ github.ref_name }}
+          **版本:** ${{ needs.setup.outputs.version }}
+          **分支:** ${{ needs.setup.outputs.branch_name }}
           **构建时间:** ${{ github.event.repository.updated_at }}
+          **触发方式:** ${{ github.event_name }}
+          **触发者:** ${{ github.actor }}
           
           ### 支持三种Flash大小
           1. **4MB Flash**: 适用于4MB Flash的ESP32设备
@@ -230,9 +347,11 @@ jobs:
           - **Commit:** ${{ github.sha }}
           - **触发者:** ${{ github.actor }}
           - **board:** esp32dev
+          
+          **注意:** 这是${{ needs.setup.outputs.is_prerelease == 'true' && '预发布版' || '稳定版' }}，请谨慎用于生产环境。
         
         draft: false
-        prerelease: false
+        prerelease: ${{ needs.setup.outputs.is_prerelease == 'true' }}
         files: |
           release_files/*.tar.gz
           release_files/*.zip
