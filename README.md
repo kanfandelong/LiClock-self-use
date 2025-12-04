@@ -1,3 +1,4 @@
+![:name](https://count.getloli.com/@aLiClock-self-use?name=LiClock-self-use&theme=green&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto&prefix=0)
 # <center>LiClock 墨水屏天气时钟
 
 ###  **关于发行版** 

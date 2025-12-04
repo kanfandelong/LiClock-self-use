@@ -37,12 +37,13 @@ def after_build(source, target, env):
 
     # 要执行的 Python 脚本及参数（示例）
     script_path = "tools/idf_size.py"
-    arg1 = r"C:\Users\admin\Desktop\LiClock-dev_multithread\.pio\build\esp32solo1\firmware.map"                     # 参数1
+    arg1 = r"C:\Users\admin\Desktop\LiClock-dev_multithread-main\.pio\build\esp32solo1\firmware.map"                     # 参数1
 
     # 构造命令（确保路径带空格时用双引号包裹）
     command = [
         system_python,
         f'"{script_path}"' if " " in script_path else script_path,  # 处理脚本路径中的空格
+        "--format table",
         arg1
     ]
 

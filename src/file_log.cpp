@@ -2,60 +2,69 @@
 
 
 // 全局日志缓冲区
-static String logBuffer;
-static const size_t LOG_BUFFER_SIZE = 8192; // 8KB缓冲区
 File file_log;
+char * temp;
+bool flush_ok = false;
+bool need_free = false;
 
 // 刷新日志到文件
 void log_flush()
 {
-    if (logBuffer.length() > 0)
+    if (!file_log){
+        file_log = LittleFS.open("/System/log.txt", "a");
+        file_log.setBufferSize(4096);
+    }
+    if (file_log)
     {
-        if (!file_log)
-            file_log = LittleFS.open("/System/log.txt", "a");
-        if (file_log)
-        {
-            file_log.print(logBuffer);
-            if (!hal.pref.getBool("fast_boot"))
-                file_log.flush();
-            logBuffer = ""; // 清空缓冲区
-        }
-        else
-        {
-            Serial.println("无法打开日志文件");
-        }
+        file_log.printf("%s", temp);
+        if (need_free)
+            free(temp);
+        if (!hal.pref.getBool("fast_boot"))
+            file_log.flush();
+    }
+    else
+    {
+        Serial.println("无法打开日志文件");
     }
 }
 
-// 日志记录函数
-void log_write(const char *file, int line, const char *fmt, ...)
+void flush_log(void *){
+    flush_ok = false;
+    log_flush();
+    flush_ok = true;
+    vTaskDelete(NULL);
+}
+int log_printfv(const char *format, va_list arg)
 {
+    static char loc_buf[64];
+    temp = loc_buf;
+    uint32_t len;
+    va_list copy;
+    va_copy(copy, arg);
+    len = vsnprintf(NULL, 0, format, copy);
+    va_end(copy);
+    need_free = false;
+    if(len >= sizeof(loc_buf)){
+        need_free = true;
+        temp = (char*)malloc(len+1);
+        if(temp == NULL) {
+            return 0;
+        }
+    }
+    vsnprintf(temp, len+1, format, arg);
+    Serial.printf("%s", temp);
+    
+    return len;
+}
+
+void log_write(const char *fmt, ...)
+{
+    int len;
+    va_list arg;
+    va_start(arg, fmt);
+    len = log_printfv(fmt, arg);
+    va_end(arg);
     if (!hal.pref.getBool("sys_log"))
         return;
-    // 检查缓冲区剩余空间，如果不足则刷新
-    if (logBuffer.length() > LOG_BUFFER_SIZE * 0.8)
-    { // 当缓冲区使用超过80%时刷新
-        log_flush();
-    }
-
-    // 格式化时间戳和位置信息
-    char header[100];
-    snprintf(header, sizeof(header), "[%06d][%s:%d] ", esp_log_timestamp(), file, line);
-    logBuffer += header;
-
-    // 格式化日志内容
-    char content[256]; // 单条日志内容缓冲区
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(content, sizeof(content), fmt, args);
-    va_end(args);
-
-    logBuffer += content;
-    logBuffer += "\n";
-
-    // 如果单条日志就很大，接近缓冲区限制，立即刷新
-    if (logBuffer.length() > LOG_BUFFER_SIZE * 0.9)
-    {
-        log_flush();
-    }
+    log_flush();
 }

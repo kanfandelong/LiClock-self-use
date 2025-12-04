@@ -144,12 +144,17 @@ uint8_t getBatterysoc();
 #include "Buzzer.h"
 #include "lua_trans.h"
 #include "Serial_cmd.h"
+#include "truetype.h"
 extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);
 extern File file_log;;
 extern void log_flush();
-extern void log_write(const char *file, int line, const char *fmt, ...);
+// extern void log_write(const char *file, int line, const char *fmt, ...);
+extern void log_write(const char *fmt, ...);
 
 
-// 替换原有的宏定义
-#define F_LOG(fmt, ...) log_write(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+
+// #define F_LOG(fmt, ...) log_write(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define info(fmt, ...) log_write(ARDUHAL_LOG_FORMAT(I, fmt), ##__VA_ARGS__)
+#define warn(fmt, ...) log_write(ARDUHAL_LOG_FORMAT(W, fmt), ##__VA_ARGS__)
+#define error(fmt, ...) log_write(ARDUHAL_LOG_FORMAT(E, fmt), ##__VA_ARGS__)

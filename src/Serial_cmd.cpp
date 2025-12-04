@@ -245,12 +245,12 @@ void CMD::parseCommand(const char* command) {
             int freq = atoi(param[0]);
             Serial.end();
             if (setCpuFrequencyMhz(freq)){
-                Serial.begin(115200);
+                Serial.begin(hal.pref.getUInt("uart_baud", 115200));
                 Serial.setDebugOutput(true);
                 PRINT_SUCCESS("CPU frequency set successfully");
                 Serial.printf("New frequency: %d MHz\n", freq);
             } else {
-                Serial.begin(115200);
+                Serial.begin(hal.pref.getUInt("uart_baud", 115200));
                 Serial.setDebugOutput(true);
                 PRINT_ERROR("Failed to set CPU frequency");
                 PRINT_INFO("Valid frequencies: 240, 160, 80, 40, 20, 10");
@@ -357,17 +357,17 @@ void CMD::parseCommand(const char* command) {
         // 首先测试TF卡是否存在
         if (digitalRead(PIN_SD_CARDDETECT) != 1)
         {
-            Serial.println("[外设] 加载TF卡");
+            info("加载TF卡");
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             delay(50);
             uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
-            Serial.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
+            info("设置TF卡频率:%d HZ\n", freq); 
             if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
             {
                 delay(100);
-                F_LOG("TF卡挂载失败,尝试重新挂载");
+                warn("TF卡挂载失败,尝试重新挂载");
                 if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");

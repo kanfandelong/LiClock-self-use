@@ -18,6 +18,13 @@ from threading import Thread
 from esp_coredump import CoreDump
 from esp_coredump.corefile import ESPCoreDumpLoaderError
 
+# 默认GDB路径
+DEFAULT_GDB_PATHS = [
+    r"E:\ESP-IDF\v5.2\Espressif\tools\xtensa-esp-elf-gdb\14.2_20240403\xtensa-esp-elf-gdb\bin\xtensa-esp32-elf-gdb.exe",
+    r"C:\Users\admin\.platformio\packages\toolchain-xtensa-esp32\bin\xtensa-esp32-elf-gdb.exe",
+    r"xtensa-esp32-elf-gdb.exe"  # 系统PATH中的GDB
+]
+
 class CoreDumpAnalyzerApp:
     def __init__(self, master):
         self.master = master
@@ -37,18 +44,133 @@ class CoreDumpAnalyzerApp:
         self.log_buffer = []
         self.chip_var = tk.StringVar(value="自动检测")
         
+        # GDB路径配置
+        self.gdb_path = self.find_valid_gdb_path()
+        
         # 创建主界面布局
         self.create_widgets()
         
+        # 检查GDB路径有效性
+        self.check_gdb_path_on_startup()
+    
+    def find_valid_gdb_path(self):
+        """查找有效的GDB路径"""
+        for path in DEFAULT_GDB_PATHS:
+            if self.is_gdb_path_valid(path):
+                return path
+        return DEFAULT_GDB_PATHS[0]  # 返回第一个路径作为默认值
+    
+    def is_gdb_path_valid(self, gdb_path):
+        """检查GDB路径是否有效"""
+        # 检查文件是否存在
+        if not os.path.isfile(gdb_path):
+            return False
+        
+        # 检查文件是否可执行（在Windows上主要是检查文件存在性）
+        if not os.access(gdb_path, os.X_OK):
+            return False
+            
+        # 检查文件扩展名（Windows）
+        if os.name == 'nt' and not gdb_path.lower().endswith(('.exe', '.bat', '.cmd')):
+            return False
+            
+        return True
+    
+    def check_gdb_path_on_startup(self):
+        """启动时检查GDB路径"""
+        if not self.is_gdb_path_valid(self.gdb_path):
+            self.show_gdb_path_warning()
+    
+    def show_gdb_path_warning(self):
+        """显示GDB路径无效的警告"""
+        warning_msg = (
+            f"GDB路径无效或找不到:\n{self.gdb_path}\n\n"
+            "请选择正确的GDB可执行文件路径。\n"
+            "GDB通常位于:\n"
+            "- PlatformIO工具链目录\n"
+            "- ESP-IDF工具链目录\n"
+            "- 系统PATH环境变量中"
+        )
+        
+        result = messagebox.showwarning(
+            "GDB路径无效",
+            warning_msg,
+            icon=messagebox.WARNING,
+            type=messagebox.OKCANCEL
+        )
+        
+        if result == "ok":
+            self.select_gdb_path()
+    
+    def select_gdb_path(self):
+        """让用户选择GDB路径"""
+        gdb_path = filedialog.askopenfilename(
+            title="选择GDB可执行文件",
+            filetypes=[
+                ("GDB executable", "*.exe"),
+                ("All files", "*.*")
+            ]
+        )
+        
+        if gdb_path and self.is_gdb_path_valid(gdb_path):
+            self.gdb_path = gdb_path
+            self.log(f"已更新GDB路径: {gdb_path}")
+            messagebox.showinfo("成功", f"GDB路径已更新为:\n{gdb_path}")
+        elif gdb_path:
+            messagebox.showerror("错误", "选择的文件不是有效的GDB可执行文件")
+            self.select_gdb_path()  # 递归调用直到选择有效文件或取消
+    
+    def verify_gdb_before_analysis(self):
+        """在分析前验证GDB路径"""
+        if not self.is_gdb_path_valid(self.gdb_path):
+            self.log("GDB路径无效，请重新选择")
+            self.select_gdb_path()
+            return False
+        
+        # 额外检查：尝试运行GDB的版本命令（可选，可能较慢）
+        try:
+            import subprocess
+            result = subprocess.run(
+                [self.gdb_path, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                self.log(f"GDB验证成功: {result.stdout.splitlines()[0]}")
+                return True
+            else:
+                self.log(f"GDB验证失败: {result.stderr}")
+                return False
+        except Exception as e:
+            self.log(f"GDB验证异常: {str(e)}")
+            # 即使验证异常，只要文件存在且可执行，仍然继续
+            return self.is_gdb_path_valid(self.gdb_path)
+    
     def create_widgets(self):
         """创建界面组件"""
         # 使用网格布局管理器提升布局灵活性
         main_frame = ttk.Frame(self.master)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
+        # GDB路径显示区域（新增）
+        gdb_frame = ttk.LabelFrame(main_frame, text="GDB配置")
+        gdb_frame.grid(row=0, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        
+        ttk.Label(gdb_frame, text="GDB路径:").grid(row=0, column=0, padx=(5,2), sticky=tk.W)
+        gdb_path_label = ttk.Label(
+            gdb_frame, 
+            text=self.gdb_path,
+            foreground="green" if self.is_gdb_path_valid(self.gdb_path) else "red",
+            font=('Consolas', 9)
+        )
+        gdb_path_label.grid(row=0, column=1, padx=2, sticky=tk.EW)
+        ttk.Button(gdb_frame, text="更改GDB", 
+                  command=self.select_gdb_path).grid(row=0, column=2, padx=5)
+
         # 设备连接区域
         connection_frame = ttk.LabelFrame(main_frame, text="设备连接")
-        connection_frame.grid(row=0, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        connection_frame.grid(row=1, column=0, columnspan=2, sticky=tk.EW, pady=5)
     
         # IP地址和下载按钮
         ttk.Label(connection_frame, text="IP地址:").grid(row=0, column=0, padx=(5,2))
@@ -59,7 +181,7 @@ class CoreDumpAnalyzerApp:
 
         # 文件选择区域
         file_frame = ttk.LabelFrame(main_frame, text="文件配置")
-        file_frame.grid(row=1, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        file_frame.grid(row=2, column=0, columnspan=2, sticky=tk.EW, pady=5)
 
         # ELF 文件选择（使用两列布局）
         ttk.Button(file_frame, text="选择 ELF", 
@@ -75,7 +197,7 @@ class CoreDumpAnalyzerApp:
 
         # 芯片选择区域
         chip_frame = ttk.Frame(main_frame)
-        chip_frame.grid(row=2, column=0, sticky=tk.W, pady=5)
+        chip_frame.grid(row=3, column=0, sticky=tk.W, pady=5)
         ttk.Label(chip_frame, text="芯片类型:").pack(side=tk.LEFT, padx=(0,5))
         self.chip_combobox = ttk.Combobox(
             chip_frame, 
@@ -89,7 +211,7 @@ class CoreDumpAnalyzerApp:
 
         # 操作按钮区域
         btn_frame = ttk.Frame(main_frame)
-        btn_frame.grid(row=2, column=1, sticky=tk.E, pady=5)
+        btn_frame.grid(row=3, column=1, sticky=tk.E, pady=5)
         ttk.Button(btn_frame, text="开始解析", 
                 command=self.start_analysis).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="保存报告", 
@@ -97,8 +219,8 @@ class CoreDumpAnalyzerApp:
 
         # 结果显示区域
         result_frame = ttk.LabelFrame(main_frame, text="分析结果")
-        result_frame.grid(row=3, column=0, columnspan=2, sticky=tk.NSEW, pady=5)
-        main_frame.rowconfigure(3, weight=1)  # 结果区域可扩展
+        result_frame.grid(row=4, column=0, columnspan=2, sticky=tk.NSEW, pady=5)
+        main_frame.rowconfigure(4, weight=1)  # 结果区域可扩展
 
         self.result_text = tk.Text(
             result_frame, 
@@ -112,7 +234,7 @@ class CoreDumpAnalyzerApp:
 
         # 日志区域
         log_frame = ttk.LabelFrame(main_frame, text="操作日志")
-        log_frame.grid(row=4, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        log_frame.grid(row=5, column=0, columnspan=2, sticky=tk.EW, pady=5)
     
         self.log_text = tk.Text(
             log_frame, 
@@ -132,12 +254,14 @@ class CoreDumpAnalyzerApp:
             orient=tk.HORIZONTAL,
             mode='indeterminate'
         )
-        self.progress.grid(row=5, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        self.progress.grid(row=6, column=0, columnspan=2, sticky=tk.EW, pady=5)
 
         # 配置列权重
         main_frame.columnconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         file_frame.columnconfigure(1, weight=1)  # 文件路径标签可扩展
+        gdb_frame.columnconfigure(1, weight=1)   # GDB路径标签可扩展
+
     # 新增方法：启动下载线程
     def start_download(self):
         """启动下载线程"""
@@ -214,6 +338,7 @@ class CoreDumpAnalyzerApp:
         finally:
             self.toggle_controls(True)
             self.progress.stop()
+
     def select_elf_file(self):
         """选择 ELF 文件"""
         path = filedialog.askopenfilename(
@@ -238,6 +363,11 @@ class CoreDumpAnalyzerApp:
     
     def start_analysis(self):
         """启动分析线程"""
+        # 首先验证GDB路径
+        if not self.verify_gdb_before_analysis():
+            self.show_error("GDB路径无效，无法进行分析")
+            return
+            
         if not self.validate_inputs():
             return
         
@@ -259,10 +389,8 @@ class CoreDumpAnalyzerApp:
                 chip=chip,
                 port=None,
                 baud=0,
-                gdb=r"C:\Users\admin\.platformio\packages\toolchain-xtensa-esp32\bin\xtensa-esp32-elf-gdb.exe"
+                gdb=self.gdb_path  # 使用实例变量中的GDB路径
             )
-            #C:\Users\admin\.platformio\packages\toolchain-xtensa-esp32\bin\xtensa-esp32-elf-gdb.exe
-            #E:\ESP-IDF\v5.2\Espressif\tools\xtensa-esp-elf-gdb\14.2_20240403\xtensa-esp-elf-gdb\bin\xtensa-esp32-elf-gdb.exe
 
             # 创建 StringIO 对象以捕获 print 输出
             output = io.StringIO()
@@ -289,8 +417,10 @@ class CoreDumpAnalyzerApp:
         
         except ESPCoreDumpLoaderError as e:
             self.show_error(f"elf文件与核心转储不匹配: {str(e)}")
+        except FileNotFoundError as e:
+            self.show_error(f"GDB可执行文件未找到: {self.gdb_path}\n请检查GDB路径配置")
         except Exception as e:
-            self.show_error(f"An error occurred: {str(e)}")
+            self.show_error(f"分析过程中发生错误: {str(e)}")
         finally:
             self.toggle_controls(True)
             self.progress.stop()

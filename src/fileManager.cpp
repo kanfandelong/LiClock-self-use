@@ -50,7 +50,14 @@ static const struct s_fileicondict fileicondict[] = {
     {NULL, NULL},
 };
 
-extern SPIClass SDSPI;
+static const menu_item root_menu[] =
+    {
+        {folder_bits, ".."},
+        {folder_bits, "littlefs"},
+        {folder_bits, "sd"},
+        {NULL, NULL},
+};
+
 /**
  *
 “lbm”格式定义：
@@ -83,26 +90,32 @@ namespace GUI
         // 处理多扩展名过滤
         char **extensionList = NULL;
         int extensionCount = 0;
-        
+
         // 如果endsWidth不为NULL且包含换行符，则分割字符串
-        if (endsWidth != NULL && strchr(endsWidth, '\n') != NULL) {
+        if (endsWidth != NULL && strchr(endsWidth, '\n') != NULL)
+        {
             // 计算扩展名数量
             const char *ptr = endsWidth;
             extensionCount = 1; // 至少有一个扩展名
-            while (*ptr) {
-                if (*ptr == '\n') extensionCount++;
+            while (*ptr)
+            {
+                if (*ptr == '\n')
+                    extensionCount++;
                 ptr++;
             }
-            
+
             // 分配内存存储扩展名
             extensionList = (char **)malloc(extensionCount * sizeof(char *));
-            if (extensionList != NULL) {
+            if (extensionList != NULL)
+            {
                 // 复制字符串并分割
                 char *copy = strdup(endsWidth);
-                if (copy != NULL) {
+                if (copy != NULL)
+                {
                     int idx = 0;
                     char *token = strtok(copy, "\n");
-                    while (token != NULL && idx < extensionCount) {
+                    while (token != NULL && idx < extensionCount)
+                    {
                         extensionList[idx++] = strdup(token);
                         token = strtok(NULL, "\n");
                     }
@@ -116,21 +129,44 @@ namespace GUI
         {
             if (digitalRead(PIN_SD_CARDDETECT) == LOW)
             {
-                if (file_system != NULL){
+                if (file_system != NULL)
+                {
                     if (strcmp(file_system, "TF") == 0)
                     {
                         useSD = true;
                     }
-                    else if(strcmp(file_system, "LittleFS") == 0)
+                    else if (strcmp(file_system, "LittleFS") == 0)
                     {
                         useSD = false;
                     }
                 }
                 else
                 {
-                    if (msgbox_yn("请选择文件系统", "左：LittleFS\n右：TF 卡", "TF 卡", "LittleFS"))
+                    // if (msgbox_yn("请选择文件系统", "左：LittleFS\n右：TF 卡", "TF 卡", "LittleFS"))
+                    // {
+                    //     useSD = true;
+                    // }
+                    int select_ = 1;
+                select_fs:
+                    int selected = menu(title, root_menu, 12, 12, 1);
+                    switch (selected)
                     {
+                    case 0:
+                        GUI::msgbox("警告", "没有上级目录");
+                        if (select_ < 4)
+                            goto select_fs;
+                        else
+                            useSD = false;
+                        break;
+                    case 1:
+                        useSD = false;
+                        break;
+                    case 2:
                         useSD = true;
+                        break;
+
+                    default:
+                        break;
                     }
                 }
             }
@@ -141,7 +177,7 @@ namespace GUI
         }
         if ((!peripherals.isSDLoaded()) && useSD && digitalRead(PIN_SD_CARDDETECT) == LOW)
             peripherals.load(PERIPHERALS_SD_BIT);
-        //String cwd = "/";
+        // String cwd = "/";
         File root;
         File file;
         int16_t total_entries = 0;
@@ -166,7 +202,8 @@ namespace GUI
                 ++total_entries;
             }
             total_entries = 1;
-open_root:            
+            int try_open = 0;
+        open_root:
             if (useSD)
             {
                 root = SD.open(cwd);
@@ -179,12 +216,14 @@ open_root:
                 cwd += "/";
             if (!root)
             {
-                Serial.println("[文件] root未打开");
+                error("[文件] root未打开");
                 cwd = "/";
+                try_open++;
+                if (try_open > 10)
+                    return NULL;
                 goto open_root;
             }
-            GUI::info_msgbox("提示", "正在创建文件列表...");
-            unsigned long  start_time = millis(), end_time;
+            unsigned long start_time = millis(), end_time;
             file = root.openNextFile();
             String ext, tmp;
             while (file)
@@ -200,7 +239,8 @@ open_root:
                 }
                 if (file.isDirectory())
                     Serial.printf("\033[36m%s\033[0m\n", tmp.c_str());
-                else{
+                else
+                {
                     if (tmp.endsWith(".lua"))
                         Serial.printf("\033[32m%s\033[0m\n", tmp.c_str());
                     else
@@ -232,15 +272,20 @@ open_root:
                             //     continue;
                             // }
                             bool match = false;
-                            if (extensionList != NULL) {
+                            if (extensionList != NULL)
+                            {
                                 // 多扩展名匹配
-                                for (int i = 0; i < extensionCount; i++) {
-                                    if (extensionList[i] != NULL && strcmp(extensionList[i], ext.c_str()) == 0) {
+                                for (int i = 0; i < extensionCount; i++)
+                                {
+                                    if (extensionList[i] != NULL && strcmp(extensionList[i], ext.c_str()) == 0)
+                                    {
                                         match = true;
                                         break;
                                     }
                                 }
-                            } else {
+                            }
+                            else
+                            {
                                 // 单扩展名匹配 (保持原有逻辑)
                                 match = (strcmp(endsWidth, ext.c_str()) == 0);
                             }
@@ -257,6 +302,7 @@ open_root:
                     if (titles[total_entries] == NULL)
                     {
                         GUI::msgbox("严重错误", "[文件管理] 动态内存不足");
+                        error("堆内存不足");
                         ESP.restart();
                     }
                     strcpy(titles[total_entries], file.name());
@@ -274,6 +320,7 @@ open_root:
                             if (titles[total_entries] == NULL)
                             {
                                 GUI::msgbox("严重错误", "[文件管理] 动态内存不足");
+                                error("堆内存不足");
                                 ESP.restart();
                             }
                             strcpy(titles[total_entries], file.name());
@@ -306,9 +353,12 @@ open_root:
                         titles[total_entries] = NULL;
                         ++total_entries;
                     }
-                    if (extensionList != NULL) {
-                        for (int i = 0; i < extensionCount; i++) {
-                            if (extensionList[i] != NULL) {
+                    if (extensionList != NULL)
+                    {
+                        for (int i = 0; i < extensionCount; i++)
+                        {
+                            if (extensionList[i] != NULL)
+                            {
                                 free(extensionList[i]);
                             }
                         }
@@ -352,9 +402,12 @@ open_root:
             titles[total_entries] = NULL;
             ++total_entries;
         }
-        if (extensionList != NULL) {
-            for (int i = 0; i < extensionCount; i++) {
-                if (extensionList[i] != NULL) {
+        if (extensionList != NULL)
+        {
+            for (int i = 0; i < extensionCount; i++)
+            {
+                if (extensionList[i] != NULL)
+                {
                     free(extensionList[i]);
                 }
             }

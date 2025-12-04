@@ -361,7 +361,7 @@ void DS3231::setYear(byte Year) {
 	Wire.write(decToBcd(Year));	
 	Wire.endTransmission();
 }
-
+#include <esp_log.h>
 void DS3231::setClockMode(bool h12) {
 	// sets the mode to 12-hour (true) or 24-hour (false).
 	// One thing that bothers me about how I've written this is that
@@ -393,6 +393,7 @@ void DS3231::setClockMode(bool h12) {
 	Wire.write(0x02);
 	Wire.write(temp_buffer);
 	Wire.endTransmission();
+	log_i("h12: %s", h12 ? "true" : "false");
 }
 
 float DS3231::getTemperature() {

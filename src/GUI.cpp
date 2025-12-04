@@ -232,7 +232,8 @@ namespace GUI
         while (1)
         {
             delay(10);
-            if (millis() - start > 30000){
+            if (millis() - start > 30000)
+            {
                 hal.wait_input();
                 start = millis();
             }
@@ -270,7 +271,7 @@ namespace GUI
         constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
         int total = 0;
         bool hasIcon = false;
-        
+
         // 计算总项目数和检查图标
         while (options[total].title != NULL)
         {
@@ -278,17 +279,17 @@ namespace GUI
                 hasIcon = true;
             ++total;
         }
-        
+
         // 确保默认选中在有效范围内
         int selected = constrain(default_selected, 0, total - 1);
         int pageStart = 0;
-        
+
         // 计算初始页面起始位置，确保默认选中项可见
         if (total > number_of_items)
         {
             pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
         }
-        
+
         int barHeight = number_of_items * 96 / total;
         int barPos = 0;
         bool updated = true;
@@ -309,7 +310,12 @@ namespace GUI
                     {
                         selected = total;
                     }
-                    --selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected -= 2;
+                    else
+                        --selected;
+                    if (selected < 0)
+                        selected = 0;
                     updated = true;
                 }
                 wait_time = millis();
@@ -320,7 +326,12 @@ namespace GUI
                 delay(20);
                 if (hal.btnr.isPressing())
                 {
-                    ++selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected += 2;
+                    else
+                        ++selected;
+                    if (selected > total)
+                        selected = total;
                     if (selected == total)
                     {
                         selected = 0;
@@ -396,7 +407,8 @@ namespace GUI
                 delay(10);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -476,7 +488,7 @@ namespace GUI
 
         // 确保默认选中在有效范围内
         selected = constrain(default_selected, 0, total - 1);
-        
+
         // 计算初始页面起始位置，确保默认选中项可见
         if (total > number_of_items)
         {
@@ -495,7 +507,12 @@ namespace GUI
                     {
                         selected = total;
                     }
-                    --selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected -= 2;
+                    else
+                        --selected;
+                    if (selected < 0)
+                        selected = 0;
                     updated = true;
                 }
                 wait_time = millis();
@@ -506,7 +523,12 @@ namespace GUI
                 delay(20);
                 if (hal.btnr.isPressing())
                 {
-                    ++selected;
+                    if (total > 10 && (millis() - wait_time) < hal.pref.getUInt("menu_fast_t", 450))
+                        selected += 2;
+                    else
+                        ++selected;
+                    if (selected > total)
+                        selected = total;
                     if (selected == total)
                     {
                         selected = 0;
@@ -612,7 +634,8 @@ namespace GUI
                 delay(10);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -825,7 +848,8 @@ namespace GUI
             }
             // delay(200); // 适当延迟，避免重复输入
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -971,7 +995,8 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -1114,7 +1139,8 @@ namespace GUI
             }
 
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -1234,7 +1260,8 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -1249,7 +1276,7 @@ namespace GUI
         FILE *fp = fopen(getRealPath(filename), "rb");
         if (!fp)
         {
-            Serial.printf("File %s not found!\n", filename);
+            error("File %s not found!\n", filename);
             return;
         }
         HEADGRAY header;
@@ -1380,10 +1407,10 @@ namespace GUI
             }
         }
     }
-    // 请注意，BMP位图是在屏幕物理方向的物理位置绘制的
-    #define input_buffer_pixels 10 // 可能会影响性能，数值越大越费动态内存
-    #define max_row_width 500      // 限制最大尺寸 只能为8的整数
-    #define max_palette_pixels 500 // 限制最大尺寸 只能为8的整数
+// 请注意，BMP位图是在屏幕物理方向的物理位置绘制的
+#define input_buffer_pixels 10 // 可能会影响性能，数值越大越费动态内存
+#define max_row_width 500      // 限制最大尺寸 只能为8的整数
+#define max_palette_pixels 500 // 限制最大尺寸 只能为8的整数
 
     /**
      * @brief  BMP图片抖动显示GUI
@@ -1413,8 +1440,7 @@ namespace GUI
         if (!file)
         {
             msgbox("文件不存在", filename);
-            Serial.print("文件不存在\n");
-            Serial.println(filename);
+            error("文件 %s 不存在", filename);
             return;
         }
         // 解析BMP标头
@@ -1717,8 +1743,7 @@ namespace GUI
                             } // end pixel
                         } // end line
                         delete[] bmp8; // 释放内存
-                    } 
-                    while (display.nextPage());
+                    } while (display.nextPage());
                     display.powerOff(); // 为仅关闭电源
                     Serial.println("图像显示完毕");
                 }

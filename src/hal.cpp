@@ -13,7 +13,7 @@ void HAL::printBatteryInfo()
     Serial.print(hal.bat_info.soh);
     Serial.println("%");
     Serial.printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
-    Serial.printf("Voltage: %.3f mV\n", hal.bat_info.voltage);
+    Serial.printf("Voltage: %.3f V\n", hal.bat_info.voltage);
     Serial.print("Avg Power: ");
     Serial.print(hal.bat_info.power);
     Serial.println(" mW");
@@ -199,7 +199,7 @@ void task_btn_buzzer(void *)
 bool HAL::connected_wifi(const char *ssid, const char *pass)
 {
     WiFi.begin(ssid, pass);
-    log_i("Connecting to %s", ssid);
+    info("Connecting to %s", ssid);
     unsigned long startAttemptTime = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < 10000)
     {
@@ -212,8 +212,8 @@ bool HAL::connected_wifi(const char *ssid, const char *pass)
     }
     else
     {
-        log_i("Connection failed");
-        log_i("failed reason: %d", WiFi.status());
+        warn("Connection failed");
+        warn("failed reason: %d", WiFi.status());
         WiFi.disconnect();
         return false;
     }
@@ -234,7 +234,7 @@ bool HAL::wifi_config_manger()
         File file = LittleFS.open(wifi_config_file, "w");
         if (!file)
         {
-            Serial.println("Failed to open file for w");
+            error("Failed to open file for w");
             return false;
         }
         file.print(DEFAULT_WIFI_CONFIG);
@@ -244,7 +244,7 @@ bool HAL::wifi_config_manger()
     File configFile = LittleFS.open(wifi_config_file);
     if (!configFile)
     {
-        Serial.println("Failed to open file for reading");
+        error("Failed to open file for reading");
         return false;
     }
 
@@ -264,7 +264,7 @@ bool HAL::wifi_config_manger()
         if (n == 0)
         {
             WiFi.scanDelete();
-            log_w("没有找到可用的WiFi网络");
+            warn("没有找到可用的WiFi网络");
             GUI::info_msgbox("错误", "没有找到可用的WiFi网络");
             delay(1500);
             return false;
@@ -346,7 +346,7 @@ void HAL::savewifiConfig(StaticJsonDocument<2048> &wifi_config)
     File configFile = LittleFS.open(wifi_config_file, "w");
     if (!configFile)
     {
-        Serial.println("Failed to open wifi config file for writing");
+        error("Failed to open wifi config file for writing");
         return;
     }
     serializeJson(wifi_config, configFile);
@@ -358,7 +358,7 @@ void HAL::saveConfig()
     File configFile = LittleFS.open("/System/config.json", "w");
     if (!configFile)
     {
-        Serial.println("Failed to open config file for writing");
+        error("Failed to open config file for writing");
         return;
     }
     serializeJson(config, configFile);
@@ -374,7 +374,7 @@ void HAL::loadConfig()
     File configFile = LittleFS.open("/System/config.json", "r");
     if (!configFile)
     {
-        Serial.println("Failed to open config file");
+        error("Failed to open config file");
         return;
     }
     deserializeJson(config, configFile);
@@ -618,19 +618,16 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     {
         bool cpuset = setCpuFrequencyMhz(_freq);
         Serial.end();
-        Serial.begin(115200);
+        Serial.begin(pref.getUInt("uart_baud", 115200));
         Serial.setDebugOutput(true);
-        ESP_LOGI("hal", "CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
-        F_LOG("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
+        info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
         {
-            ESP_LOGI("hal", "ok");
-            F_LOG("已调节CPU频率至目标频率");
+            info("已调节CPU频率至目标频率");
         }
         else
         {
-            ESP_LOGW("hal", "err");
-            F_LOG("CPU频率调节失败");
+            error("CPU频率调节失败");
         }
     }
 }
@@ -815,10 +812,10 @@ void HAL::ReqWiFiConfig()
         delay(5);
         if (millis() - last_millis > 60000) // 1分钟超时
         {
-            Serial.println("\033[33mWiFi配置方式选择超时\033[32m");
+            warn("WiFi配置方式选择超时");
             if (a < 4)
             {
-                Serial.println("尝试重连WiFi");
+                info("尝试重连WiFi");
                 autoConnectWiFi();
                 a++;
                 last_millis = millis();
@@ -968,7 +965,7 @@ void HAL::coredump_file()
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, "coredump");
     if (!coredump_partition)
     {
-        log_e("找不到coredump分区");
+        error("找不到coredump分区");
     }
     uint8_t *buffer;
     File file;
@@ -976,12 +973,12 @@ void HAL::coredump_file()
     buffer = (uint8_t *)malloc(coredump_partition->size);
     if (!buffer)
     {
-        log_e("内存分配失败");
+        error("内存分配失败");
     }
     // 读取Flash数据
     if (esp_partition_read(coredump_partition, 0, buffer, coredump_partition->size) != ESP_OK)
     {
-        log_e("读取coredump失败");
+        error("读取coredump失败");
         free(buffer);
     }
     // 写入文件
@@ -1003,9 +1000,9 @@ void HAL::coredump_file()
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节\n", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
-            GUI::msgbox("提示", "程序运行出现错误，coredump分区已转储至/System/coredump.elf", 5);
+            GUI::msgbox("系统异常", "检测到程序运行错误，coredump分区已转储至/System/coredump.elf", 5);
         else
-            GUI::msgbox("提示", "coredump分区已转储至/System/coredump.elf", 5);
+            GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
     }
 }
 
@@ -1017,12 +1014,19 @@ bool HAL::init()
     bool timeerr = false;
     bool initial = true;
     bool fast_boot;
-    Serial.begin(115200);
-    log_i("系统初始化，固件版本:%s  构建日期:%s %s", code_version, __DATE__, __TIME__);
+    pref.begin("clock");
+    log_i("\n\n"
+          "   © 2024 - 2025 看番の龙 | LiClock   \n"
+          "          Powered by 看番の龙         \n"
+          "       github.com/kanfandelong       \n");
+    log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: Windows10 x64 22H2 19045.6466", code_version, __DATE__, __TIME__);
+    uint32_t uart_band = pref.getUInt("uart_baud", 115200);
+    log_i("change band to %lu", uart_band);
+    Serial.flush();
+    Serial.begin(uart_band);
     setenv("TZ", "CST-8", 1); // 设置时区为东八区
     tzset();
     // 读取时钟偏移
-    pref.begin("clock");
 
     if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3 || pref.getBool("switch_btn"))
     {
@@ -1035,24 +1039,8 @@ bool HAL::init()
         hal.btnr = OneButton(PIN_BUTTONL);
     }
 
-    int date = pref.getInt("CpuFreq", 80);
-    int freq = ESP.getCpuFreqMHz();
-    if (freq != date)
-    {
-        Serial.end();
-        bool cpuset = setCpuFrequencyMhz(date);
-        Serial.begin(115200);
-        Serial.setDebugOutput(true);
-        ESP_LOGI("HAL", "CpuFreq: %dMHZ -> %dMHZ ......", freq, date);
-        if (cpuset)
-        {
-            ESP_LOGI("HAL", "ok");
-        }
-        else
-        {
-            ESP_LOGI("hal", "err");
-        }
-    }
+    int freq = pref.getInt("CpuFreq", 80);
+    cheak_freq(freq);
 
     log_i("nvs分区可用空闲条目数量:%d", (int)pref.freeEntries());
     pinMode(PIN_BUTTONR, INPUT);
@@ -1117,7 +1105,7 @@ bool HAL::init()
 
     WiFi.mode(WIFI_OFF);
 #if defined(Queue)
-    display.epd2.startQueue();
+    display.epd2.startQueue(hal.pref.getUInt("display_list", 3), hal.pref.getUInt("disp_priority", 1));
 #endif
     display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     display.init(pref.getInt("display_debug", 115200), initial);
@@ -1194,14 +1182,19 @@ bool HAL::init()
             log_file.write(0xBF);
             log_file.close();
         }
-        F_LOG("\nESP32复位,原因:ESP_RST_%s", esp_rst_str[reset_reason]);
+        info("ESP32复位,原因:ESP_RST_%s", esp_rst_str[reset_reason]);
         if (reset_reason == ESP_RST_DEEPSLEEP)
         {
-            F_LOG("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
+            info("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
         }
-        if (reset_reason == ESP_RST_PANIC){
+        if (reset_reason == ESP_RST_PANIC)
+        {
             coredump_file();
             ESP.restart();
+        }
+        if (reset_reason == ESP_RST_BROWNOUT)
+        {
+            GUI::msgbox("电源警告", "欠压检测器被触发，请检查系统电源状态");
         }
     }
     loadConfig();
@@ -1209,6 +1202,7 @@ bool HAL::init()
     weather.begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
+    ttf.setFramebuffer(296, 128, 1);
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
@@ -1285,7 +1279,6 @@ void HAL::rtc_offset()
 
 bool HAL::autoConnectWiFi(bool need_wifi_config)
 {
-    log_i("hal", "autoConnectWiFi");
     cheak_freq();
     if (WiFi.isConnected())
     {
@@ -1309,8 +1302,9 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
                 return false;
         }
         if (esp_wifi_set_max_tx_power(hal.pref.getUChar("wifitxpower", 78)) != ESP_OK)
-            F_LOG("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
-        log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+            error("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+        else
+            info("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
     }
     // if (!WiFi.isConnected())
     // {
@@ -1322,10 +1316,10 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     //             return false;
     //     }
     // }
-    F_LOG("成功连接:%s", WiFi.SSID().c_str());
-    F_LOG("IP:%s", WiFi.localIP().toString().c_str());
-    F_LOG("MAC:%s", WiFi.macAddress().c_str());
-    F_LOG("信号强度:%d", WiFi.RSSI());
+    info("成功连接:%s", WiFi.SSID().c_str());
+    info("IP:%s", WiFi.localIP().toString().c_str());
+    info("MAC:%s", WiFi.macAddress().c_str());
+    info("信号强度:%d", WiFi.RSSI());
     sntp_stop();
     return true;
 }
@@ -1341,8 +1335,7 @@ void HAL::searchWiFi()
         hal.numNetworks = WiFi.scanNetworks(false, false, false, 500);
         if (hal.numNetworks == 0)
         {
-            Serial.printf("没有搜索到WIFI");
-            F_LOG("没有搜索到WIFI");
+            warn("没有搜索到WIFI");
         }
     }
 }
@@ -1418,7 +1411,7 @@ void HAL::goSleep(uint32_t sec)
     pre_sleep();
     if (WiFi.isConnected())
         WiFi.disconnect(true);
-    Serial.printf("下次唤醒:%ld s\n", nextSleep);
+    log_i("下次唤醒:%ld s", nextSleep);
     nextSleep = nextSleep * 1000000UL;
     esp_sleep_enable_timer_wakeup(nextSleep);
     wait_display();
@@ -1639,8 +1632,7 @@ bool HAL::copy(File &newFile, File &file)
     char *buf = (char *)malloc(bufferSize);
     if (!buf)
     {
-        log_e("内存分配失败");
-        F_LOG("内存分配失败");
+        error("内存分配失败");
         return false;
     }
 

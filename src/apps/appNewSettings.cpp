@@ -66,6 +66,7 @@ public:
     int decToBin(int dec);
     void cheak_config(char *a);
     void tfcard_info();
+    void bat_info();
 
 private:
     void show_wifi_power_set()
@@ -100,10 +101,9 @@ void AppSettings::setup()
             {NULL, "关于"},
             {NULL, NULL},
         };
-    display.display(false); // 每次进入设置全局刷新一次
+    display.display(true);
     while (end == false && hasToApp == false)
     {
-        // display.display(false); // 每次进入设置全局刷新一次
         res = GUI::menu("设置", settings_menu_main, 8, 8, res);
         switch (res)
         {
@@ -136,7 +136,6 @@ void AppSettings::setup()
             break;
         case 7:
             // 关于
-            GUI::info_msgbox("提示", "loading...");
             about();
             break;
         default:
@@ -827,7 +826,9 @@ void AppSettings::menu_display()
             {false, "屏幕全刷间隔", nullptr},
             {false, "屏幕PLL设定", nullptr},
             {false, "按键音设置", nullptr},
-            {true,  "UC8151C兼容模式", "UC8151C"},
+            {false, "屏幕队列深度", nullptr},
+            {false, "屏幕线程优先级", nullptr},
+            {true, "UC8151C兼容模式", "UC8151C"},
             {false, NULL},
         };
     while (end == false && hasToApp == false)
@@ -848,7 +849,7 @@ void AppSettings::menu_display()
             {
                 hal.pref.putUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 1);
             }
-            display.display();
+            // display.display();
             GUI::msgbox("提示", "按键控制方式请修改GPIO宏定义"); // 为了节省内存并加快速度
             break;
         case 2:
@@ -896,6 +897,18 @@ void AppSettings::menu_display()
             }
         }
         break;
+        case 5:
+        {
+            uint32_t _time = GUI::msgbox_number("设置屏幕队列深度", 2, hal.pref.getUInt("display_list", 3));
+            hal.pref.putUInt("display_list", _time);
+        }
+        break;
+        case 6:
+        {
+            uint32_t priority = GUI::msgbox_number("设置屏幕线程优先级", 2, hal.pref.getUInt("disp_priority", 1));
+            hal.pref.putUInt("disp_priority", priority);
+        }
+        break;
         default:
             break;
         }
@@ -909,6 +922,7 @@ void AppSettings::menu_power()
     static const menu_select settings_menu_display[] =
         {
             {false, "< 返回", nullptr},
+            {false, "电池信息", nullptr},
             {false, "电池电压校准", nullptr},
             {false, "自动休眠电压", nullptr},
             {true, "精准电量显示", nullptr},
@@ -925,6 +939,9 @@ void AppSettings::menu_power()
             end = true;
             break;
         case 1:
+            bat_info();
+            break;
+        case 2:
         {
             int vcc;
             if (GUI::msgbox_yn("校准方式", "1.使用芯片ADC校准数据\n在使用1前，请使用esptool\n确定芯片有正确校准数据\n2.使用外部仪表读数", "1", "2"))
@@ -944,7 +961,7 @@ void AppSettings::menu_power()
             GUI::msgbox("提示", buf);
         }
         break;
-        case 2:
+        case 3:
         {
             int auto_sleep_mv = GUI::msgbox_number("自动休眠电压", 4, hal.pref.getInt("auto_sleep_mv", 2800));
             if (auto_sleep_mv < 2800)
@@ -955,7 +972,7 @@ void AppSettings::menu_power()
             hal.pref.putInt("auto_sleep_mv", auto_sleep_mv);
         }
         break;
-        case 4:
+        case 5:
         {
             int voltage = GUI::msgbox_number("输入计算起点电压", 4, hal.pref.getInt("soc_voltage", 2900));
             if (voltage < 2900)
@@ -972,7 +989,7 @@ void AppSettings::menu_power()
             hal.pref.putUChar("soc_10%", (uint8_t)((4220 - voltage) / 13));
         }
         break;
-        case 5:
+        case 6:
         {
             if (GUI::msgbox_yn("提示", "选择对BQ27441", "配置参数", "打印状态"))
             {
@@ -1194,6 +1211,8 @@ void AppSettings::menu_system()
             {true, "系统日志", "sys_log"}, // 15
             {false, "NVS备份和恢复", nullptr},
             {false, "core_dump", nullptr},
+            {false, "设置菜单快速滚动阈值", nullptr},
+            {false, "串口波特率设置", nullptr},
             {false, "恢复出厂设置", nullptr},
             {false, NULL, nullptr},
         };
@@ -1342,7 +1361,7 @@ void AppSettings::menu_system()
                 {
                     Serial.print("err\n");
                     GUI::msgbox("错误", "频率未能修改");
-                    F_LOG("CPU频率修改失败,设置的值:%d", new_freq);
+                    error("CPU频率修改失败,设置的值:%d", new_freq);
                 }
             }
         }
@@ -1510,6 +1529,18 @@ void AppSettings::menu_system()
             hal.coredump_file();
             break;
         case 18:
+        {
+            int _time = GUI::msgbox_number("设置时间(ms)", 4, hal.pref.getUInt("menu_fast_t", 450));
+            hal.pref.putUInt("menu_fast_t", _time);
+        }
+        break;
+        case 19:
+        {
+            uint32_t baud = GUI::msgbox_number("设置波特率", 7, hal.pref.getUInt("uart_baud", 115200));
+            hal.pref.putUInt("uart_baud", baud);
+        }
+        break;
+        case 20:
             // 恢复出厂设置
             {
                 if (GUI::msgbox_yn("此操作不可撤销", "是否恢复出厂设置？"))
@@ -1518,7 +1549,7 @@ void AppSettings::menu_system()
                     {
                         display.clearScreen();
                         u8g2Fonts.drawUTF8(30, 40, "正在格式化NVS存储");
-                        display.display();
+                        display.display(true);
                         nvs_flash_erase();
                         display.clearScreen();
                         u8g2Fonts.drawUTF8(30, 40, "正在格式化LittleFS存储");
@@ -1808,7 +1839,6 @@ void AppSettings::tfcard_info()
 {
     display.clearScreen();
     GUI::drawWindowsWithTitle("TF卡信息", 0, 0, 296, 128);
-    display.display();
     // u8g2Fonts.setCursor(5,30);
     // u8g2Fonts.printf("类型：%s",SD.cardType());
     if (peripherals.isSDLoaded())
@@ -1848,7 +1878,7 @@ void AppSettings::tfcard_info()
             break;
         }
         u8g2Fonts.printf("TF卡类型:%s", tf_type);
-        display.display(true);
+        display.display();
     }
     else
     {
@@ -1858,4 +1888,158 @@ void AppSettings::tfcard_info()
     /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
         delay(100);
     } */
+}
+
+void AppSettings::bat_info()
+{
+    display.clearScreen();
+    GUI::drawWindowsWithTitle("电池信息", 0, 0, 296, 128);
+
+    int lineHeight = 14;
+    int startY = 28; // 标题栏下方开始
+    int currentY = startY;
+
+    // 基本信息行
+    // 基本信息行
+    u8g2Fonts.setCursor(3, currentY);
+    if (hal.bat_info.current.avg <= 0)
+    {
+        u8g2Fonts.printf("电量:%d%% 健康:%d%% 放电中", hal.bat_info.soc, hal.bat_info.soh);
+    }
+    else if (hal.bat_info.flag.FC)
+    {
+        u8g2Fonts.printf("电量:%d%% 健康:%d%% 已充满", hal.bat_info.soc, hal.bat_info.soh);
+    }
+    else if (hal.bat_info.current.avg > 0)
+    {
+        u8g2Fonts.printf("电量:%d%% 健康:%d%% 充电中", hal.bat_info.soc, hal.bat_info.soh);
+    }
+    currentY += lineHeight;
+
+    // 电压温度行
+    u8g2Fonts.setCursor(3, currentY);
+    u8g2Fonts.printf("电压:%.2fV 温度:%.1f℃", hal.bat_info.voltage, hal.bat_info.temp);
+    currentY += lineHeight;
+
+    // 电流功率行
+    u8g2Fonts.setCursor(3, currentY);
+    u8g2Fonts.printf("电流:%dmA 功率:%dmW", hal.bat_info.current.avg, hal.bat_info.power);
+    currentY += lineHeight;
+
+    if (hal.bat_info.current.avg <= 0)
+    {
+        // 放电状态：显示剩余容量和续航时间
+        u8g2Fonts.setCursor(3, currentY);
+        u8g2Fonts.printf("剩余容量:%dmAh", hal.bat_info.capacity.remain_f);
+        currentY += lineHeight;
+
+        // 续航（基于实际电流）- 添加零除保护
+        if (abs(hal.bat_info.current.avg) > 0)
+        {
+            float clockRuntime = (float)hal.bat_info.capacity.remain_f / (float)abs(hal.bat_info.current.avg);
+            u8g2Fonts.setCursor(3, currentY);
+            if (clockRuntime >= 1.0)
+            {
+                u8g2Fonts.printf("续航:%d小时%d分",
+                                 (int)clockRuntime, (int)((clockRuntime - (int)clockRuntime) * 60));
+            }
+            else
+            {
+                u8g2Fonts.printf("续航:%d分钟", (int)(clockRuntime * 60));
+            }
+        }
+        else
+        {
+            u8g2Fonts.setCursor(3, currentY);
+            u8g2Fonts.print("续航:计算中...");
+        }
+        currentY += lineHeight;
+
+        // 时钟模式续航（基于实际电流）- 添加零除保护
+        if (abs(hal.bat_info.current.stby) > 0)
+        {
+            // float clockRuntime = (float)hal.bat_info.capacity.remain_f / (float)abs(hal.bat_info.current.stby);
+            float clockRuntime = (float)hal.bat_info.capacity.remain_f / (float)2;
+            u8g2Fonts.setCursor(3, currentY);
+            if (clockRuntime >= 1.0)
+            {
+                u8g2Fonts.printf("时钟续航:约%d小时%d分",
+                                 (int)clockRuntime, (int)((clockRuntime - (int)clockRuntime) * 60));
+            }
+            else
+            {
+                u8g2Fonts.printf("时钟续航:约%d分钟", (int)(clockRuntime * 60));
+            }
+        }
+        else
+        {
+            u8g2Fonts.setCursor(3, currentY);
+            u8g2Fonts.print("时钟续航:计算中...");
+        }
+        currentY += lineHeight;
+
+        // 音乐模式续航（估算功耗）- 使用固定值，不会除零
+        float musicCurrent = 65.0f; // 假设音乐播放电流80mA
+        float musicRuntime = (float)hal.bat_info.capacity.remain_f / musicCurrent;
+        u8g2Fonts.setCursor(3, currentY);
+        if (musicRuntime >= 1.0)
+        {
+            u8g2Fonts.printf("音乐续航:%d小时%d分",
+                             (int)musicRuntime, (int)((musicRuntime - (int)musicRuntime) * 60));
+        }
+        else
+        {
+            u8g2Fonts.printf("音乐续航:%d分钟", (int)(musicRuntime * 60));
+        }
+    }
+    else if (hal.bat_info.flag.FC)
+    {
+        // 已充满状态：显示容量信息
+        u8g2Fonts.setCursor(3, currentY);
+        u8g2Fonts.printf("当前容量:%dmAh", hal.bat_info.capacity.remain_f);
+        currentY += lineHeight;
+
+        u8g2Fonts.setCursor(3, currentY);
+        u8g2Fonts.printf("设计容量:%dmAh", hal.bat_info.capacity.design);
+        currentY += lineHeight;
+
+        u8g2Fonts.setCursor(3, currentY);
+        u8g2Fonts.printf("健康度:%d%%", hal.bat_info.soh);
+    }
+    else if (hal.bat_info.current.avg > 0)
+    {
+        // 充电状态：显示充电信息 - 修复除零问题
+        u8g2Fonts.setCursor(3, currentY);
+        u8g2Fonts.printf("充电电流:%dmA", hal.bat_info.current.avg);
+        currentY += lineHeight;
+
+        // 添加零除保护
+        if (abs(hal.bat_info.current.avg) > 0)
+        {
+            float chargeRuntime = (float)(hal.bat_info.capacity.full_f - hal.bat_info.capacity.remain_f) /
+                                  (float)abs(hal.bat_info.current.avg);
+            u8g2Fonts.setCursor(3, currentY);
+            if (chargeRuntime >= 1.0)
+            {
+                u8g2Fonts.printf("预计充满:%d小时%d分",
+                                 (int)chargeRuntime, (int)((chargeRuntime - (int)chargeRuntime) * 60));
+            }
+            else
+            {
+                u8g2Fonts.printf("预计充满:%d分钟", (int)(chargeRuntime * 60));
+            }
+        }
+        else
+        {
+            u8g2Fonts.setCursor(3, currentY);
+            u8g2Fonts.print("预计充满:计算中...");
+        }
+        currentY += lineHeight;
+
+        // 显示充满容量
+        u8g2Fonts.setCursor(3, currentY);
+        u8g2Fonts.printf("充满容量:%dmAh", hal.bat_info.capacity.full_f);
+    }
+    display.display();
+    hal.wait_input();
 }

@@ -35,6 +35,7 @@
 //#endif
 
 #include <math.h>
+#include <stdio.h>
 
 #include "FLAC/assert.h"
 #include "FLAC/format.h"
