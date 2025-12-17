@@ -29,6 +29,7 @@ public:
     void setup();
 };
 static AppWebserver app;
+extern bool wsRunning;
 
 void AppWebserver::set()
 {
@@ -67,6 +68,7 @@ void AppWebserver::setup()
                 MDNS.end();
                 WiFi.disconnect(true);
                 hal.can_sleep = true;
+                wsRunning = false;
                 end = false;
                 break;
             }

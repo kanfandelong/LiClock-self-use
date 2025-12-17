@@ -542,3 +542,7 @@ nvs_stats_t Preferences::getStats() {
     }
     return nvs_stats;
 }
+
+nvs_handle_t Preferences::gethandle() {
+    return _handle;
+}

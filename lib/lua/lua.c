@@ -83,9 +83,9 @@ static void laction (int i) {
 static void print_usage (const char *badoption) {
   lua_writestringerror("%s: ", progname);
   if (badoption[1] == 'e' || badoption[1] == 'l')
-    lua_writestringerror("'%s' needs argument\n", badoption);
+    lua_writestringerror("'%s' needs argument", badoption);
   else
-    lua_writestringerror("unrecognized option '%s'\n", badoption);
+    lua_writestringerror("unrecognized option '%s'", badoption);
   lua_writestringerror(
   "usage: %s [options] [script [args]]\n"
   "Available options are:\n"
@@ -97,7 +97,7 @@ static void print_usage (const char *badoption) {
   "  -E        ignore environment variables\n"
   "  -W        turn warnings on\n"
   "  --        stop handling options\n"
-  "  -         stop handling options and execute stdin\n"
+  "  -         stop handling options and execute stdin"
   ,
   progname);
 }
@@ -109,7 +109,7 @@ static void print_usage (const char *badoption) {
 */
 static void l_message (const char *pname, const char *msg) {
   if (pname) lua_writestringerror("%s: ", pname);
-  lua_writestringerror("%s\n", msg);
+  lua_writestringerror("%s", msg);
 }
 
 

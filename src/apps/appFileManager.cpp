@@ -196,15 +196,7 @@ private:
      */
     void openbin()
     {
-        File file;
-        if (strncmp(filename, "/sd/", 4) == 0)
-        {
-            file = SD.open(remove_path_prefix(filename, "/sd"));
-        }
-        else if (strncmp(filename, "/littlefs/", 10) == 0)
-        {
-            file = LittleFS.open(remove_path_prefix(filename, "/littlefs"));
-        }
+        File file = hal.open(filename);
         int currentPage = 0;
         int totalPages = 0;
         file.seek(0, SeekEnd);
@@ -341,7 +333,7 @@ public:
     }
     void set();
     std::list<String> directorylist;
-    int getFileSize(const char *filepath, bool fromTF = false);
+    int getFileSize(const char *filepath);
     // void loadwenjian(const String path);
     const char *getFileName(const char *filePath);
     const char *combinePath(const char *directory, const char *fileName);
@@ -367,18 +359,12 @@ void Appwenjian::set()
 /**
  * 获取指定文件大小
  * @param filePath 文件路径
- * @param fromTF 文件是否在TF卡
  * @return 文件大小（字节）
  */
-int Appwenjian::getFileSize(const char *filePath, bool fromTF)
+int Appwenjian::getFileSize(const char *filePath)
 {
-    File file;
+    File file = hal.open(filePath);
     int fileSize = 0;
-
-    if (fromTF == false)
-        file = LittleFS.open(remove_path_prefix(filePath, "/littlefs"));
-    else
-        file = SD.open(remove_path_prefix(filePath, "/sd"));
 
     if (!file)
     {
@@ -414,7 +400,7 @@ void Appwenjian::setup()
     String _filename, dir;
     u32_t a;
     const char *file_system;
-    bool run_first = true;
+    bool run_first = true, tf_flie;
     GUI::info_msgbox("提示", "获取文件系统信息...");
     total = LittleFS.totalBytes() / 1024;
     used = LittleFS.usedBytes() / 1024;
@@ -433,15 +419,16 @@ void Appwenjian::setup()
     sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", used, total, free);
     // GUI::info_msgbox("提示", "正在获取文件信息...");
 file_info:
+    a = getFileSize(filename);
     if (strncmp(filename, "/sd/", 4) == 0)
     {
-        a = getFileSize(filename, true);
         file_system = "TF";
+        tf_flie = true;
         _filename = remove_path_prefix(filename, "/sd");
     }
     else if (strncmp(filename, "/littlefs/", 10) == 0)
     {
-        a = getFileSize(filename, false);
+        tf_flie = false;
         file_system = "LittleFS";
         _filename = remove_path_prefix(filename, "/littlefs");
     }
@@ -522,13 +509,9 @@ file_info:
                 {
                     if (GUI::msgbox_yn("提示", show_info.c_str(), "取消", "确定") == false)
                     {
-                        if (strncmp(filename, "/sd/", 4) == 0)
+                        OK = hal.remove(filename);
+                        if (tf_flie)
                         {
-                            OK = SD.remove(remove_path_prefix(filename, "/sd"));
-                        }
-                        else if (strncmp(filename, "/littlefs/", 10) == 0)
-                        {
-                            OK = LittleFS.remove(remove_path_prefix(filename, "/littlefs"));
                             used = LittleFS.usedBytes() / 1024;
                             free = total - used;
                             sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", used, total, free);
@@ -598,7 +581,7 @@ file_info:
             if (strncmp(filename, "/sd/", 4) == 0)
             {
                 newfile = LittleFS.open(combinePath(directoryname, getFileName(filename)), "w");
-                file = SD.open(remove_path_prefix(filename, "/sd"));
+                file = hal.open(filename);
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
@@ -612,7 +595,7 @@ file_info:
                     error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
-                if (file.size() > LittleFS.totalBytes() - LittleFS.usedBytes())
+                if (file.size() > free)
                 {
                     GUI::msgbox("警告", "littlefs剩余的空间不足以复制当前的文件,自动取消当前复制!");
                     newfile.close();
@@ -641,7 +624,7 @@ file_info:
             else if (strncmp(filename, "/littlefs/", 10) == 0)
             {
                 newfile = SD.open(combinePath(directoryname, getFileName(filename)), "w");
-                file = LittleFS.open(remove_path_prefix(filename, "/littlefs"));
+                file = hal.open(filename);
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
@@ -676,15 +659,7 @@ file_info:
         break;
         case 4: // 大小
         {
-            int a;
-            if (strncmp(filename, "/sd/", 4) == 0)
-            {
-                a = getFileSize(filename, true);
-            }
-            else if (strncmp(filename, "/littlefs/", 10) == 0)
-            {
-                a = getFileSize(filename, false);
-            }
+            int a = getFileSize(filename);
             char Str[20];
             sprintf(Str, "%d Bytes(%dKB)", a, a / 1024);
             GUI::msgbox("文件大小", Str);
@@ -736,12 +711,12 @@ file_info:
             if (strncmp(filename, "/sd/", 4) == 0)
             {
                 newname = GUI::englishInput(remove_path_prefix(filename, "/sd"));
-                ok = SD.rename(remove_path_prefix(filename, "/sd"), newname);
+                ok = hal.rename(filename, newname);
             }
             else if (strncmp(filename, "/littlefs/", 10) == 0)
             {
                 newname = GUI::englishInput(remove_path_prefix(filename, "/littlefs"));
-                ok = LittleFS.rename(remove_path_prefix(filename, "/littlefs"), newname);
+                ok = hal.rename(filename, newname);
             }
             delete[] newname;
         }
@@ -964,14 +939,7 @@ void Appwenjian::openfile()
     {
         display.clearScreen();
         display.display();
-        if (strncmp(filename, "/sd/", 4) == 0)
-        {
-            GUI::drawBMP(&SD, remove_path_prefix(filename, "/sd"), false);
-        }
-        else if (strncmp(filename, "/littlefs/", 10) == 0)
-        {
-            GUI::drawBMP(&LittleFS, remove_path_prefix(filename, "/littlefs"), false);
-        }
+        GUI::drawBMP(filename, false);
         while (1)
         {
             if (hal.btnr.isPressing())

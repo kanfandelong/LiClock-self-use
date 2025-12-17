@@ -39,8 +39,8 @@ class CoreDumpAnalyzerApp:
         self.style.configure("TCombobox", padding=6)
         self.ip_address = tk.StringVar()
         self.default_coredump_path = "/System/coredump.elf"
-        self.elf_path = ""
-        self.core_path = ""
+        self.elf_path = "C:/Users/admin/Desktop/LiClock-dev_multithread-main/.pio/build/esp32solo1/firmware.elf"
+        self.core_path = "C:/Users/admin/Desktop/LiClock-dev_multithread-main/tools/coredump.elf"
         self.log_buffer = []
         self.chip_var = tk.StringVar(value="自动检测")
         
@@ -382,6 +382,10 @@ class CoreDumpAnalyzerApp:
         try:
             chip = self.chip_var.get() if self.chip_var.get() != "自动检测" else "auto"
         
+            # 创建 StringIO 对象以捕获 print 输出
+            output = io.StringIO()
+            sys.stdout = output
+
             coredump = CoreDump(
                 prog=self.elf_path,
                 core=self.core_path,
@@ -392,9 +396,6 @@ class CoreDumpAnalyzerApp:
                 gdb=self.gdb_path  # 使用实例变量中的GDB路径
             )
 
-            # 创建 StringIO 对象以捕获 print 输出
-            output = io.StringIO()
-            sys.stdout = output
         
             # 执行 info_corefile 方法
             temp_core_files = coredump.info_corefile()

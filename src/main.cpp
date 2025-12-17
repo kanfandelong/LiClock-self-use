@@ -31,7 +31,7 @@ void task_appManager(void *)
 #include <LittleFS.h>
 void setup()
 {
-    // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // 禁用掉电检测
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // 禁用掉电检测
     hal.init();
     hal.update();
 

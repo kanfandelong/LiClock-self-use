@@ -2,7 +2,7 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncWebSocket.h>
-#include <SPIFFSEditor.h>
+#include "SPIFFSEditor.h"
 
 // 下面是引用网页文件
 #include "index.h"
@@ -18,7 +18,7 @@ AsyncWebSocket ws("/ws");
 TaskHandle_t lua_server_handle = NULL;
 SPIFFSEditor *spiffs_upload_handler = NULL;
 bool serverRunning = false;
-bool wsRunning = false;
+bool wsRunning = false;   
 bool file_for_TF = false;
 bool LuaRunning = false; // 全局变量，表示Lua服务器是否运行，用于防止调试时误退出
 extern "C" void lua_printf(const char *format, ...)
@@ -41,7 +41,7 @@ static void task_lua_server(void *)
 {
     LuaRunning = true;
     lua_execute("/littlefs/webtmp/main.lua");
-    lua_printf("[Lua程序结束]\n");
+    lua_printf("[Lua程序结束]");
     lua_server_handle = NULL;
     LuaRunning = false;
     vTaskDelete(NULL);

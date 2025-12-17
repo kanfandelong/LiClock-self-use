@@ -475,6 +475,8 @@ void CMD::parseCommand(const char* command) {
                 error = hal.pref.putBool(param[0], value);
             else if (strcmp(param[2], "int") == 0)
                 error = hal.pref.putInt(param[0], value);
+            else if (strcmp(param[1], "uint") == 0)
+                value = hal.pref.putUInt(param[0], value);
             if (error = 0){
                 PRINT_ERROR("写入失败");
             }
@@ -492,6 +494,15 @@ void CMD::parseCommand(const char* command) {
             else if (strcmp(param[1], "uint") == 0)
                 value = hal.pref.getUInt(param[0]);
             Serial.printf("%s: %ld\n", param[0], value);
+        }
+        else
+            PRINT_ERROR("参数不足");
+    } else if (strcmp(cmd, removenvs) == 0) {
+        if (parsed == 1)
+        {
+            bool value;
+            value = hal.pref.getBool(param[0]);
+            Serial.printf("%s: %s\n", param[0], value ? "true" : "false");
         }
         else
             PRINT_ERROR("参数不足");

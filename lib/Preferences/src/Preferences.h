@@ -74,6 +74,7 @@ class Preferences {
         size_t getBytes(const char* key, void * buf, size_t maxLen);
         size_t freeEntries();
         nvs_stats_t getStats();
+        nvs_handle_t gethandle();
 };
 
 #endif

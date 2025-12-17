@@ -1354,7 +1354,21 @@ namespace GUI
             for (int gray_level = 15; gray_level >= 0; gray_level--)
             {
                 if (display_gray == 16)
+                {
                     display.setgray(gray_level);
+                    if (gray_level >= 10)
+                    {
+                        display.epd2.PLL_set(0x21);
+                    }
+                    else if (gray_level >= 5)
+                    {
+                        display.epd2.PLL_set(0x3a);
+                    }
+                    else
+                    {
+                        display.epd2.PLL_set(0x3c);
+                    }
+                }
                 else
                 {
                     display.setgray(display_gray);
@@ -1378,6 +1392,7 @@ namespace GUI
                 display.display(true); // 刷新当前灰阶层
             }
         }
+        display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
     }
     /**
      * 由于lmage2Lcd的像素排列顺序（高位到低位）与XBM（低位到高位）的不同，所以重写了单色位图绘制函数，与Adafruit_GFX库函数的绘制函数在函数输入上（除了位图的像素排列）完全相同
@@ -1422,7 +1437,7 @@ namespace GUI
      * @param  y 显示坐标
      * @param  with_color 颜色
      */
-    void drawBMP(FS *fs, const char *filename, bool partial_update, bool overwrite, int16_t x, int16_t y, bool with_color)
+    void drawBMP(const char *filename, bool partial_update, bool overwrite, int16_t x, int16_t y, bool with_color)
     {
         uint8_t input_buffer[3 * input_buffer_pixels];        // 深度不超过24
         uint8_t output_row_mono_buffer[max_row_width / 8];    // 用于至少一行黑白比特的缓冲区
@@ -1436,7 +1451,7 @@ namespace GUI
         bool flip = true;   // 位图自下而上存储
         // uint32_t startTime = millis();
         // if ((x >= display.width()) || (y >= display.height())) return;
-        file = fs->open(filename, "r");
+        file = hal.open(filename, "r");
         if (!file)
         {
             msgbox("文件不存在", filename);

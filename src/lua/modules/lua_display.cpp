@@ -342,6 +342,15 @@ static int display_u8g2Print(lua_State *L)
     return 0;
 }
 
+static int display_u8g2getUTF8Width(lua_State *L)
+{
+    int ret;
+    const char *str = luaL_checkstring(L, 1);
+    ret = u8g2Fonts.getUTF8Width(str);
+    lua_pushinteger(L, ret);
+    return 1;
+}
+
 static int display_drawLBM(lua_State *L)
 {
     if (lua_gettop(L) != 4)
@@ -384,6 +393,7 @@ static const luaL_Reg _lualib[] = {
     {"u8g2GetCursorX", display_u8g2GetCursorX},
     {"u8g2GetCursorY", display_u8g2GetCursorY},
     {"u8g2Print", display_u8g2Print},
+    {"u8g2getUTF8Width", display_u8g2getUTF8Width},
     {"drawLBM", display_drawLBM},
     {NULL, NULL},
 };

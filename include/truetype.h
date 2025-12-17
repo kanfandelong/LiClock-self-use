@@ -64,9 +64,9 @@ typedef struct {
   int16_t yMin;
   int16_t xMax;
   int16_t yMax;
-  uint16_t *endPtsOfContours;
+  uint16_t *endPtsOfContours = NULL;
   uint16_t numberOfPoints;
-  ttPoint_t *points;
+  ttPoint_t *points = NULL;
 } ttGlyph_t;
 
 typedef struct {
@@ -172,7 +172,7 @@ class truetypeClass {
     const int tablePos = 12;
 
     uint16_t numTables;
-    ttTable_t *table;
+    ttTable_t *table = NULL;
     ttHeadttTable_t headTable;
 
     uint8_t getUInt8t();
@@ -199,7 +199,7 @@ class truetypeClass {
 
     //cmap. maps character codes to glyph indices
     ttCmapIndex_t cmapIndex;
-    ttCmapEncoding_t *cmapEncoding;
+    ttCmapEncoding_t *cmapEncoding = NULL;
     ttCmapFormat4_t cmapFormat4;
     uint8_t readCmapFormat4();
     uint8_t readCmap();
@@ -218,16 +218,16 @@ class truetypeClass {
     int16_t getKerning(uint16_t _left_glyph, uint16_t _right_glyph);
 
     //generate points
-    ttCoordinate_t *points;
+    ttCoordinate_t *points = NULL;
     uint16_t numPoints;
-    uint16_t *beginPoints;
+    uint16_t *beginPoints = NULL;
     uint16_t numBeginPoints;
-    uint16_t *endPoints;
+    uint16_t *endPoints = NULL;
     uint16_t numEndPoints;
 
     //glyf
     ttGlyph_t glyph;
-	  ttWindIntersect_t *pointsToFill;
+	  ttWindIntersect_t *pointsToFill = NULL;
     void generateOutline(int16_t _x, int16_t _y, uint16_t _width);
     void freePointsAll();
     bool isInside(int16_t _x, int16_t _y);
