@@ -55,5 +55,5 @@ namespace GUI
      * @note  传入NULL以禁用，endsWidth,gotoendsWidth,gotoendsWidth,file_system
      * @return 返回文件名，如果返回NULL，则用户取消选择
      */
-    const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/", const char *file_system = NULL);
+    const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/", const char *file_system = NULL, bool cleardepth = true);
 } // namespace GUI

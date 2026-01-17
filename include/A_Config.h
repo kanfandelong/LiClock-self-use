@@ -23,13 +23,13 @@
 
 // #include <ESP32-targz.h>
 
-#define code_version "2.0.a.c" // 代码版本号（16进制格式）
+#define code_version "2.1.b.a" // 代码版本号（16进制格式）
 // 屏幕型号选择宏定义
-// #define E029A01
+#define E029A01
 // 屏幕多线程且驱动为UC8151C
-// #define Queue
+#define Queue
 // #define T5
-#define T5D
+// #define T5D
 // #define T5D_gray
 
 #define SCREEN_WIDTH 296
@@ -147,8 +147,8 @@ uint8_t getBatterysoc();
 #include "truetype.h"
 extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);
-extern File file_log;;
-extern void log_flush();
+extern bool log_system_init();
+extern void log_system_deinit();
 // extern void log_write(const char *file, int line, const char *fmt, ...);
 extern void log_write(const char *fmt, ...);
 

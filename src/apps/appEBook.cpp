@@ -61,7 +61,19 @@ RTC_DATA_ATTR uint32_t currentPage = -1; // 0:第一页
 RTC_DATA_ATTR bool ebook_run = false;    // 电子书运行标志
 RTC_DATA_ATTR bool gotonextpage = false; // 特殊情况自动下一页标志
 RTC_DATA_ATTR u8_t lightsleep_count = 0; // lightsleep次数
+
+typedef union {
+    struct {
+        bool mode : 1;           // 是否为竖屏
+        uint8_t font_size : 8;   // ttf字体尺寸
+        uint16_t reserved : 15;  // 保留位
+        uint8_t unused : 8;      // 可用作扩展或填充
+    };
+    uint32_t value;              // 整体封装为uint32_t
+} index_info;
+
 static AppEBook app;
+
 static void appebook_exit()
 {
     hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
@@ -232,7 +244,7 @@ void AppEBook::setup()
             }
             else
             {
-                log_i("上一页 当期页:%ld\n", currentPage);
+                log_i("上一页 ==> %ld\n", currentPage);
                 page_changed = true;
             }
         }
@@ -254,7 +266,7 @@ void AppEBook::setup()
             {
                 if (gotoPage(currentPage + 1))
                 {
-                    log_i("下一页 当期页:%ld\n", currentPage);
+                    log_i("下一页 ==> %ld\n", currentPage);
                     page_changed = true;
                 }
                 else
@@ -1196,7 +1208,11 @@ bool AppEBook::indexcode_3()
     //     indexesFile.flush();
     //     indexesFile.close();
     // }
-    indexesFile.write((uint8_t *)&txtTotalSize, 4);
+    indexesFile.write((uint8_t *)&txtTotalSize, 4); // 写入索引时txt的文件大小
+    index_info info;
+    info.mode = mode;
+    info.font_size = 12;
+    indexesFile.write((uint8_t *)&info, 4); // 写入索引时的相关信息
     indexesFile.flush();
     indexesFile.close();
 
@@ -1204,7 +1220,7 @@ bool AppEBook::indexcode_3()
     uint32_t indexes_size = indexesFile.size();
     // Serial.print("yswz_count：");
     // Serial.println(yswz_count);
-    info("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 1));
+    info("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 2));
     info("索引文件大小：%lu", indexes_size);
 
     // 校验索引是否正确建立
@@ -1212,7 +1228,7 @@ bool AppEBook::indexcode_3()
     // 所以为：4*((总页数-1)+1))
     // if (indexes_size == 7 * ((pageCount - 1) + 1 + 1))
     // 算法：一页为4个字节（从第二页开始记录所以要总页数-1）
-    if (indexes_size == 4 * ((pageCount - 1) + 1))
+    if (indexes_size == 4 * ((pageCount - 1) + 2))
     {
         indexesFile.close();
         display.clearScreen();
@@ -1677,6 +1693,37 @@ bool AppEBook::openFile(const char *filename)
                 return false;
         }
         uint32_t lasttxtsize, nowtxtsize = txtFile.size();
+        index_info info;
+        indexesFile.seek(indexesFile.size() - 8, SeekSet);
+        indexesFile.readBytes((char *)&lasttxtsize, 4);
+        indexesFile.readBytes((char *)&info, 4);
+        indexesFile.seek(0, SeekSet);
+        info("lasttxtsize: %lu nowtxtsize: %lu", lasttxtsize, nowtxtsize);
+        if (lasttxtsize != nowtxtsize)
+        {
+            if (GUI::msgbox_yn("提示", "txt文件大小与创建索引时不同，是否重建索引", "重建", "忽略"))
+            {
+                bool index_ok = indexFile();
+                hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+                if (!index_ok)
+                    return false;
+            }
+        }
+        if (hal.pref.getBool("Vertical") != info.mode)
+        {
+            if (GUI::msgbox_yn("提示", "当前屏幕方向与创建索引时不同，是否重建索引", "重建", "忽略"))
+            {
+                bool index_ok = indexFile();
+                hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+                if (!index_ok)
+                    return false;
+            }
+        }
+        else
+        {
+            info("索引时的屏幕方向与当前一致");
+        }
+        uint32_t lasttxtsize, nowtxtsize = txtFile.size();
         indexesFile.seek(indexesFile.size() - 4, SeekSet);
         indexesFile.readBytes((char *)&lasttxtsize, 4);
         indexesFile.seek(0, SeekSet);
@@ -1754,7 +1801,8 @@ bool AppEBook::gotoPage(uint32_t page)
             // log_i("%ld", gbwz_uint32);
             // if (currentFileOffset > txtFile.size())
             //     return false;
-            info("seekset %lu", currentFileOffset);
+            info("go to page %lu", page);
+            info("seekset ==> %lu", currentFileOffset);
             txtFile.seek(currentFileOffset, SeekSet);
             currentPage = page;
             return true;
@@ -1775,6 +1823,7 @@ bool AppEBook::gotoPage(uint32_t page)
             if (fread(&currentFileOffset, sizeof(currentFileOffset), 1, indexFileHandle) == 1)
             {
                 currentPage = page;
+                info("go to page %lu", page);
                 info("seekset %lu", currentFileOffset);
                 fseek(currentFileHandle, currentFileOffset, SEEK_SET);
                 return true;
@@ -1921,7 +1970,7 @@ bool AppEBook::draw_page1()
             }
         }
     }
-    if (partcount < hal.pref.getInt("display_count", 15))
+    if (partcount < hal.pref.getInt("full_conut", 15))
     {
         display.display(true);
         ++partcount;
@@ -2064,7 +2113,7 @@ bool AppEBook::draw_page2()
             }
         }
     }
-    if (partcount < hal.pref.getInt("display_count", 15))
+    if (partcount < hal.pref.getInt("full_conut", 15))
     {
         display.display(true);
         ++partcount;
@@ -2253,8 +2302,16 @@ bool AppEBook::draw_page3()
     }
     if (mode)
     {
-        info("设置方向 ==> 2");
-        display.setRotation(2);
+        if (hal.pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3)
+        {
+            info("设置方向 ==> 2");
+            display.setRotation(2);
+        }
+        if (hal.pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 1)
+        {
+            info("设置方向 ==> 0");
+            display.setRotation(0);
+        }
     }
     for (uint8_t i = 0; i < (mode ? 21 : 9); i++)
     {
@@ -2279,7 +2336,7 @@ bool AppEBook::draw_page3()
         u8g2Fonts.print(txt[i]);
         log_i("%s", txt[i].c_str());
     }
-    if (partcount < hal.pref.getInt("display_count", 15))
+    if (partcount < hal.pref.getInt("full_conut", 15))
     {
         display.display(true);
         ++partcount;
@@ -2611,7 +2668,6 @@ void AppEBook::openMenu()
         {NULL, NULL},
     };
     int ret = GUI::menu(title, items);
-    free(title);
     switch (ret)
     {
     case 0:
@@ -2622,7 +2678,7 @@ void AppEBook::openMenu()
     case 2:
     {
         int ret = GUI::menu(title, page_goto_items, 8, 8, 1);
-        int page;
+        int page = currentPage + 1;
         switch (ret)
         {
         case 0:
@@ -2684,6 +2740,7 @@ void AppEBook::openMenu()
         GUI::msgbox("错误", "无效的选项,或此选项为空");
         break;
     }
+    free(title);
 }
 
 #include <nvs.h>
@@ -2733,7 +2790,7 @@ void AppEBook::ebooksettings()
             hal.pref.putInt("max_lightsleep", GUI::msgbox_number("输入次数", 3, hal.pref.getInt("max_lightsleep", 20)));
             break;
         case 9:
-            hal.pref.putInt("display_count", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("display_count", 15)));
+            hal.pref.putInt("full_conut", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("full_conut", 15)));
             break;
         case 14:
             app.ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);

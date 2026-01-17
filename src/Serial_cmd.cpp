@@ -159,6 +159,7 @@ void CMD::printHelp(){
     Serial.printf("  %-20s - %s\n", erase_nvs, "Erase NVS storage");
     Serial.printf("  %-20s - %s\n", getnvs, "read NVS Key");
     Serial.printf("  %-20s - %s\n", putnvs, "write NVS key");
+    Serial.printf("  %-20s - %s\n", removenvs, "remove NVS key");
     Serial.printf("  %-20s - %s\n", format_tf, "Format TF card");
 
     // 参数设置
@@ -501,8 +502,12 @@ void CMD::parseCommand(const char* command) {
         if (parsed == 1)
         {
             bool value;
-            value = hal.pref.getBool(param[0]);
-            Serial.printf("%s: %s\n", param[0], value ? "true" : "false");
+            String key = String(param[0]);
+            value = hal.pref.remove(key.c_str());
+            if (value)
+                PRINT_SUCCESS("NVS key removed successfully");
+            else
+                PRINT_ERROR("Failed to remove NVS key");
         }
         else
             PRINT_ERROR("参数不足");

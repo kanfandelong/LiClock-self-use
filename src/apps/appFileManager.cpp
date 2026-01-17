@@ -346,6 +346,7 @@ public:
     void uint8tobuf(uint8_t *input, int inputSize, char *output);
     // const char* combineFilePath(const char* path, const char* filename, const char* extension);
     const char *directoryname;
+    String only_filename;
     time_t LastWrite_time = 0;
     String toApp = "";
     bool hasToApp = false;
@@ -374,6 +375,39 @@ int Appwenjian::getFileSize(const char *filePath)
     filepath = getDirectoryPath(filePath);
     LastWrite_time = file.getLastWrite();
     fileSize = file.size();
+    if (u8g2Fonts.getUTF8Width(filePath) > 200)
+    {
+        String displayPath = String(filePath);
+        String filename = String(file.name());
+
+        // 第一优先级：文件系统/.../文件名
+        if (strncmp(filePath, "/sd/", 4) == 0)
+        {
+            displayPath = "/sd/.../" + filename;
+        }
+        else if (strncmp(filePath, "/littlefs/", 10) == 0)
+        {
+            displayPath = "/littlefs/.../" + filename;
+        }
+
+        // 检查宽度，如果还太长则缩短
+        if (u8g2Fonts.getUTF8Width(displayPath.c_str()) > 200)
+        {
+            displayPath = ".../" + filename;
+
+            // 如果还太长，只用文件名
+            if (u8g2Fonts.getUTF8Width(displayPath.c_str()) > 200)
+            {
+                displayPath = filename;
+            }
+        }
+        only_filename = displayPath;
+
+        // 使用 displayPath 进行显示
+    }
+    else{
+        only_filename = String(filePath);
+    }
 
     file.close();
     log_i("filename:%s", filePath);
@@ -471,13 +505,13 @@ file_info:
     };
     while (hasToApp == false)
     {
-        res = GUI::menu(filename, appMenu_main, 8, 8, res);
+        res = GUI::menu(only_filename.c_str(), appMenu_main, 8, 8, res);
         switch (res)
         {
         case 0: // 返回
         {
             res = 1;
-            filename = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system);
+            filename = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system, false);
             if (filename == NULL)
             {
                 goto fanhui;
@@ -660,9 +694,11 @@ file_info:
         case 4: // 大小
         {
             int a = getFileSize(filename);
-            char Str[20];
-            sprintf(Str, "%d Bytes(%dKB)", a, a / 1024);
-            GUI::msgbox("文件大小", Str);
+            char Str[64];
+            GUI::info_msgbox("提示", "计算MD5中，请稍后...");
+            char *md5 = hal.get_file_md5_char(filename);
+            sprintf(Str, "大小：%dKB\nmd5：%s", a / 1024, md5);
+            GUI::msgbox("文件信息", Str);
         }
         break;
         case 5: // 新建

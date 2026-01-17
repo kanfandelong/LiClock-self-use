@@ -166,6 +166,7 @@ void AppSettings::menu_time()
             {false, "时间同步间隔设置", nullptr},
             {false, "RTC线性偏移修正", nullptr},
             {true, "在上电复位时使用联网对时", set_rtc_in_rst},
+            {true, "启用一言", "en_yiyan"},
             {false, "闹钟设置", nullptr},
             {false, NULL, nullptr},
         };
@@ -183,8 +184,9 @@ void AppSettings::menu_time()
             {
                 // 同步时间
                 hal.autoConnectWiFi();
-                NTPSync();
-                GUI::msgbox("手动触发NTP", "同步完成");
+                GUI::info_msgbox("同步时间", "正在NTP...");
+                NTPSync(); 
+                GUI::msgbox("手动触发NTP", "同步完成");       
             }
             break;
         case 2:
@@ -228,7 +230,7 @@ void AppSettings::menu_time()
             hasToApp = true;
             end = true;
             break;
-        case 5:
+        case 6:
             menu_alarm();
             break;
         default:
@@ -826,8 +828,9 @@ void AppSettings::menu_display()
             {false, "屏幕全刷间隔", nullptr},
             {false, "屏幕PLL设定", nullptr},
             {false, "按键音设置", nullptr},
-            {false, "屏幕队列深度", nullptr},
-            {false, "屏幕线程优先级", nullptr},
+            // {false, "屏幕队列深度", nullptr},
+            // {false, "屏幕线程优先级", nullptr},
+            // {true, "屏幕deepsleep", "en_disp_sleep"},
             {true, "UC8151C兼容模式", "UC8151C"},
             {false, NULL},
         };
@@ -897,18 +900,18 @@ void AppSettings::menu_display()
             }
         }
         break;
-        case 5:
-        {
-            uint32_t _time = GUI::msgbox_number("设置屏幕队列深度", 2, hal.pref.getUInt("display_list", 3));
-            hal.pref.putUInt("display_list", _time);
-        }
-        break;
-        case 6:
-        {
-            uint32_t priority = GUI::msgbox_number("设置屏幕线程优先级", 2, hal.pref.getUInt("disp_priority", 1));
-            hal.pref.putUInt("disp_priority", priority);
-        }
-        break;
+        // case 5:
+        // {
+        //     uint32_t _time = GUI::msgbox_number("设置屏幕队列深度", 2, hal.pref.getUInt("display_list", 3));
+        //     hal.pref.putUInt("display_list", _time);
+        // }
+        // break;
+        // case 6:
+        // {
+        //     uint32_t priority = GUI::msgbox_number("设置屏幕线程优先级", 2, hal.pref.getUInt("disp_priority", 1));
+        //     hal.pref.putUInt("disp_priority", priority);
+        // }
+        // break;
         default:
             break;
         }
@@ -928,6 +931,8 @@ void AppSettings::menu_power()
             {true, "精准电量显示", nullptr},
             {false, "电量计算起点电压", nullptr},
             {false, "电量计初始化", nullptr},
+            {true,  "启用关机图片", "en_poff_image"},
+            {false, "设置关机图片", nullptr},
             {false, NULL, nullptr},
         };
     while (end == false && hasToApp == false)
@@ -1036,6 +1041,13 @@ void AppSettings::menu_power()
                 // hal.task_bat_info_update();
                 hal.printBatteryInfo();
             }
+        }
+        break;
+        case 8:
+        {
+            const char *poweroff_image;
+            poweroff_image = GUI::fileDialog("选择关机图片", false, "lbm", NULL, "/", "LittleFS");
+            hal.pref.putString("poweroff_image", poweroff_image);
         }
         break;
         default:
@@ -1282,6 +1294,11 @@ void AppSettings::menu_system()
             {
                 GUI::info_msgbox("提示", "正在联网更新天气信息...");
                 int res = weather.refresh();
+                if (hal.pref.getBool("en_yiyan", true))
+                {
+                    GUI::info_msgbox("获取一言", "正在获取一言...");
+                    hal.pref.putString("yiyan", hal.get_yiyan());
+                }
                 if (res == 0)
                 {
                     GUI::msgbox("更新完成", "已将天气信息保存至/littlefs/System/weather.bin");
@@ -1574,20 +1591,37 @@ void AppSettings::about()
 {
     display.clearScreen();
     GUI::drawWindowsWithTitle("关于本设备", 0, 0, 296, 128);
+
     u8g2Fonts.setCursor(5, 30);
     xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-    u8g2Fonts.printf("设备名称:LiClock 版本:%s DS3231:%d.%d %d:%d:%d", code_version, Srtc.getMonth(), Srtc.getDate(), Srtc.getHour(), Srtc.getMinute(), Srtc.getSecond());
+    u8g2Fonts.printf("设备名称: LiClock  版本: %s", code_version);
     xSemaphoreGive(peripherals.i2cMutex);
-    u8g2Fonts.drawUTF8(5, 45, "CPU:Xtensa@32-bit LX6 @0.24GHz X2+ULP");
+
+    u8g2Fonts.setCursor(5, 45);
+    u8g2Fonts.drawUTF8(5, 45, "CPU: Xtensa LX6 32-bit @ 240MHz x2 + ULP");
+
     u8g2Fonts.setCursor(5, 60);
-    u8g2Fonts.printf("内存:520KB SRAM+16KB RTC SRAM   存储:%dMB", ESP.getFlashChipSize() / 1024 / 1024);
+    u8g2Fonts.printf("内存: 520KB SRAM + 16KB RTC_SRAM  存储: %d MB",
+                     ESP.getFlashChipSize() / 1024 / 1024);
+
+    size_t used = 0, total = 0, free = 0;
+    total = LittleFS.totalBytes() / 1024;
+    used = LittleFS.usedBytes() / 1024;
+    free = total - used;
+
     u8g2Fonts.setCursor(5, 75);
-    u8g2Fonts.printf("文件系统(已用/总空间):%d%% %d/%d kB", LittleFS.usedBytes() * 100 / LittleFS.totalBytes(), LittleFS.usedBytes() / 1024, LittleFS.totalBytes() / 1024);
+    u8g2Fonts.printf("文件系统: %d%%  %dKB可用 总计 %dKB",
+                     used * 100 / total,
+                     free, total);
+
     u8g2Fonts.setCursor(5, 90);
-    u8g2Fonts.printf("屏幕类型:EPD  屏幕分辨率:296X128 CPU_freq:%uMHz", getCpuFrequencyMhz());
+    u8g2Fonts.printf("屏幕: EPD 296x128 当前运行频率: %u MHz", getCpuFrequencyMhz());
+
     u8g2Fonts.setCursor(5, 105);
-    u8g2Fonts.printf("电池容量:%dmAh chip model:%s", hal.bat_info.capacity.design, ESP.getChipModel());
-    u8g2Fonts.drawUTF8(5, 120, "https://github.com/kanfandelong/LiClock-self-use");
+    u8g2Fonts.printf("电池容量: %d mAh  芯片: %s", hal.bat_info.capacity.design, ESP.getChipModel());
+
+    u8g2Fonts.drawUTF8(5, 120, "GitHub: github.com/kanfandelong/LiClock-self-use");
+
     display.display();
     hal.wait_input();
     /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {

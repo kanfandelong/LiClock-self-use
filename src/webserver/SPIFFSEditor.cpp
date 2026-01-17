@@ -218,7 +218,7 @@ bool SPIFFSEditor::canHandle(AsyncWebServerRequest *request)
                 }
 #endif
             }
-            request->addInterestingHeader("If-Modified-Since");
+            // request->addInterestingHeader("If-Modified-Since");
             return true;
         }
         else if (request->method() == HTTP_POST)
@@ -408,6 +408,7 @@ void SPIFFSEditor::handleUpload(AsyncWebServerRequest *request, const String &fi
         {
             _authenticated = true;
             request->_tempFile = _fs.open(filename, "w");
+            request->_tempFile.setBufferSize(8192);
             _startTime = millis();
         }
     }

@@ -79,12 +79,76 @@ static const uint8_t *getFileIcon(const char *extension)
     }
     return otherfile_bits;
 }
+
+String truncatePath(const String& cwd, U8G2_FOR_ADAFRUIT_GFX& u8g2) {
+    const int16_t maxWidth = 200;
+    
+    // 1. 根目录直接返回
+    if (cwd == "/") {
+        return cwd;
+    }
+    
+    // 2. 检查完整路径是否合适
+    if (u8g2.getUTF8Width(cwd.c_str()) <= maxWidth) {
+        return cwd;
+    }
+    
+    // 3. 分割路径
+    std::vector<String> parts;
+    int start = 0;
+    int end = cwd.indexOf('/');
+    
+    while (end != -1) {
+        if (end > start) { // 忽略空的部分
+            parts.push_back(cwd.substring(start, end));
+        }
+        start = end + 1;
+        end = cwd.indexOf('/', start);
+    }
+    // 添加最后一部分
+    if (start < cwd.length()) {
+        parts.push_back(cwd.substring(start));
+    }
+    
+    // 4. 逐步截断路径
+    // 从后向前保留更多目录
+    for (int keepParts = parts.size(); keepParts >= 1; keepParts--) {
+        // 构建路径
+        String path;
+        if (keepParts == parts.size()) {
+            // 完整路径
+            path = "/";
+            for (int i = 0; i < parts.size(); i++) {
+                path += parts[i];
+                if (i < parts.size() - 1) path += "/";
+            }
+        } else if (keepParts == 1) {
+            // 只剩下最后一部分
+            path = ".../" + parts.back();
+        } else {
+            // 保留最后几部分
+            path = "...";
+            for (int i = parts.size() - keepParts; i < parts.size(); i++) {
+                path += "/" + parts[i];
+            }
+        }
+        
+        // 检查宽度
+        if (u8g2.getUTF8Width(path.c_str()) <= maxWidth) {
+            return path;
+        }
+    }
+    
+    // 5. 如果连".../dir_name"都超过200，直接返回它
+    return ".../" + parts.back();
+}
+
 namespace GUI
 {
     char filedialog_buffer[300];
     void push_buffer();
     void pop_buffer();
-    const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system)
+    const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system, bool cleardepth)
     {
         // 注意，这个函数完全没有考虑线程安全，no reentrent!!!
         // 处理多扩展名过滤
@@ -183,6 +247,12 @@ namespace GUI
         int16_t total_entries = 0;
         menu_item entries[256];
         char *titles[256];
+        static uint8_t selectedStack[64] = {1}; // 假设最多64层目录
+        static int8_t depth = 0;
+        if (cleardepth){
+            depth = 0;
+            memset(selectedStack, 1, sizeof(selectedStack));
+        }
         memset(entries, 0, sizeof(entries));
         memset(titles, 0, sizeof(titles));
         entries[0].icon = folder_bits;
@@ -339,9 +409,21 @@ namespace GUI
             }
             end_time = millis() - start_time;
             log_i(" [文件] 创建文件列表，耗时%.2fs", (float)end_time / 1000.0);
-            int selected = menu(title, entries, 12, 12);
+            String full_cwd;
+            if (useSD)
+            {
+                full_cwd = "/sd" + cwd;
+            }
+            else
+            {
+                full_cwd = "/littlefs" + cwd;
+            }
+            int selected = menu(truncatePath(full_cwd, u8g2Fonts).c_str(), entries, 12, 12, selectedStack[depth]);
             if (selected == 0)
             {
+                depth--;
+                if (depth < 0)
+                    depth = 0;
                 // 上一级目录
                 display.display(true); // 局部刷新一次
                 if (cwd == "/")
@@ -384,6 +466,13 @@ namespace GUI
             }
             else if (entries[selected].icon == folder_bits)
             {
+                selectedStack[depth] = selected;
+                depth++;
+                if (depth >= 63){
+                    depth = 62;
+                    log_w("目录深度已达上限,目录选择历史将会发生错乱");
+                }
+                selectedStack[depth] = 1; // 重置之前可能相同深度的选择
                 // 是文件夹
                 cwd += entries[selected].title;
                 root.close();
@@ -391,6 +480,7 @@ namespace GUI
             }
             else
             {
+                selectedStack[depth] = selected;
                 sprintf(filedialog_buffer, "%s%s%s", useSD ? "/sd" : "/littlefs", cwd.c_str(), entries[selected].title);
                 break;
             }

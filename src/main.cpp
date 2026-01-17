@@ -32,6 +32,10 @@ void task_appManager(void *)
 void setup()
 {
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // 禁用掉电检测
+    // log_i("开始禁用TIMG1_WDTCONFIG0_REG");
+    // WRITE_PERI_REG(0x3FF60064, 0x50D83AA1);
+    // WRITE_PERI_REG(0x3FF60048, 0x0);
+    // log_i("禁用TIMG1_WDTCONFIG0_REG完成");
     hal.init();
     hal.update();
 

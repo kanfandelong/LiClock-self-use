@@ -72,8 +72,11 @@ public:
     void loadConfig();
     void getTime();
     char* get_char_sha_key(const char *str, bool mode = false);
+    String get_CAcert(char* filePath);
+    String get_yiyan(uint8_t maxlen = 17);
     IPAddress getip();
     bool cheak_firmware_update();
+    char* get_file_md5_char(const char* path); 
     void cheak_freq(int _freq = 80, bool setfreq = false);
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();

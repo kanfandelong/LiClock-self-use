@@ -33,9 +33,16 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     int lutgray = 15;
     uint8_t PLL_val = 0x39;
     bool T5D = true;
+    bool _interactive_mode = false;
     // constructor
     GxEPD2_290_T5D(int16_t cs, int16_t dc, int16_t rst, int16_t busy);
-    // methods (virtual)
+    
+    // 多线程方法
+    void startQueue(uint8_t list = 1, uint8_t uxPriority = 1);
+    QueueHandle_t getQueue();
+    bool isBusy();
+    
+    // 下面这些函数为队列中追加对应结构体，把屏幕操作部分移到另一个线程运行
     //  Support for Bitmaps (Sprites) to Controller Buffer and to Screen
     void clearScreen(uint8_t value = 0xFF); // init controller memory and screen (default white)
     void writeScreenBuffer(uint8_t value = 0xFF); // init controller memory (default white)
@@ -70,7 +77,40 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     void SendLuts(uint8_t LutLevel);
     void PLL_set(uint8_t PLL_set_val);
     void T5D_mode(bool mode);
-  private:
+    void set_interactive_mode(bool mode);
+    
+  // private:
+    // 实际执行的方法（在多线程中调用）
+    void __clearScreen(uint8_t value = 0xFF);
+    void __writeScreenBuffer(uint8_t value = 0xFF);
+    void __writeScreenBufferAgain(uint8_t value = 0xFF);
+    void __writeImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeImageForFullRefresh(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                         int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                         int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeImageAgain(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeImagePartAgain(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                              int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __writeNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __drawImage(const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __drawImagePart(const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                        int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __drawImage(const uint8_t* black, const uint8_t* color, int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __drawImagePart(const uint8_t* black, const uint8_t* color, int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
+                        int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __drawNative(const uint8_t* data1, const uint8_t* data2, int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
+    void __refresh(bool partial_update_mode = false);
+    void __refresh(int16_t x, int16_t y, int16_t w, int16_t h);
+    void __powerOff();
+    void __hibernate();
+    void __SendLuts(uint8_t LutLevel);
+    void __PLL_set(uint8_t PLL_set_val);
+    void __T5D_mode(bool mode);
+    
+    // 原有的私有方法
     void _writeScreenBuffer(uint8_t command, uint8_t value);
     void _writeImage(uint8_t command, const uint8_t bitmap[], int16_t x, int16_t y, int16_t w, int16_t h, bool invert = false, bool mirror_y = false, bool pgm = false);
     void _writeImagePart(uint8_t command, const uint8_t bitmap[], int16_t x_part, int16_t y_part, int16_t w_bitmap, int16_t h_bitmap,
@@ -83,7 +123,10 @@ class GxEPD2_290_T5D : public GxEPD2_EPD
     void _Init_Part();
     void _Update_Full();
     void _Update_Part();
+    
+    void task_();
   private:
+    uint8_t task_list = 0;
     static const unsigned char lut_20_vcomDC[];
     static const unsigned char lut_21_ww[];
     static const unsigned char lut_22_bw[];

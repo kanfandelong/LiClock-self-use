@@ -1271,6 +1271,15 @@ namespace GUI
         display.display(); // 全局刷新一次
         return current_value;
     }
+    /**
+     * @brief 绘制LBM格式的灰度图像
+     * @param x 图像左上角X坐标
+     * @param y 图像左上角Y坐标
+     * @param filename LBM文件路径
+     * @param color 仅在1位图像时使用，表示前景色
+     * @note 支持1位、2位、4位灰度图像
+     * @note 调用此函数绘制图像后不需要再调用display.display()，函数内部会自动刷新显示
+     */
     void drawLBM(int16_t x, int16_t y, const char *filename, uint16_t color)
     {
         FILE *fp = fopen(getRealPath(filename), "rb");

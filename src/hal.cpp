@@ -1,5 +1,134 @@
 #include "hal.h"
 #include <LittleFS.h>
+RTC_DATA_ATTR uint8_t display_buffer_save[128 / 8 * 296];
+
+File HAL::open(const char *path, const char *mode, const bool create)
+{
+    if (strncmp(path, "/sd/", 4) == 0)
+    {
+        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
+        return SD.open(remove_path_prefix(path, "/sd"), mode, create);
+    }
+    else if (strncmp(path, "/littlefs/", 10) == 0)
+    {
+        return LittleFS.open(remove_path_prefix(path, "/littlefs"), mode, create);
+    }
+    else
+    {
+        return File();
+    }
+}
+
+File HAL::open(const String &path, const char *mode, const bool create)
+{
+    return open(path.c_str(), mode, create);
+}
+
+bool HAL::exists(const char *path)
+{
+    if (strncmp(path, "/sd/", 4) == 0)
+    {
+        return SD.exists(remove_path_prefix(path, "/sd"));
+    }
+    else if (strncmp(path, "/littlefs/", 10) == 0)
+    {
+        return LittleFS.exists(remove_path_prefix(path, "/littlefs"));
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool HAL::exists(const String &path)
+{
+    return exists(path.c_str());
+}
+
+bool HAL::remove(const char *path)
+{
+    if (strncmp(path, "/sd/", 4) == 0)
+    {
+        return SD.remove(remove_path_prefix(path, "/sd"));
+    }
+    else if (strncmp(path, "/littlefs/", 10) == 0)
+    {
+        return LittleFS.remove(remove_path_prefix(path, "/littlefs"));
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool HAL::remove(const String &path)
+{
+    return remove(path.c_str());
+}
+
+bool HAL::rename(const char *pathFrom, const char *pathTo)
+{
+    if (strncmp(pathFrom, "/sd/", 4) == 0)
+    {
+        return SD.rename(remove_path_prefix(pathFrom, "/sd"), pathTo);
+    }
+    else if (strncmp(pathFrom, "/littlefs/", 10) == 0)
+    {
+        return LittleFS.rename(remove_path_prefix(pathFrom, "/littlefs"), pathTo);
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool HAL::rename(const String &pathFrom, const String &pathTo)
+{
+    return rename(pathFrom.c_str(), pathTo.c_str());
+}
+
+bool HAL::mkdir(const char *path)
+{
+    if (strncmp(path, "/sd/", 4) == 0)
+    {
+        return SD.mkdir(remove_path_prefix(path, "/sd"));
+    }
+    else if (strncmp(path, "/littlefs/", 10) == 0)
+    {
+        return LittleFS.mkdir(remove_path_prefix(path, "/littlefs"));
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool HAL::mkdir(const String &path)
+{
+    return mkdir(path.c_str());
+}
+
+bool HAL::rmdir(const char *path)
+{
+    if (strncmp(path, "/sd/", 4) == 0)
+    {
+        return SD.rmdir(remove_path_prefix(path, "/sd"));
+    }
+    else if (strncmp(path, "/littlefs/", 10) == 0)
+    {
+        return LittleFS.rmdir(remove_path_prefix(path, "/littlefs"));
+    }
+    else
+    {
+        return false;
+    }
+}
+
+bool HAL::rmdir(const String &path)
+{
+    return rmdir(path.c_str());
+}
 
 File HAL::open(const char *path, const char *mode, const bool create)
 {
@@ -550,6 +679,7 @@ void HAL::getTime()
 /**
  * @brief 计算字符串的SHA-256哈希值，并返回前15个字符组成的字符串
  * @param str 要计算哈希值的字符串
+ * @param mode 模式选择，true表示返回可打印ASCII字符组成的字符串，false表示返回十六进制字符串
  * @return 返回前15个字符组成的字符串
  */
 char *HAL::get_char_sha_key(const char *str, bool mode)
@@ -581,6 +711,63 @@ char *HAL::get_char_sha_key(const char *str, bool mode)
     key[15] = '\0'; // 确保字符串以 null 结尾
     // log_i("%s", key);
     return key;
+}
+
+String HAL::get_CAcert(char* filePath)
+{
+    File CAcert = hal.open(filePath, "r");
+    if (!CAcert)
+    {
+        error("Failed to open CAcert file");
+        return String();
+    }
+    size_t file_size = CAcert.size();
+    char ca_cert[file_size + 1]; // +1为终止符
+    size_t index = 0;
+    while (CAcert.available())// 读取证书内容并替换CRLF为LF
+    {
+        char c = CAcert.read();
+        if (c == '\r' && CAcert.peek() == '\n')
+        {
+            // 遇到CRLF，替换为LF
+            ca_cert[index++] = '\n';
+            CAcert.read(); // 跳过下一个字符（\n）
+        }
+        else
+        {
+            ca_cert[index++] = c;
+        }
+        // 防止缓冲区溢出
+        if (index >= file_size + 1)
+        {
+            Serial.println("缓冲区溢出，证书可能被截断");
+            break;
+        }
+    }
+    ca_cert[index] = '\0'; // 添加终止符
+    return String(ca_cert);
+}
+
+String HAL::get_yiyan(uint8_t maxlen)
+{
+    HTTPClient http;
+    String ca_cert = get_CAcert("/littlefs/System/GTS Root R4.crt");
+    static const char* url_yiyan = "https://v1.hitokoto.cn/?c=c&c=a&c=d&c=f&c=i&encode=text&charset=utf-8&max_length=";
+    String _url = String(url_yiyan) + String(maxlen);
+    http.begin((String)_url, ca_cert.c_str());
+    int httpCode = http.GET();
+    if (httpCode == HTTP_CODE_OK)
+    {
+        String payload = http.getString();
+        http.end();
+        return payload;
+    }
+    else
+    {
+        error("一言获取失败: %s", http.errorToString(httpCode).c_str());
+        http.end();
+        return String("一言获取失败");
+    }
 }
 /**
  * @brief 获取当前设备的IP地址（根据WIFI模式自动切换获取）
@@ -718,6 +905,40 @@ run:
     log_i("结束固件更新状态检查");
     return true;
 }
+
+#include <MD5Builder.h>
+static char md5_value[33];
+char* HAL::get_file_md5_char(const char* path)
+{
+    if (hal.exists(path))
+    {
+        MD5Builder md5;
+        md5.begin();
+        File f = hal.open(path, "r");
+        if (!f)
+        {
+            log_e("无法打开文件以计算MD5: %s", path);
+            return NULL;
+        }
+        log_i("添加文件流进行MD5计算: %s 大小：%dB", path, f.size());
+        disableCore0WDT();
+        disableCore1WDT();
+        md5.addStream(f, f.size());
+        md5.calculate();
+        md5.getChars(md5_value);
+        f.close();
+        enableCore0WDT();
+        enableCore1WDT();
+        md5_value[32] = '\0';
+        log_i("文件MD5值: %s", md5_value);
+        return md5_value;
+    }
+    else
+    {
+        return NULL;
+    }
+}
+
 /**
  * @brief 检查当前 CPU 频率，若低于指定频率或需要强制设置，则调整为指定频率
  *
@@ -1144,10 +1365,10 @@ bool HAL::init()
     bool fast_boot;
     pref.begin("clock");
     log_i("\n\n"
-          "   © 2024 - 2025 看番の龙 | LiClock   \n"
+          "   © 2024 - 2026 看番の龙 | LiClock   \n"
           "          Powered by 看番の龙         \n"
           "       github.com/kanfandelong       \n");
-    log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: Windows10 x64 22H2 19045.6466", code_version, __DATE__, __TIME__);
+    log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
     uint32_t uart_band = pref.getUInt("uart_baud", 115200);
     log_i("change band to %lu", uart_band);
     Serial.flush();
@@ -1233,9 +1454,9 @@ bool HAL::init()
 
     WiFi.mode(WIFI_OFF);
 #if defined(Queue)
-    display.epd2.startQueue(hal.pref.getUInt("display_list", 3), hal.pref.getUInt("disp_priority", 1));
+    display.epd2.startQueue();
 #endif
-    display.epd2.T5D_mode(!pref.getBool("UC8151C"));
+    // display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     display.init(pref.getInt("display_debug", 115200), initial);
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(GxEPD_BLACK);
@@ -1244,6 +1465,10 @@ bool HAL::init()
     u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
     u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
     u8g2Fonts.begin(display);
+    // if (!initial){
+    //     display.epd2._writeImage(0x10, display_buffer_save, sizeof(display_buffer_save), 0, 0, display.width(), display.height());
+    //     log_i("恢复屏幕缓存区内容，目标 0x10");
+    // }
     display.epd2.PLL_set(pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     if (hal.btnl.isPressing() && (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED))
     {
@@ -1322,7 +1547,7 @@ bool HAL::init()
         }
         if (reset_reason == ESP_RST_BROWNOUT)
         {
-            GUI::msgbox("电源警告", "欠压检测器被触发，请检查系统电源状态");
+            GUI::msgbox("电源警告", "欠压检测器被触发，请检查系统电源状态", 60);
         }
     }
     loadConfig();
@@ -1490,6 +1715,23 @@ void HAL::set_sleep_set_gpio_interrupt()
     }
 }
 
+void printVerticalBitmapToSerial(uint8_t *buffer) {
+    int width = 128;
+    int height = 296;
+    int bytesPerRow = width / 8;
+    
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int byteIndex = x / 8 + y * bytesPerRow;
+            int bitPosition = 7 - (x % 8);
+            uint8_t mask = 1 << bitPosition;
+            
+            Serial.print((buffer[byteIndex] & mask) ? '*' : ' ');
+        }
+        Serial.println();  // 每行结束换行
+    }
+}
+
 #include "driver/ledc.h"
 static void pre_sleep()
 {
@@ -1504,13 +1746,13 @@ static void pre_sleep()
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
     buzzer.waitForSleep();
-    if (file_log)
-        file_log.close();
+    log_system_deinit();
     LittleFS.end();
     // hal.pref.end();
     delay(10);
     ledcDetachPin(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);
+
 }
 static void wait_display()
 {
@@ -1535,7 +1777,7 @@ void HAL::goSleep(uint32_t sec)
     {
         nextSleep = 1;
     }
-    // display.hibernate();
+    display.hibernate();
     pre_sleep();
     if (WiFi.isConnected())
         WiFi.disconnect(true);
@@ -1543,7 +1785,7 @@ void HAL::goSleep(uint32_t sec)
     nextSleep = nextSleep * 1000000UL;
     esp_sleep_enable_timer_wakeup(nextSleep);
     wait_display();
-    delay(1);
+    delay(50);
     if (noDeepSleep)
     {
         esp_light_sleep_start();
@@ -1560,7 +1802,14 @@ void HAL::goSleep(uint32_t sec)
 
 void HAL::powerOff(bool displayMessage)
 {
-    if (displayMessage)
+    if (hal.pref.getBool("en_poff_image"))
+    {
+        display.setFullWindow();
+        display.fillScreen(GxEPD_WHITE);
+        display.display();
+        GUI::drawLBM(0, 0, hal.pref.getString("poweroff_image").c_str(), GxEPD_BLACK);
+    }
+    else if (displayMessage)
     {
         display.setFullWindow();
         display.fillScreen(GxEPD_WHITE);
@@ -1575,7 +1824,7 @@ void HAL::powerOff(bool displayMessage)
         WiFi.disconnect(true);
     set_sleep_set_gpio_interrupt();
     wait_display();
-    delay(1);
+    delay(50);
     if (noDeepSleep)
     {
         esp_light_sleep_start();

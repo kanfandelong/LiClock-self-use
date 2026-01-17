@@ -126,36 +126,36 @@ public:
 
     // ===== 数据成员 =====
     // 目录与文件列表
-    String currentDir = "/";            // 当前歌曲目录
-    String pathStr;                      // 当前歌曲位于的目录
-    menu_item *fileList = nullptr;       // 歌曲菜单数组
-    char **titles = nullptr;             // 歌曲名内存指针数组指针,存储歌曲名所在的内存位置
-    char char_buf[512];                  // 字符串拼接缓存
-    uint16_t maxSong = 0;                // 歌曲总数
-    bool filelist_ok = false;            // 歌曲列表就绪标志
-    bool is_root = false;                // 是否是根目录
+    String currentDir = "/";       // 当前歌曲目录
+    String pathStr;                // 当前歌曲位于的目录
+    menu_item *fileList = nullptr; // 歌曲菜单数组
+    char **titles = nullptr;       // 歌曲名内存指针数组指针,存储歌曲名所在的内存位置
+    char char_buf[512];            // 字符串拼接缓存
+    uint16_t maxSong = 0;          // 歌曲总数
+    bool filelist_ok = false;      // 歌曲列表就绪标志
+    bool is_root = false;          // 是否是根目录
 
     // 播放进度与时间
-    unsigned long play_time_start;       // 播放开始时间
-    unsigned long play_time_end;         // 播放结束时间
-    unsigned long play_stop_time = 0;    // 播放停止时间
-    unsigned long play_time_total = 0;   // 播放总时间
+    unsigned long play_time_start;         // 播放开始时间
+    unsigned long play_time_end;           // 播放结束时间
+    unsigned long play_stop_time = 0;      // 播放停止时间
+    unsigned long play_time_total = 0;     // 播放总时间
     unsigned long display_time = millis(); // 屏幕上次刷新时间
 
     // 播放器状态
-    bool _play_end = false;    // 播放完成标志
-    bool _end;                 // 播放器主任务while循环停止标志
-    bool user_stop = false;    // 用户停止播放标志
-    bool app_exit = false;     // 退出标志
-    int play_count = 1;        // 播放歌曲数量
-    int _count = 20;           // 播放歌曲上限（控制重启）
-    int display_count = 0;     // 屏幕刷新次数
+    bool _play_end = false; // 播放完成标志
+    bool _end;              // 播放器主任务while循环停止标志
+    bool user_stop = false; // 用户停止播放标志
+    bool app_exit = false;  // 退出标志
+    int play_count = 1;     // 播放歌曲数量
+    int _count = 20;        // 播放歌曲上限（控制重启）
+    int display_count = 0;  // 屏幕刷新次数
 
     // 音频相关设置
-    id3_info info;                         // 歌曲ID3信息
+    id3_info info; // 歌曲ID3信息
     generator_t play_generator = UNKONWN_Generator;
-    bool nodac = false;                    // 无DAC标志
-    bool in_littlefs = false;              // 文件是否位于LittleFS
+    bool nodac = false;       // 无DAC标志
+    bool in_littlefs = false; // 文件是否位于LittleFS
     bool bits_per_chan = false;
     float gain = 0.3;                      // 音频输出增益（音量）
     int apll = 0;
@@ -164,14 +164,14 @@ public:
     bool need_deep_sleep = false; // 是否需要进入deepsleep
 
     // 歌词显示与同步
-    bool lrcisload = false;                   // 歌词加载状态
-    char currentLyric[3][80];                 // 当前显示的歌词
-    int currentLyricIndex = 0;                // 当前显示的歌词索引
-    int lastLyricIndex = 0;                   // 上次显示的歌词索引
-    int _lrcoffset = 0;                       // 歌词显示时间补偿
-    int totalLyricLines = 0;                  // 歌词总行数
-    unsigned long lastLyricUpdate = 0;        // 上次歌词更新时间
-    LyricLine *lyricArray = nullptr;          // 使用动态数组存储歌词
+    bool lrcisload = false;            // 歌词加载状态
+    char currentLyric[3][80];          // 当前显示的歌词
+    int currentLyricIndex = 0;         // 当前显示的歌词索引
+    int lastLyricIndex = 0;            // 上次显示的歌词索引
+    int _lrcoffset = 0;                // 歌词显示时间补偿
+    int totalLyricLines = 0;           // 歌词总行数
+    unsigned long lastLyricUpdate = 0; // 上次歌词更新时间
+    LyricLine *lyricArray = nullptr;   // 使用动态数组存储歌词
 
     // 调试相关
     bool display_debug_mode = false;
@@ -684,7 +684,7 @@ int countLyricLines(const char *path)
     if (!file)
         return -1;
 
-    bool debug = hal.pref.getBool("lrc_debug");
+    bool debug = hal.pref.getBool("debug_log");
 
     if (file.available() >= 3)
     {
@@ -771,7 +771,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
     }
     log_i("开始加载歌词，歌词行数：%d", totalLyricLines);
 
-    bool debug = hal.pref.getBool("lrc_debug");
+    bool debug = hal.pref.getBool("debug_log");
 
     if (file.available() >= 3)
     {
@@ -974,12 +974,13 @@ void AppMusicPlayer::select_file(bool user)
         music_file = NULL;
         while (music_file == NULL)
         {
-            music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nflac", NULL, currentDir);
+            music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nflac", NULL, currentDir, NULL, false);
         }
         file_in(music_file);
     }
     sprintf(buf, "%s", music_file); // 复制歌曲路径到缓冲区
     music_file = buf;               // 将歌曲路径指向缓冲器
+    // pathStr = String(music_file);
     // 解析目录
     log_i("%s", pathStr.c_str());
     int lastSlash = pathStr.lastIndexOf('/');
@@ -1007,8 +1008,11 @@ void AppMusicPlayer::select_file(bool user)
  */
 void AppMusicPlayer::file_in(const char *path)
 {
-    if (in != nullptr)
+    need_deep_sleep = false;
+    if (in != nullptr){
         delete in;
+        in = nullptr;
+    }
     if (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
     {
         loadLyrics(path);
@@ -1136,17 +1140,19 @@ void AppMusicPlayer::next_song(bool next, bool btn)
 
     // 统一执行播放操作
     file_in(music_file);
-    player_set();
-    if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE)
-    {
-        xSemaphoreGive(audio_control_sem);
+    if (!need_deep_sleep) { // 确认文件打开成功
+        player_set();
+        if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE)
+        {
+            xSemaphoreGive(audio_control_sem);
+        }
+        else
+        {
+            xSemaphoreGive(audio_control_sem);
+        }
+        log_i("释放信号量");
+        begin_player_task();
     }
-    else
-    {
-        xSemaphoreGive(audio_control_sem);
-    }
-    log_i("释放信号量");
-    begin_player_task();
 }
 /**
  * @brief 音频控制信号量操作函数
@@ -1190,6 +1196,7 @@ void AppMusicPlayer::bulid_music_list()
 {
     if (!filelist_ok)
     {
+        bool debug = hal.pref.getBool("debug_log");
         uint16_t song_count = 0;
         File root;
         uint64_t start = millis(), end;
@@ -1203,56 +1210,143 @@ void AppMusicPlayer::bulid_music_list()
         MusicNode *head = nullptr;
         MusicNode *tail = nullptr;
 
-        if (is_root)
-        {
-            if (!in_littlefs)
-                root = SD.open("/");
-            else
-                root = LittleFS.open("/");
-            Serial.printf("创建音乐列表,从根目录\n");
-        }
-        else
-        {
-            if (!in_littlefs)
-                root = SD.open(currentDir);
-            else
-                root = LittleFS.open(currentDir);
-            Serial.printf("创建音乐列表,从文件夹:%s\n", currentDir.c_str());
-        }
-        File dir = root.openNextFile();
-        String name = "";
-        while (dir)
-        {
-            name = dir.name();
-            if (!dir.isDirectory() &&
-                (name.endsWith(".mp3") || name.endsWith(".wav") ||
-                 name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac")))
-            {
-                // 创建新节点
-                MusicNode *newNode = new MusicNode;
-                newNode->name = strdup(dir.name()); // 复制文件名
-                newNode->next = nullptr;
+        // ===== 新增：检查预生成播放列表文件 =====
+        String folderName = "";
+        String playlistPath = "";
+        bool usePregenList = false;
 
-                // 添加到链表尾部
-                if (head == nullptr)
+        // 从currentDir提取文件夹名（最后一个'/'之后的部分）
+        int lastSlashIdx = currentDir.lastIndexOf('/');
+        if (lastSlashIdx != -1)
+        {
+            folderName = currentDir.substring(lastSlashIdx + 1);
+            // 构建预生成列表文件路径：/sd/playlist/文件夹名.npl
+            playlistPath = "/sd/playlist/" + folderName + ".npl";
+            log_i("检查预生成播放列表: %s", playlistPath.c_str());
+
+            if (hal.exists(playlistPath.c_str()))
+            {
+                log_i("找到预生成播放列表文件");
+                File listFile = hal.open(playlistPath, "r");
+                listFile.setBufferSize(8192);
+                if (listFile)
                 {
-                    head = newNode;
-                    tail = newNode;
+                    usePregenList = true;
+                    // 记录开始时间，用于检测超时
+                    unsigned long startTime = millis();
+                    const unsigned long timeout = 5000; // 5秒超时
+                    String line;
+                    String fullPath;
+                    while (listFile.available() && millis() - startTime < timeout)
+                    {
+                        line = listFile.readStringUntil('\n');
+                        line.trim();
+
+                        // 跳过空行和注释行（以#开头的行）
+                        if (line.length() == 0 || line.startsWith("#"))
+                            continue;
+
+                        // 检查文件是否存在于当前目录
+                        // fullPath = currentDir + "/" + line;
+                        // if (in_littlefs)
+                        //     fullPath = fullPath; // LittleFS路径保持不变
+                        // else
+                        //     fullPath = "/sd" + fullPath; // SD卡路径添加前缀
+                        // if (hal.exists(fullPath.c_str()) &&
+                        //     (line.endsWith(".mp3") || line.endsWith(".wav") ||
+                        //      line.endsWith(".aac") || line.endsWith(".opus") || line.endsWith(".flac")))
+                        // {
+                        // 创建新节点
+                        MusicNode *newNode = new MusicNode;
+                        newNode->name = strdup(line.c_str()); // 复制文件名
+                        newNode->next = nullptr;
+
+                        // 添加到链表尾部
+                        if (head == nullptr)
+                        {
+                            head = newNode;
+                            tail = newNode;
+                        }
+                        else
+                        {
+                            tail->next = newNode;
+                            tail = newNode;
+                        }
+                        song_count++;
+                        if (debug)
+                            log_d("从预生成列表添加: %s", line.c_str());
+                        // }
+                    }
+                    listFile.close();
+                    log_i("从预生成列表加载了 %d 首歌曲", song_count);
                 }
                 else
                 {
-                    tail->next = newNode;
-                    tail = newNode;
+                    log_w("无法打开预生成列表文件: %s", playlistPath.c_str());
                 }
+            }
+        }
 
-                song_count++;
-                Serial.printf("%s\n", dir.name());
+        // 如果没有使用预生成列表或预生成列表为空，则扫描目录
+        if (!usePregenList || song_count == 0)
+        {
+            log_i("未找到预生成列表，开始扫描目录...");
+            if (is_root)
+            {
+                if (!in_littlefs)
+                    root = SD.open("/");
+                else
+                    root = LittleFS.open("/");
+                log_i("创建音乐列表,从根目录");
+            }
+            else
+            {
+                if (!in_littlefs)
+                    root = SD.open(currentDir);
+                else
+                    root = LittleFS.open(currentDir);
+                // root = hal.open(currentDir);
+                log_i("创建音乐列表,从文件夹:%s", currentDir.c_str());
+            }
+
+            File dir = root.openNextFile();
+            String name = "";
+            while (dir)
+            {
+                name = dir.name();
+                if (!dir.isDirectory() &&
+                    (name.endsWith(".mp3") || name.endsWith(".wav") ||
+                     name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac")))
+                {
+                    // 创建新节点
+                    MusicNode *newNode = new MusicNode;
+                    newNode->name = strdup(dir.name()); // 复制文件名
+                    newNode->next = nullptr;
+
+                    // 添加到链表尾部
+                    if (head == nullptr)
+                    {
+                        head = newNode;
+                        tail = newNode;
+                    }
+                    else
+                    {
+                        tail->next = newNode;
+                        tail = newNode;
+                    }
+
+                    song_count++;
+                    if (debug)
+                        log_d("添加: %s", dir.name());
+                }
+                dir.close();
+                dir = root.openNextFile();
             }
             dir.close();
-            dir = root.openNextFile();
+            root.close();
         }
-        dir.close();
-        root.close();
+        // ===== 新增代码结束 =====
+
         // 清理之前的资源
         if (titles != nullptr && maxSong != 0)
         {
@@ -1302,9 +1396,10 @@ void AppMusicPlayer::bulid_music_list()
         // 设置结束标志
         fileList[i].title = NULL;
         fileList[i].icon = NULL;
-        filelist_ok = true;
 
         end = millis();
+        assert(song_count != 0);
+        filelist_ok = true;
         log_i("创建音乐列表结束，共计%ld个音频文件，耗时 %lld ms", song_count, end - start);
     }
 }
@@ -1371,7 +1466,7 @@ static const menu_select menu_set_player[] =
         {true, "audio_pll", nullptr},
         {false, "重启间隔", nullptr},
         {true, "显示debug信息", "music_debug"},
-        {true, "打印歌词debug信息", "lrc_debug"},
+        {true, "打印debug信息", "debug_log"},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
@@ -1527,11 +1622,11 @@ void AppMusicPlayer::begin_player_task()
     play_stop_time = 0;
     play_time_start = millis();
     uint8_t core = xPortGetCoreID();
-    uint32_t stack_size = 9216;
+    uint32_t stack_size = 8192;
     if (play_generator == OPUS_Generator)
         stack_size = 16384;
     log_i("将为解码任务分配%ld字节堆栈", stack_size);
-    Serial.printf("app运行在: core%d\r\n", core);
+    log_i("app运行在: core%d", core);
     if (core == 0)
         xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 5, &player_loop_task_handle, 1);
     else
@@ -2019,6 +2114,8 @@ bool AppMusicPlayer::player_set()
 void AppMusicPlayer::setup()
 {
     display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
+    display.clearScreen();
+    display.display();
     hal.cheak_freq(160);
     pinMode(25, ANALOG);
     pinMode(26, ANALOG);
