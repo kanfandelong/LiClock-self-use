@@ -14,14 +14,7 @@ static int lua_ttf_setTtfFile(lua_State *L) {
     const char* filename = luaL_checkstring(L, 1);
     File file;
     // 打开字体文件
-    if (strncmp(filename, "/sd/", 4) == 0) {
-        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
-            peripherals.load(PERIPHERALS_SD_BIT);
-        file = SD.open(remove_path_prefix(filename,"/sd"));
-    } 
-    else if (strncmp(filename, "/littlefs/", 10) == 0) {
-        file = LittleFS.open(remove_path_prefix(filename,"/littlefs"));
-    }
+    file = hal.open(filename);
     
     if (!file) {
         lua_pushboolean(L, 0);
@@ -149,7 +142,7 @@ static int lua_ttf_getStringWidth(lua_State *L) {
         return 0;
     }
     
-    const char* text = luaL_checkstring(L, 1);
+    String text = luaL_checkstring(L, 1);
     uint16_t width = ttf.getStringWidth(text);
     
     lua_pushinteger(L, width);
@@ -172,7 +165,7 @@ static const luaL_Reg lua_truetype_lib[] = {
     {"setTextRotation", lua_ttf_setTextRotation},
     {"textDraw", lua_ttf_textDraw},
     {"getStringWidth", lua_ttf_getStringWidth},
-    {"end", lua_ttf_end},
+    {"ttfend", lua_ttf_end},
     {NULL, NULL}
 };
 

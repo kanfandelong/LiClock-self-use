@@ -2,7 +2,7 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncWebSocket.h>
-#include <SPIFFSEditor.h>
+#include "SPIFFSEditor.h"
 
 // 下面是引用网页文件
 #include "index.h"
@@ -21,6 +21,8 @@ bool serverRunning = false;
 bool wsRunning = false;
 bool file_for_TF = false;
 bool LuaRunning = false; // 全局变量，表示Lua服务器是否运行，用于防止调试时误退出
+size_t littlefs_total = 0;
+uint64_t sd_total = 0;
 extern "C" void lua_printf(const char *format, ...)
 {
     va_list argptr;
@@ -41,7 +43,7 @@ static void task_lua_server(void *)
 {
     LuaRunning = true;
     lua_execute("/littlefs/webtmp/main.lua");
-    lua_printf("[Lua程序结束]\n");
+    lua_printf("[Lua程序结束]");
     lua_server_handle = NULL;
     LuaRunning = false;
     vTaskDelete(NULL);
@@ -144,22 +146,30 @@ void fs_status(AsyncWebServerRequest *request)
     String status;
     if (file_for_TF)
     {
+        if (sd_total == 0)
+        {
+            sd_total = SD.totalBytes();
+        }
         status += "{\n";
         status += "    \"type\":\"TF\",\n";
         status += "    \"isOk\":\"true\",\n";
         status += "    \"usedBytes\":" + String(SD.usedBytes()) + ",\n";
-        status += "    \"totalBytes\":" + String(SD.totalBytes()) + ",\n";
+        status += "    \"totalBytes\":" + String(sd_total) + ",\n";
         status += "    \"unsupportedFiles\":\"\"\n";
         status += "}";
         request->send(200, "application/json", status);
     }
     else
     {
+        if (littlefs_total == 0)
+        {
+            littlefs_total = LittleFS.totalBytes();
+        }
         status += "{\n";
         status += "    \"type\":\"LittleFS\",\n";
         status += "    \"isOk\":\"true\",\n";
         status += "    \"usedBytes\":" + String(LittleFS.usedBytes()) + ",\n";
-        status += "    \"totalBytes\":" + String(LittleFS.totalBytes()) + ",\n";
+        status += "    \"totalBytes\":" + String(littlefs_total) + ",\n";
         status += "    \"unsupportedFiles\":\"\"\n";
         status += "}";
         request->send(200, "application/json", status);
@@ -281,13 +291,14 @@ static void sendreq(AsyncWebServerRequest *request, const char *mime, const uint
 void beginFileServer(bool for_TF)
 {
     bool mdns;
-    if (hal.pref.getBool("en_mdns")){
+    if (hal.pref.getBool("en_mdns"))
+    {
         mdns = MDNS.begin("weatherclock");
     }
     // server = new AsyncWebServer(80);
     // 设置未找到路由的默认响应
     server.onNotFound([](AsyncWebServerRequest *request)
-                       {
+                      {
         if(WiFi.softAPgetStationNum() != 0)
         {
             request->redirect("http://192.168.4.1");
@@ -311,7 +322,7 @@ void beginFileServer(bool for_TF)
     spiffs_upload_handler->setlittlefs(LittleFS);
     server.addHandler(spiffs_upload_handler);
     server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
-               {     
+              {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
                   {
@@ -339,7 +350,7 @@ void beginFileServer(bool for_TF)
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
     server.on("/iconfont.ttf", HTTP_GET, [](AsyncWebServerRequest *request)
-               {     
+              {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
                   {
@@ -367,7 +378,7 @@ void beginFileServer(bool for_TF)
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
     server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                 file_for_TF =! file_for_TF;
                 if (file_for_TF) {
                     if (!peripherals.isSDLoaded()) {
@@ -394,7 +405,7 @@ void beginFileServer(bool for_TF)
                     request->send(200, "text/plain", "LittleFS");
                 } });
     server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                                 if (file_for_TF) {
                                     request->send(200, "text/plain", "SD");
                                 } else {
@@ -418,7 +429,8 @@ void beginFileServer(bool for_TF)
 void beginWebServer()
 {
     bool mdns;
-    if (hal.pref.getBool("en_mdns")){
+    if (hal.pref.getBool("en_mdns"))
+    {
         mdns = MDNS.begin("weatherclock");
     }
     // server = new AsyncWebServer(80);
@@ -427,7 +439,7 @@ void beginWebServer()
         LittleFS.mkdir("/webtmp");
     }
     server.onNotFound([](AsyncWebServerRequest *request)
-                       {
+                      {
         if(WiFi.softAPgetStationNum() != 0)
         {
             request->redirect("http://192.168.4.1");
@@ -440,21 +452,21 @@ void beginWebServer()
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "text/html", __web_index_html_gz, __web_index_html_gz_len); });
+              { sendreq(request, "text/html", __web_index_html_gz, __web_index_html_gz_len); });
     server.on("/blockly", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "text/html", __web_Blockly_html_gz, __web_Blockly_html_gz_len); });
+              { sendreq(request, "text/html", __web_Blockly_html_gz, __web_Blockly_html_gz_len); });
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "image/x-icon", __favicon_ico_gz, __favicon_ico_gz_len); });
+              { sendreq(request, "image/x-icon", __favicon_ico_gz, __favicon_ico_gz_len); });
     server.on("/css/csss.css", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "text/css", __web_css_csss_css_gz, __web_css_csss_css_gz_len); });
+              { sendreq(request, "text/css", __web_css_csss_css_gz, __web_css_csss_css_gz_len); });
     server.on("/js/jss.js", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "application/javascript", __web_js_jss_js_gz, __web_js_jss_js_gz_len); });
+              { sendreq(request, "application/javascript", __web_js_jss_js_gz, __web_js_jss_js_gz_len); });
     server.on("/js/jss2.js", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "application/javascript", __web_js_jss2_js_gz, __web_js_jss2_js_gz_len); });
+              { sendreq(request, "application/javascript", __web_js_jss2_js_gz, __web_js_jss2_js_gz_len); });
     server.on("/js/jss3.js", HTTP_GET, [](AsyncWebServerRequest *request)
-               { sendreq(request, "application/javascript", __web_js_jss3_js_gz, __web_js_jss3_js_gz_len); });
+              { sendreq(request, "application/javascript", __web_js_jss3_js_gz, __web_js_jss3_js_gz_len); });
     server.on("/system/ace.js", HTTP_GET, [](AsyncWebServerRequest *request)
-               {     
+              {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
                   {
@@ -482,7 +494,7 @@ void beginWebServer()
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
     server.on("/iconfont.ttf", HTTP_GET, [](AsyncWebServerRequest *request)
-               {     
+              {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
                   {
@@ -510,7 +522,7 @@ void beginWebServer()
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
     server.on("/viewth", HTTP_GET, [](AsyncWebServerRequest *request)
-               {     
+              {     
                   const char *buildTime = __DATE__ " " __TIME__ " GMT";
                   if (request->header("If-Modified-Since").equals(buildTime))
                   {
@@ -538,13 +550,13 @@ void beginWebServer()
                         request->send(404, "text/plain", "资源文件不存在");
                   } });
     server.on("/info", HTTP_GET, [](AsyncWebServerRequest *request)
-               {
+              {
                                 String message;
                                 message += "IP地址: ";
                                 message += hal.getip().toString();
                                 message += "<br/>MAC地址: ";
                                 message += WiFi.macAddress();
-                                message += "<br/>系统时间: ";
+                                message += "<br/>系统版本: " + String(code_version) + " 系统时间: ";
                                 char strftime_buf[64];
                                 strftime(strftime_buf, sizeof(strftime_buf), "%c", &hal.timeinfo);
                                 message += strftime_buf;
@@ -556,20 +568,20 @@ void beginWebServer()
                                 request->send(200, "text/plain", message); });
 
     server.on("/conf", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                 Serial.println(request->getParam("json", true, false)->value());
                                 deserializeJson(config, request->getParam(0)->value());
                                 request->send(200, "text/plain", "OK");
                                 hal.saveConfig(); });
 
     server.on("/poweroff", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                                 request->send(200, "text/plain", "OK");
                                 delay(50);
                                 hal.powerOff(); });
 
     server.on("/switch_file_system", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                                 file_for_TF =! file_for_TF;
                                 if (file_for_TF) {
                                     if (!peripherals.isSDLoaded()) {
@@ -596,7 +608,7 @@ void beginWebServer()
                                     request->send(200, "text/plain", "LittleFS");
                                 } });
     server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                                 if (file_for_TF) {
                                     request->send(200, "text/plain", "SD");
                                 } else {
@@ -606,16 +618,16 @@ void beginWebServer()
     server.on("/status", HTTP_GET, fs_status);
 
     server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest *request)
-               { request->send(200, "application/json", config.as<String>()); });
+              { request->send(200, "application/json", config.as<String>()); });
 
     server.on("/reset", HTTP_POST, [](AsyncWebServerRequest *request)
-               {
+              {
                                 request->send(200, "text/plain", "OK");
                                 delay(100);
                                 ESP.restart(); });
 
     server.on("/heap", HTTP_GET, [](AsyncWebServerRequest *request)
-               { request->send(200, "text/plain", String(ESP.getFreeHeap())); });
+              { request->send(200, "text/plain", String(ESP.getFreeHeap())); });
 
     if (file_for_TF)
     {

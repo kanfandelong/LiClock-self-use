@@ -49,8 +49,7 @@ void Peripherals::check()
         msg += "BQ27441电量计\n";
     }
     xSemaphoreGive(i2cMutex);
-    Serial.printf("Peripherals check OK: 0x%02x\n", i2cbitmask);
-    F_LOG("Peripherals check OK: 0x%02x", i2cbitmask);
+    info("Peripherals check OK: 0x%02x", i2cbitmask);
     Serial.println(msg);
     GUI::msgbox("检测到的外设", msg.c_str(), 5);
     i2cbitmask |= PERIPHERALS_SD_BIT;
@@ -99,8 +98,7 @@ uint16_t Peripherals::checkAvailable(uint16_t bitmask)
 bool Peripherals::load(uint16_t bitmask)
 {
     bool staitus = true;
-    Serial.printf("[外设] 外设加载：0x%x -> 0x%x，当前安装：0x%x\n", peripherals_load, bitmask, peripherals_current);
-    F_LOG("外设加载:0x%x -> 0x%x,当前安装,0x%x", peripherals_load, bitmask, peripherals_current);
+    info("外设加载:0x%x -> 0x%x,当前安装,0x%x", peripherals_load, bitmask, peripherals_current);
     if (bitmask & PERIPHERALS_SD_BIT && (peripherals_load & PERIPHERALS_SD_BIT) == 0)
     {
         // 需要加载TF卡
@@ -117,7 +115,7 @@ bool Peripherals::load(uint16_t bitmask)
             if (SD.begin(PIN_SD_CS, SDSPI, freq) == false)
             {
                 delay(100);
-                F_LOG("TF卡挂载失败,尝试重新挂载");
+                info("TF卡挂载失败,尝试重新挂载");
                 if (SD.begin(PIN_SD_CS, SDSPI, freq) == false)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");
@@ -172,8 +170,7 @@ bool Peripherals::load(uint16_t bitmask)
         if (!aht.begin())
         {
             xSemaphoreGive(i2cMutex);
-            Serial.println("Could not find AHT? Check wiring");
-            F_LOG("Could not find AHT? Check wiring");
+            warn("Could not find AHT? Check wiring");
             check();
         }
         else
@@ -187,8 +184,7 @@ bool Peripherals::load(uint16_t bitmask)
         if (!sht.begin())
         {
             xSemaphoreGive(i2cMutex);
-            Serial.println("Could not find SHT30? Check wiring");
-            F_LOG("Could not find AHT? Check wiring");
+            warn("Could not find AHT? Check wiring");
             check();
         }
         else{
@@ -204,9 +200,7 @@ bool Peripherals::load(uint16_t bitmask)
         if (!bmp.begin())
         {
             xSemaphoreGive(i2cMutex);
-            Serial.println(F("Could not find a valid BMP280 sensor, check wiring or "
-                             "try a different address!"));
-            F_LOG("Could not find a valid BMP280 sensor, check wiring or "
+            warn("Could not find a valid BMP280 sensor, check wiring or "
                   "try a different address!");
             check();
         }
@@ -237,7 +231,7 @@ void Peripherals::tf_unload(bool save_power){
     if (digitalRead(PIN_SD_CARDDETECT) == HIGH){
         log_w("[外设] TF卡不存在，无需卸载");
         return;
-    }else if(!(peripherals_load & PERIPHERALS_SD_BIT)){
+    }else if((peripherals_load & PERIPHERALS_SD_BIT) == 0){
         log_w("[外设] 未加载TF卡，无需卸载");
     }
     SD.end();
@@ -250,10 +244,8 @@ void Peripherals::tf_unload(bool save_power){
     gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
     if (save_power){
         log_i("[外设] 卸载并保持TF卡供电\n");
-        F_LOG("卸载并保持TF卡供电");
     }else{
         log_i("[外设] 卸载并关闭TF卡供电\n");
-        F_LOG("卸载并关闭TF卡供电");
     }
 }
 

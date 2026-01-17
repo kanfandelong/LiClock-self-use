@@ -125,10 +125,10 @@ void AppShowTH::drawGraph(EnvData *data, int count)
     display.drawLine(0, MARGIN_TOP, SCREEN_WIDTH, MARGIN_TOP, GxEPD_BLACK);
     display.drawLine(0, SCREEN_HEIGHT - MARGIN_BOTTOM,
                      SCREEN_WIDTH, SCREEN_HEIGHT - MARGIN_BOTTOM, GxEPD_BLACK);
-    
+
     // 添加中间分隔线以便区分温湿度区域
-    display.drawLine(0, MARGIN_TOP + GRAPH_HEIGHT_/2, 
-                     SCREEN_WIDTH, MARGIN_TOP + GRAPH_HEIGHT_/2, GxEPD_BLACK);
+    display.drawLine(0, MARGIN_TOP + GRAPH_HEIGHT_ / 2,
+                     SCREEN_WIDTH, MARGIN_TOP + GRAPH_HEIGHT_ / 2, GxEPD_BLACK);
 
     // 绘制图例
     u8g2Fonts.setCursor(5, 13);
@@ -141,8 +141,8 @@ void AppShowTH::drawGraph(EnvData *data, int count)
     {
         int x = map(i, 0, count - 1, 0, SCREEN_WIDTH);
         int y = map(data[i].temp, minTemp, maxTemp,
-                   MARGIN_TOP + GRAPH_HEIGHT_/2, MARGIN_TOP);
-        
+                    MARGIN_TOP + GRAPH_HEIGHT_ / 2, MARGIN_TOP);
+
         // 绘制单像素点（使用小十字提高可见性）
         display.drawPixel(x, y, GxEPD_BLACK);
         // display.drawPixel(x+1, y, GxEPD_BLACK);
@@ -156,8 +156,8 @@ void AppShowTH::drawGraph(EnvData *data, int count)
     {
         int x = map(i, 0, count - 1, 0, SCREEN_WIDTH);
         int y = map(data[i].humi, minHumi, maxHumi,
-                   SCREEN_HEIGHT - MARGIN_BOTTOM, MARGIN_TOP + GRAPH_HEIGHT_/2 + 1);
-        
+                    SCREEN_HEIGHT - MARGIN_BOTTOM, MARGIN_TOP + GRAPH_HEIGHT_ / 2 + 1);
+
         // 绘制单像素点（使用小方块提高可见性）
         display.drawPixel(x, y, GxEPD_BLACK);
         // display.drawPixel(x+1, y, GxEPD_BLACK);
@@ -180,7 +180,8 @@ void AppShowTH::setup()
     int rawCount = parseDataFile("/System/temp.log", rawData, maxRawData);
 
     Serial.printf("Raw data points: %d\n", rawCount);
-    if (rawCount == 0) {
+    if (rawCount == 0)
+    {
         delete[] rawData;
         return;
     }
@@ -193,11 +194,11 @@ void AppShowTH::setup()
 
     // 绘制图表
     drawGraph(sampledData, sampledCount);
-    
+
     // 释放内存
     delete[] rawData;
     delete[] sampledData;
-    
+
     hal.wait_input();
     appManager.goBack();
 }

@@ -108,8 +108,7 @@ void NTPSync()
                 peripherals.rtc.setDoW(t.tm_wday);
             xSemaphoreGive(peripherals.i2cMutex);
             hal.rtc_offset();
-            Serial.printf("DS3231偏移秒数:%d,更新后的偏移寄存器值:%d\n", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
-            F_LOG("DS3231误差秒数:%d,更新后的偏移寄存器值:%d", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
+            info("DS3231偏移秒数:%d,更新后的偏移寄存器值:%d\n", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
         }    
         //Serial.printf("%d.%d.%d %d %d:%d:%d\n", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_wday, t.tm_hour, t.tm_min, t.tm_sec);
     }
@@ -137,24 +136,20 @@ void NTPSync()
             hal.pref.putInt("delta", delta);
             hal.every = every;
             hal.delta = delta;
-            Serial.printf("误差已更新，经过%d秒误差%d秒\n用上次得到的参数修正后的RTC时间\n作为当前时间与NTP相比误差为%d秒\n", every, delta, hal.last_update_delta);
-            F_LOG("误差已更新，经过%d秒误差%d秒,用上次得到的参数修正后的RTC时间,作为当前时间与NTP相比误差为%d秒", every, delta, hal.last_update_delta);
+            info("误差已更新，经过%d秒误差%d秒,用上次得到的参数修正后的RTC时间,作为当前时间与NTP相比误差为%d秒", every, delta, hal.last_update_delta);
         }
         else
         {
-            Serial.printf("误差过小，在误差修正过程\n中请尽可能使用睡眠模式\n");
-            F_LOG("误差过小，在误差修正过程中请尽可能使用睡眠模式");
+            info("误差过小，在误差修正过程中请尽可能使用睡眠模式");
         }
     }
     else if (hal.every != 100)
     {
-        Serial.printf("首次同步时间，已加载RTC偏移修正参数\n");
-        F_LOG("首次同步时间,已加载RTC偏移修正参数");
+        info("首次同步时间,已加载RTC偏移修正参数");
     }
     else
     {
-        Serial.printf("首次同步时间, now=%u\n", tv.tv_sec);
-        F_LOG("首次同步时间, now=%u", tv.tv_sec);
+        info("首次同步时间, now=%u", tv.tv_sec);
     }
     hal.pref.putUInt("lastsync", tv.tv_sec);
     hal.lastsync = tv.tv_sec;

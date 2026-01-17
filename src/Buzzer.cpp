@@ -53,7 +53,7 @@ void task_buzzer(void *)
                     FILE *fp = fopen(getRealPath(_path), "rb");
                     if (fp == NULL)
                     {
-                        Serial.printf("Buzzer: Failed to open file %s\n", _path);
+                        error("Buzzer: Failed to open file %s\n", _path);
                         useFile = false;
                         _path[0] = 0;
                         continue;

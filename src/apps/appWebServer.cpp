@@ -29,8 +29,10 @@ public:
     void setup();
 };
 static AppWebserver app;
+extern bool wsRunning;
 
-void AppWebserver::set(){
+void AppWebserver::set()
+{
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
 void AppWebserver::setup()
@@ -60,13 +62,14 @@ void AppWebserver::setup()
                 continue;
             if (hal.btnl.isPressing())
             {
-                while(hal.btnl.isPressing())delay(20);
+                while (hal.btnl.isPressing())
+                    delay(20);
                 // free(server);
                 MDNS.end();
                 WiFi.disconnect(true);
                 hal.can_sleep = true;
+                wsRunning = false;
                 end = false;
-                esp_restart();
                 break;
             }
         }

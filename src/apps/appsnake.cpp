@@ -1,141 +1,171 @@
 #include "AppManager.h"
 
-const uint8_t snakeSize = 4;  // 蛇身单位尺寸
+const uint8_t snakeSize = 4; // 蛇身单位尺寸
 const uint8_t screenWidth = 288 / snakeSize;
 const uint8_t screenHeight = 103 / snakeSize;
 
-const uint8_t wallOffsetX = 0;   // 墙距离屏幕左右边缘的距离
-const uint8_t wallOffsetY = 21;  // 墙距离屏幕上边缘的距离
+const uint8_t wallOffsetX = 0;  // 墙距离屏幕左右边缘的距离
+const uint8_t wallOffsetY = 21; // 墙距离屏幕上边缘的距离
 
 bool end = false;
 
-struct Point {
+struct Point
+{
   int8_t x;
   int8_t y;
 };
 
-Point snakeshuzu[screenWidth * screenHeight];  // 蛇身数组
+Point snakeshuzu[screenWidth * screenHeight]; // 蛇身数组
 uint8_t snakeLength;
-Point food;         // 食物坐标
-int score = 0;      // 分数
-int highscore = 0;  // 最高分数
-enum Direction { UP,
-                 DOWN,
-                 LEFT,
-                 RIGHT };  // 方向枚举
+Point food;        // 食物坐标
+int score = 0;     // 分数
+int highscore = 0; // 最高分数
+enum Direction
+{
+  UP,
+  DOWN,
+  LEFT,
+  RIGHT
+}; // 方向枚举
 Direction snakeDirection = RIGHT;
 unsigned long moveInterval = 100;
 unsigned long moveTimer = 0;
 unsigned long lastChangeTime = 0;
 
-void IRAM_ATTR changeR() {
+void IRAM_ATTR changeR()
+{
   // 检查距离上次切换的时间是否足够长，如果是则切换方向
-  if (millis() - lastChangeTime > 200) {
+  if (millis() - lastChangeTime > 200)
+  {
     Serial.println("按键1按下");
     lastChangeTime = millis();
-    if (snakeDirection == UP) {
+    if (snakeDirection == UP)
+    {
       snakeDirection = RIGHT;
-    } else if (snakeDirection == RIGHT) {
+    }
+    else if (snakeDirection == RIGHT)
+    {
       snakeDirection = DOWN;
-    } else if (snakeDirection == DOWN) {
+    }
+    else if (snakeDirection == DOWN)
+    {
       snakeDirection = LEFT;
-    } else if (snakeDirection == LEFT) {
+    }
+    else if (snakeDirection == LEFT)
+    {
       snakeDirection = UP;
     }
   }
 }
 
-void IRAM_ATTR changeL() {
+void IRAM_ATTR changeL()
+{
   // 检查距离上次切换的时间是否足够长，如果是则切换方向
-  if (millis() - lastChangeTime > 200) {
+  if (millis() - lastChangeTime > 200)
+  {
     Serial.println("按键2按下");
     lastChangeTime = millis();
-    if (snakeDirection == UP) {
+    if (snakeDirection == UP)
+    {
       snakeDirection = LEFT;
-    } else if (snakeDirection == LEFT) {
+    }
+    else if (snakeDirection == LEFT)
+    {
       snakeDirection = DOWN;
-    } else if (snakeDirection == DOWN) {
+    }
+    else if (snakeDirection == DOWN)
+    {
       snakeDirection = RIGHT;
-    } else if (snakeDirection == RIGHT) {
+    }
+    else if (snakeDirection == RIGHT)
+    {
       snakeDirection = UP;
     }
   }
 }
 
-
 static const uint8_t snake_bits[] = {
-   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-   0x00, 0xf8, 0x0f, 0x00, 0x00, 0xfc, 0x1f, 0x00, 0x00, 0xfe, 0x1f, 0x00,
-   0x00, 0xe6, 0x1f, 0x00, 0x00, 0xe6, 0x1f, 0x00, 0x00, 0xfe, 0x9f, 0x0f,
-   0x00, 0x00, 0x9f, 0x1f, 0x00, 0x00, 0x9f, 0x1f, 0xf0, 0xff, 0x9f, 0x1f,
-   0xf8, 0xff, 0x9f, 0x1f, 0xf8, 0xff, 0x9f, 0x1f, 0xf8, 0xff, 0xcf, 0x1f,
-   0xf8, 0x03, 0xe0, 0x1f, 0xf8, 0xf3, 0xff, 0x1f, 0xf8, 0xf9, 0xff, 0x1f,
-   0xf8, 0xf9, 0xff, 0x1f, 0xf8, 0xf9, 0xff, 0x0f, 0xf8, 0xf9, 0x00, 0x00,
-   0xf0, 0xf9, 0x3f, 0x00, 0xe0, 0xf9, 0x7f, 0x00, 0x00, 0xf8, 0x67, 0x00,
-   0x00, 0xf8, 0x67, 0x00, 0x00, 0xf8, 0x7f, 0x00, 0x00, 0xf8, 0x3f, 0x00,
-   0x00, 0xf0, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xf8, 0x0f, 0x00, 0x00, 0xfc, 0x1f, 0x00, 0x00, 0xfe, 0x1f, 0x00,
+    0x00, 0xe6, 0x1f, 0x00, 0x00, 0xe6, 0x1f, 0x00, 0x00, 0xfe, 0x9f, 0x0f,
+    0x00, 0x00, 0x9f, 0x1f, 0x00, 0x00, 0x9f, 0x1f, 0xf0, 0xff, 0x9f, 0x1f,
+    0xf8, 0xff, 0x9f, 0x1f, 0xf8, 0xff, 0x9f, 0x1f, 0xf8, 0xff, 0xcf, 0x1f,
+    0xf8, 0x03, 0xe0, 0x1f, 0xf8, 0xf3, 0xff, 0x1f, 0xf8, 0xf9, 0xff, 0x1f,
+    0xf8, 0xf9, 0xff, 0x1f, 0xf8, 0xf9, 0xff, 0x0f, 0xf8, 0xf9, 0x00, 0x00,
+    0xf0, 0xf9, 0x3f, 0x00, 0xe0, 0xf9, 0x7f, 0x00, 0x00, 0xf8, 0x67, 0x00,
+    0x00, 0xf8, 0x67, 0x00, 0x00, 0xf8, 0x7f, 0x00, 0x00, 0xf8, 0x3f, 0x00,
+    0x00, 0xf0, 0x1f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 class Appsnake : public AppBase
 {
 private:
-    /* data */
+  /* data */
 public:
-    Appsnake()
-    {
-        name = "snake";
-        title = "贪吃蛇";
-        description = "墨水屏贪吃蛇";
-        image = snake_bits;
-        noDefaultEvent = true;
-        _showInList = true;
-    }
-    void set();
-    void spawnFood();
-    bool isSnakeAt(int16_t x, int16_t y);
-    void resetGame();
-    void drawGame();
-    void moveSnake();
-    void zhuangqiang();
-    void chiziij();
-    void eatFood();
-    void saveHighscore();
-    void menu();
-    void setup();
+  Appsnake()
+  {
+    name = "snake";
+    title = "贪吃蛇";
+    description = "墨水屏贪吃蛇";
+    image = snake_bits;
+    noDefaultEvent = true;
+    _showInList = true;
+  }
+  void set();
+  void spawnFood();
+  bool isSnakeAt(int16_t x, int16_t y);
+  void resetGame();
+  void drawGame();
+  void moveSnake();
+  void zhuangqiang();
+  void chiziij();
+  void eatFood();
+  void saveHighscore();
+  void menu();
+  void setup();
 };
 static Appsnake snake;
 
-void Appsnake::set(){
-    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+void Appsnake::set()
+{
+  _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
 
-void Appsnake::spawnFood() {
+void Appsnake::spawnFood()
+{
   // 随机生成食物坐标
-  do {
+  do
+  {
     food.x = random(screenWidth);
     food.y = random(screenHeight);
-  } while (isSnakeAt(food.x, food.y));  // 如果和蛇身重合，则重新生成坐标
+  } while (isSnakeAt(food.x, food.y)); // 如果和蛇身重合，则重新生成坐标
 }
 
-bool Appsnake::isSnakeAt(int16_t x, int16_t y) {
+bool Appsnake::isSnakeAt(int16_t x, int16_t y)
+{
   // 检查蛇身是否在指定的坐标上
-  for (uint8_t i = 0; i < snakeLength; i++) {
-    if (snakeshuzu[i].x == x && snakeshuzu[i].y == y) {
+  for (uint8_t i = 0; i < snakeLength; i++)
+  {
+    if (snakeshuzu[i].x == x && snakeshuzu[i].y == y)
+    {
       return true;
     }
   }
   return false;
 }
 
-void Appsnake::resetGame() {
+void Appsnake::resetGame()
+{
   snakeLength = 5;
-  for (int i = 0; i < screenWidth * screenHeight; i++) {
+  for (int i = 0; i < screenWidth * screenHeight; i++)
+  {
     snakeshuzu[i].x = -1;
     snakeshuzu[i].y = -1;
   }
   snakeshuzu[0].x = 10;
   snakeshuzu[0].y = 10;
-  for (uint8_t i = 1; i < snakeLength; i++) {
+  for (uint8_t i = 1; i < snakeLength; i++)
+  {
     snakeshuzu[i].x = snakeshuzu[i - 1].x - 1;
     snakeshuzu[i].y = snakeshuzu[i - 1].y;
   }
@@ -143,26 +173,25 @@ void Appsnake::resetGame() {
   drawGame();
 }
 
-void Appsnake::drawGame() {
+void Appsnake::drawGame()
+{
 
   display.fillScreen(GxEPD_WHITE);
 
   // 画蛇
-  for (uint8_t i = 0; i < snakeLength; i++) {
+  for (uint8_t i = 0; i < snakeLength; i++)
+  {
     display.fillRect((snakeshuzu[i].x * snakeSize) + wallOffsetX, (snakeshuzu[i].y * snakeSize) + wallOffsetY, snakeSize, snakeSize, GxEPD_BLACK);
   }
 
   // 画食物
   display.fillRect((food.x * snakeSize) + wallOffsetX, (food.y * snakeSize) + wallOffsetY, snakeSize, snakeSize, GxEPD_BLACK);
 
-
   // 显示分数
   u8g2Fonts.setCursor(5, 15);
   u8g2Fonts.print("得分:");
   u8g2Fonts.setCursor(35, 15);
   u8g2Fonts.print(score);
-
-
 
   u8g2Fonts.setCursor(228, 15);
   u8g2Fonts.print("最高:");
@@ -174,40 +203,44 @@ void Appsnake::drawGame() {
 
   display.drawRoundRect(4, 21, 288, 102, 2, GxEPD_BLACK);
 
-  //Serial.println(score);
+  // Serial.println(score);
 
   display.display(true);
 }
 
-void Appsnake::moveSnake() {
+void Appsnake::moveSnake()
+{
 
   // 保存蛇头位置
   Point head = snakeshuzu[0];
 
   // 从尾部开始，移动蛇身
-  for (uint8_t i = snakeLength - 1; i > 0; i--) {
+  for (uint8_t i = snakeLength - 1; i > 0; i--)
+  {
     snakeshuzu[i].x = snakeshuzu[i - 1].x;
     snakeshuzu[i].y = snakeshuzu[i - 1].y;
   }
 
   // 将蛇头移动到新的位置
-  switch (snakeDirection) {
-    case UP:
-      head.y--;
-      break;
-    case DOWN:
-      head.y++;
-      break;
-    case LEFT:
-      head.x--;
-      break;
-    case RIGHT:
-      head.x++;
-      break;
+  switch (snakeDirection)
+  {
+  case UP:
+    head.y--;
+    break;
+  case DOWN:
+    head.y++;
+    break;
+  case LEFT:
+    head.x--;
+    break;
+  case RIGHT:
+    head.x++;
+    break;
   }
 
   // 碰撞检测
-  if (head.x < 0 || head.x >= screenWidth || head.y < 0 || head.y >= screenHeight) {
+  if (head.x < 0 || head.x >= screenWidth || head.y < 0 || head.y >= screenHeight)
+  {
     // 蛇头撞墙
     zhuangqiang();
     // 等待按键输入
@@ -219,8 +252,10 @@ void Appsnake::moveSnake() {
     return;
   }
 
-  for (int i = 1; i < snakeLength; i++) {
-    if (head.x == snakeshuzu[i].x && head.y == snakeshuzu[i].y) {
+  for (int i = 1; i < snakeLength; i++)
+  {
+    if (head.x == snakeshuzu[i].x && head.y == snakeshuzu[i].y)
+    {
       // 蛇头撞到自己身体
       Serial.println("吃自己了！！！！！！！！");
       chiziij();
@@ -237,19 +272,22 @@ void Appsnake::moveSnake() {
   // 将蛇头放回数组的第一个位置
   snakeshuzu[0] = head;
 
-  if (snakeshuzu[0].x == food.x && snakeshuzu[0].y == food.y) {
+  if (snakeshuzu[0].x == food.x && snakeshuzu[0].y == food.y)
+  {
     // 吃到食物
     eatFood();
   }
   drawGame();
 }
 
-void Appsnake::zhuangqiang() {
+void Appsnake::zhuangqiang()
+{
 
   display.fillScreen(GxEPD_WHITE);
   u8g2Fonts.setCursor(80, 59);
   u8g2Fonts.print("怎么玩的，别往墙上撞啊!");
-  if (score > highscore) {
+  if (score > highscore)
+  {
     highscore = score;
     saveHighscore();
     u8g2Fonts.setCursor(61, 75);
@@ -260,11 +298,13 @@ void Appsnake::zhuangqiang() {
   display.display(true);
 }
 
-void Appsnake::chiziij() {
+void Appsnake::chiziij()
+{
   display.fillScreen(GxEPD_WHITE);
   u8g2Fonts.setCursor(80, 59);
   u8g2Fonts.print("吃食物啊，吃自己干嘛!");
-  if (score > highscore) {
+  if (score > highscore)
+  {
     highscore = score;
     saveHighscore();
     u8g2Fonts.setCursor(61, 75);
@@ -276,12 +316,14 @@ void Appsnake::chiziij() {
   display.display(true);
 }
 
-void Appsnake::eatFood() {
+void Appsnake::eatFood()
+{
   // 增加蛇的长度
   snakeLength++;
-  score += 1;  // 将分数增加10
+  score += 1; // 将分数增加10
   // 将新的蛇头位置添加到数组的第一个元素
-  for (uint8_t i = snakeLength - 1; i > 0; i--) {
+  for (uint8_t i = snakeLength - 1; i > 0; i--)
+  {
     snakeshuzu[i].x = snakeshuzu[i - 1].x;
     snakeshuzu[i].y = snakeshuzu[i - 1].y;
   }
@@ -291,86 +333,100 @@ void Appsnake::eatFood() {
   spawnFood();
 }
 
-void Appsnake::saveHighscore() {
+void Appsnake::saveHighscore()
+{
   File file = LittleFS.open("/dat/snakehighscore.txt", "w");
-  if (file) {
+  if (file)
+  {
     file.print(highscore);
     file.close();
   }
-  //printHighscore();
+  // printHighscore();
 }
 
 void Appsnake::menu()
 {
-    static const menu_item appMenu_main[] = {
-    {NULL, "返回"},
-    {NULL, "退出"},
-    //{NULL, buf},
-    {NULL, NULL},
-    };
-    int res = GUI::menu("菜单",appMenu_main);
-    switch (res)
-        {
-        case 0:
-            break;
-        case 1:
-            saveHighscore();
-            detachInterrupt(digitalPinToInterrupt(hal.btnl.pin()));
-            detachInterrupt(digitalPinToInterrupt(hal.btnr.pin()));
-            end = true;
-            appManager.goBack();
-            break;
-        default:
-            GUI::info_msgbox("提示", "未知选项");
-            break;
-        }
+  static const menu_item appMenu_main[] = {
+      {NULL, "返回"},
+      {NULL, "退出"},
+      //{NULL, buf},
+      {NULL, NULL},
+  };
+  int res = GUI::menu("菜单", appMenu_main);
+  switch (res)
+  {
+  case 0:
+    break;
+  case 1:
+    saveHighscore();
+    detachInterrupt(digitalPinToInterrupt(hal.btnl.pin()));
+    detachInterrupt(digitalPinToInterrupt(hal.btnr.pin()));
+    end = true;
+    appManager.goBack();
+    break;
+  default:
+    GUI::info_msgbox("提示", "未知选项");
+    break;
+  }
 }
 
 void Appsnake::setup()
 {
-    u8g2Fonts.setFontDirection(0);
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK);  // 设置前景色
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);  // 设置背景色
-    if(LittleFS.exists("/dat") == false){LittleFS.mkdir("/dat");}
-    File file = LittleFS.open("/dat/snakehighscore.txt", "r");
-    if (file) {
-        highscore = file.parseInt();
-        Serial.println("读取最高分");
-        file.close();
-    }
-    display.fillScreen(GxEPD_WHITE);
+  u8g2Fonts.setFontDirection(0);
+  u8g2Fonts.setForegroundColor(GxEPD_BLACK); // 设置前景色
+  u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // 设置背景色
+  if (LittleFS.exists("/dat") == false)
+  {
+    LittleFS.mkdir("/dat");
+  }
+  File file = LittleFS.open("/dat/snakehighscore.txt", "r");
+  if (file)
+  {
+    highscore = file.parseInt();
+    Serial.println("读取最高分");
+    file.close();
+  }
+  display.fillScreen(GxEPD_WHITE);
 
-    int logoX = 76;
-    int logoY = 104;
-    int moveStep = -8;  // 每次向上移动4个像素
+  int logoX = 76;
+  int logoY = 104;
+  int moveStep = -8; // 每次向上移动4个像素
 
-    display.fillScreen(GxEPD_WHITE);
-    logoY += moveStep;
-    //display.drawInvertedBitmap(logoX, logoY, logo, 143, 66, GxEPD_BLACK);
-    u8g2Fonts.setCursor(88, logoY);
-    u8g2Fonts.print("按任意按键开始游戏");
-    display.display();
+  display.fillScreen(GxEPD_WHITE);
+  logoY += moveStep;
+  // display.drawInvertedBitmap(logoX, logoY, logo, 143, 66, GxEPD_BLACK);
+  u8g2Fonts.setCursor(88, logoY);
+  u8g2Fonts.print("按任意按键开始游戏");
+  display.display();
 
-    // 等待按键输入
-    /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
-      delay(100);
-    } */
-    hal.wait_input();
-    display.fillScreen(GxEPD_WHITE);
-    attachInterrupt(digitalPinToInterrupt(hal.btnr.pin()), changeR, FALLING);
-    attachInterrupt(digitalPinToInterrupt(hal.btnl.pin()), changeL, FALLING);
-    spawnFood();
-    resetGame();
-    int a = 0;
-    while(end == false)
+  // 等待按键输入
+  /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
+    delay(100);
+  } */
+  hal.wait_input();
+  display.fillScreen(GxEPD_WHITE);
+  attachInterrupt(digitalPinToInterrupt(hal.btnr.pin()), changeR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(hal.btnl.pin()), changeL, FALLING);
+  spawnFood();
+  resetGame();
+  int a = 0;
+  while (end == false)
+  {
+    a++;
+    if (hal.btnc.isPressing())
     {
-        a++;
-        if(hal.btnc.isPressing()){menu();}
-        if(a > 20){a = 0;display.display();}
-        if (millis() - moveTimer > moveInterval) {
-            moveTimer = millis();
-            moveSnake();
-        }
-        delay(10);
+      menu();
     }
+    if (a > 20)
+    {
+      a = 0;
+      display.display();
+    }
+    if (millis() - moveTimer > moveInterval)
+    {
+      moveTimer = millis();
+      moveSnake();
+    }
+    delay(10);
+  }
 }

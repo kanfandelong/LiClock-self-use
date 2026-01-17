@@ -20,22 +20,41 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+// 将原函数注释，使用适配log_i函数的新实现
+// static int luaB_print (lua_State *L) {
+//   int n = lua_gettop(L);  /* number of arguments */
+//   int i;
+//   for (i = 1; i <= n; i++) {  /* for each argument */
+//     size_t l;
+//     const char *s = luaL_tolstring(L, i, &l);  /* convert it to string */
+//     if (i > 1)  /* not the first element? */
+//       lua_writestring("\t", 1);  /* add a tab before it */
+//     lua_writestring(s, l);  /* print it */
+//     lua_pop(L, 1);  /* pop result */
+//   }
+//   // lua_writeline();
+//   return 0;
+// }
 
 static int luaB_print (lua_State *L) {
   int n = lua_gettop(L);  /* number of arguments */
   int i;
-  for (i = 1; i <= n; i++) {  /* for each argument */
+  luaL_Buffer b;
+  luaL_buffinit(L, &b);
+  for (i = 1; i <= n; i++) {
     size_t l;
     const char *s = luaL_tolstring(L, i, &l);  /* convert it to string */
-    if (i > 1)  /* not the first element? */
-      lua_writestring("\t", 1);  /* add a tab before it */
-    lua_writestring(s, l);  /* print it */
+    if (i > 1)
+      luaL_addstring(&b, "\t");
+    luaL_addlstring(&b, s, l);
     lua_pop(L, 1);  /* pop result */
   }
-  lua_writeline();
+  luaL_pushresult(&b);
+  size_t bl;
+  const char *line = lua_tolstring(L, -1, &bl);
+  lua_writestring(line, bl);  // 调用一次 lua_writestring，让它加一次换行
   return 0;
 }
-
 
 /*
 ** Creates a warning with all given arguments.

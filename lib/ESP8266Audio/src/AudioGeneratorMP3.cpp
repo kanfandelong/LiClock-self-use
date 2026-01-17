@@ -215,6 +215,39 @@ bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
   return true;
 }
 
+const char* mad_error_to_string(enum mad_error error) {
+    switch (error) {
+        case MAD_ERROR_NONE:            return "no error";
+        case MAD_ERROR_BUFLEN:          return "input buffer too small (or EOF)";
+        case MAD_ERROR_BUFPTR:          return "invalid (null) buffer pointer";
+        case MAD_ERROR_NOMEM:           return "not enough memory";
+        case MAD_ERROR_LOSTSYNC:        return "lost synchronization";
+        case MAD_ERROR_BADLAYER:        return "reserved header layer value";
+        case MAD_ERROR_BADBITRATE:      return "forbidden bitrate value";
+        case MAD_ERROR_BADSAMPLERATE:   return "reserved sample frequency value";
+        case MAD_ERROR_BADEMPHASIS:     return "reserved emphasis value";
+        case MAD_ERROR_BADCRC:          return "CRC check failed";
+        case MAD_ERROR_BADBITALLOC:     return "forbidden bit allocation value";
+        case MAD_ERROR_BADSCALEFACTOR:  return "bad scalefactor index";
+        case MAD_ERROR_BADMODE:         return "bad bitrate/mode combination";
+        case MAD_ERROR_BADFRAMELEN:     return "bad frame length";
+        case MAD_ERROR_BADBIGVALUES:    return "bad big_values count";
+        case MAD_ERROR_BADBLOCKTYPE:    return "reserved block_type";
+        case MAD_ERROR_BADSCFSI:        return "bad scalefactor selection info";
+        case MAD_ERROR_BADDATAPTR:      return "bad main_data_begin pointer";
+        case MAD_ERROR_BADPART3LEN:     return "bad audio data length";
+        case MAD_ERROR_BADHUFFTABLE:    return "bad Huffman table select";
+        case MAD_ERROR_BADHUFFDATA:     return "Huffman data overrun";
+        case MAD_ERROR_BADSTEREO:       return "incompatible block_type for JS";
+        default:                        return "unknown error";
+    }
+}
+
+void print_mad_error(enum mad_error error) {
+  if (error != MAD_ERROR_NONE) {
+    log_e("MP3 Decoding error: %s", mad_error_to_string(error));
+  }
+}
 
 bool AudioGeneratorMP3::loop()
 {
@@ -234,6 +267,7 @@ retry:
       }
 
       if (!DecodeNextFrame()) {
+        print_mad_error(stream->error);
         if (stream->error == MAD_ERROR_BUFLEN) {
           // randomly seeking can lead to endless
           // and unrecoverable "MAD_ERROR_BUFLEN" loop

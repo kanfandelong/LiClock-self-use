@@ -4,17 +4,17 @@
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 
 #if defined(E029A01)
-    GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY)); // 注意：此类略微修改过，使用两个缓冲区
+GxEPD2_BW<GxEPD2_290, GxEPD2_290::HEIGHT> display(GxEPD2_290(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY)); // 注意：此类略微修改过，使用两个缓冲区
 #else
-    #if defined(T5D)
-        GxEPD2_BW<GxEPD2_290_T5D, GxEPD2_290_T5D::HEIGHT> display(GxEPD2_290_T5D(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
-    #endif
-    #if defined(T5)
-        GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display(GxEPD2_290_T5(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
-    #endif
-    #if defined(T5D_gray)
-        GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display(GxEPD2_290_T5D_gray(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
-    #endif    
+#if defined(T5D)
+GxEPD2_BW<GxEPD2_290_T5D, GxEPD2_290_T5D::HEIGHT> display(GxEPD2_290_T5D(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
+#endif
+#if defined(T5)
+GxEPD2_BW<GxEPD2_290_T5, GxEPD2_290_T5::HEIGHT> display(GxEPD2_290_T5(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
+#endif
+#if defined(T5D_gray)
+GxEPD2_BW<GxEPD2_290_T5D_gray, GxEPD2_290_T5D_gray::HEIGHT> display(GxEPD2_290_T5D_gray(/*CS=5*/ CONFIG_SPI_CS, /*DC=*/CONFIG_PIN_DC, /*RST=*/CONFIG_PIN_RST, /*BUSY=*/CONFIG_PIN_BUSY));
+#endif
 #endif
 
 DynamicJsonDocument config(1024);
@@ -32,12 +32,16 @@ void task_appManager(void *)
 void setup()
 {
     // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // 禁用掉电检测
+    // log_i("开始禁用TIMG1_WDTCONFIG0_REG");
+    // WRITE_PERI_REG(0x3FF60064, 0x50D83AA1);
+    // WRITE_PERI_REG(0x3FF60048, 0x0);
+    // log_i("禁用TIMG1_WDTCONFIG0_REG完成");
     hal.init();
     hal.update();
 
     int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
-    if(hal.VCC < auto_sleep_mv)
+    if (hal.VCC < auto_sleep_mv)
     {
         sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
         GUI::info_msgbox("提示", buf);
@@ -45,15 +49,18 @@ void setup()
     }
 
     esp_reset_reason_t reset_reason = esp_reset_reason();
-    if(reset_reason == ESP_RST_POWERON)
+    if (reset_reason == ESP_RST_POWERON)
     {
-        if (hal.pref.getBool(set_rtc_in_rst)){
+        if (hal.pref.getBool(set_rtc_in_rst))
+        {
             GUI::info_msgbox("提示", "正在联网对时...");
             hal.autoConnectWiFi();
             NTPSync();
         }
-        else {
-            if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT){
+        else
+        {
+            if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT)
+            {
                 GUI::info_msgbox("提示", "正在使用DS3231为ESP32对时...");
                 delay(1000);
                 struct timeval tv;
@@ -111,21 +118,28 @@ void setup()
     {
         appManager.gotoApp(appManager.getRealClock());
     }
-    if (hal.pref.getBool("temp_log", true)){
+    if (hal.pref.getBool("temp_log", true))
+    {
         log_i("进行温湿度记录");
         File temp_file = LittleFS.open("/System/temp.log", "a");
-        if (temp_file.size() > 1024 * 512){
+        if (!temp_file)
+        {
+            error("/System/temp.log打开失败");
+            return;
+        }
+        if (temp_file.size() > 1024 * 512)
+        {
             temp_file.close();
             LittleFS.remove("/System/temp.log");
             temp_file = LittleFS.open("/System/temp.log", "a");
         }
         temp_file.printf("%04d.%02d.%02d. %02d:%02d:%02d",
-            hal.timeinfo.tm_year + 1900,
-            hal.timeinfo.tm_mon + 1,
-            hal.timeinfo.tm_mday,
-            hal.timeinfo.tm_hour,
-            hal.timeinfo.tm_min,
-            hal.timeinfo.tm_sec);
+                         hal.timeinfo.tm_year + 1900,
+                         hal.timeinfo.tm_mon + 1,
+                         hal.timeinfo.tm_mday,
+                         hal.timeinfo.tm_hour,
+                         hal.timeinfo.tm_min,
+                         hal.timeinfo.tm_sec);
         if (peripherals.peripherals_current & PERIPHERALS_AHT20_BIT)
         {
             sensors_event_t humidity, temp;
@@ -134,7 +148,8 @@ void setup()
             peripherals.aht.getEvent(&humidity, &temp);
             xSemaphoreGive(peripherals.i2cMutex);
             temp_file.printf(" Temperature:%.2f℃ Humidity:%.2f%%\n", temp.temperature, humidity.relative_humidity);
-        } else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
+        }
+        else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
         {
             peripherals.load_append(PERIPHERALS_SHT30_BIT);
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);

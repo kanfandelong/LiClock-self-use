@@ -46,6 +46,23 @@ typedef struct
 class HAL
 {
 public:
+    File open(const char *path, const char *mode = "r", const bool create = false);
+    File open(const String &path, const char *mode = "r", const bool create = false);
+    bool exists(const char* path);
+    bool exists(const String& path);
+
+    bool remove(const char* path);
+    bool remove(const String& path);
+
+    bool rename(const char* pathFrom, const char* pathTo);
+    bool rename(const String& pathFrom, const String& pathTo);
+
+    bool mkdir(const char *path);
+    bool mkdir(const String &path);
+
+    bool rmdir(const char *path);
+    bool rmdir(const String &path);
+
     void printBatteryInfo();
     // void task_bat_info_update();
     bool connected_wifi(const char* ssid, const char* pass);
@@ -55,8 +72,11 @@ public:
     void loadConfig();
     void getTime();
     char* get_char_sha_key(const char *str, bool mode = false);
+    String get_CAcert(char* filePath);
+    String get_yiyan(uint8_t maxlen = 17);
     IPAddress getip();
     bool cheak_firmware_update();
+    char* get_file_md5_char(const char* path); 
     void cheak_freq(int _freq = 80, bool setfreq = false);
     void WiFiConfigSmartConfig();
     void WiFiConfigManual();

@@ -232,7 +232,8 @@ namespace GUI
         while (1)
         {
             delay(10);
-            if (millis() - start > 30000){
+            if (millis() - start > 30000)
+            {
                 hal.wait_input();
                 start = millis();
             }
@@ -270,7 +271,7 @@ namespace GUI
         constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
         int total = 0;
         bool hasIcon = false;
-        
+
         // 计算总项目数和检查图标
         while (options[total].title != NULL)
         {
@@ -278,17 +279,17 @@ namespace GUI
                 hasIcon = true;
             ++total;
         }
-        
+
         // 确保默认选中在有效范围内
         int selected = constrain(default_selected, 0, total - 1);
         int pageStart = 0;
-        
+
         // 计算初始页面起始位置，确保默认选中项可见
         if (total > number_of_items)
         {
             pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
         }
-        
+
         int barHeight = number_of_items * 96 / total;
         int barPos = 0;
         bool updated = true;
@@ -298,7 +299,6 @@ namespace GUI
         hal.hookButton();
         push_buffer();
         wait_time = millis();
-        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -407,12 +407,12 @@ namespace GUI
                 delay(10);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
         }
-        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         return selected;
@@ -488,7 +488,7 @@ namespace GUI
 
         // 确保默认选中在有效范围内
         selected = constrain(default_selected, 0, total - 1);
-        
+
         // 计算初始页面起始位置，确保默认选中项可见
         if (total > number_of_items)
         {
@@ -496,7 +496,6 @@ namespace GUI
         }
 
         wait_time = millis();
-        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -635,12 +634,12 @@ namespace GUI
                 delay(10);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
         }
-        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         return selected;
@@ -849,7 +848,8 @@ namespace GUI
             }
             // delay(200); // 适当延迟，避免重复输入
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
@@ -897,7 +897,6 @@ namespace GUI
         }
         bool changed = true;
         wait_time = millis();
-        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -996,12 +995,12 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
         }
-        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         display.display(true); // 全局刷新一次
@@ -1047,7 +1046,6 @@ namespace GUI
         bool changed = true;
         wait_time = millis();
 
-        display.epd2.set_interactive_mode(true);
         while (1)
         {
             /* 按钮处理优化 */
@@ -1141,13 +1139,13 @@ namespace GUI
             }
 
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
         }
 
-        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         display.display(true); // 刷新
@@ -1172,7 +1170,6 @@ namespace GUI
         int current_value = pre_value;
         bool changed = true;
         wait_time = millis();
-        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -1263,23 +1260,32 @@ namespace GUI
                 display.displayWindow(start_x, start_y, window_w, window_h);
             }
             delay(10);
-            if (millis() - wait_time > 30000){
+            if (millis() - wait_time > 30000)
+            {
                 hal.wait_input();
                 wait_time = millis();
             }
         }
-        display.epd2.set_interactive_mode(false);
         pop_buffer();
         hal.unhookButton();
         display.display(); // 全局刷新一次
         return current_value;
     }
+    /**
+     * @brief 绘制LBM格式的灰度图像
+     * @param x 图像左上角X坐标
+     * @param y 图像左上角Y坐标
+     * @param filename LBM文件路径
+     * @param color 仅在1位图像时使用，表示前景色
+     * @note 支持1位、2位、4位灰度图像
+     * @note 调用此函数绘制图像后不需要再调用display.display()，函数内部会自动刷新显示
+     */
     void drawLBM(int16_t x, int16_t y, const char *filename, uint16_t color)
     {
         FILE *fp = fopen(getRealPath(filename), "rb");
         if (!fp)
         {
-            Serial.printf("File %s not found!\n", filename);
+            error("File %s not found!\n", filename);
             return;
         }
         HEADGRAY header;
@@ -1357,7 +1363,21 @@ namespace GUI
             for (int gray_level = 15; gray_level >= 0; gray_level--)
             {
                 if (display_gray == 16)
+                {
                     display.setgray(gray_level);
+                    if (gray_level >= 10)
+                    {
+                        display.epd2.PLL_set(0x21);
+                    }
+                    else if (gray_level >= 5)
+                    {
+                        display.epd2.PLL_set(0x3a);
+                    }
+                    else
+                    {
+                        display.epd2.PLL_set(0x3c);
+                    }
+                }
                 else
                 {
                     display.setgray(display_gray);
@@ -1381,6 +1401,7 @@ namespace GUI
                 display.display(true); // 刷新当前灰阶层
             }
         }
+        display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
     }
     /**
      * 由于lmage2Lcd的像素排列顺序（高位到低位）与XBM（低位到高位）的不同，所以重写了单色位图绘制函数，与Adafruit_GFX库函数的绘制函数在函数输入上（除了位图的像素排列）完全相同
@@ -1410,10 +1431,10 @@ namespace GUI
             }
         }
     }
-    // 请注意，BMP位图是在屏幕物理方向的物理位置绘制的
-    #define input_buffer_pixels 10 // 可能会影响性能，数值越大越费动态内存
-    #define max_row_width 500      // 限制最大尺寸 只能为8的整数
-    #define max_palette_pixels 500 // 限制最大尺寸 只能为8的整数
+// 请注意，BMP位图是在屏幕物理方向的物理位置绘制的
+#define input_buffer_pixels 10 // 可能会影响性能，数值越大越费动态内存
+#define max_row_width 500      // 限制最大尺寸 只能为8的整数
+#define max_palette_pixels 500 // 限制最大尺寸 只能为8的整数
 
     /**
      * @brief  BMP图片抖动显示GUI
@@ -1425,7 +1446,7 @@ namespace GUI
      * @param  y 显示坐标
      * @param  with_color 颜色
      */
-    void drawBMP(FS *fs, const char *filename, bool partial_update, bool overwrite, int16_t x, int16_t y, bool with_color)
+    void drawBMP(const char *filename, bool partial_update, bool overwrite, int16_t x, int16_t y, bool with_color)
     {
         uint8_t input_buffer[3 * input_buffer_pixels];        // 深度不超过24
         uint8_t output_row_mono_buffer[max_row_width / 8];    // 用于至少一行黑白比特的缓冲区
@@ -1439,12 +1460,11 @@ namespace GUI
         bool flip = true;   // 位图自下而上存储
         // uint32_t startTime = millis();
         // if ((x >= display.width()) || (y >= display.height())) return;
-        file = fs->open(filename, "r");
+        file = hal.open(filename, "r");
         if (!file)
         {
             msgbox("文件不存在", filename);
-            Serial.print("文件不存在\n");
-            Serial.println(filename);
+            error("文件 %s 不存在", filename);
             return;
         }
         // 解析BMP标头
@@ -1747,8 +1767,7 @@ namespace GUI
                             } // end pixel
                         } // end line
                         delete[] bmp8; // 释放内存
-                    } 
-                    while (display.nextPage());
+                    } while (display.nextPage());
                     display.powerOff(); // 为仅关闭电源
                     Serial.println("图像显示完毕");
                 }

@@ -50,8 +50,7 @@ AppBase *AppManager::getRealClock()
     }
     if (appManager.getPtrByName(bootapp.c_str()) == NULL)
     {
-        Serial.println("严重错误 之前设置的App不存在，使用默认时钟App");
-        F_LOG("严重错误 之前设置的App不存在，使用默认时钟App");
+        warn("严重错误 之前设置的App不存在，使用默认时钟App");
         hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
         bootapp = "clockonly";
     }
@@ -273,7 +272,6 @@ AppBase *AppManager::appSelector(bool showHidden)
         // 下面是选择
         idleTime = 0;
         waitc = false;
-        display.epd2.set_interactive_mode(true);
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -372,7 +370,6 @@ AppBase *AppManager::appSelector(bool showHidden)
                 break;
             }
         }
-        display.epd2.set_interactive_mode(false);
         if (finished == false)
         {
             int16_t x, y;
@@ -421,8 +418,7 @@ void AppManager::update()
         {
             this->app_to = res;
             method = APPMANAGER_GOTOAPP;
-            Serial.printf("正在跳转到APP：%d:%s\n", app_to->appID, app_to->name);
-            F_LOG("正在跳转到APP：%d:%s", app_to->appID, app_to->name);
+            info("正在跳转到APP：%d:%s", app_to->appID, app_to->name);
             return;
         }
         updateAgain = true;
@@ -456,7 +452,7 @@ void AppManager::update()
         if (peripherals.load(currentApp->peripherals_requested) == false)
         {
             GUI::msgbox("错误", "外设加载失败，APP运行将不稳定");
-            F_LOG("外设加载失败!");
+            warn("外设加载失败!");
         }
         currentApp->setup();
         parameter = "";
@@ -487,7 +483,7 @@ void AppManager::update()
         if (peripherals.load(currentApp->peripherals_requested) == false)
         {
             GUI::msgbox("错误", "外设加载失败，APP运行将不稳定");
-            F_LOG("外设加载失败!");
+            warn("外设加载失败!");
         }
         currentApp->setup();
         updateAgain = true;

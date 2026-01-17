@@ -43,7 +43,7 @@ void cmd_task(void *) {
     CYAN;
     HEADER_COLOR;
     Serial.println("LiClock Serial Tool");
-    Serial.println("Type '#help*' for available commands\n");
+    Serial.println("Type '#help*' for available commands");
     RESET_COLOR;
     RESET;
     while(1) {
@@ -159,6 +159,7 @@ void CMD::printHelp(){
     Serial.printf("  %-20s - %s\n", erase_nvs, "Erase NVS storage");
     Serial.printf("  %-20s - %s\n", getnvs, "read NVS Key");
     Serial.printf("  %-20s - %s\n", putnvs, "write NVS key");
+    Serial.printf("  %-20s - %s\n", removenvs, "remove NVS key");
     Serial.printf("  %-20s - %s\n", format_tf, "Format TF card");
 
     // 参数设置
@@ -357,17 +358,17 @@ void CMD::parseCommand(const char* command) {
         // 首先测试TF卡是否存在
         if (digitalRead(PIN_SD_CARDDETECT) != 1)
         {
-            Serial.println("[外设] 加载TF卡");
+            info("加载TF卡");
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             delay(50);
             uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
-            Serial.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
+            info("设置TF卡频率:%d HZ\n", freq); 
             if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
             {
                 delay(100);
-                F_LOG("TF卡挂载失败,尝试重新挂载");
+                warn("TF卡挂载失败,尝试重新挂载");
                 if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");
@@ -475,6 +476,8 @@ void CMD::parseCommand(const char* command) {
                 error = hal.pref.putBool(param[0], value);
             else if (strcmp(param[2], "int") == 0)
                 error = hal.pref.putInt(param[0], value);
+            else if (strcmp(param[1], "uint") == 0)
+                value = hal.pref.putUInt(param[0], value);
             if (error = 0){
                 PRINT_ERROR("写入失败");
             }
@@ -492,6 +495,19 @@ void CMD::parseCommand(const char* command) {
             else if (strcmp(param[1], "uint") == 0)
                 value = hal.pref.getUInt(param[0]);
             Serial.printf("%s: %ld\n", param[0], value);
+        }
+        else
+            PRINT_ERROR("参数不足");
+    } else if (strcmp(cmd, removenvs) == 0) {
+        if (parsed == 1)
+        {
+            bool value;
+            String key = String(param[0]);
+            value = hal.pref.remove(key.c_str());
+            if (value)
+                PRINT_SUCCESS("NVS key removed successfully");
+            else
+                PRINT_ERROR("Failed to remove NVS key");
         }
         else
             PRINT_ERROR("参数不足");

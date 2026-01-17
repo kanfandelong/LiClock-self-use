@@ -30,8 +30,7 @@ void Weather::begin()
     File file = LittleFS.open("/System/weather.bin", "r");
     if (!file)
     {
-        Serial.println("无法打开天气文件，或天气不存在");
-        F_LOG("无法打开天气文件，或天气不存在");
+        error("无法打开天气文件，或天气不存在");
         return;
     }
     file.readBytes((char *)&hour24, sizeof(hour24));
@@ -53,8 +52,7 @@ void Weather::save()
     File file = LittleFS.open("/System/weather.bin", "w");
     if (!file)
     {
-        Serial.println("无法写入天气文件");
-        F_LOG("无法写入天气文件");
+        error("天气文件打开失败");
         return;
     }
     file.write((uint8_t *)&hour24, sizeof(hour24));
@@ -95,8 +93,7 @@ int8_t Weather::refresh()
         { // API失效
             http.end();
             doc.clear();
-            Serial.println("天气API已失效");
-            F_LOG("天气API已失效");
+            warn("天气API已失效");
             return -3;
         }
         if (doc["result"]["alert"]["status"] == "ok")
@@ -155,14 +152,12 @@ int8_t Weather::refresh()
         doc.clear();
         lastupdate = hal.now;
         save();
-        Serial.println("天气更新成功");
-        F_LOG("天气更新成功");
+        info("天气更新成功");
     }
     else
     {
         http.end();
-        Serial.println("HTTP错误");
-        F_LOG("天气更新时出现HTTP错误");
+        warn("天气更新时出现HTTP错误");
         return -2;
     }
     http.end();

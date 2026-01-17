@@ -128,7 +128,10 @@ private:
         u8g2Fonts.setCursor(2 + 24, 43 + 14);
         GUI::autoIndentDraw(weather.desc1, 88);
         u8g2Fonts.setCursor(100, 12);
-        u8g2Fonts.print(weather.desc2);
+        if (hal.pref.getBool("en_yiyan", true))
+            u8g2Fonts.print(hal.pref.getString("yiyan", "一言数据为空"));
+        else
+            u8g2Fonts.print(weather.desc2);
     }
     void drawTemp(int max, int min, int x)
     {
@@ -167,7 +170,8 @@ private:
     // 绘制全部内容
     void drawLayout()
     {
-        display.fillScreen(GxEPD_WHITE);
+        // display.fillScreen(GxEPD_WHITE);
+        display.clearScreen();
         hal.getTime();
         drawFrame();
         drawDateAndDesc(hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday);
@@ -231,6 +235,11 @@ void AppClock::setup()
         GUI::info_msgbox("提示", "正在更新天气数据...");
         hal.autoConnectWiFi();
         weather.refresh();
+        if (hal.pref.getBool("en_yiyan", true))
+        {
+            GUI::info_msgbox("提示", "正在获取一言...");
+            hal.pref.putString("yiyan", hal.get_yiyan());
+        }
     }
     if (weather.hasAlert && weather.alertPubTime != last_alertPubTime)
     {
