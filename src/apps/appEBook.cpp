@@ -1723,21 +1723,6 @@ bool AppEBook::openFile(const char *filename)
         {
             info("索引时的屏幕方向与当前一致");
         }
-        uint32_t lasttxtsize, nowtxtsize = txtFile.size();
-        indexesFile.seek(indexesFile.size() - 4, SeekSet);
-        indexesFile.readBytes((char *)&lasttxtsize, 4);
-        indexesFile.seek(0, SeekSet);
-        info("lasttxtsize: %lu nowtxtsize: %lu", lasttxtsize, nowtxtsize);
-        if (lasttxtsize != nowtxtsize)
-        {
-            if (GUI::msgbox_yn("提示", "txt文件大小与创建索引时不同，是否重建索引", "重建", "忽略"))
-            {
-                bool index_ok = indexFile();
-                hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
-                if (!index_ok)
-                    return false;
-            }
-        }
     }
     else
     {

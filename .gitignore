@@ -2,4 +2,8 @@
 .vscode
 midi/__pycache__
 tools/coredump_*
-
+tools/*.jpg
+tools/*.png
+tools/*lbm
+elf_versions
+build

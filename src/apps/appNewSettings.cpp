@@ -830,7 +830,7 @@ void AppSettings::menu_display()
             {false, "按键音设置", nullptr},
             // {false, "屏幕队列深度", nullptr},
             // {false, "屏幕线程优先级", nullptr},
-            // {true, "屏幕deepsleep", "en_disp_sleep"},
+            {true, "屏幕deepsleep", "en_disp_sleep"},
             {true, "UC8151C兼容模式", "UC8151C"},
             {false, NULL},
         };

@@ -130,134 +130,6 @@ bool HAL::rmdir(const String &path)
     return rmdir(path.c_str());
 }
 
-File HAL::open(const char *path, const char *mode, const bool create)
-{
-    if (strncmp(path, "/sd/", 4) == 0)
-    {
-        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
-            peripherals.load(PERIPHERALS_SD_BIT);
-        return SD.open(remove_path_prefix(path, "/sd"), mode, create);
-    }
-    else if (strncmp(path, "/littlefs/", 10) == 0)
-    {
-        return LittleFS.open(remove_path_prefix(path, "/littlefs"), mode, create);
-    }
-    else
-    {
-        return File();
-    }
-}
-
-File HAL::open(const String &path, const char *mode, const bool create)
-{
-    return open(path.c_str(), mode, create);
-}
-
-bool HAL::exists(const char *path)
-{
-    if (strncmp(path, "/sd/", 4) == 0)
-    {
-        return SD.exists(remove_path_prefix(path, "/sd"));
-    }
-    else if (strncmp(path, "/littlefs/", 10) == 0)
-    {
-        return LittleFS.exists(remove_path_prefix(path, "/littlefs"));
-    }
-    else
-    {
-        return false;
-    }
-}
-
-bool HAL::exists(const String &path)
-{
-    return exists(path.c_str());
-}
-
-bool HAL::remove(const char *path)
-{
-    if (strncmp(path, "/sd/", 4) == 0)
-    {
-        return SD.remove(remove_path_prefix(path, "/sd"));
-    }
-    else if (strncmp(path, "/littlefs/", 10) == 0)
-    {
-        return LittleFS.remove(remove_path_prefix(path, "/littlefs"));
-    }
-    else
-    {
-        return false;
-    }
-}
-
-bool HAL::remove(const String &path)
-{
-    return remove(path.c_str());
-}
-
-bool HAL::rename(const char *pathFrom, const char *pathTo)
-{
-    if (strncmp(pathFrom, "/sd/", 4) == 0)
-    {
-        return SD.rename(remove_path_prefix(pathFrom, "/sd"), pathTo);
-    }
-    else if (strncmp(pathFrom, "/littlefs/", 10) == 0)
-    {
-        return LittleFS.rename(remove_path_prefix(pathFrom, "/littlefs"), pathTo);
-    }
-    else
-    {
-        return false;
-    }
-}
-
-bool HAL::rename(const String &pathFrom, const String &pathTo)
-{
-    return rename(pathFrom.c_str(), pathTo.c_str());
-}
-
-bool HAL::mkdir(const char *path)
-{
-    if (strncmp(path, "/sd/", 4) == 0)
-    {
-        return SD.mkdir(remove_path_prefix(path, "/sd"));
-    }
-    else if (strncmp(path, "/littlefs/", 10) == 0)
-    {
-        return LittleFS.mkdir(remove_path_prefix(path, "/littlefs"));
-    }
-    else
-    {
-        return false;
-    }
-}
-
-bool HAL::mkdir(const String &path)
-{
-    return mkdir(path.c_str());
-}
-
-bool HAL::rmdir(const char *path)
-{
-    if (strncmp(path, "/sd/", 4) == 0)
-    {
-        return SD.rmdir(remove_path_prefix(path, "/sd"));
-    }
-    else if (strncmp(path, "/littlefs/", 10) == 0)
-    {
-        return LittleFS.rmdir(remove_path_prefix(path, "/littlefs"));
-    }
-    else
-    {
-        return false;
-    }
-}
-
-bool HAL::rmdir(const String &path)
-{
-    return rmdir(path.c_str());
-}
-
 void HAL::printBatteryInfo()
 {
     Serial.println("\n------ Battery Information ------");
@@ -1454,9 +1326,9 @@ bool HAL::init()
 
     WiFi.mode(WIFI_OFF);
 #if defined(Queue)
-    display.epd2.startQueue();
+    display.epd2.startQueue(hal.pref.getUInt("display_list", 3), hal.pref.getUInt("disp_priority", 1));
 #endif
-    // display.epd2.T5D_mode(!pref.getBool("UC8151C"));
+    display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     display.init(pref.getInt("display_debug", 115200), initial);
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(GxEPD_BLACK);
@@ -1752,7 +1624,9 @@ static void pre_sleep()
     delay(10);
     ledcDetachPin(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);
-
+    // memcpy(display_buffer_save, display.getBuffer(), sizeof(display_buffer_save));
+    if (hal.pref.getBool("print_dpram", false))
+        printVerticalBitmapToSerial(display.getBuffer());
 }
 static void wait_display()
 {

@@ -124,7 +124,7 @@ void GxEPD2_EPD::_reset()
       digitalWrite(_rst, LOW);
       delay(_reset_duration);
       digitalWrite(_rst, HIGH);
-      delay(_reset_duration > 10 ? _reset_duration : 10);
+      delay(_reset_duration > 5 ? _reset_duration : 5);
     }
     _hibernating = false;
   }
@@ -148,7 +148,7 @@ void GxEPD2_EPD::_waitWhileBusy(const char *comment, uint16_t busy_time)
         break;
       if (millis() - start > (_busy_timeout / 1000ul / 1000ul) + busy_time)
       {
-        Serial.println("Busy Timeout!");
+        log_e("Busy Timeout!");
         break;
       }
 #if defined(ESP8266) || defined(ESP32)
@@ -162,10 +162,7 @@ void GxEPD2_EPD::_waitWhileBusy(const char *comment, uint16_t busy_time)
       if (_diag_enabled)
       {
         unsigned long elapsed = millis() - start + 10;
-        Serial.print(comment);
-        Serial.print(" : ");
-        Serial.print(elapsed);
-        Serial.println(" ms");
+        log_i("%s : %lu ms", comment, elapsed);
       }
 #endif
     }

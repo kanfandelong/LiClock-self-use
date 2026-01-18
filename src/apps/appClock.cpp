@@ -232,12 +232,12 @@ void AppClock::setup()
     }
     if (hal.now < weather.lastupdate || hal.now - weather.lastupdate > 60 * atoi(config[PARAM_FULLUPDATE].as<const char *>()))
     {
-        GUI::info_msgbox("提示", "正在更新天气数据...");
+        GUI::info_msgbox("更新天气", "正在更新天气数据...");
         hal.autoConnectWiFi();
         weather.refresh();
         if (hal.pref.getBool("en_yiyan", true))
         {
-            GUI::info_msgbox("提示", "正在获取一言...");
+            GUI::info_msgbox("获取一言", "正在获取一言...");
             hal.pref.putString("yiyan", hal.get_yiyan());
         }
     }

@@ -22,26 +22,7 @@
         "initializer_list": "cpp",
         "regex": "cpp",
         "new": "cpp",
-        "typeinfo": "cpp",
-        "*.bak": "cpp"
+        "exception": "cpp"
     },
-    "cmake.ignoreCMakeListsMissing": true,
-    "MicroPython.executeButton": [
-        {
-            "text": "▶",
-            "tooltip": "运行",
-            "alignment": "left",
-            "command": "extension.executeFile",
-            "priority": 3.5
-        }
-    ],
-    "MicroPython.syncButton": [
-        {
-            "text": "$(sync)",
-            "tooltip": "同步",
-            "alignment": "left",
-            "command": "extension.execute",
-            "priority": 4
-        }
-    ]
+    "cmake.ignoreCMakeListsMissing": true
 }

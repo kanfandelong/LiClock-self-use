@@ -52,10 +52,6 @@ static void flush_log_task(void *params)
             log_flush(multi_thread_params.buf, multi_thread_params.len);
         }
     }
-    vsnprintf(temp, len+1, format, arg);
-    Serial.printf("%s", temp);
-    
-    return len;
 }
 
 // 初始化日志系统

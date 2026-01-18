@@ -25,11 +25,11 @@
 
 #define code_version "2.1.b.a" // 代码版本号（16进制格式）
 // 屏幕型号选择宏定义
-#define E029A01
+// #define E029A01
 // 屏幕多线程且驱动为UC8151C
-#define Queue
+// #define Queue
 // #define T5
-// #define T5D
+#define T5D
 // #define T5D_gray
 
 #define SCREEN_WIDTH 296
