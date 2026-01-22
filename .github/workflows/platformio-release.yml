@@ -63,7 +63,7 @@ jobs:
         # 解析环境列表
         ENVS_INPUT="${{ github.event.inputs.envs }}"
         # 将逗号分隔的字符串转换为JSON数组格式
-        ENVS_ARRAY=$(echo "$ENVS_INPUT" | jq -R -s -c 'split(",") | map(select(. != ""))')
+        ENVS_ARRAY=$(echo "$ENVS_INPUT" | tr ',' '\n' | jq -R -s -c '[split("\n")[] | select(. != "")]')
         echo "envs_array=$ENVS_ARRAY" >> $GITHUB_OUTPUT
         
         # 确定版本号
@@ -138,6 +138,7 @@ jobs:
       run: |
         if [ -f "src/hal.cpp" ]; then
           sed 's|#include <esp32\\rom\\sha.h>|#include <esp32/rom/sha.h>|' src/hal.cpp -i
+          echo "路径处理"
         else
           echo "警告: src/hal.cpp 文件不存在，跳过路径处理"
         fi
@@ -145,7 +146,7 @@ jobs:
     - name: "准备python"
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
     
     - name: "安装 platformio"
       run: |
@@ -159,61 +160,25 @@ jobs:
         echo "分支: ${{ needs.setup.outputs.branch_name }}"
         pio run -e ${{ matrix.env }}
     
-    - name: "收集固件"
+    - name: "收集构建结果"
       run: |
-        mkdir -p artifacts/${{ matrix.env }}/flash_16mb
-        mkdir -p artifacts/${{ matrix.env }}/flash_8mb
-        mkdir -p artifacts/${{ matrix.env }}/flash_4mb
+        # 创建环境特定的输出目录
+        mkdir -p artifacts/${{ matrix.env }}
         
-        # 复制16MB版本文件
-        if [ -f ".pio/build/${{ matrix.env }}/firmware.bin" ]; then
-          cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/${{ matrix.env }}/flash_16mb/
-        fi
-        if [ -f ".pio/build/${{ matrix.env }}/firmware.elf" ]; then
-          cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/${{ matrix.env }}/flash_16mb/
-        fi
-        if [ -f ".pio/build/${{ matrix.env }}/partitions.bin" ]; then
-          cp .pio/build/${{ matrix.env }}/partitions.bin artifacts/${{ matrix.env }}/flash_16mb/
-        fi
-        if [ -f ".pio/build/${{ matrix.env }}/bootloader.bin" ]; then
-          cp .pio/build/${{ matrix.env }}/bootloader.bin artifacts/${{ matrix.env }}/flash_16mb/
-        fi
+        # 复制构建结果
+        echo "复制构建结果文件..."
+        BUILD_DIR=".pio/build/${{ matrix.env }}"
         
-        # 复制8MB版本文件
-        if [ -f ".pio/build/${{ matrix.env }}/firmware.bin" ]; then
-          cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/${{ matrix.env }}/flash_8mb/
-        fi
-        if [ -f ".pio/build/${{ matrix.env }}/firmware.elf" ]; then
-          cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/${{ matrix.env }}/flash_8mb/
-        fi
-        if [ -f "dist/partitions-8MB.bin" ]; then
-          cp dist/partitions-8MB.bin artifacts/${{ matrix.env }}/flash_8mb/partitions.bin
-        fi
-        if [ -f "dist/bootloader-8MB.bin" ]; then
-          cp dist/bootloader-8MB.bin artifacts/${{ matrix.env }}/flash_8mb/bootloader.bin
-        fi
-        
-        # 复制4MB版本文件
-        if [ -f ".pio/build/${{ matrix.env }}/firmware.bin" ]; then
-          cp .pio/build/${{ matrix.env }}/firmware.bin artifacts/${{ matrix.env }}/flash_4mb/
-        fi
-        if [ -f ".pio/build/${{ matrix.env }}/firmware.elf" ]; then
-          cp .pio/build/${{ matrix.env }}/firmware.elf artifacts/${{ matrix.env }}/flash_4mb/
-        fi
-        if [ -f "dist/partitions-4MB.bin" ]; then
-          cp dist/partitions-4MB.bin artifacts/${{ matrix.env }}/flash_4mb/partitions.bin
-        fi
-        if [ -f "dist/bootloader-4MB.bin" ]; then
-          cp dist/bootloader-4MB.bin artifacts/${{ matrix.env }}/flash_4mb/bootloader.bin
-        fi
-        
-        for size in 4mb 8mb 16mb; do
+        if [ -d "$BUILD_DIR" ]; then
+          # 复制所有文件
+          cp -r "$BUILD_DIR"/* artifacts/${{ matrix.env }}/ 2>/dev/null || true
+          
+          # 记录构建信息
           {
-            echo "固件包说明"
+            echo "构建信息"
             echo "=========="
             echo ""
             echo "环境: ${{ matrix.env }}"
-            echo "Flash 大小: ${size^^}"
             echo "固件版本: ${{ needs.setup.outputs.version }}"
             echo "分支: ${{ needs.setup.outputs.branch_name }}"
             echo "构建时间: $(date)"
@@ -222,46 +187,36 @@ jobs:
             echo "触发者: ${{ github.actor }}"
             echo ""
             echo "包含文件:"
-            echo "- firmware.bin: 主固件文件"
-            echo "- firmware.elf: 调试文件"
-            echo "- partitions.bin: 分区表文件"
-            echo "- bootloader.bin: 引导程序文件"
-            echo ""
-            echo "刷写顺序:"
-            echo "1. bootloader.bin @ 0x1000"
-            echo "2. partitions.bin @ 0x8000"
-            echo "3. firmware.bin @ 0x10000"
-            echo ""
-            echo "注意: 请根据您的设备Flash大小选择合适的包"
-          } > artifacts/${{ matrix.env }}/flash_${size}/README.txt
-        done
+            find artifacts/${{ matrix.env }} -type f -name "*.bin" -o -name "*.elf" | while read file; do
+              echo "- $(basename "$file"): $(du -h "$file" | cut -f1)"
+            done
+          } > artifacts/${{ matrix.env }}/BUILD_INFO.txt
+        else
+          echo "错误: 构建目录 $BUILD_DIR 不存在"
+          exit 1
+        fi
+        
+        echo "构建结果:"
+        ls -la artifacts/${{ matrix.env }}/
     
     - name: "创建固件压缩包"
       run: |
-        mkdir -p packages/${{ matrix.env }}
+        mkdir -p packages
         
-        for size in 4mb 8mb 16mb; do
-          echo "为环境 ${{ matrix.env }} 创建 Flash ${size^^} 的压缩包..."
-          
-          # 进入目录创建tar.gz
-          cd artifacts/${{ matrix.env }}/flash_${size}
-          tar -czf ../../../packages/${{ matrix.env }}/firmware_${size^^}.tar.gz *
-          cd ../../..
-          
-          # 创建zip包
-          cd artifacts/${{ matrix.env }}/flash_${size}
-          zip -r ../../../packages/${{ matrix.env }}/firmware_${size^^}.zip *
-          cd ../../..
-        done
+        echo "为环境 ${{ matrix.env }} 创建压缩包..."
         
-        echo "为环境 ${{ matrix.env }} 创建通用压缩包..."
+        # 进入目录创建tar.gz
         cd artifacts/${{ matrix.env }}
-        tar -czf ../../packages/${{ matrix.env }}/all_flash_sizes.tar.gz *
-        zip -r ../../packages/${{ matrix.env }}/all_flash_sizes.zip *
+        tar -czf ../../packages/firmware_${{ matrix.env }}.tar.gz *
         cd ../..
         
-        echo "环境 ${{ matrix.env }} 生成的压缩包："
-        ls -lh packages/${{ matrix.env }}/
+        # 创建zip包
+        cd artifacts/${{ matrix.env }}
+        zip -r ../../packages/firmware_${{ matrix.env }}.zip *
+        cd ../..
+        
+        echo "生成的压缩包："
+        ls -lh packages/
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -269,7 +224,7 @@ jobs:
         name: firmware-artifacts-${{ matrix.env }}
         path: |
           artifacts/${{ matrix.env }}/
-          packages/${{ matrix.env }}/
+          packages/
         if-no-files-found: error
   
   create-release:
@@ -314,30 +269,15 @@ jobs:
         
         mkdir -p release_files
         
-        # 复制所有环境的压缩包
-        for env_dir in all_artifacts/firmware-artifacts-*; do
-          if [ -d "$env_dir" ]; then
-            env_name=$(basename "$env_dir" | sed 's/firmware-artifacts-//')
-            mkdir -p release_files/$env_name
-            
-            # 复制压缩包
-            if [ -d "$env_dir/packages/$env_name" ]; then
-              echo "复制环境 $env_name 的压缩包文件..."
-              cp "$env_dir/packages/$env_name"/*.tar.gz release_files/$env_name/ 2>/dev/null || true
-              cp "$env_dir/packages/$env_name"/*.zip release_files/$env_name/ 2>/dev/null || true
-            fi
-            
-            # 复制原始文件目录
-            mkdir -p release_files/$env_name/original_files
-            if [ -d "$env_dir/artifacts/$env_name" ]; then
-              echo "复制环境 $env_name 的原始文件..."
-              cp -r "$env_dir/artifacts/$env_name"/* release_files/$env_name/original_files/ 2>/dev/null || true
-            fi
-          fi
+        # 查找所有压缩包
+        echo "查找压缩包文件..."
+        find all_artifacts -name "*.tar.gz" -o -name "*.zip" | while read file; do
+          echo "找到文件: $file"
+          cp "$file" release_files/ 2>/dev/null || true
         done
         
         echo "release_files目录内容:"
-        find release_files -type f | head -20
+        ls -la release_files/
         
         # 创建文件列表说明
         echo "# 文件列表" > release_files/FILE_LIST.md
@@ -352,38 +292,27 @@ jobs:
         echo "- **构建环境:** ${{ github.event.inputs.envs }}" >> release_files/FILE_LIST.md
         echo "" >> release_files/FILE_LIST.md
         
-        # 统计每个环境的文件
-        for env_dir in release_files/*/; do
-          if [ -d "$env_dir" ]; then
-            env_name=$(basename "$env_dir")
-            echo "## 环境: $env_name" >> release_files/FILE_LIST.md
-            echo "" >> release_files/FILE_LIST.md
-            
-            # 压缩包
-            echo "### 压缩包" >> release_files/FILE_LIST.md
-            echo "" >> release_files/FILE_LIST.md
-            for file in "$env_dir"/*.tar.gz "$env_dir"/*.zip; do
-              if [ -f "$file" ]; then
-                size=$(du -h "$file" | cut -f1)
-                echo "- $(basename "$file") ($size)" >> release_files/FILE_LIST.md
-              fi
-            done
-            
-            # 原始文件
-            echo "" >> release_files/FILE_LIST.md
-            echo "### 原始文件目录" >> release_files/FILE_LIST.md
-            echo "" >> release_files/FILE_LIST.md
-            if [ -d "$env_dir/original_files" ]; then
-              for subdir in "$env_dir/original_files"/*/; do
-                if [ -d "$subdir" ]; then
-                  dir_name=$(basename "$subdir")
-                  echo "- $dir_name/: ${dir_name^^} Flash 版本" >> release_files/FILE_LIST.md
-                fi
-              done
-            fi
-            echo "" >> release_files/FILE_LIST.md
+        echo "## 文件列表" >> release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        
+        # 统计文件大小并记录
+        for file in release_files/*.tar.gz release_files/*.zip; do
+          if [ -f "$file" ]; then
+            size=$(du -h "$file" | cut -f1)
+            echo "- $(basename "$file") ($size)" >> release_files/FILE_LIST.md
           fi
         done
+        
+        echo "" >> release_files/FILE_LIST.md
+        echo "## 构建说明" >> release_files/FILE_LIST.md
+        echo "" >> release_files/FILE_LIST.md
+        echo "每个压缩包包含对应环境的完整构建结果，包括："
+        echo "- 固件文件 (.bin)"
+        echo "- 调试文件 (.elf)"
+        echo "- 分区表文件 (.bin)"
+        echo "- 引导程序文件 (.bin)"
+        echo "- 其他构建生成的文件"
+        echo "" >> release_files/FILE_LIST.md
     
     - name: "创建发行版"
       id: create_release
@@ -401,24 +330,20 @@ jobs:
           **触发者:** ${{ github.actor }}
           **构建环境:** ${{ github.event.inputs.envs }}
           
-          ### 支持的Flash大小
-          1. **4MB Flash**: 适用于4MB Flash的ESP32设备
-          2. **8MB Flash**: 适用于8MB Flash的ESP32设备  
-          3. **16MB Flash**: 适用于16MB Flash的ESP32设备
+          ### 包含的构建环境
+          ${{ github.event.inputs.envs }}
           
           ### 文件说明
-          每个环境目录下包含：
-          - **firmware_4MB.tar.gz/zip**: 4MB Flash完整包
-          - **firmware_8MB.tar.gz/zip**: 8MB Flash完整包
-          - **firmware_16MB.tar.gz/zip**: 16MB Flash完整包
-          - **all_flash_sizes.tar.gz/zip**: 包含所有版本
+          每个压缩包包含对应环境的完整构建结果：
+          - **firmware_<环境>.tar.gz/zip**: 对应环境的完整构建包
           
           每个压缩包包含：
-          - `firmware.bin`: 主固件（所有版本共用）
+          - `firmware.bin`: 主固件文件
           - `firmware.elf`: 调试文件
-          - `partitions.bin`: 对应Flash大小的分区表
-          - `bootloader.bin`: 对应Flash大小的引导程序
-          - `README.txt`: 使用说明
+          - `partitions.bin`: 分区表文件
+          - `bootloader.bin`: 引导程序文件
+          - `BUILD_INFO.txt`: 构建信息
+          - 其他构建生成的文件
           
           ### 刷写说明
           使用 esptool.py 刷写：
@@ -438,6 +363,6 @@ jobs:
         
         draft: false
         prerelease: ${{ needs.setup.outputs.is_prerelease == 'true' }}
-        files: |
-          release_files/**/*.tar.gz
-          release_files/**/*.zip
+        文件: |
+          release_files/*.tar.gz
+          release_files/*.zip
