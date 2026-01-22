@@ -7,6 +7,14 @@ on:
         description: 'Release tag'
         required: true
         default: 'v1.0.0'
+      upload:
+        description: 'Upload firmware to release'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 jobs:
   build:
@@ -15,6 +23,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # 获取所有历史和标签
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -35,52 +45,66 @@ jobs:
           echo "tag_exists=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Set release tag
+    - name: Generate unique tag if needed
       id: set_tag
       run: |
         if [ "${{ steps.check_tag.outputs.tag_exists }}" = "true" ]; then
+          echo "Tag already exists, generating unique tag"
           new_tag="${{ github.event.inputs.tag }}-$(date +'%Y%m%d%H%M%S')"
           echo "release_tag=$new_tag" >> $GITHUB_OUTPUT
+          echo "is_unique=true" >> $GITHUB_OUTPUT
         else
+          echo "Tag does not exist, using original tag"
           echo "release_tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          echo "is_unique=false" >> $GITHUB_OUTPUT
         fi
 
     - name: Build project
+      id: build
       run: |
         platformio run
-
-    - name: Upload firmware (optional)
-      if: github.event.inputs.upload == 'true'
-      run: |
-        platformio run
+        if [ -f ".pio/build/esp32solo1/firmware.bin" ]; then
+          echo "build_success=true" >> $GITHUB_OUTPUT
+        else
+          echo "build_success=false" >> $GITHUB_OUTPUT
+          echo "Firmware file not found!"
+          exit 1
+        fi
 
     - name: Create GitHub Release
       id: create_release
-      uses: actions/create-release@v1
+      if: ${{ github.event.inputs.upload == 'true' && steps.build.outputs.build_success == 'true' }}
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.set_tag.outputs.release_tag }}
-        release_name: Release ${{ steps.set_tag.outputs.release_tag }}
+        name: Release ${{ steps.set_tag.outputs.release_tag }}
         draft: false
         prerelease: false
+        generate_release_notes: true
+        fail_on_unmatched_files: false
 
     - name: Upload firmware.bin to Release
-      uses: actions/upload-release-asset@v1
+      if: ${{ github.event.inputs.upload == 'true' && steps.build.outputs.build_success == 'true' }}
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: .pio/build/esp32solo1/firmware.bin
-        asset_name: firmware.bin
-        asset_content_type: application/octet-stream
+        tag_name: ${{ steps.set_tag.outputs.release_tag }}
+        files: |
+          .pio/build/esp32solo1/firmware.bin
+          .pio/build/esp32solo1/firmware.elf
+        fail_on_unmatched_files: true
 
-    - name: Upload firmware.elf to Release
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: .pio/build/esp32solo1/firmware.elf
-        asset_name: firmware.elf
-        asset_content_type: application/octet-stream
+    - name: Show success message
+      if: ${{ github.event.inputs.upload == 'true' && steps.build.outputs.build_success == 'true' }}
+      run: |
+        echo "✅ Release created: ${{ steps.set_tag.outputs.release_tag }}"
+        echo "📦 Firmware files uploaded to GitHub Releases"
+
+    - name: Show build-only message
+      if: ${{ github.event.inputs.upload != 'true' && steps.build.outputs.build_success == 'true' }}
+      run: |
+        echo "✅ Build completed successfully"
+        echo "📁 Firmware location: .pio/build/esp32solo1/"
