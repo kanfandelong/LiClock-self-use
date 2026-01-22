@@ -1,0 +1,86 @@
+name: Manual Trigger Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install platformio
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "refs/tags/${{ github.event.inputs.tag }}" >/dev/null 2>&1; then
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set release tag
+      id: set_tag
+      run: |
+        if [ "${{ steps.check_tag.outputs.tag_exists }}" = "true" ]; then
+          new_tag="${{ github.event.inputs.tag }}-$(date +'%Y%m%d%H%M%S')"
+          echo "release_tag=$new_tag" >> $GITHUB_OUTPUT
+        else
+          echo "release_tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Build project
+      run: |
+        platformio run
+
+    - name: Upload firmware (optional)
+      if: github.event.inputs.upload == 'true'
+      run: |
+        platformio run
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.set_tag.outputs.release_tag }}
+        release_name: Release ${{ steps.set_tag.outputs.release_tag }}
+        draft: false
+        prerelease: false
+
+    - name: Upload firmware.bin to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: .pio/build/esp32solo1/firmware.bin
+        asset_name: firmware.bin
+        asset_content_type: application/octet-stream
+
+    - name: Upload firmware.elf to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: .pio/build/esp32solo1/firmware.elf
+        asset_name: firmware.elf
+        asset_content_type: application/octet-stream
