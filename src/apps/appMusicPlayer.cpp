@@ -2287,9 +2287,6 @@ void AppMusicPlayer::show_display_fft()
     }
     int16_t wchar;
     display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
-    // u8g2Fonts.setBackgroundColor(1);
-    // u8g2Fonts.setForegroundColor(0);
-    // u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
     if (titles[currentSongIndex] != nullptr)
     {
         // 标题栏
@@ -2319,7 +2316,6 @@ void AppMusicPlayer::show_display_fft()
     FFT.complexToMagnitude(vReal, vImag, SAMPLES);
 
     // 4. 幅度谱对数变换和归一化（可调参数）
-    // const float amplitudeScale = hal.pref.getUInt("fft_gain", 1000); // 放大系数，可调
     for (int i = 0; i < 128; i++) {
         vReal[i] = vReal[i] * curveScaling[i];
         vReal[i] = smoothingFactor * previousSpectrum[i] + (1 - smoothingFactor) * vReal[i];
@@ -2336,12 +2332,12 @@ void AppMusicPlayer::show_display_fft()
     fftProcessing = false;
     d_time.fft_end = micros();
     // 电池
-    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4400 && !hal.isCharging)
-    {
-        display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
-        display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
-    }
-    else
+    // if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4400 && !hal.isCharging)
+    // {
+    //     display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
+    //     display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
+    // }
+    // else
         display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
     u8g2Fonts.setCursor(2, 12);
     u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
@@ -2366,25 +2362,25 @@ void AppMusicPlayer::show_display_fft()
         static int x;
         if (now - last_update_time > 200) { // 200ms更新一次
             last_update_time = now;
+            float all = (float)(d_time.start - last_time.start) / 1000.0;
+            float fps = 1000.0 / all;
             float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
             float other_time = ((float)(last_time.display_start - last_time.start) / 1000.0) - fft_time;
             float display_time = (float)(last_time.end - last_time.display_start) / 1000.0;
-            float all = (float)(d_time.start - last_time.start) / 1000.0;
-            float fps = 1000.0 / all;
-            sprintf(_buf, "%.1f|%.1f|%.1f fps: %.1f", fft_time, other_time, display_time, fps);
+            sprintf(_buf, "%.1f|%.1f|%.1f|%.1f fps: %.1f", fft_time, other_time, display_time, all, fps);
             x = (SCREEN_WIDTH - u8g2Fonts.getUTF8Width(_buf)) / 2;
         }
-        u8g2Fonts.drawUTF8(x, 165, _buf);
+        u8g2Fonts.setCursor(x, 165);
+        u8g2Fonts.print(_buf);
     }
 
     char gain_buf[16];
     sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
     u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
     u8g2Fonts.printf(gain_buf);
-    // u8g2Fonts.printf("  index:%d %d", currentSongIndex, play_count);
 
     uint32_t play_time = (millis() - play_time_start - play_stop_time);
-    uint32_t total_time = 0;
+    uint32_t total_time = 1;
     if (!loopPlay)
         play_time_total = 0;
     if (info.tlen != 0)
@@ -2392,12 +2388,15 @@ void AppMusicPlayer::show_display_fft()
     else
         total_time = play_time_total;
 
-    if (info.tlen != 0 && (millis() - play_time_start - play_stop_time) > info.tlen)
+    if (info.tlen != 0 && play_time > info.tlen)
         play_time = info.tlen;
     int w1 = 262;  // 设置进度条的宽度
-    float w = ((float)play_time / (float)total_time) * (float)w1;
-    if (w > (float)w1)
-        w = (float)w1;
+    int w = 0;
+    if (total_time > 0) {
+        w = (play_time * w1 + total_time / 2) / total_time;
+    }
+    if (w > w1)
+        w = w1;
     int y = 146; // 设置进度条的Y坐标
     int x = 61;  // 设置进度条的X起始坐标
     display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
@@ -2410,10 +2409,6 @@ void AppMusicPlayer::show_display_fft()
     u8g2Fonts.setCursor(341, y);
     u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
 
-    // u8g2Fonts.setCursor(3, 112);
-    // u8g2Fonts.printf("Gain:%.2f vcc:%dmV bat:%.3fV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.voltage, hal.bat_info.soc, hal.bat_info.soh);
-    // u8g2Fonts.setCursor(3, 125);
-    // u8g2Fonts.printf("剩余堆内存：%.2fKB I:%dmA P:%dmW %dmAh", (float)ESP.getFreeHeap() / 1024.0, hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
     d_time.display_start = micros();
     display.display();
     d_time.end = micros();
