@@ -1794,21 +1794,17 @@ void GFXcanvas1::drawPixel(int16_t x, int16_t y, uint16_t color) {
     switch (rotation) {
     case 1:
       t = x;
-      x = y;
+      x = WIDTH - 1 - y;
       y = t;
       break;
     case 2:
-      x = x;
-      y = WIDTH - 1 - y;
+      x = WIDTH - 1 - x;
+      y = HEIGHT - 1 - y;
       break;
     case 3:
       t = x;
-      x = HEIGHT - 1 - y;
-      y = WIDTH - 1 - t;
-      break;
-    default: // 0 degrees
-      x = HEIGHT - x - 1;
-      y = y;
+      x = y;
+      y = HEIGHT - 1 - t;
       break;
     }
 
@@ -1839,24 +1835,20 @@ void GFXcanvas1::drawPixel(int16_t x, int16_t y, uint16_t color) {
 bool GFXcanvas1::getPixel(int16_t x, int16_t y) const {
   int16_t t;
   switch (rotation) {
-    case 1:
-      t = x;
-      x = y;
-      y = t;
-      break;
-    case 2:
-      x = x;
-      y = WIDTH - 1 - y;
-      break;
-    case 3:
-      t = x;
-      x = HEIGHT - 1 - y;
-      y = WIDTH - 1 - t;
-      break;
-    default: // 0 degrees
-      x = HEIGHT - x - 1;
-      y = y;
-      break;
+  case 1:
+    t = x;
+    x = WIDTH - 1 - y;
+    y = t;
+    break;
+  case 2:
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
+    break;
+  case 3:
+    t = x;
+    x = y;
+    y = HEIGHT - 1 - t;
+    break;
   }
   return getRawPixel(x, y);
 }
@@ -1935,23 +1927,23 @@ void GFXcanvas1::drawFastVLine(int16_t x, int16_t y, int16_t h,
   }
 
   if (getRotation() == 0) {
-    x = HEIGHT - x - 1;
     drawFastRawVLine(x, y, h, color);
   } else if (getRotation() == 1) {
     int16_t t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     x -= h - 1;
     drawFastRawHLine(x, y, h, color);
   } else if (getRotation() == 2) {
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
+
     y -= h - 1;
     drawFastRawVLine(x, y, h, color);
   } else if (getRotation() == 3) {
     int16_t t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
+    x = y;
+    y = HEIGHT - 1 - t;
     drawFastRawHLine(x, y, h, color);
   }
 }
@@ -1990,22 +1982,22 @@ void GFXcanvas1::drawFastHLine(int16_t x, int16_t y, int16_t w,
   }
 
   if (getRotation() == 0) {
-    x = HEIGHT - x - 1;
     drawFastRawHLine(x, y, w, color);
   } else if (getRotation() == 1) {
     int16_t t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     drawFastRawVLine(x, y, w, color);
   } else if (getRotation() == 2) {
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
+
     x -= w - 1;
     drawFastRawHLine(x, y, w, color);
   } else if (getRotation() == 3) {
     int16_t t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
+    x = y;
+    y = HEIGHT - 1 - t;
     y -= w - 1;
     drawFastRawVLine(x, y, w, color);
   }
@@ -2155,21 +2147,17 @@ void GFXcanvas8::drawPixel(int16_t x, int16_t y, uint16_t color) {
     switch (rotation) {
     case 1:
       t = x;
-      x = y;
+      x = WIDTH - 1 - y;
       y = t;
       break;
     case 2:
-      x = x;
-      y = WIDTH - 1 - y;
+      x = WIDTH - 1 - x;
+      y = HEIGHT - 1 - y;
       break;
     case 3:
       t = x;
-      x = HEIGHT - 1 - y;
-      y = WIDTH - 1 - t;
-      break;
-    default: // 0 degrees
-      x = HEIGHT - x - 1;
-      y = y;
+      x = y;
+      y = HEIGHT - 1 - t;
       break;
     }
 
@@ -2190,21 +2178,17 @@ uint8_t GFXcanvas8::getPixel(int16_t x, int16_t y) const {
   switch (rotation) {
   case 1:
     t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     break;
   case 2:
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
     break;
   case 3:
     t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
-    break;
-  default: // 0 degrees
-    x = HEIGHT - x - 1;
-    y = y;
+    x = y;
+    y = HEIGHT - 1 - t;
     break;
   }
   return getRawPixel(x, y);
@@ -2276,24 +2260,23 @@ void GFXcanvas8::drawFastVLine(int16_t x, int16_t y, int16_t h,
   }
 
   if (getRotation() == 0) {
-    x = HEIGHT - x - 1;
     drawFastRawVLine(x, y, h, color);
   } else if (getRotation() == 1) {
     int16_t t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     x -= h - 1;
     drawFastRawHLine(x, y, h, color);
   } else if (getRotation() == 2) {
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
 
     y -= h - 1;
     drawFastRawVLine(x, y, h, color);
   } else if (getRotation() == 3) {
     int16_t t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
+    x = y;
+    y = HEIGHT - 1 - t;
     drawFastRawHLine(x, y, h, color);
   }
 }
@@ -2334,23 +2317,23 @@ void GFXcanvas8::drawFastHLine(int16_t x, int16_t y, int16_t w,
   }
 
   if (getRotation() == 0) {
-    x = HEIGHT - x - 1;
     drawFastRawHLine(x, y, w, color);
   } else if (getRotation() == 1) {
     int16_t t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     drawFastRawVLine(x, y, w, color);
   } else if (getRotation() == 2) {
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
 
     x -= w - 1;
     drawFastRawHLine(x, y, w, color);
   } else if (getRotation() == 3) {
     int16_t t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
+    x = y;
+    y = HEIGHT - 1 - t;
+    y -= w - 1;
     drawFastRawVLine(x, y, w, color);
   }
 }
@@ -2432,21 +2415,17 @@ void GFXcanvas16::drawPixel(int16_t x, int16_t y, uint16_t color) {
     switch (rotation) {
     case 1:
       t = x;
-      x = y;
+      x = WIDTH - 1 - y;
       y = t;
       break;
     case 2:
-      x = x;
-      y = WIDTH - 1 - y;
+      x = WIDTH - 1 - x;
+      y = HEIGHT - 1 - y;
       break;
     case 3:
       t = x;
-      x = HEIGHT - 1 - y;
-      y = WIDTH - 1 - t;
-      break;
-    default: // 0 degrees
-      x = HEIGHT - x - 1;
-      y = y;
+      x = y;
+      y = HEIGHT - 1 - t;
       break;
     }
 
@@ -2467,21 +2446,17 @@ uint16_t GFXcanvas16::getPixel(int16_t x, int16_t y) const {
   switch (rotation) {
   case 1:
     t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     break;
   case 2:
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
     break;
   case 3:
     t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
-    break;
-  default: // 0 degrees
-    x = HEIGHT - x - 1;
-    y = y;
+    x = y;
+    y = HEIGHT - 1 - t;
     break;
   }
   return getRawPixel(x, y);
@@ -2580,24 +2555,23 @@ void GFXcanvas16::drawFastVLine(int16_t x, int16_t y, int16_t h,
   }
 
   if (getRotation() == 0) {
-    x = HEIGHT - x - 1;
     drawFastRawVLine(x, y, h, color);
   } else if (getRotation() == 1) {
     int16_t t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     x -= h - 1;
     drawFastRawHLine(x, y, h, color);
   } else if (getRotation() == 2) {
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
 
     y -= h - 1;
     drawFastRawVLine(x, y, h, color);
   } else if (getRotation() == 3) {
     int16_t t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH - 1 - t;
+    x = y;
+    y = HEIGHT - 1 - t;
     drawFastRawHLine(x, y, h, color);
   }
 }
@@ -2636,26 +2610,25 @@ void GFXcanvas16::drawFastHLine(int16_t x, int16_t y, int16_t w,
   }
 
   if (getRotation() == 0) {
-    x = HEIGHT - x - 1;
     drawFastRawHLine(x, y, w, color);
   } else if (getRotation() == 1) {
     int16_t t = x;
-    x = y;
+    x = WIDTH - 1 - y;
     y = t;
     drawFastRawVLine(x, y, w, color);
   } else if (getRotation() == 2) {
-    x = x;
-    y = WIDTH - 1 - y;
+    x = WIDTH - 1 - x;
+    y = HEIGHT - 1 - y;
 
     x -= w - 1;
     drawFastRawHLine(x, y, w, color);
   } else if (getRotation() == 3) {
     int16_t t = x;
-    x = HEIGHT - 1 - y;
-    y = WIDTH  - 1 - t;
+    x = y;
+    y = HEIGHT - 1 - t;
     y -= w - 1;
     drawFastRawVLine(x, y, w, color);
-  } 
+  }
 }
 
 /**************************************************************************/

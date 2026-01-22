@@ -9,7 +9,6 @@ ST7305::ST7305(int16_t w, int16_t h, SPIClass *spi, int8_t cs_pin, int8_t dc_pin
                                                 _te_pin(te_pin), rotation(0)
 { // Initialize rotation to
 
-    // buffer = (uint8_t *)malloc(384 * 21);
     buffer = _buffers[0];
     memset(_buffers[0], 0xFF, sizeof(_buffers[0]));
     memset(_buffers[1], 0xFF, sizeof(_buffers[1]));
@@ -97,21 +96,52 @@ void ST7305::initDisplay()
 {
     sendCommand(0xD6); sendData(0x13); sendData(0x02);  // NVM Load Control
     sendCommand(0xD1); sendData(0x01);  // Booster Enable
-    sendCommand(0xC0); sendData(0x08); sendData(0x06);  // Gate Voltage Setting
+    sendCommand(0xC0); 
+    sendData(voltageSet[0][0]); 
+    sendData(voltageSet[0][1]);  // Gate Voltage Setting
     
-    sendCommand(0xC1);  // VSHP Setting (4.8V)
-    sendData(0x3C); sendData(0x3E); sendData(0x3C); sendData(0x3C);
+    //VSH-VSL  -0.3 ~ +6.2V
+    //电压 = 3.7 + 0.02*设置值，3.7~6.2V
+    sendCommand(0xC1);   //VSHP Setting
+    sendData(voltageSet[0][2]);  //VSHP1
+    sendData(voltageSet[1][2]);  //VSHP2
+    sendData(voltageSet[2][2]);  //VSHP3
+    sendData(voltageSet[3][2]);  //VSHP4
+
+    //电压 = 0.02*设置值，0~2V
+    sendCommand(0xC2);   //VSLP Setting
+    sendData(voltageSet[0][3]);  //VSLP1
+    sendData(voltageSet[1][3]);  //VSLP2
+    sendData(voltageSet[2][3]);  //VSLP3
+    sendData(voltageSet[3][3]);  //VSLP4
+
+    //电压 = -2.5 - 0.02*设置值，-5.3~2.5V
+    sendCommand(0xC4);   //VSHN Setting
+    sendData(voltageSet[0][4]);  //VSHN1
+    sendData(voltageSet[1][4]);  //VSHN2
+    sendData(voltageSet[2][4]);  //VSHN3
+    sendData(voltageSet[3][4]);  //VSHN4
+
+    //电压 = 1 - 0.02*设置值，-1.8~1.0V
+    sendCommand(0xC5);   //VSLN Setting
+    sendData(voltageSet[0][5]);  //VSLP1
+    sendData(voltageSet[1][5]);  //VSLP2
+    sendData(voltageSet[2][5]);  //VSLP3
+    sendData(voltageSet[3][5]);  //VSLP4
     
-    sendCommand(0xC2);  // VSLP Setting (0.98V)
-    sendData(0x23); sendData(0x21); sendData(0x23); sendData(0x23);
-    
-    sendCommand(0xC4);  // VSHN Setting (-3.6V)
-    sendData(0x5A); sendData(0x5C); sendData(0x5A); sendData(0x5A);
-    
-    sendCommand(0xC5);  // VSLN Setting (0.22V)
-    sendData(0x37); sendData(0x35); sendData(0x37); sendData(0x37);
-    
-    sendCommand(0xB2); sendData(0x05);  // Frame Rate Control
+    //配合下面Frame Rate Control设置HPM刷新率{0xA6 0xE9  16/32Hz} {0x80 0xE9  25.5/51Hz}
+    sendCommand(0xD8);   //OSC Setting
+    sendData(0x80);
+    sendData(0xE9);
+
+    //0X00 HPM=16Hz LPM=0.25HzHz；0X10 HPM=32Hz  LPM=0.25Hz
+    //0X01 HPM=16Hz LPM=0.5HzHz； 0X11 HPM=32Hz  LPM=0.5Hz
+    //0X02 HPM=16Hz LPM=1Hz；0X12 HPM=32Hz  LPM=1Hz
+    //0X03 HPM=16Hz LPM=2Hz；0X13 HPM=32Hz  LPM=2Hz
+    //0X04 HPM=16Hz LPM=4Hz；0X12 HPM=32Hz  LPM=4Hz
+    //0X05 HPM=16Hz LPM=8Hz；0X15 HPM=32Hz  LPM=8Hz
+    sendCommand(0xB2);   //Frame Rate Control
+    sendData(0x12);  //
     
     // Update Period Gate EQ Control in HPM
     sendCommand(0xB3);
@@ -149,7 +179,7 @@ void ST7305::initDisplay()
     sendCommand(0xD0); sendData(0xFF);  // Auto power down
     sendCommand(0x39);  // 低功耗模式
     sendCommand(0x29);  // Display on
-    setvoltage(fps_5100);
+    // setvoltage(fps_5100);
     delay(100);
 }
 
@@ -213,75 +243,74 @@ void ST7305::display()
     //         delay(1);
 
     sendCommand(0x2C);
-    sendData(buffer, 8064);
-
-    // log_i("display time: %ld ms", millis() - begin);
+    sendData(buffer, BYTES_PER_BUFFER);
 }
 
 void ST7305::clearDisplay(uint16_t color)
 {
-    memset(buffer, int(color), 384 * 21);
+    memset(buffer, int(color), BYTES_PER_BUFFER);
 }
 
-void ST7305::drawPixel(int16_t x, int16_t y, uint16_t color)
+// 预计算查找表
+static uint8_t BIT_MASK_LUT[8] = {
+    0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01
+};
+
+// Y坐标到垂直字节偏移的查找表 (y % 4)
+static uint8_t Y_BYTE_OFFSET[4] = {0, 2, 4, 6};
+
+IRAM_ATTR void ST7305::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
-    if (x < 0 || x >= width() || y < 0 || y >= height())
-    {
+    // 原始坐标边界检查
+    if(x < 0 || x >= PHYSICAL_WIDTH || y < 0 || y >= PHYSICAL_HEIGHT)  
         return;
-    }
-
+    
+    // 应用旋转变换
     int16_t new_x, new_y;
-
     switch (rotation)
     {
-    case 1: // 90 degrees
-        new_x = y;
-        new_y = x;
-        break;
-    case 2: // 180 degrees
+    case 1:  // 0°
         new_x = x;
-        new_y = width() - y - 1;
-        break;
-    case 3: // 270 degrees
-        new_x = height() - y - 1;
-        new_y = width() - x - 1;
-        break;
-    default: // 0 degrees
-        new_x = height() - x - 1;
         new_y = y;
         break;
+    case 2:  // 90°
+        new_x = y;
+        new_y = PHYSICAL_WIDTH - x - 1;
+        break;
+    case 3:  // 180°
+        new_x = PHYSICAL_WIDTH - x - 1;
+        new_y = PHYSICAL_HEIGHT - y - 1;
+        break;
+    default: // 270°
+        new_x = PHYSICAL_HEIGHT - y - 1;
+        new_y = x;
+        break;
     }
-
-    // Calculate byte position and bit position within byte
-    // uint16_t byte_idx = (new_y >> 3) * 384 + new_x;
-    // uint8_t bit_pos = new_y & 0x07;
-
-    // if (color) {
-    //     buffer[byte_idx] |= (1 << bit_pos);
-    // } else {
-    //     buffer[byte_idx] &= ~(1 << bit_pos);
-    // }
-
-    uint real_x = new_x / 4; // 0->0, 3->0, 4->1, 7->1
-    uint real_y = new_y / 2; // 0->0, 1->0, 2->1, 3->1
-    uint write_byte_index = real_y * 42 + real_x;
-    uint one_two = (new_y % 2 == 0) ? 0 : 1; // 0 1
-    uint line_bit_4 = new_x % 4;             // 0 1 2 3
-    uint8_t write_bit = 7 - (line_bit_4 * 2 + one_two);
-
-    // Serial.printf("x: %u, y: %u, real_y: %u, real_x: %u, write_byte_index: %u, one_two: %u, line_bit_4: %u, write_bit: %u\n\n", x, y, real_y, real_x, write_byte_index, one_two, line_bit_4, write_bit);
-
-    if (color != 0)
-    {
-        // 将指定位置的 bit 置为 1
-        buffer[write_byte_index] |= (1 << write_bit);
-    }
-    else
-    {
-        // 将指定位置的 bit 置为 0
-        buffer[write_byte_index] &= ~(1 << write_bit);
+    
+    // 旋转后坐标边界检查（使用显示缓冲区的尺寸）
+    if(new_x < 0 || new_x >= PHYSICAL_WIDTH || new_y < 0 || new_y >= PHYSICAL_HEIGHT)  
+        return;
+    
+    // 计算CGRAM中的字节偏移
+    uint16_t col = new_x >> 1;      // 每2列共享一个CGRAM字节
+    uint8_t y_div4 = new_y >> 2;    // y / 4，确定垂直字节位置
+    
+    // 计算一维数组索引
+    uint16_t byte_index = col * 42 + y_div4;
+    
+    // 计算位掩码
+    uint8_t y_mod4 = new_y & 0x03;  // y % 4
+    uint8_t bit_offset = Y_BYTE_OFFSET[y_mod4] + (new_x & 0x01);
+    uint8_t bit_mask = BIT_MASK_LUT[bit_offset];
+    
+    // 设置或清除位
+    if (color) {
+        buffer[byte_index] |= bit_mask;
+    } else {
+        buffer[byte_index] &= ~bit_mask;
     }
 }
+
 void ST7305::setRotation(uint8_t m)
 {
     rotation = m % 4; // Ensure rotation is within 0-3
@@ -331,34 +360,11 @@ void ST7305::Low_Power_Mode()
         HPM_MODE = false;
         LPM_MODE = true;
 
-        // VLC=3.6V (12/-5)(delta Vp=0.6V)
-        sendCommand(0xC1); // VSHP Setting (4.8V)
-        sendData(115);     // VSHP1
-        sendData(0X3E);    // VSHP2
-        sendData(0X3C);    // VSHP3
-        sendData(0X3C);    // VSHP4
-
-        sendCommand(0xC2); // VSLP Setting (0.98V)
-        sendData(0);       // VSLP1
-        sendData(0X21);    // VSLP2
-        sendData(0X23);    // VSLP3
-        sendData(0X23);    // VSLP4
-
-        sendCommand(0xC4); // VSHN Setting (-3.6V)
-        sendData(50);      // VSHN1
-        sendData(0X5C);    // VSHN2
-        sendData(0X5A);    // VSHN3
-        sendData(0X5A);    // VSHN4
-
-        sendCommand(0xC5); // VSLN Setting (0.22V)
-        sendData(50);      // VSLN1
-        sendData(0X35);    // VSLN2
-        sendData(0X37);    // VSLN3
-        sendData(0X37);    // VSLN4
-
-        sendCommand(0xC9); // Source Voltage Select
-        sendData(0X00);    // VSHP1; VSLP1 ; VSHN1 ; VSLN1
-
+        sendCommand(0xC0); 
+        sendData(voltageSet[0][0]); 
+        sendData(voltageSet[0][1]); 
+        sendCommand(0xC9); 
+        sendData(0x00);  // Source Voltage Select
         delay(20);
 
         sendCommand(0x39); // LPM:Low Power Mode ON
@@ -380,36 +386,12 @@ void ST7305::High_Power_Mode()
 
         sendCommand(0x38); // HPM:high Power Mode ON
         delay(10);
-        sendCommand(0xC0); // Gate Voltage Setting
-        sendData(0X12);    // VGH 00:8V  04:10V  08:12V   0E:15V   12:17V
-        sendData(0X0a);    // VGL 00:-5V   04:-7V   0A:-10V
-        // VLC=3.6V (12/-5)(delta Vp=0.6V)
-        sendCommand(0xC1); // VSHP Setting (4.8V)
-        sendData(115);     // VSHP1
-        sendData(0X3E);    // VSHP2
-        sendData(0X3C);    // VSHP3
-        sendData(0X3C);    // VSHP4
-
-        sendCommand(0xC2); // VSLP Setting (0.98V)
-        sendData(0);       // VSLP1
-        sendData(0X21);    // VSLP2
-        sendData(0X23);    // VSLP3
-        sendData(0X23);    // VSLP4
-
-        sendCommand(0xC4); // VSHN Setting (-3.6V)
-        sendData(50);      // VSHN1
-        sendData(0X5C);    // VSHN2
-        sendData(0X5A);    // VSHN3
-        sendData(0X5A);    // VSHN4
-
-        sendCommand(0xC5); // VSLN Setting (0.22V)
-        sendData(50);      // VSLN1
-        sendData(0X35);    // VSLN2
-        sendData(0X37);    // VSLN3
-        sendData(0X37);    // VSLN4
-
-        sendCommand(0xC9); // Source Voltage Select
-        sendData(0X00);    // VSHP1; VSLP1 ; VSHN1 ; VSLN1
+        
+        sendCommand(0xC0); 
+        sendData(voltageSet[1][0]); 
+        sendData(voltageSet[1][1]); 
+        sendCommand(0xC9); 
+        sendData(0x01);  // Source Voltage Select
 
         delay(10);
     }

@@ -5,6 +5,16 @@
 #include <SPI.h>
 #include "Adafruit_GFX.h"
 
+
+#define MAX_X  384
+#define MAX_Y  168
+#define PHYSICAL_WIDTH  384
+#define PHYSICAL_HEIGHT 168
+// 预定义常量，避免重复计算
+#define BYTES_PER_ROW 42          // 每行的字节数
+#define TOTAL_ROWS 192            // 总行数
+#define BYTES_PER_BUFFER (BYTES_PER_ROW * TOTAL_ROWS)  // 每个缓冲区的字节数
+
 typedef enum
 {
 	fps_0003,
@@ -52,18 +62,26 @@ public:
 	uint16_t current_buffer_idx = 0;
 
 private:
-	// 0.25Hz 0x12,0x14,115,0,75,50,
-	// 1Hz 0x08,0x06,115,0,50,50,
-	// 32Hz 0x0a,0x06,115,0,50,50,
-	// 51Hz 0x0a,0x06,115,0,50,50,
-	const uint8_t voltageSet[7][6] = {
-		{0x08, 0x0a, 65, 0, 50, 50},
-		{0x0b, 0x0a, 115, 0, 50, 50},
-		{0x16, 0x14, 115, 0, 125, 50}, // VGH=17V;VGL=-15V; VSHP1; VSLP1 ; VSHN1 ; VSLN1
-		{0x13, 0x1a, 115, 0, 50, 50},
-		{0x08, 0x0a, 65, 0, 0, 50},	   // VGH=12V;VGL=-10V; VSHP2; VSLP2 ; VSHN2 ; VSLN2
-		{0x08, 0x06, 65, 0, 50},	   // VGH=12V;VGL=-8V; VSHP3; VSLP3 ; VSHN3 ; VSLN3
-		{0x08, 0x06, 15, 0, 0, 50}	   // VGH=12V;VGL=-8V; VSHP4; VSLP4 ; VSHN4 ; VSLN4
+	//VGH-VGL  13 ~ 32v  ,  VSH-VSL  -0.3 ~ +6.2V
+	//VSHP电压 = 3.7 + 0.02*设置值，3.7~6.2V
+	//VSLP电压 = 0.02*设置值 ，0~2V
+	//VSHN电压 = -2.5 - 0.02*设置值，-5.3~2.5V
+	//VSLN电压 = 1 - 0.02*设置值，-1.8~1.0V
+	//高刷新率需要更低的VGL、VSHN电压，0.25刷新率越低VSHN -2.5V电压
+
+	//0组 1/32 Hz
+	//1组 1/51 Hz
+	//2组 0.25 ~ 51 Hz
+	//3组 1 ~ 32 Hz
+	//4组 2 ~ 32 Hz
+	//5组 4 ~ 16 Hz
+	const uint8_t voltageSet[6][6] = {
+		0x08,0x0a,65,0,50,50,//VGH=12V;VGL=-10V; VSHP1; VSLP1 ; VSHN1 ; VSLN1
+		0x12,0x0a,115,0,50,50,//VGH=16V;VGL=-10V; VSHP1; VSLP1 ; VSHN1 ; VSLN1
+		0x0b,0x0a,115,0,50,50,//VGH=13.5V;VGL=-10V; VSHP1; VSLP1 ; VSHN1 ; VSLN1
+		0x08,0x0a,65,0,0,50,   //VGH=12V;VGL=-10V; VSHP2; VSLP2 ; VSHN2 ; VSLN2
+		0x08,0x06,65,0,0,50,   //VGH=12V;VGL=-8V; VSHP3; VSLP3 ; VSHN3 ; VSLN3
+		0x08,0x06,15,0,0,50,   //VGH=12V;VGL=-8V; VSHP4; VSLP4 ; VSHN4 ; VSLN4
 	};
 	SPIClass *_spi;
 	int8_t _cs_pin;
@@ -72,8 +90,8 @@ private:
 	int8_t _te_pin;
 	uint8_t rotation; // 0, 1, 2, or 3 corresponding to 0, 90, 180, 270 degrees
 
-	uint8_t *buffer; // 384 * 21 bytes (each byte maps to 8 vertical pixels)
-	uint8_t _buffers[3][8064];
+	uint8_t *buffer;
+	uint8_t _buffers[3][192 * 42];
 
 	bool HPM_MODE = false;
 	bool LPM_MODE = false;

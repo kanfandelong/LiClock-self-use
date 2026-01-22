@@ -1261,10 +1261,6 @@ bool HAL::init()
     display.display_Inversion(true);
     if (hal.pref.getBool("high_fps"))
         display.High_Power_Mode();
-    uint8_t data[2] = {0x80, 0xE9};
-    display.set(0xD8, data, 2);
-    display.set(0xB2, 0x15);
-    display.setvoltage(fps_5100_2);
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(TFT_BLACK);
     u8g2Fonts.setFontMode(1);
@@ -1532,8 +1528,6 @@ static void pre_sleep()
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
     display.Low_Power_Mode();
-    uint8_t data[2] = {0x26, 0xE9};
-    display.set(0xD8, data, 2);
     buzzer.waitForSleep();
     if (file_log)
         file_log.close();

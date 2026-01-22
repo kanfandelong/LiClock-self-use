@@ -134,8 +134,8 @@ namespace GUI
     void msgbox(const char *title, const char *msg, uint16_t timeout)
     {
         // 160*100窗口，圆角5
-        constexpr int start_x = (296 - 160) / 2;
-        constexpr int start_y = (128 - 96) / 2;
+        constexpr int start_x = (MAX_X - 160) / 2;
+        constexpr int start_y = (MAX_Y - 96) / 2;
         int16_t w;
         bool result = false;
         hal.hookButton();
@@ -183,7 +183,6 @@ namespace GUI
         // constexpr int start_y = (128 - 96) / 2;
         int16_t x = u8g2Fonts.getCursorX(), y = u8g2Fonts.getCursorY();
         push_buffer();
-        display.clearDisplay();
         drawWindowsWithTitle(title, start_x, start_y, 160, 96);
         // 内容
         if (msg)
@@ -207,8 +206,8 @@ namespace GUI
     bool msgbox_yn(const char *title, const char *msg, const char *yes, const char *no)
     {
         // 160*100窗口，圆角5
-        constexpr int start_x = (296 - 160) / 2;
-        constexpr int start_y = (128 - 96) / 2;
+        constexpr int start_x = (MAX_X - 160) / 2;
+        constexpr int start_y = (MAX_Y - 96) / 2;
         if (yes == NULL)
             yes = "确定 (右)";
         if (no == NULL)
@@ -217,7 +216,6 @@ namespace GUI
         bool result = false;
         hal.hookButton();
         push_buffer();
-        display.clearDisplay();
         drawWindowsWithTitle(title, start_x, start_y, 160, 96);
         // 内容
         u8g2Fonts.setCursor(start_x + 2, start_y + 28);
@@ -269,8 +267,8 @@ namespace GUI
      */
     int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h, int default_selected)
     {
-        constexpr int start_x = (296 - 200) / 2;
-        constexpr int start_y = (128 - 111) / 2; // 200*96
+        constexpr int start_x = (MAX_X - 200) / 2;
+        constexpr int start_y = (MAX_Y - 111) / 2; // 200*96
         constexpr int number_of_items = 6;
         constexpr int item_height = (96) / number_of_items; // 16
         constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
@@ -371,7 +369,6 @@ namespace GUI
                 {
                     pageStart = selected - number_of_items + 1;
                 }
-                display.clearDisplay();
                 // 下面渲染菜单
                 drawWindowsWithTitle(title, start_x, start_y, 200, 111);
                 // 项目
@@ -441,8 +438,8 @@ namespace GUI
     int select_menu(const char *title, const menu_select options[], int default_selected)
     {
         uint8_t ico_h = 12, ico_w = 12;
-        constexpr int start_x = (296 - 200) / 2;
-        constexpr int start_y = (128 - 111) / 2; // 200*96
+        constexpr int start_x = (MAX_X - 200) / 2;
+        constexpr int start_y = (MAX_Y - 111) / 2; // 200*96
         constexpr int number_of_items = 6;
         constexpr int item_height = (96) / number_of_items; // 16
         constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
@@ -581,7 +578,6 @@ namespace GUI
                 {
                     pageStart = selected - number_of_items + 1;
                 }
-                display.clearDisplay();
                 // 下面渲染菜单
                 drawWindowsWithTitle(title, start_x, start_y, 200, 111);
                 // 项目
@@ -867,8 +863,8 @@ namespace GUI
     {
         constexpr int window_w = 120;
         constexpr int window_h = 48;
-        constexpr int start_x = (296 - window_w) / 2;
-        constexpr int start_y = (128 - window_h) / 2;
+        constexpr int start_x = (MAX_X - window_w) / 2;
+        constexpr int start_y = (MAX_Y - window_h) / 2;
         constexpr int input_x = start_x + 5;
         constexpr int input_y = start_y + 18;
         constexpr int input_w = window_w - 10;
@@ -881,7 +877,6 @@ namespace GUI
             digits = 8;
         hal.hookButton();
         push_buffer();
-        display.clearDisplay();
         int currentNumber = pre_value;
         int current_digit = digits; // 0：个位
         int current_digit_10pow = 1;
@@ -1015,8 +1010,8 @@ namespace GUI
     {
         constexpr int window_w = 120;
         constexpr int window_h = 48;
-        constexpr int start_x = (296 - window_w) / 2;
-        constexpr int start_y = (128 - window_h) / 2;
+        constexpr int start_x = (MAX_X - window_w) / 2;
+        constexpr int start_y = (MAX_Y - window_h) / 2;
         constexpr int input_x = start_x + 5;
         constexpr int input_y = start_y + 18;
         constexpr int input_w = window_w - 10;
@@ -1033,7 +1028,6 @@ namespace GUI
 
         hal.hookButton();
         push_buffer();
-        display.clearDisplay();
 
         /* 关键修复3：数值初始化 */
         uint32_t currentNumber = pre_value & bit_mask;
@@ -1154,8 +1148,8 @@ namespace GUI
     {
         constexpr int window_w = 120;
         constexpr int window_h = 48;
-        constexpr int start_x = (296 - window_w) / 2;
-        constexpr int start_y = (128 - window_h) / 2;
+        constexpr int start_x = (MAX_X - window_w) / 2;
+        constexpr int start_y = (MAX_Y - window_h) / 2;
         constexpr int input_x = start_x + 5;
         constexpr int input_y = start_y + 18;
         constexpr int input_w = window_w - 10;
@@ -1165,7 +1159,6 @@ namespace GUI
         int16_t digit_add[4] = {1, 10, 60, 600};
         hal.hookButton();
         push_buffer();
-        display.clearDisplay();
         uint8_t current_digit = 3;
         int current_value = pre_value;
         bool changed = true;

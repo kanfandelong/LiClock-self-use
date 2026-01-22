@@ -26,9 +26,9 @@ namespace GUI
     extern int last_buffer_idx;
     bool waitLongPress(int btn); // 检查长按，如果是长按则返回true
     void autoIndentDraw(const char *str, int max_x, int start_x = 2, int fontsize = 13);
-    void drawWindowsWithTitle(const char *title = NULL, int16_t x = 0, int16_t y = 0, int16_t w = 296, int16_t h = 128);
+    void drawWindowsWithTitle(const char *title = NULL, int16_t x = 0, int16_t y = 0, int16_t w = MAX_X, int16_t h = MAX_Y);
     void msgbox(const char *title, const char *msg, uint16_t timeout = 30);
-    void info_msgbox(const char *title, const char *msg, int start_x = 68, int start_y = 16);
+    void info_msgbox(const char *title, const char *msg, int start_x = 112, int start_y = 36);
     bool msgbox_yn(const char *title, const char *msg, const char *yes = NULL, const char *no = NULL);
     int msgbox_number(const char *title, uint16_t digits, int pre_value); // 注意digits，1表示一位，2表示两位，程序中减一
     uint32_t msgbox_hex(const char *title, uint16_t digits, uint32_t pre_value);

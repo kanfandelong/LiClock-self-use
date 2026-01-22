@@ -165,6 +165,9 @@ public:
     int play_count = 1;     // 播放歌曲数量
     int _count = 20;        // 播放歌曲上限（控制重启）
     int display_count = 0;  // 屏幕刷新次数
+    bool loopPlay = false;
+    bool autoPlay = false;
+    bool randomPlay = false;
 
     // 音频相关设置
     id3_info info; // 歌曲ID3信息
@@ -1092,6 +1095,7 @@ void AppMusicPlayer::drawScrollingLyrics(int x, int y)
     }
     else
     {
+        // display.fillRect(0, y - (LINE_HEIGHT * 2), 380, (LINE_HEIGHT * 3), TFT_WHITE);
         // 滚动显示
         int oldOffset = scrollDirection > 0 ? -scrollOffset : scrollOffset;
         int newOffset = scrollDirection > 0 ? (LINE_HEIGHT - scrollOffset) : -(LINE_HEIGHT - scrollOffset);
@@ -1125,8 +1129,8 @@ void AppMusicPlayer::drawScrollingLyrics(int x, int y)
         u8g2Fonts.setCursor(x1, lineY);
         u8g2Fonts.print(newLyrics[2]);
         
-        display.fillRect(0, y + LINE_HEIGHT + 4, SCREEN_WIDTH, 14, TFT_WHITE);
         display.fillRect(0, y - (LINE_HEIGHT * 3) + 2, SCREEN_WIDTH, 17, TFT_WHITE);
+        display.fillRect(0, y + LINE_HEIGHT + 4, SCREEN_WIDTH, 14, TFT_WHITE);
     }
 }
 
@@ -1270,6 +1274,7 @@ void AppMusicPlayer::file_in(const char *path)
         delete in;
         in = nullptr;
     }
+    lrcisload = false;
     if (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
     {
         loadLyrics(path);
@@ -1839,6 +1844,9 @@ void AppMusicPlayer::player_menu()
             break;
         }
     }
+    loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
+    autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false);
+    randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
     hal.can_light_sleep = true;
 }
 /**
@@ -2222,65 +2230,15 @@ void AppMusicPlayer::show_display_fft()
     d_time.start = micros();
     display.clearScreen();
 
-    int16_t wchar;
-    // display.drawRoundRect(0, 0, SCREEN_WIDTH, 168, 3, 0);
-    display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
-    u8g2Fonts.setBackgroundColor(1);
-    u8g2Fonts.setForegroundColor(0);
-    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
-    if (titles[currentSongIndex] != nullptr)
-    {
-        // 标题栏
-        if (titles[currentSongIndex])
-        {
-            wchar = u8g2Fonts.getUTF8Width(titles[currentSongIndex]);
-            u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
-            u8g2Fonts.print(titles[currentSongIndex]);
-        }
-    }
-    else
-    {
-        wchar = u8g2Fonts.getUTF8Width("音乐播放器");
-        u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
-        u8g2Fonts.print("音乐播放器");
-    }
     if (lrcisload) //  && !user_stop
     {
         unsigned long currentTime = millis() - play_time_start - _lrcoffset - play_stop_time;
         checkAndUpdateLyrics(currentTime);
 
-        // // 绘制歌词（带滚动效果）
-        // // 计算居中位置
-        // String displayText = scrolling ? newLyrics[1] : String(currentLyric[1]);
-        // int textWidth = u8g2Fonts.getUTF8Width(displayText.c_str());
-        // int xPos = (296 - textWidth) / 2;
-        // if (xPos < 2)
-        //     xPos = 2;
-
         drawScrollingLyrics(14, 110); // 第二行的Y坐标
 
         int16_t wchar;
-        // display.drawRoundRect(0, 0, SCREEN_WIDTH, 168, 3, 0);
-        display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
-        u8g2Fonts.setBackgroundColor(1);
-        u8g2Fonts.setForegroundColor(0);
-        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
-        if (titles[currentSongIndex] != nullptr)
-        {
-            // 标题栏
-            if (titles[currentSongIndex])
-            {
-                wchar = u8g2Fonts.getUTF8Width(titles[currentSongIndex]);
-                u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
-                u8g2Fonts.print(titles[currentSongIndex]);
-            }
-        }
-        else
-        {
-            wchar = u8g2Fonts.getUTF8Width("音乐播放器");
-            u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
-            u8g2Fonts.print("音乐播放器");
-        }
+
         int x = 0;
 
         String titleStr = info.title;
@@ -2308,28 +2266,6 @@ void AppMusicPlayer::show_display_fft()
     }
     else
     {
-        int16_t wchar;
-        // display.drawRoundRect(0, 0, SCREEN_WIDTH, 168, 3, 0);
-        display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
-        u8g2Fonts.setBackgroundColor(1);
-        u8g2Fonts.setForegroundColor(0);
-        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
-        if (titles[currentSongIndex] != nullptr)
-        {
-            // 标题栏
-            if (titles[currentSongIndex])
-            {
-                wchar = u8g2Fonts.getUTF8Width(titles[currentSongIndex]);
-                u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
-                u8g2Fonts.print(titles[currentSongIndex]);
-            }
-        }
-        else
-        {
-            wchar = u8g2Fonts.getUTF8Width("音乐播放器");
-            u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
-            u8g2Fonts.print("音乐播放器");
-        }
         int x = 0;
         x = u8g2Fonts.getUTF8Width(info.title.c_str());
         u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 93);
@@ -2348,6 +2284,27 @@ void AppMusicPlayer::show_display_fft()
         else
             display.drawXBitmap(22, 97, play_bits, 24, 24, TFT_BLACK);
 
+    }
+    int16_t wchar;
+    display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
+    // u8g2Fonts.setBackgroundColor(1);
+    // u8g2Fonts.setForegroundColor(0);
+    // u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+    if (titles[currentSongIndex] != nullptr)
+    {
+        // 标题栏
+        if (titles[currentSongIndex])
+        {
+            wchar = u8g2Fonts.getUTF8Width(titles[currentSongIndex]);
+            u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
+            u8g2Fonts.print(titles[currentSongIndex]);
+        }
+    }
+    else
+    {
+        wchar = u8g2Fonts.getUTF8Width("音乐播放器");
+        u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
+        u8g2Fonts.print("音乐播放器");
     }
 
     d_time.fft_start = micros();
@@ -2389,22 +2346,14 @@ void AppMusicPlayer::show_display_fft()
     u8g2Fonts.setCursor(2, 12);
     u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
 
-    // u8g2Fonts.setCursor(3, 75);
-    // u8g2Fonts.printf("%s  %s", info.title.c_str(), info.performer.c_str());
-    // u8g2Fonts.printf("专辑:%s", info.album.c_str());
-    // u8g2Fonts.setCursor(3, 99);
-    // if (_play_end)
-    //     u8g2Fonts.printf("播放结束 ");
-    // else
-    //     u8g2Fonts.printf("播放中...");
     u8g2Fonts.setCursor(3, 165);
-    if (hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false))
+    if (loopPlay)
     {
         u8g2Fonts.printf("单曲循环");
     }
-    else if (hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false))
+    else if (autoPlay)
     {
-        if (hal.pref.getBool(hal.get_char_sha_key("随机播放"), false))
+        if (randomPlay)
             u8g2Fonts.printf("随机");
         else
             u8g2Fonts.printf("顺序");
@@ -2436,7 +2385,7 @@ void AppMusicPlayer::show_display_fft()
 
     uint32_t play_time = (millis() - play_time_start - play_stop_time);
     uint32_t total_time = 0;
-    if (!hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false))
+    if (!loopPlay)
         play_time_total = 0;
     if (info.tlen != 0)
         total_time = info.tlen;
@@ -2577,7 +2526,6 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
  */
 bool AppMusicPlayer::player_set()
 {
-    lrcisload = false;
     play_count++;
     info.album = "---";
     info.performer = "---";
@@ -2649,6 +2597,7 @@ void initCurveScaling() {
 void AppMusicPlayer::setup()
 {
     // display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
+    hal.cheak_freq(240, true);
     initCurveScaling();
     display.clearScreen();
     display.display();
@@ -2663,6 +2612,11 @@ void AppMusicPlayer::setup()
     bits_per_chan = hal.pref.getBool("bits_per_chan", true);
     display_debug_mode = hal.pref.getBool("music_debug", false);
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
+    
+    loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
+    autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false);
+    randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
+
     exit = player_exit;
     deepsleep = player_deepsleep;
     appManager.noDeepSleep = false;
@@ -2809,4 +2763,5 @@ void AppMusicPlayer::setup()
             wait_time = millis();
         }
     }
+    hal.cheak_freq(160, true);
 }
