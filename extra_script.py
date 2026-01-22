@@ -416,4 +416,10 @@ def copy_artifacts_to_windows(source, target, env):
     post_build_elf_versions()
 
 # 注册构建后钩子
-env.AddPostAction("buildprog", copy_artifacts_to_windows)
+def copy_artifacts_to_windows_wrapper(source, target, env):
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        print("[构建后] GitHub Actions 环境，跳过复制产物")
+        return
+    copy_artifacts_to_windows(source, target, env)
+
+env.AddPostAction("buildprog", copy_artifacts_to_windows_wrapper)
