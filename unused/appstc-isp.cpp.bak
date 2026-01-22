@@ -1,0 +1,106 @@
+#include "AppManager.h"
+
+static const uint8_t stc_isp_bits[] = {
+   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+   0x00, 0x00, 0x00, 0x00, 0xfc, 0xff, 0x03, 0x00, 0x00, 0x00, 0x06, 0x00,
+   0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x70, 0x00,
+   0xfc, 0xff, 0xe0, 0x00, 0xfc, 0xff, 0xc1, 0x01, 0x00, 0x80, 0x83, 0x03,
+   0x00, 0x00, 0x0f, 0x07, 0x00, 0x00, 0x3e, 0x0e, 0x00, 0x00, 0x7c, 0x0c,
+   0xfe, 0x3f, 0x78, 0x0c, 0xfc, 0xff, 0x60, 0x0c, 0x00, 0xe0, 0x63, 0x0c,
+   0x00, 0xc0, 0x63, 0x0c, 0x00, 0x80, 0x63, 0x0c, 0x00, 0x80, 0x63, 0x0c,
+   0xe0, 0xbf, 0xef, 0x3d, 0xf0, 0xbf, 0xef, 0x7d, 0xf8, 0xbf, 0xef, 0x3d,
+   0x7c, 0x80, 0x63, 0x0c, 0x3e, 0xbf, 0xef, 0x3d, 0x9e, 0xbf, 0xef, 0x7d,
+   0xde, 0xbf, 0xef, 0x3d, 0xde, 0x83, 0x63, 0x0c, 0xde, 0x83, 0x63, 0x0c,
+   0x8c, 0x81, 0x21, 0x04, 0x00, 0x00, 0x00, 0x00 };
+
+class AppStcisp : public AppBase
+{
+private:
+    /* data */
+public:
+    AppStcisp()
+    {
+        name = "stc-isp";
+        title = "stc-isp";
+        description = "基于ESP32的stc-isp工具";
+        image = stc_isp_bits;
+    }
+    void set();
+    void setup();
+    const char* remove_path_prefix(const char* path, const char* prefix);
+    isp_chip select_chip();
+};
+static AppStcisp app;
+RTC_DATA_ATTR const char *code_file;
+RTC_DATA_ATTR isp_chip _chip;
+RTC_DATA_ATTR long chip_fosc;
+void AppStcisp::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
+void AppStcisp::setup(){
+    bool download_ok_flag = false;
+    if (!GUI::msgbox_yn("提示", "是否使用上次的设置进行ISP下载？")){
+        code_file = GUI::fileDialog("选择程序文件", false, NULL, NULL);
+        config[isp_file] = code_file;
+        hal.saveConfig();
+        _chip = select_chip();
+        chip_fosc = GUI::msgbox_number("输入运行频率", 8, 24000000);
+    }else{
+        code_file = config[isp_file];
+    }
+    if (strncmp(code_file, "/sd/", 4) == 0) {
+        download_ok_flag = isp.FS_bin_isp(&SD, remove_path_prefix(code_file,"/sd"), _chip, 9600, chip_fosc);
+    } 
+    else if (strncmp(code_file, "/littlefs/", 10) == 0) {
+        download_ok_flag = isp.FS_bin_isp(&LittleFS, remove_path_prefix(code_file,"/littlefs"), _chip, 9600, chip_fosc);
+    }
+    if (!download_ok_flag){
+        char buf[128];
+        sprintf(buf, "错误代码：\n1.%d\n2.%d\n3.%d", isp.error_code[0], isp.error_code[1], isp.error_code[2]);
+        if (GUI::msgbox_yn("下载失败", buf, "退出", "重新开始"))
+            appManager.goBack();
+    }
+    appManager.nextWakeup = 1;
+    appManager.noDeepSleep = false;
+}
+
+const char* AppStcisp::remove_path_prefix(const char* path, const char* prefix) {
+    size_t prefix_len = strlen(prefix);
+    size_t path_len = strlen(path);
+
+    // 检查路径是否以指定前缀开头
+    if (strncmp(path, prefix, prefix_len) == 0) {
+        // 返回去除前缀后的路径
+        return path + prefix_len;
+    }
+    // 如果路径不以指定前缀开头，则返回原始路径
+    return path;
+}
+
+isp_chip AppStcisp::select_chip() {
+    static const menu_item chip_select_menu[] = {
+        {NULL, "STC 8A系列"},
+        {NULL, "STC 8G系列"},
+        {NULL, "STC 8H系列"},
+        {NULL, NULL},
+    };
+    int res = 0;
+    bool end = false;
+    res = GUI::menu("选择芯片系列", chip_select_menu);
+    switch (res)
+    {
+        case 0:
+            return STC_8A;
+            break;
+        case 1:
+            return STC_8G;
+            break;
+        case 2:
+            return STC_8H;
+            break;
+        default:
+            GUI::info_msgbox("错误", "无效的选项或不受支持的芯片系列");
+            return not_supported_chip;
+            break;
+    }
+}

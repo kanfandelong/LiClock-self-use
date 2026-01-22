@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>温湿度数据可视化系统 - 时间范围选择</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.4/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #f0f8ff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 30px 0;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.8rem;
+            margin-bottom: 15px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
+        }
+        
+        h1::after {
+            content: '';
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 4px;
+            background: linear-gradient(to right, #4facfe, #00f2fe);
+            border-radius: 2px;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.85;
+            max-width: 800px;
+            margin: 20px auto;
+            line-height: 1.7;
+            color: #cce7ff;
+        }
+        
+        .card-container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(12px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+        
+        .chart-container {
+            grid-column: 1;
+            height: 520px;
+            position: relative;
+        }
+        
+        .controls {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        
+        h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid rgba(100, 200, 255, 0.3);
+            color: #a1d8ff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        h2 i {
+            color: #4facfe;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        label {
+            font-weight: 500;
+            font-size: 1.1rem;
+            color: #b3e0ff;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 180px;
+            background: rgba(0, 20, 40, 0.5);
+            border: 1px solid rgba(100, 180, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            color: #f0f8ff;
+            font-family: monospace;
+            resize: vertical;
+            font-size: 0.95rem;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #4dabf7;
+            box-shadow: 0 0 0 2px rgba(77, 171, 247, 0.2);
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        
+        button {
+            flex: 1;
+            background: linear-gradient(45deg, #2193b0, #6dd5ed);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.05rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        button:hover {
+            transform: scale(1.03);
+            box-shadow: 0 4px 15px rgba(33, 147, 176, 0.4);
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        button.secondary {
+            background: linear-gradient(45deg, #654ea3, #da98b4);
+        }
+        
+        button.tertiary {
+            background: linear-gradient(45deg, #11998e, #38ef7d);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-card {
+            background: rgba(0, 30, 60, 0.4);
+            border-radius: 12px;
+            padding: 18px 15px;
+            text-align: center;
+            border: 1px solid rgba(100, 180, 255, 0.2);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+        
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 10px 0;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .stat-label {
+            font-size: 0.95rem;
+            opacity: 0.9;
+            color: #a1d8ff;
+        }
+        
+        .temp-color {
+            color: #ff7e5f;
+        }
+        
+        .humidity-color {
+            color: #4dabf7;
+        }
+        
+        .time-controls {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .time-control {
+            flex: 1;
+        }
+        
+        .flatpickr-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 20, 40, 0.5);
+            border: 1px solid rgba(100, 180, 255, 0.3);
+            border-radius: 10px;
+            color: #f0f8ff;
+            font-size: 1rem;
+        }
+        
+        .time-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: rgba(100, 180, 255, 0.2);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .time-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4facfe;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(79, 172, 254, 0.7);
+        }
+        
+        .slider-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            color: #a1d8ff;
+            font-size: 0.95rem;
+        }
+        
+        .data-table-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 180, 255, 0.2);
+            margin-top: 15px;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .data-table th {
+            position: sticky;
+            top: 0;
+            background: rgba(0, 40, 80, 0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .data-table th,
+        .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(100, 180, 255, 0.1);
+        }
+        
+        .data-table tr:hover {
+            background: rgba(100, 180, 255, 0.1);
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 25px;
+            opacity: 0.7;
+            font-size: 0.95rem;
+            color: #a1d8ff;
+            border-top: 1px solid rgba(100, 180, 255, 0.2);
+        }
+        
+        .loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 20, 40, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 15px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(79, 172, 254, 0.3);
+            border-top: 5px solid #4facfe;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            font-size: 1.2rem;
+            color: #a1d8ff;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            background: rgba(0, 40, 80, 0.9);
+            border-left: 4px solid #4facfe;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            transform: translateX(120%);
+            transition: transform 0.4s ease;
+            z-index: 100;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        @media (max-width: 1000px) {
+            .card-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                grid-column: 1;
+            }
+            
+            h1 {
+                font-size: 2.2rem;
+            }
+            
+            .time-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-chart-line"></i> 温湿度数据可视化系统</h1>
+            <p class="subtitle">本系统支持时间范围选择，从服务器获取温湿度数据或上传本地文件，自动解析并生成可视化图表</p>
+        </header>
+        
+        <div class="card-container">
+            <div class="card chart-container">
+                <h2><i class="fas fa-temperature-high"></i> 温湿度趋势图</h2>
+                <div class="loading" id="chartLoading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">正在加载数据并生成图表...</div>
+                </div>
+                <canvas id="tempHumidityChart"></canvas>
+            </div>
+            
+            <div class="controls">
+                <div class="card">
+                    <h2><i class="fas fa-database"></i> 数据源</h2>
+                    <div class="input-group">
+                        <label for="dataInput"><i class="fas fa-paste"></i> 数据内容：</label>
+                        <textarea id="dataInput" placeholder="在此粘贴温湿度数据..."></textarea>
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button id="fetchBtn" class="tertiary">
+                            <i class="fas fa-cloud-download-alt"></i> 从服务器获取
+                        </button>
+                        <button id="uploadBtn">
+                            <i class="fas fa-upload"></i> 上传文件
+                        </button>
+                        <input type="file" id="fileUpload" accept=".txt,.log" style="display: none;">
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button id="parseBtn">
+                            <i class="fas fa-chart-bar"></i> 解析并绘图
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><i class="far fa-clock"></i> 时间范围选择</h2>
+                    <div class="input-group">
+                        <label><i class="fas fa-calendar-start"></i> 开始时间：</label>
+                        <input type="text" id="startTimePicker" class="flatpickr-input" placeholder="选择开始时间">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label><i class="fas fa-calendar-end"></i> 结束时间：</label>
+                        <input type="text" id="endTimePicker" class="flatpickr-input" placeholder="选择结束时间">
+                    </div>
+                    
+                    <div class="btn-group">
+                        <button id="applyTimeFilter">
+                            <i class="fas fa-filter"></i> 应用时间范围
+                        </button>
+                        <button id="resetTimeFilter" class="secondary">
+                            <i class="fas fa-redo"></i> 重置
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><i class="fas fa-chart-pie"></i> 统计信息</h2>
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-label"><i class="fas fa-thermometer-half"></i> 平均温度</div>
+                            <div class="stat-value temp-color" id="avgTemp">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label"><i class="fas fa-tint"></i> 平均湿度</div>
+                            <div class="stat-value humidity-color" id="avgHumidity">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label"><i class="fas fa-fire"></i> 最高温度</div>
+                            <div class="stat-value temp-color" id="maxTemp">--</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label"><i class="fas fa-water"></i> 最高湿度</div>
+                            <div class="stat-value humidity-color" id="maxHumidity">--</div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group" style="margin-top: 25px;">
+                        <label for="timeRange"><i class="fas fa-sliders-h"></i> 时间轴控制</label>
+                        <input type="range" id="timeRange" min="0" max="100" value="100" class="time-slider">
+                        <div class="slider-labels">
+                            <span id="startTime">--:--</span>
+                            <span id="endTime">--:--</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><i class="fas fa-table"></i> 数据点详情</h2>
+                    <div class="data-table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th><i class="far fa-clock"></i> 时间</th>
+                                    <th><i class="fas fa-thermometer-half"></i> 温度 (°C)</th>
+                                    <th><i class="fas fa-tint"></i> 湿度 (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTable">
+                                <tr><td colspan="3" style="text-align: center;">等待数据加载...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>温湿度数据可视化系统 | 时间范围选择功能 | 专业级数据可视化 | 数据源: /edit?edit=/System/temp.log</p>
+        </footer>
+        
+        <div class="notification" id="notification">
+            <i class="fas fa-info-circle"></i> <span id="notificationText">操作成功</span>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let tempHumidityChart = null;
+        let allDataPoints = [];
+        let filteredDataPoints = [];
+        const DATA_URL = "/edit?edit=/System/temp.log";
+        
+        // DOM元素
+        const dataInput = document.getElementById('dataInput');
+        const parseBtn = document.getElementById('parseBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileUpload = document.getElementById('fileUpload');
+        const fetchBtn = document.getElementById('fetchBtn');
+        const timeRange = document.getElementById('timeRange');
+        const startTime = document.getElementById('startTime');
+        const endTime = document.getElementById('endTime');
+        const dataTable = document.getElementById('dataTable');
+        const avgTemp = document.getElementById('avgTemp');
+        const avgHumidity = document.getElementById('avgHumidity');
+        const maxTemp = document.getElementById('maxTemp');
+        const maxHumidity = document.getElementById('maxHumidity');
+        const chartLoading = document.getElementById('chartLoading');
+        const notification = document.getElementById('notification');
+        const notificationText = document.getElementById('notificationText');
+        const startTimePicker = document.getElementById('startTimePicker');
+        const endTimePicker = document.getElementById('endTimePicker');
+        const applyTimeFilter = document.getElementById('applyTimeFilter');
+        const resetTimeFilter = document.getElementById('resetTimeFilter');
+        
+        // 日期选择器配置
+        const datePickerConfig = {
+            enableTime: true,
+            dateFormat: "Y-m-d H:i",
+            time_24hr: true,
+            minuteIncrement: 1,
+            locale: "zh"
+        };
+        
+        // 初始化日期选择器
+        const startPicker = flatpickr(startTimePicker, datePickerConfig);
+        const endPicker = flatpickr(endTimePicker, datePickerConfig);
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 绑定事件监听器
+            parseBtn.addEventListener('click', parseData);
+            uploadBtn.addEventListener('click', () => fileUpload.click());
+            fileUpload.addEventListener('change', handleFileUpload);
+            fetchBtn.addEventListener('click', fetchServerData);
+            timeRange.addEventListener('input', updateChartRange);
+            applyTimeFilter.addEventListener('click', applyTimeRangeFilter);
+            resetTimeFilter.addEventListener('click', resetTimeRangeFilter);
+            
+            // 初始从服务器获取数据
+            fetchServerData();
+        });
+        
+        // 显示通知
+        function showNotification(message, isError = false) {
+            notificationText.textContent = message;
+            if (isError) {
+                notification.style.borderLeftColor = '#ff6b6b';
+            } else {
+                notification.style.borderLeftColor = '#4facfe';
+            }
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 从服务器获取数据
+        function fetchServerData() {
+            showNotification('正在从服务器获取温湿度数据...');
+            chartLoading.style.display = 'flex';
+            
+            // 模拟服务器返回的数据
+/*             setTimeout(() => {
+                const serverData = `2025.08.09. 01:49:02 Temperature:32.67℃ Humidity:67.61%
+2025.08.09. 01:50:03 Temperature:32.72℃ Humidity:67.68%
+2025.08.09. 01:51:03 Temperature:32.75℃ Humidity:67.73%
+2025.08.09. 01:53:03 Temperature:32.69℃ Humidity:67.57%
+2025.08.09. 01:54:03 Temperature:32.61℃ Humidity:67.67%
+2025.08.09. 01:55:04 Temperature:32.68℃ Humidity:67.55%
+2025.08.09. 01:56:03 Temperature:32.65℃ Humidity:67.50%
+2025.08.09. 01:56:28 Temperature:32.71℃ Humidity:67.69%
+2025.08.09. 01:56:33 Temperature:32.76℃ Humidity:67.89%
+2025.08.09. 01:57:02 Temperature:32.70℃ Humidity:67.75%
+2025.08.09. 01:58:03 Temperature:32.73℃ Humidity:67.80%
+2025.08.09. 01:59:03 Temperature:32.68℃ Humidity:67.72%
+2025.08.09. 02:00:04 Temperature:32.71℃ Humidity:67.65%
+2025.08.09. 02:01:03 Temperature:32.74℃ Humidity:67.70%
+2025.08.09. 02:02:03 Temperature:32.72℃ Humidity:67.68%
+2025.08.09. 02:03:03 Temperature:32.69℃ Humidity:67.63%
+2025.08.09. 02:04:03 Temperature:32.67℃ Humidity:67.60%
+2025.08.09. 02:05:04 Temperature:32.70℃ Humidity:67.62%`;
+                
+                dataInput.value = serverData;
+                parseData();
+                showNotification('数据获取成功！已加载最新温湿度数据');
+            }, 1500); */
+            fetch(DATA_URL)
+                .then(response => {
+                    if (!response.ok) throw new Error('网络响应异常');
+                    return response.text();
+                })
+                .then(data => {
+                    dataInput.value = data;
+                    parseData();
+                    showNotification('数据获取成功！已加载最新温湿度数据');
+                })
+                .catch(error => {
+                    console.error('获取数据失败:', error);
+                    showNotification(`获取数据失败: ${error.message}`, true);
+                    chartLoading.style.display = 'none';
+                });
+        }
+        
+        // 应用时间范围过滤器
+        function applyTimeRangeFilter() {
+            const startValue = startPicker.selectedDates[0];
+            const endValue = endPicker.selectedDates[0];
+            
+            if (!startValue || !endValue) {
+                showNotification('请选择开始时间和结束时间', true);
+                return;
+            }
+            
+            if (startValue > endValue) {
+                showNotification('结束时间不能早于开始时间', true);
+                return;
+            }
+            
+            // 过滤数据点
+            filteredDataPoints = allDataPoints.filter(point => {
+                return point.timestamp >= startValue && point.timestamp <= endValue;
+            });
+            
+            if (filteredDataPoints.length === 0) {
+                showNotification('所选时间范围内没有数据', true);
+                return;
+            }
+            
+            // 更新UI
+            updateStats();
+            updateDataTable();
+            updateTimeRangeSlider();
+            renderChart();
+            
+            showNotification(`已显示 ${filteredDataPoints.length} 个数据点 (${formatDate(startValue)} 至 ${formatDate(endValue)})`);
+        }
+        
+        // 重置时间范围过滤器
+        function resetTimeRangeFilter() {
+            startPicker.clear();
+            endPicker.clear();
+            filteredDataPoints = [...allDataPoints];
+            
+            // 更新UI
+            updateStats();
+            updateDataTable();
+            updateTimeRangeSlider();
+            renderChart();
+            
+            showNotification('已重置时间范围，显示所有数据');
+        }
+        
+        // 格式化日期显示
+        function formatDate(date) {
+            return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        
+        // 解析数据
+        function parseData() {
+            const inputData = dataInput.value.trim();
+            if (!inputData) {
+                showNotification('请输入温湿度数据', true);
+                return;
+            }
+            
+            chartLoading.style.display = 'flex';
+            
+            // 稍作延迟以便显示加载状态
+            setTimeout(() => {
+                try {
+                    // 解析数据行
+                    const lines = inputData.split('\n');
+                    allDataPoints = [];
+                    
+                    for (let line of lines) {
+                        line = line.trim();
+                        if (!line) continue;
+                        
+                        // 使用正则表达式提取数据
+                        const regex = /(\d{4}\.\d{2}\.\d{2}\.)\s+(\d{2}:\d{2}:\d{2})\s+Temperature:([\d.]+)℃\s+Humidity:([\d.]+)%/;
+                        const match = line.match(regex);
+                        
+                        if (match) {
+                            // 构造完整的日期时间字符串（替换点为连字符）
+                            const datePart = match[1].replace(/\./g, '-').slice(0, -1);
+                            const dateTimeStr = `${datePart} ${match[2]}`;
+                            
+                            // 转换为Date对象
+                            const timestamp = new Date(dateTimeStr);
+                            
+                            // 提取温度和湿度值
+                            const temperature = parseFloat(match[3]);
+                            const humidity = parseFloat(match[4]);
+                            
+                            // 添加到数据点数组
+                            allDataPoints.push({
+                                timestamp: timestamp,
+                                temperature: temperature,
+                                humidity: humidity,
+                                timeLabel: match[2] // 仅时间部分用于显示
+                            });
+                        }
+                    }
+                    
+                    if (allDataPoints.length === 0) {
+                        showNotification('未找到有效数据', true);
+                        chartLoading.style.display = 'none';
+                        return;
+                    }
+                    
+                    // 按时间排序
+                    allDataPoints.sort((a, b) => a.timestamp - b.timestamp);
+                    
+                    // 初始化过滤数据为全部数据
+                    filteredDataPoints = [...allDataPoints];
+                    
+                    // 更新UI
+                    updateStats();
+                    updateDataTable();
+                    updateTimeRangeSlider();
+                    renderChart();
+                    
+                    showNotification(`成功解析${allDataPoints.length}个数据点`);
+                } catch (error) {
+                    console.error('解析数据时出错:', error);
+                    showNotification('解析数据时出错，请检查数据格式', true);
+                    chartLoading.style.display = 'none';
+                }
+            }, 300);
+        }
+        
+        // 处理文件上传
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                dataInput.value = e.target.result;
+                parseData();
+                showNotification(`已加载文件: ${file.name}`);
+            };
+            reader.readAsText(file);
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            const temps = filteredDataPoints.map(d => d.temperature);
+            const humids = filteredDataPoints.map(d => d.humidity);
+            
+            // 计算平均值
+            const avgTempVal = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(2);
+            const avgHumidityVal = (humids.reduce((a, b) => a + b, 0) / humids.length).toFixed(2);
+            
+            // 计算最大值
+            const maxTempVal = Math.max(...temps).toFixed(2);
+            const maxHumidityVal = Math.max(...humids).toFixed(2);
+            
+            // 更新DOM
+            avgTemp.textContent = `${avgTempVal}°C`;
+            avgHumidity.textContent = `${avgHumidityVal}%`;
+            maxTemp.textContent = `${maxTempVal}°C`;
+            maxHumidity.textContent = `${maxHumidityVal}%`;
+        }
+        
+        // 更新数据表格
+        function updateDataTable() {
+            // 清空表格
+            dataTable.innerHTML = '';
+            
+            if (filteredDataPoints.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td colspan="3" style="text-align: center;">没有匹配的数据</td>`;
+                dataTable.appendChild(row);
+                return;
+            }
+            
+            // 添加新行
+            filteredDataPoints.forEach(point => {
+                const row = document.createElement('tr');
+                
+                const timeCell = document.createElement('td');
+                timeCell.textContent = point.timeLabel;
+                
+                const tempCell = document.createElement('td');
+                tempCell.textContent = point.temperature.toFixed(2);
+                tempCell.classList.add('temp-color');
+                
+                const humidCell = document.createElement('td');
+                humidCell.textContent = point.humidity.toFixed(2);
+                humidCell.classList.add('humidity-color');
+                
+                row.appendChild(timeCell);
+                row.appendChild(tempCell);
+                row.appendChild(humidCell);
+                
+                dataTable.appendChild(row);
+            });
+        }
+        
+        // 更新时间范围滑块
+        function updateTimeRangeSlider() {
+            if (filteredDataPoints.length === 0) return;
+            
+            const firstTime = filteredDataPoints[0].timestamp;
+            const lastTime = filteredDataPoints[filteredDataPoints.length - 1].timestamp;
+            
+            startTime.textContent = formatTime(firstTime);
+            endTime.textContent = formatTime(lastTime);
+            
+            timeRange.max = filteredDataPoints.length - 1;
+            timeRange.value = filteredDataPoints.length - 1;
+        }
+        
+        // 格式化时间 (HH:MM)
+        function formatTime(date) {
+            return date.toTimeString().slice(0, 8);
+        }
+        
+        // 更新图表范围
+        function updateChartRange() {
+            if (!tempHumidityChart || filteredDataPoints.length === 0) return;
+            
+            const endIndex = parseInt(timeRange.value);
+            const visibleData = filteredDataPoints.slice(0, endIndex + 1);
+            
+            tempHumidityChart.data.labels = visibleData.map(d => formatTime(d.timestamp));
+            tempHumidityChart.data.datasets[0].data = visibleData.map(d => d.temperature);
+            tempHumidityChart.data.datasets[1].data = visibleData.map(d => d.humidity);
+            
+            tempHumidityChart.update();
+        }
+        
+        // 渲染图表
+        function renderChart() {
+            const ctx = document.getElementById('tempHumidityChart').getContext('2d');
+            
+            // 如果已有图表，销毁它
+            if (tempHumidityChart) {
+                tempHumidityChart.destroy();
+            }
+            
+            if (filteredDataPoints.length === 0) {
+                chartLoading.style.display = 'none';
+                return;
+            }
+            
+            // 准备数据
+            const labels = filteredDataPoints.map(d => formatTime(d.timestamp));
+            const temps = filteredDataPoints.map(d => d.temperature);
+            const humids = filteredDataPoints.map(d => d.humidity);
+            
+            // 创建图表
+            tempHumidityChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '温度 (°C)',
+                            data: temps,
+                            borderColor: '#ff7e5f',
+                            backgroundColor: 'rgba(255, 126, 95, 0.1)',
+                            borderWidth: 3,
+                            yAxisID: 'y',
+                            tension: 0.2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#ff7e5f',
+                            fill: true
+                        },
+                        {
+                            label: '湿度 (%)',
+                            data: humids,
+                            borderColor: '#4dabf7',
+                            backgroundColor: 'rgba(77, 171, 247, 0.1)',
+                            borderWidth: 3,
+                            yAxisID: 'y1',
+                            tension: 0.2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#4dabf7',
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '时间',
+                                color: '#a1d8ff',
+                                font: {
+                                    size: 14
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(100, 180, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#cce7ff',
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '温度 (°C)',
+                                color: '#ff7e5f',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(100, 180, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#cce7ff'
+                            },
+                            suggestedMin: Math.min(...temps) - 0.5,
+                            suggestedMax: Math.max(...temps) + 0.5
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '湿度 (%)',
+                                color: '#4dabf7',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            ticks: {
+                                color: '#cce7ff'
+                            },
+                            suggestedMin: Math.min(...humids) - 1,
+                            suggestedMax: Math.max(...humids) + 1
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#f0f8ff',
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(10, 30, 60, 0.9)',
+                            titleColor: '#f0f8ff',
+                            bodyColor: '#f0f8ff',
+                            borderColor: 'rgba(100, 180, 255, 0.3)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2);
+                                        label += context.datasetIndex === 0 ? '°C' : '%';
+                                    }
+                                    return label;
+                                },
+                                title: function(context) {
+                                    return context[0].label;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+            
+            // 隐藏加载状态
+            setTimeout(() => {
+                chartLoading.style.display = 'none';
+            }, 500);
+        }
+    </script>
+</body>
+</html>

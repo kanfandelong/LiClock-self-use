@@ -1,0 +1,5 @@
+.pio
+.vscode
+midi/__pycache__
+tools/coredump_*
+

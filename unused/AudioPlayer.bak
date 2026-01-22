@@ -1,0 +1,156 @@
+#include "AudioPlayer.h"
+/**
+ * 去除路径特定前缀函数
+ * @param path 完整路径
+ * @param prefix 特定前缀
+ * @return 去除前缀后的路径
+ */
+const char* AudioPlayer::remove_prefix(const char* path, const char* prefix) {
+    size_t prefix_len = strlen(prefix);
+    size_t path_len = strlen(path);
+
+    // 检查路径是否以指定前缀开头
+    if (strncmp(path, prefix, prefix_len) == 0) {
+        // 返回去除前缀后的路径
+        return path + prefix_len;
+    }
+    // 如果路径不以指定前缀开头，则返回原始路径
+    return path;
+}
+void AudioPlayer::createAudioSource(const char* path) {
+    if (strncmp(path, "/sd/", 4) == 0) {
+        file = new AudioFileSourceSD(remove_prefix(path, "/sd"));
+    } else if (strncmp(path, "/littlefs/", 10) == 0) {
+        file = new AudioFileSourceLittleFS(remove_prefix(path, "/littlefs"));
+    }
+}
+
+void AudioPlayer::createDecoder(const char* path) {
+    const char* ext = strrchr(path, '.');
+    if (ext) {
+        if (strcmp(ext, ".mp3") == 0) {
+            decoder = new AudioGeneratorMP3();
+        } else if (strcmp(ext, ".wav") == 0) {
+            decoder = new AudioGeneratorWAV();
+        } else if (strcmp(ext, ".aac") == 0) {
+            decoder = new AudioGeneratorAAC();
+        } else if (strcmp(ext, ".flac") == 0){
+            decoder = new AudioGeneratorFLAC();
+        }
+    }
+}
+
+static void playTask(void* params) {
+    AudioPlayer* player = static_cast<AudioPlayer*>(params);
+    PlayerEvent event;
+
+    while (1) {
+        if (xQueueReceive(player->eventQueue, &event, 0) == pdTRUE) {
+            // 处理命令
+            switch (event.cmd) {
+                case CMD_SWITCH_FILE:
+                    player->stopPlayback(true);
+                    player->createAudioSource(event.newPath);
+                    player->createDecoder(event.newPath);
+                    break;
+                case CMD_VOLUME:
+                    if (music_player.out_mode == ULP_build_in_DAC)
+                        player->out_ulp->SetGain(event.volume);
+                    else
+                        player->out->SetGain(event.volume);
+                    break;
+                case CMD_PAUSE:
+                    player->isPlaying = !player->isPlaying;
+                    break;
+                case CMD_STOP:
+                    player->stopPlayback();
+                    break;
+            }
+        }
+
+        if (player->decoder && player->isPlaying) {
+            if (player->decoder->isRunning()) {
+                if (!player->decoder->loop()) {
+                    player->decoder->stop();
+                }
+            } else {
+                if (player->loopPlay) {
+                    player->file->seek(0, SEEK_SET);
+                    if (music_player.out_mode == ULP_build_in_DAC)
+                        player->decoder->begin(player->file, player->out_ulp);
+                    else
+                        player->decoder->begin(player->file, player->out);
+                } else {
+                    player->stopPlayback();
+                }
+            }
+        }
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+}
+
+void AudioPlayer::stopPlayback(bool keepSource) {
+    if (decoder && decoder->isRunning()) {
+        decoder->stop();
+    }
+    if (!keepSource) {
+        delete decoder;
+        delete file;
+        decoder = nullptr;
+        file = nullptr;
+    }
+    isPlaying = false;
+}
+void AudioPlayer::init(output_mode _out_mode) {
+    out_mode = _out_mode;
+    if (_out_mode == I2S_NODAC) {
+        out = new AudioOutputI2SNoDAC();
+    } else if (_out_mode == I2S_build_in_DAC) {
+        out = new AudioOutputI2S(0, 1);
+        out->SetGain(currentVolume);
+    } else if (_out_mode == ULP_build_in_DAC) {
+        out_ulp = new AudioOutputULP();
+    }
+    eventQueue = xQueueCreate(5, sizeof(PlayerEvent));
+    xTaskCreate(playTask, "AudioPlayer", 8192, this, 5, &playTaskHandle);
+}
+
+AudioPlayer::~AudioPlayer() {
+    vTaskDelete(playTaskHandle);
+    stopPlayback();
+    if (out_mode == ULP_build_in_DAC)
+        delete out_ulp;
+    else
+        delete out;
+    vQueueDelete(eventQueue);
+}
+
+void AudioPlayer::play(const char* path) {
+    PlayerEvent event = {CMD_SWITCH_FILE, path};
+    xQueueSend(eventQueue, &event, portMAX_DELAY);
+    event.cmd = CMD_PLAY;
+    xQueueSend(eventQueue, &event, portMAX_DELAY);
+}
+
+void AudioPlayer::pause() {
+    PlayerEvent event = {CMD_PAUSE};
+    xQueueSend(eventQueue, &event, portMAX_DELAY);
+}
+
+void AudioPlayer::stop() {
+    PlayerEvent event = {CMD_STOP};
+    xQueueSend(eventQueue, &event, portMAX_DELAY);
+}
+
+void AudioPlayer::setVolume(float volume) {
+    PlayerEvent event = {CMD_VOLUME, nullptr, volume};
+    xQueueSend(eventQueue, &event, portMAX_DELAY);
+}
+
+void AudioPlayer::setLoop(bool loop) {
+    loopPlay = loop;
+}
+
+// 全局变量
+AudioPlayer music_player;
+//volatile bool g_playbackFinished = false;

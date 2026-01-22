@@ -1,0 +1,198 @@
+#include "AppManager.h"
+
+class Apptargz : public AppBase
+{
+private:
+    /* data */
+public:
+    Apptargz()
+    {
+        name = "targz";
+        title = "targz";
+        description = "模板";
+        image = NULL;
+    }
+    void set();
+    void initGZUnpacker();
+    void setup();
+    char buf[256];
+    const char *output_dir = "/targz";
+    const char *temp_dir = "/tmp";
+    const char *Unpack_file;
+    const char *file_name;
+    GzUnpacker *GZUnpacker;
+    time_t LastWrite_time;
+};
+static Apptargz app;
+
+void Apptargz::set(){
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
+
+void Unpackerprogress(uint8_t progress) {
+    char _buf[32];
+    sprintf(_buf, "解压%d%%进度", progress);
+    GUI::info_msgbox(app.Unpack_file, _buf);
+}
+
+void Apptargz::initGZUnpacker(){
+    GZUnpacker = new GzUnpacker();
+
+    GZUnpacker->haltOnError( true ); // stop on fail (manual restart/reset required)
+    GZUnpacker->setupFSCallbacks( targzTotalBytesFn, targzFreeBytesFn ); // prevent the partition from exploding, recommended
+    GZUnpacker->setGzProgressCallback( Unpackerprogress ); // targzNullProgressCallback or defaultProgressCallback
+    GZUnpacker->setLoggerCallback( BaseUnpacker::targzPrintLoggerCallback  );    // gz log verbosity 
+}
+
+void Apptargz::setup()
+{
+    // expand one file
+    // if( !GZUnpacker->gzExpander(tarGzFS, "/gz_example.gz", tarGzFS, "/gz_example.jpg") ) {
+    //   Serial.printf("gzExpander failed with return code #%d", GZUnpacker->tarGzGetError() );
+    // }
+
+
+    char char_buf[64];
+    int used = 0, total = 0, free = 0;
+    String _filename, dir;
+    u32_t a;
+    const char *file_system;
+    bool run_first = true;
+fanhui:
+    file_name = GUI::fileDialog("文件管理", false, NULL, NULL);
+    if (file_name == NULL)
+        goto fanhui;
+    sprintf(buf,"%s",file_name);     //将filename指向的数据拷贝到buf
+    file_name = buf;                 //将filename指向到buf
+    GUI::info_msgbox("提示", "获取文件系统信息...");
+    total = LittleFS.totalBytes()/1024;
+file_info:
+    used = LittleFS.usedBytes()/1024;
+    free = total - used;
+    sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
+    // GUI::info_msgbox("提示", "正在获取文件信息...");
+    File file;
+    if (strncmp(file_name, "/sd/", 4) == 0) {
+        _filename = remove_path_prefix(file_name,"/sd");
+        file = SD.open(_filename);
+        file_system = "TF";
+    } 
+    else if (strncmp(file_name, "/littlefs/", 10) == 0) {
+        _filename = remove_path_prefix(file_name,"/littlefs");
+        file = LittleFS.open(_filename);
+        file_system = "LittleFS";
+    }
+    a = file.size();
+    LastWrite_time = file.getLastWrite();
+    file.close();
+
+    int lastSlash = _filename.lastIndexOf('/');
+    dir = _filename.substring(0, lastSlash);
+    if (dir == "")
+        dir = "/";
+    struct tm *filetimeinfo; 
+    filetimeinfo = localtime(&LastWrite_time);
+    char Str[128];
+    if (a <= 1024){
+        sprintf(Str, "大小 %dBytes %d.%d.%d %d:%d", (int)a, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min); 
+    }else if (a <= 1048576){
+        sprintf(Str, "大小 %.2fKB %d.%d.%d %d:%d", (float)a / 1024.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }else if (a <= 1073741824){
+        sprintf(Str, "大小 %.2fMB %d.%d.%d %d:%d", (float)a / 1048576.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }else{
+        sprintf(Str, "大小 %.2fGB %d.%d.%d %d:%d", (float)a / 1073741824.0, filetimeinfo->tm_year + 1900,filetimeinfo->tm_mon + 1, filetimeinfo->tm_mday, filetimeinfo->tm_hour, filetimeinfo->tm_min);
+    }
+    static const menu_item appMenu_main[] = {
+    {NULL, "返回"},
+    {NULL, Str},
+    {NULL, "压缩"},
+    {NULL, "解压"},
+    {NULL, "切换文件系统"},
+    {NULL, "退出"},
+    {NULL, char_buf},
+    {NULL, NULL},
+    };
+    int res;
+    while(1)
+    {
+        res = GUI::menu(file_name, appMenu_main);
+        switch (res)
+        {
+            case 0:
+                {
+                    file_name = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system);
+                    if (file_name == NULL)
+                    {
+                        goto fanhui;
+                    }
+                    sprintf(buf,"%s",file_name);     //将filename指向的数据拷贝到buf
+                    file_name = buf;                 //将filename指向到buf
+                    used = LittleFS.usedBytes()/1024;
+                    free = total - used;
+                    sprintf(char_buf,"文件系统:%d/%d|剩余%dkB",used ,total , free);
+                    goto file_info;
+                }
+                break;
+            case 2:
+                {
+                    File in;
+                    if (file_system == "LittleFS")
+                        in = LittleFS.open(_filename); // input stream
+                    else if (file_system == "TF"){
+                        in = SD.open(_filename);       // input stream
+                    }
+                    String outfile = String(output_dir) + "/" + String(in.name()) + ".gz";
+                    if (!LittleFS.exists(output_dir))
+                        LittleFS.mkdir(output_dir);
+                    File out = LittleFS.open(outfile, "w");             // output stream
+                    GUI::info_msgbox("正在压缩文件...", ("从" + _filename + "压缩到" + outfile).c_str());
+                    size_t compressedSize = LZPacker::compress( &in, in.size(), &out );
+                    out.close();
+                    in.close();
+                    if (compressedSize != -1)
+                        GUI::msgbox("提示", ("压缩成功,文件大小为" + String(compressedSize) + "字节").c_str());
+                    else
+                        GUI::msgbox("提示", "压缩失败");
+                }
+                break;
+            case 3: 
+                {
+                    bool ok  = true;
+                    if (GZUnpacker == NULL)
+                        initGZUnpacker();
+                    if (file_system == "LittleFS"){
+                        String output_name;
+                        File out = LittleFS.open(_filename);
+                        output_name = String(out.name());
+                        out.close();
+                        int dotGzIndex = output_name.lastIndexOf(".gz");
+                        GZUnpacker->gzExpander(LittleFS, _filename.c_str(), LittleFS, (String(output_dir) + "/" + output_name.substring(0, dotGzIndex)).c_str()); 
+                    }
+                    else if (file_system == "TF"){
+                        String output_name;
+                        File out = SD.open(_filename);
+                        output_name = String(out.name());
+                        out.close();
+                        int dotGzIndex = output_name.lastIndexOf(".gz");
+                        GZUnpacker->gzExpander(SD, _filename.c_str(), LittleFS, (String(output_dir) + "/" + output_name.substring(0, dotGzIndex)).c_str()); 
+                    }
+                    if(!ok) {
+                        Serial.printf("gzExpander failed with return code #%d", GZUnpacker->tarGzGetError() );
+                        GUI::msgbox("提示", "解压失败");
+                    }
+                    else
+                        GUI::msgbox("提示", "解压成功");
+                }
+                break;
+            case 4:
+                goto fanhui;
+                break;
+            case 5:
+                appManager.goBack(); 
+                return;
+                break;
+            default:
+                break;
+        }
+    }
+}

@@ -1,0 +1,17 @@
+{
+    "name":"LiClock",
+    "newversion":true,
+    "version":"2.0.10.10",
+    "isbeta":false,
+    "updateinfo":{
+        "bigupdate":false,
+        "lognum":3,
+        "log":[
+            "使用lightsleep加快eBook翻页",
+            "eBook增加甘草索引",
+            "配网相关优化"
+        ],
+        "url":"https://kanfandelong.github.io/liclock-web-flash/",
+        "url1":"https://gitee.com/jiangzihan182959/liclock-1.0.6/releases"
+    }
+}

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LBM图像查看器</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            border-radius: 6px;
+            transition: transform 0.2s;
+        }
+
+        .file-input-wrapper:hover {
+            transform: translateY(-1px);
+        }
+
+        #fileInput {
+            opacity: 0;
+            position: absolute;
+            left: 0;
+            top: 0;
+            font-size: 100px;
+        }
+
+        .custom-file-input {
+            display: inline-block;
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .custom-file-input:hover {
+            background: #1976D2;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #4CAF50;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        #preview {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-image: 
+                linear-gradient(45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(-45deg, #f0f0f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f0f0f0 75%),
+                linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            margin-top: 1.5rem;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #b71c1c;
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid #ffcdd2;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .error.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>LBM图像查看器</h1>
+        <p>by：看番の龙</p>
+        <a href="/liclock-web-flash/image.py">LBM图像python转换程序</a>
+    </header>
+    <div class="container">
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" accept=".lbm">
+                <label for="fileInput" class="custom-file-input">选择LBM文件</label>
+            </div>
+            <div class="control-group">
+                <label class="switch">
+                    <input type="checkbox" id="invertColor">
+                    <span class="slider"></span>
+                </label>
+                <span style="margin-left: 10px;">反色模式</span>
+            </div>
+        </div>
+        <div id="error" class="error"></div>
+        <canvas id="preview"></canvas>
+    </div>
+
+<script>
+let currentArrayBuffer = null;
+const invertColorCheckbox = document.getElementById('invertColor');
+
+function processImage(arrayBuffer, invert) {
+    try {
+        const dataView = new DataView(arrayBuffer);
+        const header = {
+            scan: dataView.getUint8(0),
+            gray: dataView.getUint8(1),
+            w: dataView.getUint16(2, true),
+            h: dataView.getUint16(4, true)
+        };
+
+        // 验证灰度格式
+        if (![1, 2, 4].includes(header.gray)) {
+            throw new Error('不支持的灰度格式');
+        }
+
+        // 计算参数
+        const bitsPerPixel = header.gray;
+        const bytesPerRow = Math.ceil((header.w * bitsPerPixel) / 8);
+        const expectedSize = 6 + header.h * bytesPerRow;
+        
+        if (arrayBuffer.byteLength < expectedSize) {
+            throw new Error('文件数据不完整');
+        }
+
+        // 创建画布
+        const canvas = document.getElementById('preview');
+        canvas.width = header.w;
+        canvas.height = header.h;
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.createImageData(header.w, header.h);
+
+        // 像素处理参数
+        const pixelsPerByte = 8 / bitsPerPixel;
+        const maxValue = (1 << bitsPerPixel) - 1;
+
+        // 处理图像数据
+        for (let y = 0; y < header.h; y++) {
+            const rowOffset = 6 + y * bytesPerRow;
+            const rowData = new Uint8Array(arrayBuffer, rowOffset, bytesPerRow);
+            let x = 0;
+
+            for (const byte of rowData) {
+                for (let i = 0; i < pixelsPerByte; i++) {
+                    if (x >= header.w) break;
+
+                    // 提取像素值
+                    const shift = (pixelsPerByte - 1 - i) * bitsPerPixel;
+                    const mask = ((1 << bitsPerPixel) - 1) << shift;
+                    let value = (byte & mask) >>> shift;
+
+                    // 转换为灰度值并处理反色
+                    let grayValue = Math.round((value / maxValue) * 255);
+                    if (!invert) grayValue = 255 - grayValue;
+
+                    // 写入图像数据
+                    const idx = (y * header.w + x) * 4;
+                    imageData.data[idx] = grayValue;     // R
+                    imageData.data[idx + 1] = grayValue; // G
+                    imageData.data[idx + 2] = grayValue; // B
+                    imageData.data[idx + 3] = 255;       // A
+
+                    x++;
+                }
+            }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        document.getElementById('error').classList.remove('active');
+    } catch (err) {
+        document.getElementById('error').textContent = `错误：${err.message}`;
+        document.getElementById('error').classList.add('active');
+    }
+}
+
+// 文件选择处理
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        currentArrayBuffer = event.target.result;
+        processImage(currentArrayBuffer, invertColorCheckbox.checked);
+    };
+    
+    reader.onerror = function() {
+        document.getElementById('error').textContent = '文件读取失败';
+        document.getElementById('error').classList.add('active');
+    };
+    
+    reader.readAsArrayBuffer(file);
+});
+
+// 反色开关处理
+invertColorCheckbox.addEventListener('change', function() {
+    if (currentArrayBuffer) {
+        processImage(currentArrayBuffer, this.checked);
+    }
+});
+</script>
+</body>
+</html>
