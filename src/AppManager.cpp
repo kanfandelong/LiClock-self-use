@@ -160,26 +160,27 @@ void AppManager::App_Preferences_init()
 // 先build再show
 void AppManager::showAppList(int page)
 {
-    int totalPage = realAppCount / 11;
-    if (realAppCount % 11)
+    const int page_app_cont = 13;
+    int totalPage = realAppCount / page_app_cont;
+    if (realAppCount % page_app_cont)
         ++totalPage;
     // 下面是标题部分
     {
         char buf[30];
-        display.drawRoundRect(0, 0, 296, 128, 3, 0);
+        display.drawRoundRect(0, 0, MAX_X, MAX_Y, 3, 0);
         // 标题栏
-        display.drawFastHLine(0, 16, 296, 0);
+        display.drawFastHLine(0, 16, MAX_X, 0);
         u8g2Fonts.setBackgroundColor(1);
         u8g2Fonts.setForegroundColor(0);
         sprintf(buf, "%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
         u8g2Fonts.drawUTF8(2, 12, buf);
-        if (realAppCount > 11)
+        if (realAppCount > page_app_cont)
         {
             sprintf(buf, "第%d页/共%d页", page + 1, totalPage);
             u8g2Fonts.drawUTF8(40, 12, buf);
         }
         // 右侧状态图标
-        int16_t x = 294;
+        int16_t x = MAX_X - 2;
         // 电池
         if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"),false) && hal.VCC < 4300 && !hal.isCharging){
             display.drawXBitmap(x - 20, 0, getBatteryIcon(true), 20, 16, 0);
@@ -201,23 +202,23 @@ void AppManager::showAppList(int page)
     // 返回按钮
     display.drawXBitmap(12, 21, goBackIcon, 32, 32, 0);
     u8g2Fonts.drawUTF8(16, 65, "返回");
-    int pagebase = 11 * page; // 页基数（这一页第一个）
+    int pagebase = page_app_cont * page; // 页基数（这一页第一个）
     int pageItemsCount;
     if (page == totalPage - 1)
     {
-        pageItemsCount = realAppCount % 11;
+        pageItemsCount = realAppCount % page_app_cont;
         if (pageItemsCount == 0)
-            pageItemsCount = 11;
+            pageItemsCount = page_app_cont;
     }
     else
     {
-        pageItemsCount = 11;
+        pageItemsCount = page_app_cont;
     }
     for (int16_t i = 0; i < pageItemsCount; i++)
     {
         int16_t x, y;
-        x = ((i + 1) / 2) * 49 + 4;
-        y = ((i + 1) % 2) * 52 + 21; // App左上角位置
+        x = ((i + 1) / 2) * 54 + 4;
+        y = ((i + 1) % 2) * 72 + 21; // App左上角位置
         if (realAppList[pagebase + i]->image != NULL)
         {
             display.drawXBitmap(x + 8, y, realAppList[pagebase + i]->image, 32, 32, 0);
@@ -237,13 +238,14 @@ void AppManager::showAppList(int page)
 }
 AppBase *AppManager::appSelector(bool showHidden)
 {
+    const int page_app_cont = 13;
     // // display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
     bool finished = false; // 是否完成选择，用于超过一页的情况
     int currentPage = 0;
     loadLuaApps();
     buildAppList(showHidden);
-    int totalPage = realAppCount / 11;
-    if (realAppCount % 11)
+    int totalPage = realAppCount / page_app_cont;
+    if (realAppCount % page_app_cont)
         ++totalPage;
     int pageItemsCount;
     int selected = 0;
@@ -261,13 +263,13 @@ AppBase *AppManager::appSelector(bool showHidden)
     {
         if (currentPage == totalPage - 1)
         {
-            pageItemsCount = realAppCount % 11;
+            pageItemsCount = realAppCount % page_app_cont;
             if (pageItemsCount == 0)
-                pageItemsCount = 11;
+                pageItemsCount = page_app_cont;
         }
         else
         {
-            pageItemsCount = 11;
+            pageItemsCount = page_app_cont;
         }
         // 下面是选择
         idleTime = 0;
@@ -290,13 +292,13 @@ AppBase *AppManager::appSelector(bool showHidden)
                             --currentPage;
                         if (currentPage == totalPage - 1)
                         {
-                            pageItemsCount = realAppCount % 11;
+                            pageItemsCount = realAppCount % page_app_cont;
                             if (pageItemsCount == 0)
-                                pageItemsCount = 11;
+                                pageItemsCount = page_app_cont;
                         }
                         else
                         {
-                            pageItemsCount = 11;
+                            pageItemsCount = page_app_cont;
                         }
                         selected = pageItemsCount;
                         break;
@@ -342,8 +344,8 @@ AppBase *AppManager::appSelector(bool showHidden)
             {
                 int16_t x, y;
                 // int16_t last_x, last_y;
-                x = (selected / 2) * 49 + 4;
-                y = (selected % 2) * 52 + 21; // App左上角位置
+                x = (selected / 2) * 54 + 4;
+                y = (selected % 2) * 72 + 21; // App左上角位置
                 // if (last_selected == -1)
                 //     last_selected = 0;
                 // last_x = (last_selected / 2) * 49 + 4;
@@ -376,8 +378,8 @@ AppBase *AppManager::appSelector(bool showHidden)
         if (finished == false)
         {
             int16_t x, y;
-            x = (selected / 2) * 49 + 4;
-            y = (selected % 2) * 52 + 21; // App左上角位置
+            x = (selected / 2) * 54 + 4;
+            y = (selected % 2) * 72 + 21; // App左上角位置
             display.clearScreen();
             showAppList(currentPage);
             display.drawRoundRect(x - 1, y - 2, 50, 50, 5, 0); // 绘制选择框
@@ -403,7 +405,7 @@ AppBase *AppManager::appSelector(bool showHidden)
     if (selected == 0)
         return NULL;
     selected -= 1;
-    selected += currentPage * 11;
+    selected += currentPage * page_app_cont;
     return realAppList[selected]; // 这里没问题
 }
 

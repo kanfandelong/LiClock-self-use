@@ -30,10 +30,10 @@ class AudioFileSourceUnsync : public AudioFileSource
 
     int getByte();
     bool eof();
+    int remaining;
 
   private:
     AudioFileSource *src;
-    int remaining;
     bool unsync;
     int savedByte;
 };
@@ -179,13 +179,14 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
   }
 
   do {
-    unsigned char frameid[4];
+    unsigned char frameid[5];
     int framesize;
     bool compressed;
 
     frameid[0] = id3.getByte();
     frameid[1] = id3.getByte();
     frameid[2] = id3.getByte();
+    frameid[4] = '\0';
     if (rev==2) frameid[3] = 0;
     else frameid[3] = id3.getByte();
 
@@ -211,16 +212,33 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
           id3.getByte();
       }
 
+      if ((frameid[0]=='A' && frameid[1]=='P' && frameid[2]=='I' && frameid[3] == 'C' ))
+      {
+        src->seek(framesize, SEEK_CUR);
+        id3.remaining -= framesize;
+        cb.md("APIC", true, "已跳过");
+        continue;
+      }
       // Read the value and send to callback
-      char value[128];
+      char *value;
+      uint32_t buffer_size = framesize + 2;
+      if (framesize > 2048){
+        buffer_size = 128;
+        value = (char *)malloc(buffer_size);
+      } else {
+        value = (char *)malloc(buffer_size);
+      }
       uint32_t i;
       bool isUnicode = (id3.getByte()==1) ? true : false;
-      for (i=0; i<(uint32_t)framesize-1; i++) {
-        if (i<sizeof(value)-1) value[i] = id3.getByte();
-        else (void)id3.getByte();
+      for (i = 0; i < (uint32_t)framesize - 1; i++)
+      {
+        if (i < buffer_size - 1)
+          value[i] = id3.getByte();
+        else
+          (void)id3.getByte();
       }
-      value[i<sizeof(value)-1 ? i : sizeof(value)-1] = '\0'; // Terminate the string...
-      value[i<sizeof(value)-2 ? i + 1 : sizeof(value)-2] = '\0'; // Terminate the string...
+      value[i<buffer_size-1 ? i : buffer_size-1] = '\0'; // Terminate the string...
+      value[i<buffer_size-2 ? i + 1 : buffer_size-2] = '\0'; // Terminate the string...
       if ( (frameid[0]=='T' && frameid[1]=='A' && frameid[2]=='L' && frameid[3] == 'B' ) ||
            (frameid[0]=='T' && frameid[1]=='A' && frameid[2]=='L' && rev==2) ) {
         cb.md("Album", isUnicode, value);
@@ -246,7 +264,10 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
         cb.md("Popularimeter", isUnicode, value);
       } else if ( (frameid[0]=='T' && frameid[1]=='C' && frameid[2]=='M' && frameid[3] == 'P') ) {
         cb.md("Compilation", isUnicode, value);
+      } else {
+        cb.md((char *)frameid, isUnicode, value);
       }
+      free(value);
     }
   } while (!id3.eof());
 

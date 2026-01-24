@@ -477,7 +477,7 @@ file_info:
         case 0: // 返回
         {
             res = 1;
-            filename = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system);
+            filename = GUI::fileDialog("文件管理", false, NULL, NULL, dir, file_system, false);
             if (filename == NULL)
             {
                 goto fanhui;

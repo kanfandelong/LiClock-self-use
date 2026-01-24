@@ -267,7 +267,8 @@ retry:
       }
 
       if (!DecodeNextFrame()) {
-        print_mad_error(stream->error);
+        // 仅在需要时开启
+        // print_mad_error(stream->error);
         if (stream->error == MAD_ERROR_BUFLEN) {
           // randomly seeking can lead to endless
           // and unrecoverable "MAD_ERROR_BUFLEN" loop

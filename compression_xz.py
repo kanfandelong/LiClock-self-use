@@ -248,33 +248,50 @@ class ElfDatabaseCompressor:
             return False
     
     def get_file_info(self, version):
-        """从版本信息中提取文件信息"""
+        """从版本信息中提取文件信息，兼容缺失字段"""
         files = []
         
         # ELF文件
-        if "elf" in version and "path" in version["elf"]:
+        elf_info = version.get("elf", {})
+        elf_path = elf_info.get("path")
+        if elf_path:
+            original_size = elf_info.get("size", 0)
+            # 如果有压缩信息，优先使用原始大小
+            if "compressed_size" in elf_info:
+                original_size = elf_info.get("size", original_size)
             files.append({
-                "path": version["elf"]["path"],
+                "path": elf_path,
                 "type": "elf",
-                "original_size": version["elf"].get("size", 0),
+                "original_size": original_size,
                 "description": "ELF文件"
             })
         
         # BIN文件
-        if "bin" in version and "path" in version["bin"]:
+        bin_info = version.get("bin", {})
+        bin_path = bin_info.get("path")
+        if bin_path:
+            original_size = bin_info.get("size", 0)
+            if "compressed_size" in bin_info:
+                original_size = bin_info.get("size", original_size)
             files.append({
-                "path": version["bin"]["path"],
+                "path": bin_path,
                 "type": "bin",
-                "original_size": version["bin"].get("size", 0),
+                "original_size": original_size,
                 "description": "BIN文件"
             })
         
         return files
     
     def update_version_info(self, version, compressed_files):
-        """更新版本信息，添加压缩信息"""
+        """更新版本信息，添加压缩信息，兼容缺失字段"""
         version["compressed"] = True
         version["compressed_time"] = datetime.now().isoformat()
+        
+        # 确保字段存在
+        if "elf" not in version:
+            version["elf"] = {}
+        if "bin" not in version:
+            version["bin"] = {}
         
         # 更新文件信息
         for file_info in compressed_files:

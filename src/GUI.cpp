@@ -62,6 +62,7 @@ namespace GUI
     void drawWindowsWithTitle(const char *title, int16_t x, int16_t y, int16_t w, int16_t h)
     {
         int16_t wchar;
+        display.setDrawWindow(x, y, w, h);
         display.fillRoundRect(x, y, w, h, 3, 1); // 清空区域
         display.drawRoundRect(x, y, w, h, 3, 0);
         // 标题栏
@@ -166,6 +167,7 @@ namespace GUI
             }
             delay(10);
         }
+        display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
     }
@@ -192,6 +194,7 @@ namespace GUI
         }
         // display.displayWindow(start_x, start_y, 160, 96);
         display.display();
+        display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         u8g2Fonts.setCursor(x, y);
     }
@@ -252,6 +255,7 @@ namespace GUI
             }
         }
 
+        display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
         return result;
@@ -411,6 +415,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
+        display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
         return selected;
@@ -633,6 +638,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
+        display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
         return selected;

@@ -40,7 +40,7 @@ SYNC_CONFIGS = [
 BUILD_DIR = "./.pio/build/esp32solo1"
 ELF_STORAGE_DIR = "./elf_versions"
 DATABASE_FILE = "./elf_versions/elf_database.json"
-MAX_VERSIONS = 200
+MAX_VERSIONS = 150
 # ===================
 
 def check_rsync_available():
@@ -340,9 +340,23 @@ def post_build_elf_versions():
             database["versions"].append(metadata)
             database["last_updated"] = build_time
             
-            # 限制版本数量
+            # 限制版本数量，删除旧版本文件但保留记录
             if len(database["versions"]) > MAX_VERSIONS:
                 database["versions"].sort(key=lambda x: x["timestamp"], reverse=True)
+                to_remove = database["versions"][MAX_VERSIONS:]
+                # 删除对应的文件
+                for v in to_remove:
+                    try:
+                        elf_path_to_remove = v["elf"].get("path")
+                        if elf_path_to_remove and os.path.exists(elf_path_to_remove):
+                            os.remove(elf_path_to_remove)
+                        if "bin" in v:
+                            bin_path_to_remove = v["bin"].get("path")
+                            if bin_path_to_remove and os.path.exists(bin_path_to_remove):
+                                os.remove(bin_path_to_remove)
+                    except Exception as e:
+                        print(f"⚠️ 删除旧版本文件失败: {e}")
+                # 保留版本记录，只截断列表
                 database["versions"] = database["versions"][:MAX_VERSIONS]
             
             # 确保数据库目录存在

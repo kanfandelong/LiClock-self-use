@@ -39,6 +39,7 @@ public:
 	void drawPixel(int16_t x, int16_t y, uint16_t color);
 	void setRotation(uint8_t m);
 	void setvoltage(st7305_voltage_t fps);
+	void setDrawWindow(int16_t x = 0, int16_t y = 0, int16_t w = MAX_X, int16_t h = MAX_Y);
 	void Low_Power_Mode();
 	void High_Power_Mode();
 	void display_on(bool enabled = true);
@@ -59,6 +60,10 @@ public:
 			return;
 		memcpy(_buffers[to], _buffers[from], 8064);
 	};
+	uint8_t* getBuffer()
+  	{
+    	return buffer;
+  	}
 	uint16_t current_buffer_idx = 0;
 
 private:
@@ -89,6 +94,8 @@ private:
 	int8_t _rst_pin;
 	int8_t _te_pin;
 	uint8_t rotation; // 0, 1, 2, or 3 corresponding to 0, 90, 180, 270 degrees
+	uint16_t x_min = 0, x_max = MAX_X;
+	uint16_t y_min = 0, y_max = MAX_Y;
 
 	uint8_t *buffer;
 	uint8_t _buffers[3][192 * 42];

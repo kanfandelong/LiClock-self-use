@@ -1162,15 +1162,15 @@ bool HAL::init()
     bool initial = true;
     bool fast_boot;
     pref.begin("clock");
+    uint32_t uart_band = pref.getUInt("uart_baud", 115200);
+    log_i("change band to %lu", uart_band);
+    Serial.flush();
+    Serial.begin(uart_band);
     log_i("\n\n"
           "   © 2024 - 2026 看番の龙 | LiClock   \n"
           "          Powered by 看番の龙         \n"
           "       github.com/kanfandelong       \n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
-    uint32_t uart_band = pref.getUInt("uart_baud", 115200);
-    log_i("change band to %lu", uart_band);
-    Serial.flush();
-    Serial.begin(uart_band);
     setenv("TZ", "CST-8", 1); // 设置时区为东八区
     tzset();
     // 读取时钟偏移
@@ -1355,6 +1355,7 @@ bool HAL::init()
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
     ttf.setFramebuffer(296, 128, 1);
+    log_system_init();
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
@@ -1513,7 +1514,51 @@ void HAL::set_sleep_set_gpio_interrupt()
         }
     }
 }
+void printDisplayVertical()
+{
+    uint8_t BIT_MASK_LUT[8] = {
+        0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
+    uint8_t Y_BYTE_OFFSET[4] = {0, 2, 4, 6};
+    uint8_t *buffer = display.getBuffer();
 
+    // 创建行缓冲区，用于构建每行的字符串（168个字符 + 换行符 + 终止符）
+    char lineBuffer[170];
+
+    // 竖向打印：遍历384行（对应原图的x坐标）
+    for (int x = 0; x < PHYSICAL_WIDTH; x++)
+    {
+        // 遍历168列（对应原图的y坐标）
+        for (int y = 0; y < PHYSICAL_HEIGHT; y++)
+        {
+            // 按照drawPixel中的相同逻辑计算字节索引和位掩码
+            uint16_t col = x >> 1;   // 每2列共享一个CGRAM字节
+            uint8_t y_div4 = y >> 2; // y / 4，确定垂直字节位置
+            uint16_t byte_index = col * 42 + y_div4;
+
+            // 计算位掩码
+            uint8_t y_mod4 = y & 0x03; // y % 4
+            uint8_t bit_offset = Y_BYTE_OFFSET[y_mod4] + (x & 0x01);
+            uint8_t bit_mask = BIT_MASK_LUT[bit_offset];
+
+            // 检查像素值
+            if (buffer[byte_index] & bit_mask)
+            {
+                lineBuffer[y] = '*'; // 像素为1，打印*
+            }
+            else
+            {
+                lineBuffer[y] = ' '; // 像素为0，打印空格
+            }
+        }
+        lineBuffer[168] = '\n'; // 每行末尾加换行
+        lineBuffer[169] = '\0'; // 字符串终止符
+
+        // 打印这一行
+        // 注意：实际串口输出可能需要根据你的串口库调整
+        Serial.write((const uint8_t *)lineBuffer, 169); // 输出168个字符+换行符
+        // 或者使用 Serial.print(lineBuffer);
+    }
+}
 #include "driver/ledc.h"
 static void pre_sleep()
 {
@@ -1529,10 +1574,10 @@ static void pre_sleep()
     hal.set_sleep_set_gpio_interrupt();
     display.Low_Power_Mode();
     buzzer.waitForSleep();
-    if (file_log)
-        file_log.close();
+    log_system_deinit();
     LittleFS.end();
     // hal.pref.end();
+    // printDisplayVertical();
     delay(10);
     ledcDetachPin(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);
