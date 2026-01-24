@@ -46,7 +46,7 @@ void AppClockOnly::setup()
     u8g2Fonts.setCursor(13, 104);
     u8g2Fonts.print(timeStr);
 
-    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
     display.drawFastHLine(0, 110, 296, 0);
     u8g2Fonts.setCursor(10, 125);
     u8g2Fonts.printf("%02d月%02d日 星期%s  ", hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, dayOfWeek[hal.timeinfo.tm_wday]);

@@ -860,7 +860,7 @@ void HAL::WiFiConfigManual()
                         display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE);
                     }
                 }
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
                 u8g2Fonts.setCursor(120, ((128 - (14 * 6)) / 2) + 14);
                 char buf[256];
                 sprintf(buf, "如果使用的是电脑或手机未跳转至配置界面(移动数据可能会干扰跳转),请扫描二维码打开配置界面或浏览器打开http://192.168.4.1");
@@ -1266,7 +1266,7 @@ bool HAL::init()
     u8g2Fonts.setFontMode(1);
     u8g2Fonts.setForegroundColor(TFT_BLACK);
     u8g2Fonts.setBackgroundColor(TFT_WHITE);
-    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
     u8g2Fonts.begin(display);
     // display.epd2.PLL_set(pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     if (hal.btnl.isPressing() && (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED))

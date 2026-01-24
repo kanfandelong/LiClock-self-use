@@ -71,7 +71,7 @@ namespace GUI
         {
             u8g2Fonts.setBackgroundColor(1);
             u8g2Fonts.setForegroundColor(0);
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
             wchar = u8g2Fonts.getUTF8Width(title);
             u8g2Fonts.setCursor(x + (w - wchar) / 2, y + 12);
             u8g2Fonts.print(title);
@@ -155,18 +155,7 @@ namespace GUI
         u8g2Fonts.print("确定");
         // display.displayWindow(start_x, start_y, 160, 96);
         display.display();
-        unsigned long start = millis();
-        while (1)
-        {
-            if (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
-                break;
-            if (millis() - start > 30000)
-            {
-                hal.wait_input(timeout);
-                break;
-            }
-            delay(10);
-        }
+        hal.wait_input(timeout);
         display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
@@ -839,7 +828,7 @@ namespace GUI
                 u8g2Fonts.setCursor(5, 15);                           // 在文本框中绘制文本
                 u8g2Fonts.setForegroundColor(TFT_BLACK);
                 u8g2Fonts.setBackgroundColor(TFT_WHITE);
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
                 autoIndentDraw(inputBuffer, 190, 5);
                 u8g2Fonts.drawUTF8(5, 40, name);
                 display.display(); // 更新文本框内容

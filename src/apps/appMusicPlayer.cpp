@@ -393,7 +393,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
 {
     String outputString;
     String id3_type = type;
-    
+
     if (id3_type.equalsIgnoreCase("APIC"))
     {
         info("%s callback for: %s = '%s'", cbData, type, string);
@@ -2128,7 +2128,7 @@ void AppMusicPlayer::show_display_mormal()
         display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
         u8g2Fonts.setBackgroundColor(1);
         u8g2Fonts.setForegroundColor(0);
-        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
         if (titles[currentSongIndex] != nullptr)
         {
             // 标题栏
@@ -2158,7 +2158,7 @@ void AppMusicPlayer::show_display_mormal()
         display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
         u8g2Fonts.setBackgroundColor(1);
         u8g2Fonts.setForegroundColor(0);
-        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
         if (titles[currentSongIndex] != nullptr)
         {
             // 标题栏

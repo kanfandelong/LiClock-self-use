@@ -727,7 +727,7 @@ void AppSettings::menu_network()
                     display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE);
                 }
             }
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
             u8g2Fonts.setCursor(120, (128 - (17 * 2)) / 2);
             char buf[50];
             sprintf(buf, "扫描二维码以连接本机分享的WiFi");
@@ -783,7 +783,7 @@ void AppSettings::menu_network()
                     display.fillRect(2 * x + 196, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode2, x, y) ? TFT_BLACK : TFT_WHITE);
                 }
             }
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
             char buf[2][32];
             sprintf(buf[0], "网页配置界面");
             sprintf(buf[1], "Blockly界面");
