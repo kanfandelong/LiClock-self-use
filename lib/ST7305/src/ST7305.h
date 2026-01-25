@@ -60,6 +60,16 @@ public:
 			return;
 		memcpy(_buffers[to], _buffers[from], 8064);
 	};
+	bool cmpBuffer(uint16_t to, uint16_t from)
+	{
+		if (from > 2 || to > 2)
+			return false;
+		int value = memcmp(_buffers[to], _buffers[from], 8064);
+		if (value == 0)
+			return true;
+		else
+			return false;
+	};
 	uint8_t* getBuffer()
   	{
     	return buffer;

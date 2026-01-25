@@ -1613,7 +1613,7 @@ void HAL::goSleep(uint32_t sec)
     nextSleep = nextSleep * 1000000UL;
     esp_sleep_enable_timer_wakeup(nextSleep);
     // wait_display();
-    delay(50); // delay some time
+    delay(100); // delay some time
     if (noDeepSleep)
     {
         esp_light_sleep_start();
