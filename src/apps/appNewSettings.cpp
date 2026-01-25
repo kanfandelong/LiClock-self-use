@@ -185,8 +185,8 @@ void AppSettings::menu_time()
                 // 同步时间
                 hal.autoConnectWiFi();
                 GUI::info_msgbox("同步时间", "正在NTP...");
-                NTPSync(); 
-                GUI::msgbox("手动触发NTP", "同步完成");       
+                NTPSync();
+                GUI::msgbox("手动触发NTP", "同步完成");
             }
             break;
         case 2:
@@ -931,7 +931,7 @@ void AppSettings::menu_power()
             {true, "精准电量显示", nullptr},
             {false, "电量计算起点电压", nullptr},
             {false, "电量计初始化", nullptr},
-            {true,  "启用关机图片", "en_poff_image"},
+            {true, "启用关机图片", "en_poff_image"},
             {false, "设置关机图片", nullptr},
             {false, NULL, nullptr},
         };
@@ -1568,7 +1568,7 @@ void AppSettings::menu_system()
             ArduinoOTA.setPort(3232);
             ArduinoOTA
                 .onStart([]()
-                {
+                         {
                     String type;
                     if (ArduinoOTA.getCommand() == U_FLASH)
                         type = "sketch";
@@ -1576,20 +1576,20 @@ void AppSettings::menu_system()
                         type = "filesystem";
 
                     String msg = "开始更新 " + type;
-                    GUI::info_msgbox("OTA开始", msg.c_str());
-                })
+                    GUI::info_msgbox("OTA开始", msg.c_str()); })
                 .onEnd([]()
-                {
-                    GUI::info_msgbox("OTA结束", "更新完成");
-                })
+                       { GUI::info_msgbox("OTA结束", "更新完成"); })
                 .onProgress([](unsigned int progress, unsigned int total)
-                {
+                            {
                     char buf[64];
-                    snprintf(buf, sizeof(buf), "进度: %u%%", (progress / (total / 100)));
-                    GUI::info_msgbox("OTA进度", buf);
-                })
+                    static uint32_t last_progress, now_progress;
+                    now_progress = (progress / (total / 100));
+                    if (last_progress != now_progress){
+                        snprintf(buf, sizeof(buf), "总计:   %07u字节\n已完成: %07u字节\n进度: %u%%", total, progress, now_progress);
+                        GUI::info_msgbox("OTA进度", buf);}
+                    last_progress = now_progress; })
                 .onError([](ota_error_t error)
-                {
+                         {
                     char* msg;
                     if (error == OTA_AUTH_ERROR) msg = "认证失败";
                     else if (error == OTA_BEGIN_ERROR) msg = "开始失败";
@@ -1598,14 +1598,14 @@ void AppSettings::menu_system()
                     else if (error == OTA_END_ERROR) msg = "结束失败";
                     else msg = "未知错误";
 
-                    GUI::info_msgbox("OTA错误", msg);
-                });
+                    GUI::info_msgbox("OTA错误", msg); });
             ArduinoOTA.begin();
             char buf[128];
-            sprintf(buf, "ip: ",hal.getip().toString());
+            sprintf(buf, "ip: %s", hal.getip().toString().c_str());
             GUI::info_msgbox("已就绪", buf);
-            while(1){
-                ArduinoOTA.handle();            
+            while (1)
+            {
+                ArduinoOTA.handle();
                 if (hal.btnl.isPressing())
                 {
                     while (hal.btnl.isPressing())
