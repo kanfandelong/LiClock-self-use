@@ -84,7 +84,7 @@ void AppSettings::set()
 void AppSettings::setup()
 {
     display.clearScreen();
-    GUI::drawWindowsWithTitle("设置", 0, 0, 296, 128);
+    GUI::drawWindowsWithTitle("设置");
     u8g2Fonts.drawUTF8(120, 75, "请稍等...");
     // 下面是设置菜单
     int res = 0;
@@ -930,7 +930,7 @@ void AppSettings::menu_power()
             {true, "精准电量显示", nullptr},
             {false, "电量计算起点电压", nullptr},
             {false, "电量计初始化", nullptr},
-            {true,  "启用关机图片", "en_poff_image"},
+            {true, "启用关机图片", "en_poff_image"},
             {false, "设置关机图片", nullptr},
             {false, NULL, nullptr},
         };
@@ -1224,6 +1224,7 @@ void AppSettings::menu_system()
             {false, "core_dump", nullptr},
             {false, "设置菜单快速滚动阈值", nullptr},
             {false, "串口波特率设置", nullptr},
+            {false, "启动OTA", nullptr},
             {false, "恢复出厂设置", nullptr},
             {false, NULL, nullptr},
         };
@@ -1551,7 +1552,70 @@ void AppSettings::menu_system()
             hal.pref.putUInt("uart_baud", baud);
         }
         break;
-        case 20:
+        case 20: // OTA模式
+        {
+            if (GUI::msgbox_yn("是否连接WiFi", "如果使用WiFi，选择“确定”如果使用SoftAP，选择“取消”", "WiFi(右)", "SoftAP(左)"))
+                hal.autoConnectWiFi();
+            else
+                hal.WiFiConfigManual();
+            hal.can_sleep = false;
+            ArduinoOTA.setPort(3232);
+            ArduinoOTA
+                .onStart([]()
+                {
+                    String type;
+                    if (ArduinoOTA.getCommand() == U_FLASH)
+                        type = "sketch";
+                    else // U_SPIFFS
+                        type = "filesystem";
+
+                    String msg = "开始更新 " + type;
+                    GUI::info_msgbox("OTA开始", msg.c_str());
+                })
+                .onEnd([]()
+                {
+                    GUI::info_msgbox("OTA结束", "更新完成");
+                })
+                .onProgress([](unsigned int progress, unsigned int total)
+                {
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "进度: %u%%", (progress / (total / 100)));
+                    GUI::info_msgbox("OTA进度", buf);
+                })
+                .onError([](ota_error_t error)
+                {
+                    char* msg;
+                    if (error == OTA_AUTH_ERROR) msg = "认证失败";
+                    else if (error == OTA_BEGIN_ERROR) msg = "开始失败";
+                    else if (error == OTA_CONNECT_ERROR) msg = "连接失败";
+                    else if (error == OTA_RECEIVE_ERROR) msg = "接收失败";
+                    else if (error == OTA_END_ERROR) msg = "结束失败";
+                    else msg = "未知错误";
+
+                    GUI::info_msgbox("OTA错误", msg);
+                });
+            ArduinoOTA.begin();
+            char buf[128];
+            sprintf(buf, "ip: ",hal.getip().toString());
+            GUI::info_msgbox("已就绪", buf);
+            while(1){
+                ArduinoOTA.handle();            
+                if (hal.btnl.isPressing())
+                {
+                    while (hal.btnl.isPressing())
+                        delay(20);
+                    // free(server);
+                    MDNS.end();
+                    WiFi.disconnect(true);
+                    hal.can_sleep = true;
+                    end = false;
+                    break;
+                }
+                delay(1);
+            }
+        }
+        break;
+        case 21:
             // 恢复出厂设置
             {
                 if (GUI::msgbox_yn("此操作不可撤销", "是否恢复出厂设置？"))

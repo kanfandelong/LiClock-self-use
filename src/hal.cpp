@@ -1650,11 +1650,13 @@ void HAL::powerOff(bool displayMessage)
         WiFi.disconnect(true);
     set_sleep_set_gpio_interrupt();
     wait_display();
+    display.display_sleep();
     delay(1);
     if (noDeepSleep)
     {
         esp_light_sleep_start();
-        display.begin();
+        // display.begin();
+        display.display_sleep(false);
         LittleFS.begin(false);
         peripherals.wakeup();
     }

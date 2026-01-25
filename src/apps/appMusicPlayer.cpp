@@ -50,6 +50,7 @@ typedef struct
     unsigned long start = 0;
     unsigned long fft_start = 0;
     unsigned long fft_end = 0;
+    unsigned long display_start = 0;
     unsigned long end = 0;
 } drawtime; // 歌词行结构体
 
@@ -2342,96 +2343,8 @@ void AppMusicPlayer::show_display_fft()
         backup_buff_updata = false;
     }
 
-    display.copyBuffer(display.current_buffer_idx, 1);// 从缓冲区1复制显示内容到当前缓冲区
+    display.copyBuffer(display.current_buffer_idx, 1); // 从缓冲区1复制显示内容到当前缓冲区
 
-    if (lrcisload) //  && !user_stop
-    {
-        unsigned long currentTime = millis() - play_time_start - _lrcoffset - play_stop_time;
-        checkAndUpdateLyrics(currentTime);
-
-        drawScrollingLyrics(14, 110); // 第二行的Y坐标
-    }
-
-    // 电池
-    // if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4400 && !hal.isCharging)
-    // {
-    //     display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
-    //     display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
-    // }
-    // else
-    display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
-    u8g2Fonts.setCursor(2, 12);
-    u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
-
-    u8g2Fonts.setCursor(3, 165);
-    if (loopPlay)
-    {
-        u8g2Fonts.printf("单曲循环");
-    }
-    else if (autoPlay)
-    {
-        if (randomPlay)
-            u8g2Fonts.printf("随机");
-        else
-            u8g2Fonts.printf("顺序");
-    }
-
-    if (display_debug_mode)
-    {
-        static uint32_t last_update_time = 0;
-        uint32_t now = millis();
-        static char _buf[64];
-        static int x;
-        if (now - last_update_time > 200)
-        { // 200ms更新一次
-            last_update_time = now;
-            float all = (float)(d_time.start - last_time.start) / 1000.0;
-            fps = 1000.0 / all;
-            float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
-            float other_time = ((float)(last_time.fft_end - last_time.start) / 1000.0) - fft_time;
-            float display_time = (float)(last_time.end - last_time.fft_end) / 1000.0;
-            sprintf(_buf, "%.1f|%.1f|%.1f|%d fps: %.1f", fft_time, other_time, display_time, xWasDelayed, fps);
-            x = (SCREEN_WIDTH - u8g2Fonts.getUTF8Width(_buf)) / 2;
-        }
-        u8g2Fonts.setCursor(x, 165);
-        u8g2Fonts.print(_buf);
-    }
-
-    char gain_buf[16];
-    sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
-    u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
-    u8g2Fonts.printf(gain_buf);
-
-    uint32_t play_time = (millis() - play_time_start - play_stop_time);
-    uint32_t total_time = 1;
-    if (!loopPlay)
-        play_time_total = 0;
-    if (info.tlen != 0)
-        total_time = info.tlen;
-    else
-        total_time = play_time_total;
-
-    if (info.tlen != 0 && play_time > info.tlen)
-        play_time = info.tlen;
-    int w1 = 262; // 设置进度条的宽度
-    int w = 0;
-    if (total_time > 0)
-    {
-        w = (play_time * w1 + total_time / 2) / total_time;
-    }
-    if (w > w1)
-        w = w1;
-    int y = 146; // 设置进度条的Y坐标
-    int x = 61;  // 设置进度条的X起始坐标
-    display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
-    display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
-    // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
-    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
-
-    u8g2Fonts.setCursor(18, y);
-    u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
-    u8g2Fonts.setCursor(341, y);
-    u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
     d_time.fft_start = micros();
 
     if (fftProcessing) // PCM数据准备好时才进行fft运算
@@ -2483,6 +2396,96 @@ void AppMusicPlayer::show_display_fft()
 
     d_time.fft_end = micros();
 
+    if (lrcisload) //  && !user_stop
+    {
+        unsigned long currentTime = millis() - play_time_start - _lrcoffset - play_stop_time;
+        checkAndUpdateLyrics(currentTime);
+
+        drawScrollingLyrics(14, 110); // 第二行的Y坐标
+    }
+
+    // 电池
+    // if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4400 && !hal.isCharging)
+    // {
+    //     display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
+    //     display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
+    // }
+    // else
+    display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
+    u8g2Fonts.setCursor(2, 12);
+    u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
+
+    u8g2Fonts.setCursor(3, 165);
+    if (loopPlay)
+    {
+        u8g2Fonts.printf("单曲循环");
+    }
+    else if (autoPlay)
+    {
+        if (randomPlay)
+            u8g2Fonts.printf("随机");
+        else
+            u8g2Fonts.printf("顺序");
+    }
+
+    if (display_debug_mode)
+    {
+        static uint32_t last_update_time = 0;
+        uint32_t now = millis();
+        static char _buf[64];
+        static int x;
+        if (now - last_update_time > 200)
+        { // 200ms更新一次
+            last_update_time = now;
+            float all = (float)(d_time.start - last_time.start) / 1000.0;
+            fps = 1000.0 / all;
+            float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
+            float other_time = ((float)(last_time.display_start - last_time.start) / 1000.0) - fft_time;
+            float display_time = (float)(last_time.end - last_time.display_start) / 1000.0;
+            sprintf(_buf, "%.1f|%.1f|%.1f|%d fps: %.1f", fft_time, other_time, display_time, xWasDelayed, fps);
+            x = (SCREEN_WIDTH - u8g2Fonts.getUTF8Width(_buf)) / 2;
+        }
+        u8g2Fonts.setCursor(x, 165);
+        u8g2Fonts.print(_buf);
+    }
+
+    char gain_buf[16];
+    sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
+    u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
+    u8g2Fonts.printf(gain_buf);
+
+    uint32_t play_time = (millis() - play_time_start - play_stop_time);
+    uint32_t total_time = 1;
+    if (!loopPlay)
+        play_time_total = 0;
+    if (info.tlen != 0)
+        total_time = info.tlen;
+    else
+        total_time = play_time_total;
+
+    if (info.tlen != 0 && play_time > info.tlen)
+        play_time = info.tlen;
+    int w1 = 262; // 设置进度条的宽度
+    int w = 0;
+    if (total_time > 0)
+    {
+        w = (play_time * w1 + total_time / 2) / total_time;
+    }
+    if (w > w1)
+        w = w1;
+    int y = 146; // 设置进度条的Y坐标
+    int x = 61;  // 设置进度条的X起始坐标
+    display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
+    display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
+    // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
+    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
+
+    u8g2Fonts.setCursor(18, y);
+    u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
+    u8g2Fonts.setCursor(341, y);
+    u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
+
+    d_time.display_start = micros();
     display.display();
     d_time.end = micros();
     last_time = d_time;
@@ -2739,6 +2742,10 @@ void AppMusicPlayer::setup()
                 {
                     if (!music_list_menu(true))
                     {
+                        while (hal.btnc.isPressing())
+                        {
+                            delay(1);
+                        }
                         continue;
                     }
                     delete_playtask();

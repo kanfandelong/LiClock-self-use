@@ -446,7 +446,7 @@ void ST7305::display_sleep(bool enabled)
     {
         if (LPM_MODE)
         {
-            sendCommand(0x38); // HPM:high Power Mode ON
+            High_Power_Mode(); // HPM:high Power Mode ON
             delay(300);
         }
         sendCommand(0x10); // sleep ON
