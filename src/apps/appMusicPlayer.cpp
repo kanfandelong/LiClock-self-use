@@ -2268,6 +2268,11 @@ void AppMusicPlayer::show_display_mormal()
 void AppMusicPlayer::show_display_fft()
 {
     d_time.start = micros();
+    constexpr int y = 146; // 设置进度条的Y坐标
+    constexpr int x = 61;  // 设置进度条的X起始坐标
+    constexpr int w1 = 262; // 设置进度条的宽度
+    uint32_t play_time = (millis() - play_time_start - play_stop_time);
+    static uint32_t total_time = 1;
     if (backup_buff_updata)
     {
         uint8_t current_buffer = display.current_buffer_idx;
@@ -2339,11 +2344,37 @@ void AppMusicPlayer::show_display_fft()
             u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
             u8g2Fonts.print("音乐播放器");
         }
+
+        if (!loopPlay)
+            play_time_total = 0;
+        if (info.tlen != 0)
+            total_time = info.tlen;
+        else
+            total_time = play_time_total;
+
+        if (info.tlen != 0 && play_time > info.tlen)
+            play_time = info.tlen;
+
+        display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
+        // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
+        u8g2Fonts.setCursor(341, y);
+        u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
         display.swapBuffer(current_buffer);
         backup_buff_updata = false;
     }
 
     display.copyBuffer(display.current_buffer_idx, 1); // 从缓冲区1复制显示内容到当前缓冲区
+    int w = 0;        
+    if (total_time > 0)
+    {
+        w = (play_time * w1 + total_time / 2) / total_time;
+    }
+    if (w > w1)
+        w = w1;
+    display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
+    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
+    u8g2Fonts.setCursor(18, y);
+    u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
 
     d_time.fft_start = micros();
 
@@ -2453,37 +2484,6 @@ void AppMusicPlayer::show_display_fft()
     sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
     u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
     u8g2Fonts.printf(gain_buf);
-
-    uint32_t play_time = (millis() - play_time_start - play_stop_time);
-    uint32_t total_time = 1;
-    if (!loopPlay)
-        play_time_total = 0;
-    if (info.tlen != 0)
-        total_time = info.tlen;
-    else
-        total_time = play_time_total;
-
-    if (info.tlen != 0 && play_time > info.tlen)
-        play_time = info.tlen;
-    int w1 = 262; // 设置进度条的宽度
-    int w = 0;
-    if (total_time > 0)
-    {
-        w = (play_time * w1 + total_time / 2) / total_time;
-    }
-    if (w > w1)
-        w = w1;
-    int y = 146; // 设置进度条的Y坐标
-    int x = 61;  // 设置进度条的X起始坐标
-    display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
-    display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
-    // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
-    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
-
-    u8g2Fonts.setCursor(18, y);
-    u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
-    u8g2Fonts.setCursor(341, y);
-    u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
 
     d_time.display_start = micros();
     display.display();

@@ -1579,7 +1579,7 @@ void AppSettings::menu_system()
                 .onProgress([](unsigned int progress, unsigned int total)
                 {
                     char buf[64];
-                    snprintf(buf, sizeof(buf), "进度: %u%%", (progress / (total / 100)));
+                    snprintf(buf, sizeof(buf), "总计:   %07u字节\n已完成: %07u字节\n进度: %u%%", total, progress, (progress / (total / 100)));
                     GUI::info_msgbox("OTA进度", buf);
                 })
                 .onError([](ota_error_t error)
@@ -1596,7 +1596,7 @@ void AppSettings::menu_system()
                 });
             ArduinoOTA.begin();
             char buf[128];
-            sprintf(buf, "ip: ",hal.getip().toString());
+            sprintf(buf, "ip: %s",hal.getip().toString().c_str());
             GUI::info_msgbox("已就绪", buf);
             while(1){
                 ArduinoOTA.handle();            
