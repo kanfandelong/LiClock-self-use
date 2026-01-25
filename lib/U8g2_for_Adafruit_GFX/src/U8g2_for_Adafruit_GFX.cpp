@@ -493,24 +493,26 @@ static int16_t u8g2_font_draw_glyph(u8g2_font_t *u8g2, int16_t x, int16_t y, uin
   int16_t dx = 0;
   u8g2->font_decode.target_x = x;
   u8g2->font_decode.target_y = y;
-  //u8g2->font_decode.is_transparent = is_transparent; this is already set
-  //u8g2->font_decode.dir = dir;
+  // u8g2->font_decode.is_transparent = is_transparent; this is already set
+  // u8g2->font_decode.dir = dir;
   const uint8_t *glyph_data = u8g2_font_get_glyph_data(u8g2, encoding);
-  if ( glyph_data != NULL )
+  if (glyph_data != NULL)
   {
     dx = u8g2_font_decode_glyph(u8g2, glyph_data);
     return dx;
   }
+  else
+  {
+    // === 缺失字符处理：绘制 □ ===
+    const uint16_t QUESTION_MARK = 0x25A1; // Unicode字符 □
+    const uint8_t *fallback_glyph_data = u8g2_font_get_glyph_data(u8g2, QUESTION_MARK);
 
-    // === 缺失字符处理：绘制问号 ===
-  const uint16_t QUESTION_MARK = 0x003F; // Unicode问号字符
-  const uint8_t *fallback_glyph_data = u8g2_font_get_glyph_data(u8g2, QUESTION_MARK);
-  
-  if (fallback_glyph_data != NULL) {
-    dx = u8g2_font_draw_glyph(u8g2, x, y, QUESTION_MARK);
-    return dx;
+    if (fallback_glyph_data != NULL)
+    {
+      dx = u8g2_font_decode_glyph(u8g2, fallback_glyph_data);
+      return dx;
+    }
   }
-
   return dx;
 }
 
@@ -530,16 +532,22 @@ uint8_t u8g2_IsGlyph(u8g2_font_t *u8g2, uint16_t requested_encoding)
 int8_t u8g2_GetGlyphWidth(u8g2_font_t *u8g2, uint16_t requested_encoding)
 {
   const uint8_t *glyph_data = u8g2_font_get_glyph_data(u8g2, requested_encoding);
-  if ( glyph_data == NULL )
-    return 0; 
-  
-  u8g2_font_setup_decode(u8g2, glyph_data);
-  u8g2->glyph_x_offset = u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_char_x);
-  u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_char_y);
-  
-  /* glyph width is here: u8g2->font_decode.glyph_width */
+  if (glyph_data != NULL)
+  {
 
-  return u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_delta_x);
+    u8g2_font_setup_decode(u8g2, glyph_data);
+    u8g2->glyph_x_offset = u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_char_x);
+    u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_char_y);
+
+    /* glyph width is here: u8g2->font_decode.glyph_width */
+
+    return u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_delta_x);
+  }
+  else
+  {    // === 缺失字符处理：获取 □ 的宽度===
+    const uint16_t QUESTION_MARK = 0x25A1; // Unicode字符 □
+    return u8g2_GetGlyphWidth(u8g2, QUESTION_MARK);
+  }
 }
 
 

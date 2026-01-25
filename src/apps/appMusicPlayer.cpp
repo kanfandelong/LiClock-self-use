@@ -341,7 +341,11 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
 {
     String outputString;
     String id3_type = type;
-
+    if (id3_type.equalsIgnoreCase("APIC"))
+    {
+        info("%s callback for: %s = '%s'", cbData, type, string);
+        return;
+    }
     if (isUnicode)
     {
         // 计算字符串长度
@@ -1452,13 +1456,13 @@ static const menu_select menu_player[] =
         {true, "单曲循环", nullptr},
         {true, "随机播放", nullptr},
         {true, "顺序播放", nullptr},
+        {true, "lrc歌词", nullptr},
         {false, "其他设置", nullptr},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 static const menu_select menu_set_player[] =
     {
         {false, "< 返回", nullptr},
-        {true, "lrc歌词", nullptr},
         {false, "歌词显示补偿", nullptr},
         {true, "使用25/26/0输出", nullptr},
         {true, "32bit通道宽度", "bits_per_chan"},
@@ -1570,7 +1574,7 @@ void AppMusicPlayer::player_menu()
                 output->SetGain(gain);
             break;
 
-        case 9:
+        case 10:
             player_set_menu();
             break;
         default:
@@ -1596,11 +1600,11 @@ void AppMusicPlayer::player_set_menu()
         case 0:
             end = true;
             break;
-        case 2:
+        case 1:
             _lrcoffset = GUI::msgbox_number("单位ms", 4, _lrcoffset);
             hal.pref.putInt("_lrcoffset", _lrcoffset);
             break;
-        case 7:
+        case 6:
             _count = GUI::msgbox_number("重启间隔 0-999", 3, _count);
             hal.pref.putInt("rst_count", _count);
             break;

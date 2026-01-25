@@ -547,7 +547,7 @@ void HAL::getTime()
         localtime_r(&now, &timeinfo);
     }
 }
-#include <esp32\rom\sha.h>
+#include <esp32/rom/sha.h>
 /**
  * @brief 计算字符串的SHA-256哈希值，并返回前15个字符组成的字符串
  * @param str 要计算哈希值的字符串
@@ -622,23 +622,30 @@ String HAL::get_CAcert(char* filePath)
 
 String HAL::get_yiyan(uint8_t maxlen)
 {
-    HTTPClient http;
-    String ca_cert = get_CAcert("/littlefs/System/GTS Root R4.crt");
-    static const char* url_yiyan = "https://v1.hitokoto.cn/?c=c&c=a&c=d&c=f&c=i&encode=text&charset=utf-8&max_length=";
-    String _url = String(url_yiyan) + String(maxlen);
-    http.begin((String)_url, ca_cert.c_str());
-    int httpCode = http.GET();
-    if (httpCode == HTTP_CODE_OK)
+    if (WiFi.isConnected())
     {
-        String payload = http.getString();
-        http.end();
-        return payload;
+        HTTPClient http;
+        String ca_cert = get_CAcert("/littlefs/System/GTS Root R4.crt");
+        static const char* url_yiyan = "https://v1.hitokoto.cn/?c=c&c=a&c=d&c=f&c=i&encode=text&charset=utf-8&max_length=";
+        String _url = String(url_yiyan) + String(maxlen);
+        http.begin((String)_url, ca_cert.c_str());
+        int httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK)
+        {
+            String payload = http.getString();
+            http.end();
+            return payload;
+        }
+        else
+        {
+            error("一言获取失败: %s", http.errorToString(httpCode).c_str());
+            http.end();
+            return String("一言获取失败");
+        }
     }
     else
     {
-        error("一言获取失败: %s", http.errorToString(httpCode).c_str());
-        http.end();
-        return String("一言获取失败");
+        return String("网络未连接");
     }
 }
 /**
@@ -1249,15 +1256,15 @@ bool HAL::init()
     tzset();
     // 读取时钟偏移
 
-    if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3 || pref.getBool("switch_btn"))
-    {
-        hal.btnl = OneButton(PIN_BUTTONL);
-        hal.btnr = OneButton(PIN_BUTTONR);
-    }
-    else
+    if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 1 || pref.getBool("switch_btn"))
     {
         hal.btnl = OneButton(PIN_BUTTONR);
         hal.btnr = OneButton(PIN_BUTTONL);
+    }
+    else
+    {
+        hal.btnl = OneButton(PIN_BUTTONL);
+        hal.btnr = OneButton(PIN_BUTTONR);
     }
 
     int freq = pref.getInt("CpuFreq", 80);

@@ -70,6 +70,8 @@ void AppWebserver::setup()
                 hal.can_sleep = true;
                 wsRunning = false;
                 end = false;
+                appManager.nextWakeup = 1;
+                appManager.noDeepSleep = false;
                 break;
             }
         }

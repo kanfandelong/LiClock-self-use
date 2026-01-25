@@ -72,7 +72,12 @@ void Weather::save()
 int8_t Weather::refresh()
 {
     HTTPClient http;
-    http.begin(String("http://api.caiyunapp.com/v2.5/96Ly7wgKGq6FhllM/") + config[PARAM_GPS].as<String>() + String("/weather.jsonp?hourlysteps=20&unit=metric%3Av2&dailysteps=4&alert=true")); // HTTP
+    String url = String("http://api.caiyunapp.com/v2.5/96Ly7wgKGq6FhllM/") + config[PARAM_GPS].as<String>() + String("/weather.jsonp?hourlysteps=20&unit=metric%3Av2&dailysteps=4&alert=true");
+    if (!http.begin(url))
+    {
+        warn("HTTP连接失败");
+        return -5;
+    }
     http.addHeader("Accept", "*/*");
     http.addHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36");
 
@@ -84,71 +89,122 @@ int8_t Weather::refresh()
     {
         DynamicJsonDocument doc(50000);
         auto s = http.getStream();
-        DeserializationError error = deserializeJson(doc, s);
-        if (error) {
-            log_w("JSON解析失败: %s\n", error.c_str());
+        DeserializationError _error = deserializeJson(doc, s);
+        if (_error)
+        {
+            log_w("JSON解析失败: %s\n", _error.c_str());
+            http.end();
             return -4;
         }
-        if (doc["status"] != "ok")
+
+        if (!doc.containsKey("status") || doc["status"] != "ok")
         { // API失效
             http.end();
             doc.clear();
             warn("天气API已失效");
             return -3;
         }
-        if (doc["result"]["alert"]["status"] == "ok")
+
+        if (doc.containsKey("result") && doc["result"].containsKey("alert") && doc["result"]["alert"].containsKey("status") && doc["result"]["alert"]["status"] == "ok")
         {
-            if (doc["result"]["alert"]["content"].size() != 0)
+            if (doc["result"]["alert"].containsKey("content") && doc["result"]["alert"]["content"].size() != 0)
             {
                 hasAlert = true;
-                strcpy(alert, doc["result"]["alert"]["content"][0]["description"].as<const char *>());
-                strcpy(alertTitle, doc["result"]["alert"]["content"][0]["title"].as<const char *>());
-                alertPubTime = doc["result"]["alert"]["content"][0]["pubtimestamp"].as<uint32_t>();
+                if (doc["result"]["alert"]["content"][0].containsKey("description"))
+                    strcpy(alert, doc["result"]["alert"]["content"][0]["description"].as<const char *>());
+                if (doc["result"]["alert"]["content"][0].containsKey("title"))
+                    strcpy(alertTitle, doc["result"]["alert"]["content"][0]["title"].as<const char *>());
+                if (doc["result"]["alert"]["content"][0].containsKey("pubtimestamp"))
+                    alertPubTime = doc["result"]["alert"]["content"][0]["pubtimestamp"].as<uint32_t>();
             }
         }
         else
         {
             hasAlert = false;
         }
-        strcpy(desc1, doc["result"]["hourly"]["description"].as<const char*>());
-        strcpy(desc2, doc["result"]["minutely"]["description"].as<const char*>());
+
+        if (doc["result"].containsKey("hourly") && doc["result"]["hourly"].containsKey("description"))
+            strcpy(desc1, doc["result"]["hourly"]["description"].as<const char *>());
+        if (doc["result"].containsKey("minutely") && doc["result"]["minutely"].containsKey("description"))
+            strcpy(desc2, doc["result"]["minutely"]["description"].as<const char *>());
+
         for (uint8_t i = 0; i < 20; ++i)
         {
-            // 下面获取当前时间
-            String timestr;
-            timestr = doc["result"]["hourly"]["temperature"][i]["datetime"].as<String>();
-            timestr = timestr.substring(5, 13);
-            strcpy(hour24[i].date, timestr.c_str());
-            // 天气类型、气温、风速
-            String s = doc["result"]["hourly"]["skycon"][i]["value"].as<String>();
-            hour24[i].weathernum = codeToNum(s.c_str());
-            hour24[i].temperature = int16_t(doc["result"]["hourly"]["temperature"][i]["value"].as<float>() * 10);
-            hour24[i].winddirection = uint16_t(doc["result"]["hourly"]["wind"][i]["direction"].as<float>());
-            hour24[i].windspeed = uint16_t(doc["result"]["hourly"]["wind"][i]["speed"].as<float>() * 10);
-            hour24[i].rain = uint16_t(doc["result"]["hourly"]["precipitation"][i]["value"].as<float>() * 100);
-            // 气压
-            hour24[i].pressure = doc["result"]["hourly"]["pressure"][i]["value"];
+            if (doc["result"].containsKey("hourly") && doc["result"]["hourly"].containsKey("temperature") && doc["result"]["hourly"]["temperature"].size() > i &&
+                doc["result"]["hourly"].containsKey("skycon") && doc["result"]["hourly"]["skycon"].size() > i &&
+                doc["result"]["hourly"].containsKey("wind") && doc["result"]["hourly"]["wind"].size() > i &&
+                doc["result"]["hourly"].containsKey("precipitation") && doc["result"]["hourly"]["precipitation"].size() > i &&
+                doc["result"]["hourly"].containsKey("pressure") && doc["result"]["hourly"]["pressure"].size() > i)
+            {
+                String timestr = doc["result"]["hourly"]["temperature"][i]["datetime"].as<String>();
+                timestr = timestr.substring(5, 13);
+                strcpy(hour24[i].date, timestr.c_str());
+
+                String s = doc["result"]["hourly"]["skycon"][i]["value"].as<String>();
+                hour24[i].weathernum = codeToNum(s.c_str());
+                hour24[i].temperature = int16_t(doc["result"]["hourly"]["temperature"][i]["value"].as<float>() * 10);
+                hour24[i].winddirection = uint16_t(doc["result"]["hourly"]["wind"][i]["direction"].as<float>());
+                hour24[i].windspeed = uint16_t(doc["result"]["hourly"]["wind"][i]["speed"].as<float>() * 10);
+                hour24[i].rain = uint16_t(doc["result"]["hourly"]["precipitation"][i]["value"].as<float>() * 100);
+                hour24[i].pressure = doc["result"]["hourly"]["pressure"][i]["value"];
+            }
+            else
+            {
+                warn("hourly数据不完整，索引 %d", i);
+                http.end();
+                return -6;
+            }
         }
+
         for (uint8_t i = 0; i < 120; ++i)
         {
-            // 降水
-            rain[i] = doc["result"]["minutely"]["precipitation_2h"][i].as<float>() * 100;
+            if (doc["result"].containsKey("minutely") && doc["result"]["minutely"].containsKey("precipitation_2h") && doc["result"]["minutely"]["precipitation_2h"].size() > i)
+            {
+                rain[i] = doc["result"]["minutely"]["precipitation_2h"][i].as<float>() * 100;
+            }
+            else
+            {
+                warn("minutely降水数据不完整，索引 %d", i);
+                http.end();
+                return -7;
+            }
         }
-        const char* dateStr;
+
+        const char *dateStr;
         for (uint8_t i = 0; i < 4; ++i)
         {
-            dateStr = doc["result"]["daily"]["temperature"][i]["date"].as<const char*>();
-            Serial.println(dateStr ? dateStr : "error");
-            // F_LOG(dateStr ? dateStr : "error");
-            five_days[i].max = int16_t(doc["result"]["daily"]["temperature"][i]["max"].as<float>() * 10);
-            five_days[i].min = int16_t(doc["result"]["daily"]["temperature"][i]["min"].as<float>() * 10);
-            five_days[i].weathernum = codeToNum(doc["result"]["daily"]["skycon"][i]["value"].as<const char*>());
+            if (doc["result"].containsKey("daily") && doc["result"]["daily"].containsKey("temperature") && doc["result"]["daily"]["temperature"].size() > i &&
+                doc["result"]["daily"].containsKey("skycon") && doc["result"]["daily"]["skycon"].size() > i)
+            {
+                dateStr = doc["result"]["daily"]["temperature"][i]["date"].as<const char *>();
+                Serial.println(dateStr ? dateStr : "error");
+                five_days[i].max = int16_t(doc["result"]["daily"]["temperature"][i]["max"].as<float>() * 10);
+                five_days[i].min = int16_t(doc["result"]["daily"]["temperature"][i]["min"].as<float>() * 10);
+                five_days[i].weathernum = codeToNum(doc["result"]["daily"]["skycon"][i]["value"].as<const char *>());
+            }
+            else
+            {
+                warn("daily数据不完整，索引 %d", i);
+                http.end();
+                return -8;
+            }
         }
-        // 实时天气
-        realtime.weathernum = codeToNum(doc["result"]["realtime"]["skycon"].as<const char*>());
-        realtime.temperature = int16_t(doc["result"]["realtime"]["temperature"].as<float>() * 10);
-        realtime.humidity = uint16_t(doc["result"]["realtime"]["humidity"].as<float>() * 100);
-        realtime.pressure = doc["result"]["realtime"]["pressure"];
+
+        if (doc["result"].containsKey("realtime") && doc["result"]["realtime"].containsKey("skycon") && doc["result"]["realtime"].containsKey("temperature") &&
+            doc["result"]["realtime"].containsKey("humidity") && doc["result"]["realtime"].containsKey("pressure"))
+        {
+            realtime.weathernum = codeToNum(doc["result"]["realtime"]["skycon"].as<const char *>());
+            realtime.temperature = int16_t(doc["result"]["realtime"]["temperature"].as<float>() * 10);
+            realtime.humidity = uint16_t(doc["result"]["realtime"]["humidity"].as<float>() * 100);
+            realtime.pressure = doc["result"]["realtime"]["pressure"];
+        }
+        else
+        {
+            warn("realtime数据不完整");
+            http.end();
+            return -9;
+        }
+
         doc.clear();
         lastupdate = hal.now;
         save();

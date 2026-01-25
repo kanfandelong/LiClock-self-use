@@ -29,7 +29,7 @@ struct s_fileicondict
     const char *extension;
     const uint8_t *ico;
 };
-static const struct s_fileicondict fileicondict[] = {
+static const struct s_fileicondict fileicondict[] = {    
     {"bmp", imgfile_bits},
     {"jpg", imgfile_bits},
     {"png", imgfile_bits},
@@ -39,8 +39,7 @@ static const struct s_fileicondict fileicondict[] = {
     {"mp3", musicfile_bits},
     {"flac", musicfile_bits},
     {"aac", musicfile_bits},
-    {"m4a", musicfile_bits},
-    {"ogg", musicfile_bits},
+    {"wav", musicfile_bits},
     {"opus", musicfile_bits}, // 添加opus格式支持
     {"i", sysfile_bits},
     {"json", sysfile_bits},

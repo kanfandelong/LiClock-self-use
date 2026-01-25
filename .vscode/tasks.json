@@ -1,0 +1,54 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "生成编译数据库",
+            "type": "shell",
+            "command": "~/piovenv/bin/python",
+            "args": [
+                "-m",
+                "platformio",
+                "run",
+                "-t",
+                "compiledb"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "构建项目",
+            "type": "shell",
+            "command": "~/piovenv/bin/python",
+            "args": [
+                "-m",
+                "platformio",
+                "run",
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "压缩固件版本存储库",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "compression_xz.py",
+                "compress",
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "挂载SMB",
+            "type": "shell",
+            "command": "sudo",
+            "args": [
+                "mount",
+                "-t",
+                "cifs",
+                "-o",
+                "username=admin,password=192959jj,uid=$(id -u),gid=$(id -g),rw,file_mode=0777,dir_mode=0777",
+                "//192.168.101.12/d",
+                "/mnt/IDCN823",
+            ],
+            "problemMatcher": []
+        },
+    ]
+}

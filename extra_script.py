@@ -13,13 +13,190 @@ Import("env")
 
 print("[钩子脚本] extra_script.py 已加载")
 
+env.Replace(COMPILATIONDB_INCLUDE_TOOLCHAIN=True)
+env.Replace(COMPILATIONDB_PATH=os.path.join("$BUILD_DIR", "compile_commands.json"))
+
+# ===== 配置区域 =====
+WINDOWS_BASE_DIR = "/mnt/IDCN823/LiClock-dev_multithread-main"
+PROJECT_DIR = env.subst("$PROJECT_DIR")
+
+# 需要同步的目录配置
+SYNC_CONFIGS = [
+    {
+        "source": os.path.join(WINDOWS_BASE_DIR, "src"),
+        "target": env.subst("$PROJECT_SRC_DIR"),
+        "description": "源码目录"
+    },
+    {
+        "source": os.path.join(WINDOWS_BASE_DIR, "lib"),
+        "target": os.path.join(PROJECT_DIR, "lib"),
+        "description": "库目录"
+    },
+    {
+        "source": os.path.join(WINDOWS_BASE_DIR, "include"),
+        "target": os.path.join(PROJECT_DIR, "include"),
+        "description": "头文件目录"
+    }
+]
+
 # 其他配置
-BUILD_DIR = "./.pio/build/esp32solo1"
+BUILD_DIR = "./.pio/build/LiClock"
 ELF_STORAGE_DIR = "./elf_versions"
 DATABASE_FILE = "./elf_versions/elf_database.json"
 MAX_VERSIONS = 200
 # ===================
 
+def check_rsync_available():
+    """检查rsync是否可用"""
+    try:
+        result = subprocess.run(["rsync", "--version"], 
+                              capture_output=True, 
+                              text=True, 
+                              check=False)
+        return result.returncode == 0
+    except Exception:
+        return False
+
+def sync_with_rsync(source_dir, target_dir, description=""):
+    """使用rsync进行增量同步（更快）"""
+    print(f"🔄 使用rsync同步{description}...")
+    
+    # rsync选项说明：
+    # -a: 归档模式，保持文件属性
+    # -v: 显示详细信息
+    # -r: 递归复制
+    # -u: 只更新较新的文件（增量同步）
+    # --delete: 删除目标中源没有的文件
+    # --exclude='.git': 排除.git目录
+    rsync_cmd = [
+        "rsync",
+        "-avru",  # 归档、详细、递归、更新
+        "--delete",
+        "--exclude=.git",
+        "--exclude=*.swp",
+        "--exclude=*.o",
+        "--exclude=*.d",
+        "--exclude=build/",
+        f"{source_dir}/",  # 注意末尾的/表示同步目录内容而不是目录本身
+        target_dir
+    ]
+    
+    try:
+        print(f"  命令: {' '.join(rsync_cmd[:5])}...")  # 只显示部分命令，避免太长
+        result = subprocess.run(rsync_cmd, 
+                              capture_output=True, 
+                              text=True, 
+                              check=True)
+        
+        # 分析rsync输出，统计同步的文件数量
+        output_lines = result.stdout.split('\n')
+        files_changed = []
+        for line in output_lines:
+            if line and not line.startswith(' ') and '/' in line:
+                files_changed.append(line)
+        
+        if files_changed:
+            print(f"  📋 同步了 {len(files_changed)} 个文件:")
+            for file in files_changed[:5]:  # 只显示前5个文件
+                print(f"    - {file}")
+            if len(files_changed) > 5:
+                print(f"    ... 还有 {len(files_changed)-5} 个文件")
+        else:
+            print(f"  ⏭️  没有需要同步的文件，目录已是最新")
+        
+        return True, len(files_changed)
+        
+    except subprocess.CalledProcessError as e:
+        print(f"❌ rsync同步失败: {e}")
+        print(f"  错误输出: {e.stderr}")
+        return False, 0
+    except Exception as e:
+        print(f"❌ 同步异常: {e}")
+        return False, 0
+
+def sync_with_shutil(source_dir, target_dir, description=""):
+    """使用shutil进行完整同步（备用方案）"""
+    print(f"🔄 使用shutil同步{description}...")
+    
+    try:
+        # 如果目标目录存在，先删除
+        if os.path.exists(target_dir):
+            print("  清理旧目录...")
+            shutil.rmtree(target_dir)
+        
+        # 复制整个目录
+        print("  复制文件中...")
+        shutil.copytree(source_dir, target_dir, 
+                       ignore=shutil.ignore_patterns('.git', '*.swp', '*.o', '*.d', 'build'))
+        
+        # 统计文件数量
+        sync_count = 0
+        for root, dirs, files in os.walk(target_dir):
+            sync_count += len(files)
+        
+        print(f"  完成，共 {sync_count} 个文件")
+        return True, sync_count
+        
+    except Exception as e:
+        print(f"❌ shutil同步失败: {e}")
+        return False, 0
+
+def sync_all_directories():
+    """同步所有配置的目录"""
+    print(f"\n{'='*60}")
+    print("[智能同步] 开始同步目录")
+    print(f"{'='*60}")
+    
+    # 检查rsync是否可用
+    rsync_available = check_rsync_available()
+    if rsync_available:
+        print("✅ 检测到rsync，将使用增量同步（更快）")
+    else:
+        print("⚠️  未检测到rsync，将使用完整复制")
+        print("   安装rsync命令: sudo apt-get install rsync")
+    
+    total_sync_count = 0
+    sync_failures = []
+    
+    for config in SYNC_CONFIGS:
+        source = config["source"]
+        target = config["target"]
+        description = config["description"]
+        
+        print(f"\n📁 {description}")
+        print(f"  源: {source}")
+        print(f"  目标: {target}")
+        
+        # 检查源目录是否存在
+        if not os.path.exists(source):
+            print(f"  ⚠️  源目录不存在，跳过")
+            sync_failures.append(f"{description}: 源目录不存在")
+            continue
+        
+        # 确保目标目录的父目录存在
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        
+        # 根据rsync可用性选择同步方法
+        if rsync_available:
+            success, count = sync_with_rsync(source, target, description)
+        else:
+            success, count = sync_with_shutil(source, target, description)
+        
+        if success:
+            total_sync_count += count
+        else:
+            sync_failures.append(description)
+    
+    # 总结
+    print(f"\n{'='*60}")
+    print("[同步完成]")
+    if sync_failures:
+        print(f"❌ 部分目录同步失败: {', '.join(sync_failures)}")
+        return False
+    else:
+        print(f"✅ 所有目录同步完成")
+        print(f"   总同步文件数: {total_sync_count}")
+        return True
 
 # 修复 hal.cpp 中的 Windows 路径问题
 def fix_windows_paths():
@@ -77,7 +254,12 @@ print(f"\n{'='*60}")
 print("🔧 LiClock 开发环境同步工具")
 print(f"{'='*60}")
 
-fix_windows_paths()
+# 1. 同步所有目录
+sync_successful = sync_all_directories()
+
+# 2. 修复路径问题（仅在同步成功时执行）
+if sync_successful:
+    fix_windows_paths()
 
 # ===== ELF版本管理功能 =====
 def calculate_sha256(filepath):
@@ -201,37 +383,37 @@ def post_build_elf_versions():
 # ===== 构建后复制产物 =====
 def copy_artifacts_to_windows(source, target, env):
     """构建完成后复制产物"""
-    # print(f"\n{'='*60}")
-    # print("[构建后] 复制产物到Windows")
+    print(f"\n{'='*60}")
+    print("[构建后] 复制产物到Windows")
     
-    # build_dir = env.subst("$BUILD_DIR")
-    # windows_build_dir = os.path.join(WINDOWS_BASE_DIR, "build")
+    build_dir = env.subst("$BUILD_DIR")
+    windows_build_dir = os.path.join(WINDOWS_BASE_DIR, "build")
     
-    # print(f"  从: {build_dir}")
-    # print(f"  到: {windows_build_dir}")
+    print(f"  从: {build_dir}")
+    print(f"  到: {windows_build_dir}")
     
-    # os.makedirs(windows_build_dir, exist_ok=True)
+    os.makedirs(windows_build_dir, exist_ok=True)
     
-    # files_to_copy = [
-    #     ("firmware.bin", "主固件"),
-    #     ("bootloader.bin", "引导程序"), 
-    #     ("partitions.bin", "分区表"),
-    #     ("firmware.elf", "ELF文件"),
-    #     ("firmware.map", "MAP文件")
-    # ]
+    files_to_copy = [
+        ("firmware.bin", "主固件"),
+        ("bootloader.bin", "引导程序"), 
+        ("partitions.bin", "分区表"),
+        ("firmware.elf", "ELF文件"),
+        ("firmware.map", "MAP文件")
+    ]
     
-    # copied = 0
-    # for filename, desc in files_to_copy:
-    #     src = os.path.join(build_dir, filename)
-    #     if os.path.exists(src):
-    #         try:
-    #             shutil.copy2(src, windows_build_dir)
-    #             print(f"  ✅ {desc}")
-    #             copied += 1
-    #         except Exception as e:
-    #             print(f"  ❌ {desc}失败: {e}")
+    copied = 0
+    for filename, desc in files_to_copy:
+        src = os.path.join(build_dir, filename)
+        if os.path.exists(src):
+            try:
+                shutil.copy2(src, windows_build_dir)
+                print(f"  ✅ {desc}")
+                copied += 1
+            except Exception as e:
+                print(f"  ❌ {desc}失败: {e}")
     
-    # print(f"✅ 共复制 {copied}/{len(files_to_copy)} 个文件")
+    print(f"✅ 共复制 {copied}/{len(files_to_copy)} 个文件")
     
     # 执行版本管理
     post_build_elf_versions()

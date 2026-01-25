@@ -20,6 +20,7 @@
 #include <esp_netif.h>
 #include <LittleFS.h>
 #include <ESPmDNS.h>
+#include <ArduinoOTA.h>
 
 // #include <ESP32-targz.h>
 

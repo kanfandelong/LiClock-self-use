@@ -1,28 +1,14 @@
 {
-    "files.associations": {
-        "*.tcc": "cpp",
-        "unordered_map": "cpp",
-        "fstream": "cpp",
-        "istream": "cpp",
-        "ostream": "cpp",
-        "sstream": "cpp",
-        "ff.h": "c",
-        "lrodefs.h": "c",
-        "lualib.h": "c",
-        "lauxlib.h": "c",
-        "array": "cpp",
-        "deque": "cpp",
-        "list": "cpp",
-        "string": "cpp",
-        "unordered_set": "cpp",
-        "vector": "cpp",
-        "string_view": "cpp",
-        "memory": "cpp",
-        "random": "cpp",
-        "initializer_list": "cpp",
-        "regex": "cpp",
-        "new": "cpp",
-        "exception": "cpp"
-    },
-    "cmake.ignoreCMakeListsMissing": true
+  "clangd.path": "/home/kanfandelong/clangd_21.1.8/bin/clangd",
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/.pio/build/esp32solo1",
+    "--query-driver=/home/kanfandelong/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-g++",
+    "--query-driver=/home/kanfandelong/.platformio/packages/toolchain-xtensa-esp32/bin/xtensa-esp32-elf-gcc",
+    "--background-index",
+    "--clang-tidy",
+    "--all-scopes-completion",
+    "--completion-style=detailed",
+    "--header-insertion=iwyu",
+    "--pch-storage=memory"
+  ]
 }
