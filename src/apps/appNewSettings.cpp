@@ -1596,7 +1596,7 @@ void AppSettings::menu_system()
                 });
             ArduinoOTA.begin();
             char buf[128];
-            sprintf(buf, "ip: %s",hal.getip().toString().c_str());
+            sprintf(buf, "请在同局域网下使用此IP进行OTA\nip: %s",hal.getip().toString().c_str());
             GUI::info_msgbox("已就绪", buf);
             while(1){
                 ArduinoOTA.handle();            

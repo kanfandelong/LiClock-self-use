@@ -334,6 +334,123 @@ IRAM_ATTR void ST7305::drawPixel(int16_t x, int16_t y, uint16_t color)
     }
 }
 
+// 预计算查找表
+static uint8_t BIT_MASK_VLine_LUT[2][8] = {
+    {0x00, 0x02, 0x0a, 0x2a, 0xaa, 0xa8, 0xa0, 0x80},
+    {0x00, 0x01, 0x05, 0x15, 0x55, 0x54, 0x50, 0x40},
+};
+
+/* void ST7305::drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+{
+    // 边界检查
+    if (x < x_min || x > x_max || y < y_min || y > y_max || h <= 0)
+        return;
+
+    // 旋转处理，直接调用drawFastHLine
+    if (rotation == 1) {
+        // 0°
+    } else if (rotation == 2) {
+        // 90°，竖线变横线
+        drawFastHLine(y, PHYSICAL_WIDTH - x - 1, h, color);
+        return;
+    } else if (rotation == 3) {
+        // 180°
+        drawFastVLine(PHYSICAL_WIDTH - x - 1, PHYSICAL_HEIGHT - y - h, h, color);
+        return;
+    } else {
+        // 270°，竖线变横线
+        drawFastHLine(PHYSICAL_HEIGHT - y - h, x, h, color);
+        return;
+    }
+
+    // 限制在物理范围内
+    int16_t y_end = y + h;
+    if (y_end > y_max + 1) y_end = y_max + 1;
+    if (y_end > PHYSICAL_HEIGHT) y_end = PHYSICAL_HEIGHT;
+
+    // 逐像素优化为字节操作
+    for (int16_t yy = y; yy < y_end;) {
+        int16_t col = x >> 1;
+        int16_t y_div4 = yy >> 2;
+        int16_t byte_index = col * 42 + y_div4;
+        int16_t y_mod4 = yy & 0x03;
+        int16_t bit_base = Y_BYTE_OFFSET[y_mod4] + (x & 0x01);
+
+        // 最多一次可画8个像素（同一字节）
+        int16_t remain = y_end - yy;
+        int16_t max_draw = 8 - bit_base;
+        int16_t draw_len = remain < max_draw ? remain : max_draw;
+
+        uint8_t mask = BIT_MASK_VLine_LUT[x & 0x01][draw_len];
+        mask <<= (8 - bit_base - draw_len);
+
+        if (color)
+            buffer[byte_index] |= mask;
+        else`
+            buffer[byte_index] &= ~mask;
+
+        yy += draw_len;
+    }
+} */
+
+static uint8_t BIT_MASK_HLine_LUT[4][3] = {
+    {0x00, 0x40, 0xc0},
+    {0x00, 0x10, 0x30},
+    {0x00, 0x04, 0x0c},
+    {0x00, 0x01, 0x03},
+};
+
+/* void ST7305::drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
+{
+    // 边界检查
+    if (y < y_min || y > y_max || x < x_min || x > x_max || w <= 0)
+        return;
+
+    // 旋转处理，直接调用drawFastVLine
+    if (rotation == 2) {
+        // 90°，横线变竖线
+        drawFastVLine(y, PHYSICAL_WIDTH - x - 1, w, color);
+        return;
+    } else if (rotation == 3) {
+        // 180°
+        drawFastHLine(PHYSICAL_WIDTH - x - w, PHYSICAL_HEIGHT - y - 1, w, color);
+        return;
+    } else if (rotation == 0) {
+        // 270°，横线变竖线
+        drawFastVLine(PHYSICAL_HEIGHT - y - 1, x, w, color);
+        return;
+    }
+
+    // 限制在物理范围内
+    int16_t x_end = x + w;
+    if (x_end > x_max + 1) x_end = x_max + 1;
+    if (x_end > PHYSICAL_WIDTH) x_end = PHYSICAL_WIDTH;
+
+    // 逐像素优化为字节操作
+    for (int16_t xx = x; xx < x_end;) {
+        int16_t col = xx >> 1;
+        int16_t y_div4 = y >> 2;
+        int16_t byte_index = col * 42 + y_div4;
+        int16_t y_mod4 = y & 0x03;
+        int16_t bit_base = Y_BYTE_OFFSET[y_mod4] + (xx & 0x01);
+
+        // 最多一次可画2个像素（同一字节）
+        int16_t remain = x_end - xx;
+        int16_t max_draw = 2 - (xx & 0x01);
+        int16_t draw_len = remain < max_draw ? remain : max_draw;
+
+        uint8_t mask = BIT_MASK_HLine_LUT[y_mod4][draw_len];
+        mask >>= (xx & 0x01 ? 0 : 2 - draw_len);
+
+        if (color)
+            buffer[byte_index] |= mask;
+        else
+            buffer[byte_index] &= ~mask;
+
+        xx += draw_len;
+    }
+} */
+
 void ST7305::setRotation(uint8_t m)
 {
     rotation = m % 4; // Ensure rotation is within 0-3
@@ -378,6 +495,7 @@ void ST7305::setDrawWindow(int16_t x, int16_t y, int16_t w, int16_t h)
     y_min = y;
     y_max = y + h;
 }
+
 
 void ST7305::Low_Power_Mode()
 {

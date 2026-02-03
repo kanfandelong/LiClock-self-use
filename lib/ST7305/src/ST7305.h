@@ -36,9 +36,11 @@ public:
 	void display();
 	void clearDisplay(uint16_t color = 0XFF);
 	void clearScreen(uint16_t color = 0XFF) { clearDisplay(color); };
-	void drawPixel(int16_t x, int16_t y, uint16_t color);
-	void setRotation(uint8_t m);
 	void setvoltage(st7305_voltage_t fps);
+	void drawPixel(int16_t x, int16_t y, uint16_t color);
+	// void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
+	// void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
+	void setRotation(uint8_t m);
 	void setDrawWindow(int16_t x = 0, int16_t y = 0, int16_t w = MAX_X, int16_t h = MAX_Y);
 	void Low_Power_Mode();
 	void High_Power_Mode();

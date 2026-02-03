@@ -213,6 +213,7 @@ public:
     float smoothingFactor = 0.7f; // 平滑控制, 0~1，越大越平滑
     float FFT_A_spectrum_smoothness = 2000.0f;
     float FFT_A_amplitude = 40.0f;
+    float fft_gain = 1.0;
     float curveScaling[128];
     ArduinoFFT<float> FFT = ArduinoFFT<float>();
     float vReal[SAMPLES];
@@ -1758,6 +1759,7 @@ static const menu_select menu_set_player[] =
         {false, "FFT平滑控制", nullptr},
         {false, "FFT参数1", nullptr},
         {false, "FFT参数2", nullptr},
+        {false, "线性缩放增益", nullptr},
         {false, "xFrequency", nullptr},
         {true, "FFT对数缩放", "fft_log"},
         {true, "显示debug信息", "music_debug"},
@@ -1913,6 +1915,9 @@ void AppMusicPlayer::player_set_menu()
             FFT_A_amplitude = (float)GUI::msgbox_number("FFT参数2", 3, (int)(FFT_A_amplitude));
             break;
         case 10:
+            fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0)) / 100.0;
+            break;
+        case 11:
             xFrequency = pdMS_TO_TICKS(GUI::msgbox_number("xFrequency", 2, xFrequency));
             hal.pref.putInt("xFrequency", (int)xFrequency);
             break;
@@ -2409,6 +2414,8 @@ void AppMusicPlayer::show_display_fft()
             // 平滑处理
             vReal[i] = smoothingFactor * previousSpectrum[i] + (1 - smoothingFactor) * vReal[i];
 
+            vReal[i] = vReal[i] * fft_gain;
+
             // 限幅处理
             if (vReal[i] > 60)
                 vReal[i] = 60;
@@ -2422,7 +2429,9 @@ void AppMusicPlayer::show_display_fft()
 
     for (int i = 0; i < 128; i++)
     {
-        display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
+        // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
+        display.drawFastVLine(i * 3, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
+        display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
     }
 
     d_time.fft_end = micros();
@@ -2436,13 +2445,18 @@ void AppMusicPlayer::show_display_fft()
     }
 
     // 电池
-    // if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4400 && !hal.isCharging)
-    // {
-    //     display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
-    //     display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
-    // }
-    // else
-    display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
+    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4400 && !hal.isCharging)
+    {
+        display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
+        // display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
+        int soc = (hal.VCC - 3200) * 13 / 1000;
+        for (int x = 365; x < 365 + soc; x++)
+        {
+            display.drawFastVLine(x, 6, 4, TFT_BLACK);
+        }
+    }
+    else
+        display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
     u8g2Fonts.setCursor(2, 12);
     u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
 
