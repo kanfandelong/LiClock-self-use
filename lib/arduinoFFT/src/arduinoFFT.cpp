@@ -40,7 +40,7 @@ ArduinoFFT<T>::ArduinoFFT(T *vReal, T *vImag, uint_fast16_t samples,
 template <typename T> ArduinoFFT<T>::~ArduinoFFT(void) {
   // Destructor
   if (_precompiledWindowingFactors) {
-    delete [] _precompiledWindowingFactors;
+    delete[] _precompiledWindowingFactors;
   }
 }
 
@@ -52,7 +52,7 @@ template <typename T>
 void ArduinoFFT<T>::complexToMagnitude(T *vReal, T *vImag,
                                        uint_fast16_t samples) const {
   // vM is half the size of vReal and vImag
-  for (uint_fast16_t i = 0; i < samples; i++) {
+  for (uint_fast16_t i = 0; i < (samples >> 1) + 1; i++) {
     vReal[i] = sqrt_internal(sq(vReal[i]) + sq(vImag[i]));
   }
 }
@@ -82,8 +82,12 @@ void ArduinoFFT<T>::compute(T *vReal, T *vImag, uint_fast16_t samples,
   for (uint_fast16_t i = 0; i < (samples - 1); i++) {
     if (i < j) {
       swap(&vReal[i], &vReal[j]);
+#ifdef COMPLEX_INPUT
+      swap(&vImag[i], &vImag[j]);
+  #else
       if (dir == FFTDirection::Reverse)
         swap(&vImag[i], &vImag[j]);
+#endif
     }
     uint_fast16_t k = (samples >> 1);
 
@@ -189,11 +193,12 @@ void ArduinoFFT<T>::majorPeak(T *vData, uint_fast16_t samples,
   T delta = 0.5 * ((vData[IndexOfMaxY - 1] - vData[IndexOfMaxY + 1]) /
                    (vData[IndexOfMaxY - 1] - (2.0 * vData[IndexOfMaxY]) +
                     vData[IndexOfMaxY + 1]));
-  T interpolatedX = ((IndexOfMaxY + delta) * samplingFrequency) / (samples - 1);
-  if (IndexOfMaxY == (samples >> 1)) // To improve calculation on edge values
-    interpolatedX = ((IndexOfMaxY + delta) * samplingFrequency) / (samples);
+  if (IndexOfMaxY == (samples >> 1)) { // To improve calculation on edge values
+    *frequency = ((IndexOfMaxY + delta) * samplingFrequency) / (samples);
+  } else {
+    *frequency = ((IndexOfMaxY + delta) * samplingFrequency) / (samples - 1);
+  }
   // returned value: interpolated frequency peak apex
-  *frequency = interpolatedX;
   if (magnitude != nullptr) {
 #if defined(ESP8266) || defined(ESP32)
     *magnitude = fabs(vData[IndexOfMaxY - 1] - (2.0 * vData[IndexOfMaxY]) +
@@ -247,7 +252,7 @@ void ArduinoFFT<T>::majorPeakParabola(T *vData, uint_fast16_t samples,
 
     // And magnitude is at the extrema of the parabola if you want It...
     if (magnitude != nullptr) {
-      *magnitude = a * x * x + b * x + c;
+      *magnitude = (a * x * x) + (b * x) + c;
     }
 
     // Convert to frequency
@@ -270,7 +275,7 @@ void ArduinoFFT<T>::setArrays(T *vReal, T *vImag, uint_fast16_t samples) {
     _oneOverSamples = 1.0 / samples;
 #endif
     if (_precompiledWindowingFactors) {
-      delete [] _precompiledWindowingFactors;
+      delete[] _precompiledWindowingFactors;
     }
     _precompiledWindowingFactors = new T[samples / 2];
   }
@@ -340,7 +345,7 @@ void ArduinoFFT<T>::windowing(T *vData, uint_fast16_t samples,
         weighingFactor = 0.54 - (0.46 * cos(twoPi * ratio));
         break;
       case FFTWindow::Hann: // hann
-        weighingFactor = 0.54 * (1.0 - cos(twoPi * ratio));
+        weighingFactor = 0.50 * (1.0 - cos(twoPi * ratio));
         break;
       case FFTWindow::Triangle: // triangle (Bartlett)
 #if defined(ESP8266) || defined(ESP32)
@@ -423,7 +428,9 @@ template <typename T>
 void ArduinoFFT<T>::findMaxY(T *vData, uint_fast16_t length, T *maxY,
                              uint_fast16_t *index) const {
   *maxY = 0;
-  *index = 0;
+  // A signal with a DC offset produces a spike on bin 0 that should be ignored.
+  // Start the search on bin 1.
+  *index = 1;
   // If sampling_frequency = 2 * max_frequency in signal,
   // value would be stored at position samples/2
   for (uint_fast16_t i = 1; i < length; i++) {
@@ -501,17 +508,20 @@ template <typename T> double ArduinoFFT<T>::sqrt_internal(double x) const {
 #endif
 
 template <typename T>
-const T ArduinoFFT<T>::_WindowCompensationFactors[10] = {
-    1.0000000000 * 2.0, // rectangle (Box car)
-    1.8549343278 * 2.0, // hamming
-    1.8554726898 * 2.0, // hann
-    2.0039186079 * 2.0, // triangle (Bartlett)
-    2.8163172034 * 2.0, // nuttall
-    2.3673474360 * 2.0, // blackman
-    2.7557840395 * 2.0, // blackman nuttall
-    2.7929062517 * 2.0, // blackman harris
-    3.5659039231 * 2.0, // flat top
-    1.5029392863 * 2.0  // welch
+const T ArduinoFFT<T>::_WindowCompensationFactors[11] = {
+    2.0,          // 1.0000000000 * 2.0, // rectangle (Box car)
+    3.7098686556, // 1.8549343278 * 2.0, // hamming
+    3.7109453796, // 1.8554726898 * 2.0, // hann
+    4.0078372158, // 2.0039186079 * 2.0, // triangle (Bartlett)
+    5.6326344068, // 2.8163172034 * 2.0, // nuttall
+    4.734694872,  // 2.3673474360 * 2.0, // blackman
+    5.511568079,  // 2.7557840395 * 2.0, // blackman nuttall
+    5.5858125034, // 2.7929062517 * 2.0, // blackman harris
+    7.1318078462, // 3.5659039231 * 2.0, // flat top
+    3.0058785726, // 1.5029392863 * 2.0, // welch
+    // This is added as a precaution, since this index should never be
+    // accessed under normal conditions
+    1.0 // Custom, precompiled value.
 };
 
 template class ArduinoFFT<double>;

@@ -1905,7 +1905,7 @@ void AppMusicPlayer::player_set_menu()
             hal.pref.putInt("rst_count", _count);
             break;
         case 7:
-            smoothingFactor = (float)GUI::msgbox_number("平滑控制 0-10", 2, (int)(smoothingFactor * 10.0)) / 10.0;
+            smoothingFactor = (float)GUI::msgbox_number("平滑控制 0-100", 3, (int)(smoothingFactor * 100.0)) / 100.0;
             hal.pref.putFloat("fft_smooth_val", smoothingFactor);
             break;
         case 8:
