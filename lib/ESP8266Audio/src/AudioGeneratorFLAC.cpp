@@ -101,6 +101,21 @@ bool AudioGeneratorFLAC::loop()
     if (buffPtr == buffLen) {
       goto done; // At some point the flac better error and we'll return 
     }
+    #ifdef CONFIG_DAC_32bit
+    int shift = 0;
+    if (bitsPerSample <= 8) shift = 24;
+    else if (bitsPerSample <= 16) shift = 16;
+    else if (bitsPerSample <= 24) shift = 8;
+    else shift = 0;
+
+    if (channels == 2) {
+        lastSample[AudioOutput::LEFTCHANNEL]  = buff[0][buffPtr] << shift;
+        lastSample[AudioOutput::RIGHTCHANNEL] = buff[1][buffPtr] << shift;
+    } else {
+        lastSample[AudioOutput::LEFTCHANNEL]  = buff[0][buffPtr] << shift;
+        lastSample[AudioOutput::RIGHTCHANNEL] = buff[0][buffPtr] << shift;
+    }
+    #else
     if (bitsPerSample <= 16) {
       lastSample[AudioOutput::LEFTCHANNEL] = buff[0][buffPtr] & 0xffff; 
       if (channels==2) lastSample[AudioOutput::RIGHTCHANNEL] = buff[1][buffPtr] & 0xffff; 
@@ -114,6 +129,7 @@ bool AudioGeneratorFLAC::loop()
       if (channels==2) lastSample[AudioOutput::RIGHTCHANNEL] = (buff[1][buffPtr]>>16) & 0xffff; 
       else lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
     }
+    #endif
     buffPtr++;
   } while (running && output->ConsumeSample(lastSample));
 

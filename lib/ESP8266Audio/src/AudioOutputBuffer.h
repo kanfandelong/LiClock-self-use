@@ -32,14 +32,23 @@ class AudioOutputBuffer : public AudioOutput
     virtual bool SetBitsPerSample(int bits) override;
     virtual bool SetChannels(int channels) override;
     virtual bool begin() override;
+    #ifdef CONFIG_DAC_32bit
+    virtual bool ConsumeSample(int32_t sample[2]) override;
+    #else
     virtual bool ConsumeSample(int16_t sample[2]) override;
+    #endif
     virtual bool stop() override;
     
   protected:
     AudioOutput *sink;
     int buffSize;
+    #ifdef CONFIG_DAC_32bit
+    int32_t *leftSample;
+    int32_t *rightSample;
+    #else
     int16_t *leftSample;
     int16_t *rightSample;
+    #endif
     int writePtr;
     int readPtr;
     bool filled;

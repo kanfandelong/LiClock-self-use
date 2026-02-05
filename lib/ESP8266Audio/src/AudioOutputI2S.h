@@ -27,8 +27,11 @@
 #include <Arduino.h>
 #include <I2S.h>
 #endif
-
+#ifdef CONFIG_DAC_32bit
+typedef void (*SampleCB)(int32_t sample[2]);
+#else
 typedef void (*SampleCB)(int16_t sample[2]);
+#endif
 
 class AudioOutputI2S : public AudioOutput
 {
@@ -47,7 +50,11 @@ class AudioOutputI2S : public AudioOutput
     virtual bool SetBitsPerSample(int bits) override;
     virtual bool SetChannels(int channels) override;
     virtual bool begin() override { return begin(true); }
+    #ifdef CONFIG_DAC_32bit
+    virtual bool ConsumeSample(int32_t sample[2]) override;
+    #else
     virtual bool ConsumeSample(int16_t sample[2]) override;
+    #endif
     virtual void flush() override;
     virtual bool stop() override;
     

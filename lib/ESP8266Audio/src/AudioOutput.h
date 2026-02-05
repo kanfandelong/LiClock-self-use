@@ -35,6 +35,17 @@ class AudioOutput
     virtual bool SetGain(float f) { if (f>4.0) f = 4.0; if (f<0.0) f=0.0; gainF2P6 = (uint8_t)(f*(1<<6)); return true; }
     virtual bool begin() { return false; };
     typedef enum { LEFTCHANNEL=0, RIGHTCHANNEL=1 } SampleIndex;
+    #ifdef CONFIG_DAC_32bit
+    virtual bool ConsumeSample(int32_t sample[2]) { (void)sample; return false; }
+    virtual uint16_t ConsumeSamples(int32_t *samples, uint16_t count)
+    {
+      for (uint16_t i=0; i<count; i++) {
+        if (!ConsumeSample(samples)) return i;
+        samples += 2;
+      }
+      return count;
+    }
+    #else
     virtual bool ConsumeSample(int16_t sample[2]) { (void)sample; return false; }
     virtual uint16_t ConsumeSamples(int16_t *samples, uint16_t count)
     {
@@ -44,6 +55,7 @@ class AudioOutput
       }
       return count;
     }
+    #endif
     virtual bool stop() { return false; }
     virtual void flush() { return; }
     virtual bool loop() { return true; }
@@ -53,6 +65,26 @@ class AudioOutput
     virtual bool RegisterStatusCB(AudioStatus::statusCBFn fn, void *data) { return cb.RegisterStatusCB(fn, data); }
 
   protected:
+    #ifdef CONFIG_DAC_32bit
+    void MakeSampleStereo16(int32_t sample[2]) {
+      // Mono to "stereo" conversion
+      if (channels == 1)
+        sample[RIGHTCHANNEL] = sample[LEFTCHANNEL];
+      if (bps == 8) {
+        // Upsample from unsigned 8 bits to signed 16 bits
+        sample[LEFTCHANNEL] = (((int16_t)(sample[LEFTCHANNEL]&0xff)) - 128) << 8;
+        sample[RIGHTCHANNEL] = (((int16_t)(sample[RIGHTCHANNEL]&0xff)) - 128) << 8;
+      }
+    };
+
+    inline int32_t Amplify(int32_t s) {
+        // 32位音频增益调整，gainF2P6为2.6定点格式
+        int64_t v = (int64_t(s) * gainF2P6) >> 6;
+        if (v < INT32_MIN) return INT32_MIN;
+        else if (v > INT32_MAX) return INT32_MAX;
+        else return int32_t(v);
+    }
+    #else
     void MakeSampleStereo16(int16_t sample[2]) {
       // Mono to "stereo" conversion
       if (channels == 1)
@@ -70,7 +102,7 @@ class AudioOutput
       else if (v > 32767) return 32767;
       else return (int16_t)(v&0xffff);
     }
-
+    #endif
   protected:
     uint16_t hertz;
     uint8_t bps;

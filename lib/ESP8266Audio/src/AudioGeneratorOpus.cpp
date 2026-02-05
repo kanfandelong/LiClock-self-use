@@ -106,9 +106,13 @@ bool AudioGeneratorOpus::loop()
      buffPtr = 0;
      buffLen = ret * 2;
     }
-
+    #ifdef CONFIG_DAC_32bit
+    lastSample[AudioOutput::LEFTCHANNEL] = (buff[buffPtr] & 0xffff) << 16; 
+    lastSample[AudioOutput::RIGHTCHANNEL] = (buff[buffPtr+1] & 0xffff) << 16; 
+    #else
     lastSample[AudioOutput::LEFTCHANNEL] = buff[buffPtr] & 0xffff; 
     lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr+1] & 0xffff; 
+    #endif
     buffPtr += 2;
   } while (running && output->ConsumeSample(lastSample));
 

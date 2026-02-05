@@ -74,7 +74,11 @@ class AudioGeneratorMP3 : public AudioGenerator
     enum mad_flow ErrorToFlow();
     enum mad_flow Input();
     bool DecodeNextFrame();
+    #ifdef CONFIG_DAC_32bit
+    bool GetOneSample(int32_t sample[2]);
+    #else
     bool GetOneSample(int16_t sample[2]);
+    #endif
 
   private:
     int unrecoverable = 0;

@@ -180,8 +180,11 @@ bool AudioGeneratorMP3::DecodeNextFrame()
   nsCountMax  = MAD_NSBSAMPLES(&frame->header);
   return true;
 }
-
+#ifdef CONFIG_DAC_32bit
+bool AudioGeneratorMP3::GetOneSample(int32_t sample[2])
+#else
 bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
+#endif
 {
   if (synth->pcm.samplerate != lastRate) {
     output->SetRate(synth->pcm.samplerate);
@@ -194,8 +197,13 @@ bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
 
   // If we're here, we have one decoded frame and sent 0 or more samples out
   if (samplePtr < synth->pcm.length) {
+    #ifdef CONFIG_DAC_32bit
+    sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr] << 16;
+    sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr] << 16;
+    #else
     sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr];
     sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr];
+    #endif
     samplePtr++;
   } else {
     samplePtr = 0;
@@ -208,8 +216,13 @@ bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
           break; // Do nothing
     }
     // for IGNORE and CONTINUE, just play what we have now
+    #ifdef CONFIG_DAC_32bit
+    sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr] << 16;
+    sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr] << 16;
+    #else
     sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr];
     sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr];
+    #endif
     samplePtr++;
   }
   return true;

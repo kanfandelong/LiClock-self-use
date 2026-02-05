@@ -924,7 +924,7 @@ void AppSettings::menu_power()
     static const menu_select settings_menu_display[] =
         {
             {false, "< 返回", nullptr},
-            {false, "电池信息", nullptr},
+            {false, "电池状态", nullptr},
             {false, "电池电压校准", nullptr},
             {false, "自动休眠电压", nullptr},
             {true, "精准电量显示", nullptr},
@@ -1985,7 +1985,7 @@ void AppSettings::tfcard_info()
 void AppSettings::bat_info()
 {
     display.clearScreen();
-    GUI::drawWindowsWithTitle("电池信息", 0, 0, 296, 128);
+    GUI::drawWindowsWithTitle("电池状态");
 
     int lineHeight = 14;
     int startY = 28; // 标题栏下方开始
@@ -2130,8 +2130,12 @@ void AppSettings::bat_info()
 
         // 显示充满容量
         u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("充满容量:%dmAh", hal.bat_info.capacity.full_f);
+        u8g2Fonts.printf("充满容量:%dmAh 当前容量:%dmAh", hal.bat_info.capacity.full_f, hal.bat_info.capacity.remain_f);
     }
     display.display();
     hal.wait_input();
+    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
+    {
+        delay(20);
+    }
 }

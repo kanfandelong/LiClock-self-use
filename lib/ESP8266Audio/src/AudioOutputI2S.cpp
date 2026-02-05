@@ -144,7 +144,11 @@ bool AudioOutputI2S::SetRate(int hz)
 
 bool AudioOutputI2S::SetBitsPerSample(int bits)
 {
+  #ifdef CONFIG_DAC_32bit
+  if ( (bits != 32) && (bits != 24) && (bits != 16) && (bits != 8) ) return false;
+  #else
   if ( (bits != 16) && (bits != 8) ) return false;
+  #endif
   this->bps = bits;
   return true;
 }
@@ -268,7 +272,11 @@ bool AudioOutputI2S::begin(bool txDAC)
       i2s_config_t i2s_config_dac = {
           .mode = mode,
           .sample_rate = 44100,
+          #ifdef CONFIG_DAC_32bit
+          .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT,
+          #else
           .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+          #endif
           .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
           .communication_format = comm_fmt,
           .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1, // lowest interrupt priority
@@ -341,15 +349,24 @@ bool AudioOutputI2S::begin(bool txDAC)
   SetRate(hertz); // Default
   return true;
 }
+#ifdef CONFIG_DAC_32bit
+bool AudioOutputI2S::ConsumeSample(int32_t sample[2])
+{
+  //return if we haven't called ::begin yet
+  if (!i2sOn)
+    return false;
 
+  int32_t ms[2];
+#else
 bool AudioOutputI2S::ConsumeSample(int16_t sample[2])
 {
-
   //return if we haven't called ::begin yet
   if (!i2sOn)
     return false;
 
   int16_t ms[2];
+#endif
+
 
   ms[0] = sample[0];
   ms[1] = sample[1];
@@ -364,6 +381,15 @@ bool AudioOutputI2S::ConsumeSample(int16_t sample[2])
     ms[LEFTCHANNEL] = ms[RIGHTCHANNEL] = (ttl>>1) & 0xffff;
   }
   #ifdef ESP32
+    #ifdef CONFIG_DAC_32bit
+    int samples_data[2];
+    samples_data[0] = Amplify(ms[RIGHTCHANNEL]);
+    samples_data[1] = Amplify(ms[LEFTCHANNEL]);
+    
+    size_t i2s_bytes_written;
+    i2s_write((i2s_port_t)portNo, &samples_data, sizeof(int) * 2, &i2s_bytes_written, 0);
+    return i2s_bytes_written;
+    #else
     uint32_t s32;
     if (output_mode == INTERNAL_DAC)
     {
@@ -381,6 +407,7 @@ bool AudioOutputI2S::ConsumeSample(int16_t sample[2])
     size_t i2s_bytes_written;
     i2s_write((i2s_port_t)portNo, (const char*)&s32, sizeof(uint32_t), &i2s_bytes_written, 0);
     return i2s_bytes_written;
+    #endif
   #elif defined(ESP8266)
     uint32_t s32 = ((Amplify(ms[RIGHTCHANNEL])) << 16) | (Amplify(ms[LEFTCHANNEL]) & 0xffff);
     return i2s_write_sample_nb(s32); // If we can't store it, return false.  OTW true
@@ -395,7 +422,11 @@ void AudioOutputI2S::flush()
   #ifdef ESP32
     // makes sure that all stored DMA samples are consumed / played
     int buffersize = 128 * this->dma_buf_count;
+    #ifdef CONFIG_DAC_32bit
+    int32_t samples[2] = {0x0, 0x0};
+    #else
     int16_t samples[2] = {0x0, 0x0};
+    #endif
     for (int i = 0; i < buffersize; i++)
     {
       while (!ConsumeSample(samples))

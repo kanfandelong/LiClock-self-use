@@ -209,16 +209,16 @@ public:
     int newLyricIndex = 0;              // 新的歌词索引
 
 // FFT 部分
-#define SAMPLES 256
+    uint16_t SAMPLES = 512;
     float smoothingFactor = 0.7f; // 平滑控制, 0~1，越大越平滑
     float FFT_A_spectrum_smoothness = 2000.0f;
     float FFT_A_amplitude = 40.0f;
     float fft_gain = 1.0;
-    float curveScaling[128];
     ArduinoFFT<float> FFT = ArduinoFFT<float>();
-    float vReal[SAMPLES];
-    float vImag[SAMPLES];
-    float previousSpectrum[128] = {0};
+    float *curveScaling;
+    float *vReal;
+    float *vImag;
+    float *previousSpectrum;
     float fps = 0, max_fps = 50.0;
     bool fftProcessing = false;
     bool use_log = false;
@@ -465,7 +465,26 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     info("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
     app.backup_buff_updata = true;
 }
-
+#ifdef CONFIG_DAC_32bit
+void GetSampleCB(int32_t sample[2])
+{
+    if (app.fftProcessing)
+    {
+        // FFT还没处理完，跳过本次采样点获取，避免覆盖
+        return;
+    }
+    app.vReal[app.sampleIndex] = (float)(sample[0] >> 16);
+    app.vImag[app.sampleIndex] = 0.0f;
+    app.sampleIndex++;
+    // When sampleIndex reaches the number of samples, wrap around.
+    // Use >= to avoid writing past the allocated buffers (valid indices: 0..SAMPLES-1).
+    if (app.sampleIndex >= app.SAMPLES)
+    {
+        app.sampleIndex = 0;
+        app.fftProcessing = true; // 标记FFT开始处理
+    }
+}
+#else
 void GetSampleCB(int16_t sample[2])
 {
     if (app.fftProcessing)
@@ -476,12 +495,15 @@ void GetSampleCB(int16_t sample[2])
     app.vReal[app.sampleIndex] = (float)sample[0];
     app.vImag[app.sampleIndex] = 0.0f;
     app.sampleIndex++;
-    if (app.sampleIndex > SAMPLES)
+    // When sampleIndex reaches the number of samples, wrap around.
+    // Use >= to avoid writing past the allocated buffers (valid indices: 0..SAMPLES-1).
+    if (app.sampleIndex >= app.SAMPLES)
     {
         app.sampleIndex = 0;
         app.fftProcessing = true; // 标记FFT开始处理
     }
 }
+#endif
 
 /**
  * @brief 播放器退出清理函数
@@ -515,6 +537,11 @@ static void player_exit()
     {
         delete[] app.fileList;
     }
+    
+    delete[] app.curveScaling;
+    delete[] app.vReal;
+    delete[] app.vImag;
+    delete[] app.previousSpectrum;
 }
 /**
  * @brief 播放器深度睡眠前处理函数
@@ -1761,6 +1788,7 @@ static const menu_select menu_set_player[] =
         {false, "FFT参数2", nullptr},
         {false, "线性缩放增益", nullptr},
         {false, "xFrequency", nullptr},
+        {false, "FFT采样点数", nullptr},
         {true, "FFT对数缩放", "fft_log"},
         {true, "显示debug信息", "music_debug"},
         {true, "打印歌词debug信息", "lrc_debug"},
@@ -1916,10 +1944,14 @@ void AppMusicPlayer::player_set_menu()
             break;
         case 10:
             fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0)) / 100.0;
+            hal.pref.putFloat("fft_gain", fft_gain);
             break;
         case 11:
             xFrequency = pdMS_TO_TICKS(GUI::msgbox_number("xFrequency", 2, xFrequency));
             hal.pref.putInt("xFrequency", (int)xFrequency);
+            break;
+        case 12:
+            hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 3, hal.pref.getUInt("fft_samples", 256)));
             break;
         default:
             GUI::info_msgbox("警告", "非法的输入值");
@@ -2403,7 +2435,7 @@ void AppMusicPlayer::show_display_fft()
             vReal[5] = vReal[5] * 0.9f;
         }
         // 4. 幅度谱对数变换和归一化（可调参数）
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < SAMPLES / 2; i++)
         {
             // 缩放
             if (use_log)
@@ -2426,12 +2458,31 @@ void AppMusicPlayer::show_display_fft()
         }
         fftProcessing = false;
     }
-
-    for (int i = 0; i < 128; i++)
-    {
-        // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-        display.drawFastVLine(i * 3, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
-        display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
+    if (SAMPLES == 256)
+        for (int i = 0; i < 128; i++)
+        {
+            // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 2, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
+        }
+    else if(SAMPLES == 512){
+        uint8_t index = SAMPLES / 256;
+        for (int i = 0; i < 128; i++)
+        {
+            // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
+            int value = (previousSpectrum[i * index] + previousSpectrum[(i * index) + 1]) * 0.5f;
+            display.drawFastVLine(i * 3 + 1, 75 - value, value + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 2, 75 - value, value + 1, TFT_BLACK);
+        }
+    }
+    else {
+        uint8_t index = SAMPLES / 256;
+        for (int i = 0; i < 128; i++)
+        {
+            // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i * index], previousSpectrum[i * index] + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 2, 75 - previousSpectrum[i * index], previousSpectrum[i * index] + 1, TFT_BLACK);
+        }
     }
 
     d_time.fft_end = micros();
@@ -2616,6 +2667,8 @@ bool AppMusicPlayer::player_set()
     info.performer = "---";
     info.title = "---";
     info.tlen = 0;
+    backup_buff_updata = true;
+    app.play_time_start = millis(); // 提前重置一次`,确保歌词正常显示
     if (hal.pref.getBool("music_fft"))
         for (int i = 0; i < 128; i++)
         {
@@ -2662,7 +2715,7 @@ void initCurveScaling()
     const float lowScale = 0.00011; // 低频压缩值
     const float highScale = 0.0008; // 高频压缩值
 
-    for (int i = 0; i < 128; i++)
+    for (int i = 0; i < app.SAMPLES / 2; i++)
     {
         if (i < lowFreqCount)
         {
@@ -2691,11 +2744,17 @@ void AppMusicPlayer::setup()
 {
     // display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     hal.cheak_freq(240);
-    initCurveScaling();
     display.clearScreen();
     display.display();
     pinMode(25, ANALOG);
     pinMode(26, ANALOG);
+    
+    SAMPLES = hal.pref.getUInt("fft_samples", 256);
+    vReal = new float[SAMPLES];
+    vImag = new float[SAMPLES];
+    curveScaling = new float[SAMPLES / 2];
+    previousSpectrum = new float[SAMPLES / 2];
+    initCurveScaling();
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
     _count = hal.pref.getInt("rst_count", 20);
     gain = hal.pref.getFloat("gain", 0.3);
@@ -2704,6 +2763,7 @@ void AppMusicPlayer::setup()
     bits_per_chan = hal.pref.getBool("bits_per_chan", true);
     display_debug_mode = hal.pref.getBool("music_debug", false);
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
+    fft_gain = hal.pref.getFloat("fft_gain", 1.0f);
 
     loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
     autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false);
@@ -2831,7 +2891,7 @@ void AppMusicPlayer::setup()
             }
             else
             {
-                if (gain <= 0.05)
+                if (gain < 0.06)
                     gain -= 0.01;
                 else
                     gain -= 0.05;
