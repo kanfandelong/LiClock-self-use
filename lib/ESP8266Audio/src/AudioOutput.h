@@ -31,6 +31,8 @@ class AudioOutput
     virtual ~AudioOutput() {};
     virtual bool SetRate(int hz) { hertz = hz; return true; }
     virtual bool SetBitsPerSample(int bits) { bps = bits; return true; }
+    virtual int GetRate() { return hertz; }
+    virtual int GetBitsPerSample() { return bps; }
     virtual bool SetChannels(int chan) { channels = chan; return true; }
     virtual bool SetGain(float f) { if (f>4.0) f = 4.0; if (f<0.0) f=0.0; gainF2P6 = (uint8_t)(f*(1<<6)); return true; }
     virtual bool begin() { return false; };
@@ -103,6 +105,7 @@ class AudioOutput
       else return (int16_t)(v&0xffff);
     }
     #endif
+
   protected:
     uint16_t hertz;
     uint8_t bps;

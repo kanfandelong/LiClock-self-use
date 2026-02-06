@@ -2071,7 +2071,7 @@ void AppSettings::bat_info()
         currentY += lineHeight;
 
         // 音乐模式续航（估算功耗）- 使用固定值，不会除零
-        float musicCurrent = 65.0f; // 假设音乐播放电流80mA
+        float musicCurrent = abs(hal.pref.getInt("player_power", 65) ? hal.pref.getInt("player_power", 65) : 65); // 假设音乐播放电流80mA
         float musicRuntime = (float)hal.bat_info.capacity.remain_f / musicCurrent;
         u8g2Fonts.setCursor(3, currentY);
         if (musicRuntime >= 1.0)

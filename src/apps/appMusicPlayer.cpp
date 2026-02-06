@@ -470,7 +470,7 @@ void GetSampleCB(int32_t sample[2])
 {
     if (app.fftProcessing)
     {
-        // FFT还没处理完，跳过本次采样点获取，避免覆盖
+        // 还没进行FFT，跳过本次采样点获取，避免覆盖
         return;
     }
     app.vReal[app.sampleIndex] = (float)(sample[0] >> 16);
@@ -511,6 +511,8 @@ void GetSampleCB(int16_t sample[2])
  */
 static void player_exit()
 {
+    if (hal.bat_info.current.avg < 0)
+        hal.pref.putInt("player_power", hal.bat_info.current.avg);
     // is_ran = true;
     pinMode(25, OUTPUT);
     pinMode(26, OUTPUT);
@@ -2522,6 +2524,15 @@ void AppMusicPlayer::show_display_fft()
             u8g2Fonts.printf("随机");
         else
             u8g2Fonts.printf("顺序");
+    }
+    if (output != nullptr) {
+        int rate = output->GetRate();
+        int khz = rate / 1000;
+        int frac = (rate % 1000) / 100; // 只取一位小数
+        if (frac > 0)
+            u8g2Fonts.printf(" %d.%dKHz|%dbit", khz, frac, output->GetBitsPerSample());
+        else
+            u8g2Fonts.printf(" %dKHz|%dbit", khz, output->GetBitsPerSample());
     }
 
     if (display_debug_mode)
