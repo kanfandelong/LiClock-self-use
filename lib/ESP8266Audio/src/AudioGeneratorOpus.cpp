@@ -43,28 +43,28 @@ bool AudioGeneratorOpus::begin(AudioFileSource *source, AudioOutput *output)
 {
   buff = (int16_t*)malloc(OPUS_BUFF * sizeof(int16_t));
   if (!buff) {
-    log_e("malloc() failed");
+    log_i("malloc failed");
     return false;
   }
 
   if (!source) {
-    log_e("No source");
+    log_i("source is null");
     return false;
   }
   file = source;
   if (!output) {
-    log_e("No output");
+    log_i("output is null");
     return false;
   }
   this->output = output;
   if (!file->isOpen()) {
-    log_e("File not open");
+    log_i("file not open");
     return false; // Error
   }
 
   of = op_open_callbacks((void*)this, &cb, nullptr, 0, nullptr);
   if (!of) {
-    log_e("op_open_callbacks() failed");
+    log_i("op_open_callbacks failed");
     return false;
   }
 
@@ -106,9 +106,10 @@ bool AudioGeneratorOpus::loop()
      buffPtr = 0;
      buffLen = ret * 2;
     }
+
     #ifdef CONFIG_DAC_32bit
-    lastSample[AudioOutput::LEFTCHANNEL] = (buff[buffPtr] & 0xffff) << 16; 
-    lastSample[AudioOutput::RIGHTCHANNEL] = (buff[buffPtr+1] & 0xffff) << 16; 
+    lastSample[AudioOutput::LEFTCHANNEL] = buff[buffPtr] & 0xffff << 16; 
+    lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr+1] & 0xffff << 16; 
     #else
     lastSample[AudioOutput::LEFTCHANNEL] = buff[buffPtr] & 0xffff; 
     lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr+1] & 0xffff; 

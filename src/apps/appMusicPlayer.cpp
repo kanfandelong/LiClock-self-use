@@ -1,6 +1,29 @@
 #include "AppManager.h"
 #include "ESP8266Audio.h"
 #include <arduinoFFT.h>
+#include <cstdio>
+
+// 将 FreeRTOS 任务状态枚举转换为可读字符串
+static const char *taskStateToString(eTaskState state)
+{
+    switch (state)
+    {
+    case eRunning:
+        return "Running";
+    case eReady:
+        return "Ready";
+    case eBlocked:
+        return "Blocked";
+    case eSuspended:
+        return "Suspended";
+    case eDeleted:
+        return "Deleted";
+    case eInvalid:
+        return "Invalid";
+    default:
+        return "Unknown";
+    }
+}
 
 static const uint8_t APP_MusicPlayer_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -613,7 +636,8 @@ void player_loop(void *)
                     app._play_end = true;
                     app.play_time_end = millis();
                     app.play_time_total = app.play_time_end - app.play_time_start;
-                    log_i("当前栈的历史剩余最小值：%ld", uxTaskGetStackHighWaterMark(NULL));
+                    log_i("解码器已停止");
+                    log_i("解码器任务栈的历史剩余最小值：%ld", uxTaskGetStackHighWaterMark(NULL));
                     player_loop_task_handle = NULL;
                     // xSemaphoreGive(audio_control_sem); // 释放信号量
                     vTaskDelete(NULL);
@@ -1400,17 +1424,21 @@ void AppMusicPlayer::next_song(bool next, bool btn)
     if (loopPlay && !btn)
     {
         file_in(music_file);
-        player_set();
-        if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE)
+        if (player_set())
         {
-            xSemaphoreGive(audio_control_sem);
+            if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE)
+            {
+                xSemaphoreGive(audio_control_sem);
+            }
+            else
+            {
+                xSemaphoreGive(audio_control_sem);
+            }
+            log_i("释放信号量");
+            begin_player_task();
         }
         else
-        {
-            xSemaphoreGive(audio_control_sem);
-        }
-        log_i("释放信号量");
-        begin_player_task();
+            _play_end = true;
         return;
     }
     else if (randomPlay)
@@ -1461,17 +1489,21 @@ void AppMusicPlayer::next_song(bool next, bool btn)
     file_in(music_file);
     if (!need_deep_sleep)
     { // 确认文件打开成功
-        player_set();
-        if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE)
+        if (player_set())
         {
-            xSemaphoreGive(audio_control_sem);
+            if (xSemaphoreTake(audio_control_sem, 100 / portTICK_PERIOD_MS) == pdFALSE)
+            {
+                xSemaphoreGive(audio_control_sem);
+            }
+            else
+            {
+                xSemaphoreGive(audio_control_sem);
+            }
+            log_i("释放信号量");
+            begin_player_task();
         }
         else
-        {
-            xSemaphoreGive(audio_control_sem);
-        }
-        log_i("释放信号量");
-        begin_player_task();
+            _play_end = true;
     }
 }
 /**
@@ -1498,13 +1530,28 @@ void AppMusicPlayer::delete_playtask()
 {
     if (!_play_end && player_loop_task_handle != NULL)
     {
-        xSemaphoreTake(audio_control_sem, 200 / portTICK_PERIOD_MS);
-        delay(100);
-        if (player_loop_task_handle != NULL)
+        if (xSemaphoreTake(audio_control_sem, 1000 / portTICK_PERIOD_MS) == pdTRUE)
         {
-            generator->stop();
-            vTaskDelete(player_loop_task_handle);
-            player_loop_task_handle = NULL;
+            delay(100);
+            if (generator != nullptr)
+            {
+                generator->stop();
+                vTaskDelete(player_loop_task_handle);
+                player_loop_task_handle = NULL;
+            }
+        }
+        else
+        {
+            if (player_loop_task_handle != NULL)
+            {
+                eTaskState taskState = eTaskGetState(player_loop_task_handle);
+                const char *stateStr = taskStateToString(taskState);
+                warn("无法获取 audio_control_sem，解码任务状态: %s", stateStr);
+                // 使用 snprintf 构造消息字符串，避免 String 拼接导致的潜在问题
+                char msgBuf[64];
+                snprintf(msgBuf, sizeof(msgBuf), "获取信号量失败，解码任务状态: %s", stateStr);
+                GUI::msgbox("错误", msgBuf, 5);
+            }
         }
     }
 }
@@ -1861,9 +1908,13 @@ void AppMusicPlayer::player_menu()
                 delete_playtask();
                 music_list_menu();
             }
-            player_set();
-            sem();
-            begin_player_task();
+            if (player_set())
+            {
+                sem();
+                begin_player_task();
+            }
+            else
+                _play_end = true;
             break;
         case 4:
             end = true;
@@ -1879,9 +1930,13 @@ void AppMusicPlayer::player_menu()
             // free(generator);
             // generator = new AudioGeneratorMP3();
             // generator->begin(id3, output);
-            player_set();
-            sem();
-            begin_player_task();
+            if (player_set())
+            {
+                sem();
+                begin_player_task();
+            }
+            else
+                _play_end = true;
             break;
         case 5:
             gain = (float)GUI::msgbox_number("0-400", 3, gain * 100.0) / 100.0;
@@ -2808,9 +2863,10 @@ void AppMusicPlayer::setup()
     }
     select_file();
 
-    player_set();
-
-    begin_player_task();
+    if (player_set())
+        begin_player_task();
+    else
+        _play_end = true;
     show_display();
     _end = false;
     xLastWakeTime = xTaskGetTickCount();
@@ -2846,9 +2902,13 @@ void AppMusicPlayer::setup()
                     delete_playtask();
                     music_list_menu();
                 }
-                player_set();
-                sem();
-                begin_player_task();
+                if (player_set())
+                {
+                    sem();
+                    begin_player_task();
+                }
+                else
+                    _play_end = true;
             }
             while (hal.btnc.isPressing())
             {

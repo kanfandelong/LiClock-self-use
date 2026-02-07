@@ -62,7 +62,7 @@ namespace GUI
     void drawWindowsWithTitle(const char *title, int16_t x, int16_t y, int16_t w, int16_t h)
     {
         int16_t wchar;
-        display.setDrawWindow(x, y, w, h);
+        display.setDrawWindow(x, y, w - 1, h);
         display.fillRoundRect(x, y, w, h, 3, 1); // 清空区域
         display.drawRoundRect(x, y, w, h, 3, 0);
         // 标题栏
@@ -364,6 +364,7 @@ namespace GUI
                 }
                 // 下面渲染菜单
                 drawWindowsWithTitle(title, start_x, start_y, 200, 111);
+                display.setDrawWindow(start_x, start_y, 198, 111);
                 // 项目
                 int max_items = min(number_of_items, total);
                 for (int i = 0; i < max_items; ++i)
@@ -574,6 +575,7 @@ namespace GUI
                 }
                 // 下面渲染菜单
                 drawWindowsWithTitle(title, start_x, start_y, 200, 111);
+                display.setDrawWindow(start_x, start_y, 198, 111);
                 // 项目
                 int max_items = min(number_of_items, total);
                 for (int i = 0; i < max_items; ++i)

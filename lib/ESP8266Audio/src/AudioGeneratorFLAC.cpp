@@ -56,8 +56,10 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
     return false;
 
   (void)FLAC__stream_decoder_set_md5_checking(flac, false);
-  // Request all metadata (including Vorbis comments) before initializing the decoder
-  FLAC__stream_decoder_set_metadata_respond_all(flac);
+  // Request only the metadata types we need (stream info and Vorbis comments).
+  // Skipping picture metadata avoids large memory allocations on constrained devices.
+  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_STREAMINFO);
+  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_VORBIS_COMMENT);
 
   FLAC__StreamDecoderInitStatus ret = FLAC__stream_decoder_init_stream(
       flac,
@@ -84,9 +86,6 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
   lastSample[0] = 0;
   lastSample[1] = 0;
   channels = 0;
-  // Reset total time and readiness flag for new stream
-  total_time = 0;
-  total_time_ready = false;
   return true;
 }
 
@@ -107,6 +106,8 @@ bool AudioGeneratorFLAC::loop()
       ret = FLAC__stream_decoder_process_single(flac);
       if (!ret)
       {
+        FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(flac);
+        log_e("FLAC Stream Decoder state: %d", state);
         running = false;
         goto done;
       }
@@ -267,13 +268,14 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
   {
   case FLAC__METADATA_TYPE_STREAMINFO:
     // 处理流信息（采样率、声道数等）
-    log_i("FLAC StreamInfo: %lu Hz, %u bits_per_sample, %u channels, %lu samples",
+    log_i("FLAC StreamInfo: %lu Hz, %u bits, %u channels, %llu samples",
           metadata->data.stream_info.sample_rate,
           metadata->data.stream_info.bits_per_sample,
           metadata->data.stream_info.channels,
-          (unsigned long)metadata->data.stream_info.total_samples);
+          metadata->data.stream_info.total_samples);
     if (metadata->data.stream_info.sample_rate != 0 && metadata->data.stream_info.total_samples != 0) {
       uint64_t total_time = metadata->data.stream_info.total_samples * 1000 / metadata->data.stream_info.sample_rate;
+      log_i("tatal time: %llu", total_time);
       cb.md("tlen", false, ((String)total_time).c_str());
     }
     
@@ -289,6 +291,8 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
       // Create a temporary buffer to safely split the string.
       char buf[256]; // FLAC spec limits comment length to 16 KB, but typical tags are short.
       unsigned copyLen = (entry->length < sizeof(buf) - 1) ? entry->length : sizeof(buf) - 1;
+      if (copyLen > 256)
+        copyLen = 255;
       memcpy(buf, entry->entry, copyLen);
       buf[copyLen] = '\0';
       // Find the first '=' separator
@@ -324,5 +328,5 @@ void AudioGeneratorFLAC::error_cb(const FLAC__StreamDecoder *decoder, FLAC__Stre
 {
   (void)decoder;
   strncpy_P(error_cb_str, FLAC__StreamDecoderErrorStatusString[status], sizeof(AudioGeneratorFLAC::error_cb_str) - 1);
-  cb.st((int)status, error_cb_str);
+  log_e("%s", error_cb_str);
 }

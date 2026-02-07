@@ -10,9 +10,9 @@ ST7305::ST7305(int16_t w, int16_t h, SPIClass *spi, int8_t cs_pin, int8_t dc_pin
 { // Initialize rotation to
 
     buffer = _buffers[0];
-    memset(_buffers[0], 0x00, sizeof(_buffers[0]));
-    memset(_buffers[1], 0x00, sizeof(_buffers[1]));
-    memset(_buffers[2], 0x00, sizeof(_buffers[2]));
+    memset(_buffers[0], 0x00, sizeof(BYTES_PER_BUFFER));
+    memset(_buffers[1], 0x00, sizeof(BYTES_PER_BUFFER));
+    memset(_buffers[2], 0x00, sizeof(BYTES_PER_BUFFER));
     // temp_buffer = (uint8_t *)malloc(192 * 14 * 3);
     // 像素数据结构为：
     // P1 P3 P5 P7
@@ -317,20 +317,22 @@ IRAM_ATTR void ST7305::drawPixel(int16_t x, int16_t y, uint16_t color)
 
     // 计算一维数组索引
     uint16_t byte_index = col * 42 + y_div4;
-
-    // 计算位掩码
-    uint8_t y_mod4 = new_y & 0x03; // y % 4
-    uint8_t bit_offset = Y_BYTE_OFFSET[y_mod4] + (new_x & 0x01);
-    uint8_t bit_mask = BIT_MASK_LUT[bit_offset];
-
-    // 设置或清除位
-    if (color)
+    if (byte_index < BYTES_PER_BUFFER)
     {
-        buffer[byte_index] |= bit_mask;
-    }
-    else
-    {
-        buffer[byte_index] &= ~bit_mask;
+        // 计算位掩码
+        uint8_t y_mod4 = new_y & 0x03; // y % 4
+        uint8_t bit_offset = Y_BYTE_OFFSET[y_mod4] + (new_x & 0x01);
+        uint8_t bit_mask = BIT_MASK_LUT[bit_offset];
+
+        // 设置或清除位
+        if (color)
+        {
+            buffer[byte_index] |= bit_mask;
+        }
+        else
+        {
+            buffer[byte_index] &= ~bit_mask;
+        }
     }
 }
 
@@ -495,7 +497,6 @@ void ST7305::setDrawWindow(int16_t x, int16_t y, int16_t w, int16_t h)
     y_min = y;
     y_max = y + h;
 }
-
 
 void ST7305::Low_Power_Mode()
 {
