@@ -37,7 +37,7 @@ typedef struct
     String performer = "---"; // 歌手
     String title = "---";     // 标题
     uint32_t tlen = 0;
-} id3_info; // ID3信息结构体
+} tag_info; // 标签信息结构体
 
 typedef struct
 {
@@ -171,7 +171,7 @@ public:
     bool randomPlay = false;
 
     // 音频相关设置
-    id3_info info; // 歌曲ID3信息
+    tag_info info; // 歌曲ID3信息
     generator_t play_generator = UNKONWN_Generator;
     bool nodac = false;       // 无DAC标志
     bool in_littlefs = false; // 文件是否位于LittleFS
@@ -208,7 +208,7 @@ public:
     int oldLyricIndex = -1;             // 旧的歌词索引
     int newLyricIndex = 0;              // 新的歌词索引
 
-// FFT 部分
+    // FFT 部分
     uint16_t SAMPLES = 512;
     float smoothingFactor = 0.7f; // 平滑控制, 0~1，越大越平滑
     float FFT_A_spectrum_smoothness = 2000.0f;
@@ -384,12 +384,12 @@ bool isUtf8(const char *str)
 }
 
 /**
- * @brief ID3标签元数据回调处理函数
+ * @brief 标签元数据回调处理函数
  * @param cbData 回调数据指针
  * @param type 标签类型（如"title"、"album"等）
  * @param isUnicode 是否为Unicode编码
  * @param string 标签内容字符串
- * @note 将ID3标签信息存储到app对象的info结构体中
+ * @note 将标签信息存储到app对象的结构体中
  */
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string)
 {
@@ -454,7 +454,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     {
         app.info.album = outputString;
     }
-    else if (id3_type.equalsIgnoreCase("performer"))
+    else if (id3_type.equalsIgnoreCase("performer") || id3_type.equalsIgnoreCase("artist"))
     {
         app.info.performer = outputString;
     }
@@ -539,7 +539,7 @@ static void player_exit()
     {
         delete[] app.fileList;
     }
-    
+
     delete[] app.curveScaling;
     delete[] app.vReal;
     delete[] app.vImag;
@@ -2307,11 +2307,11 @@ void AppMusicPlayer::show_display_mormal()
 void AppMusicPlayer::show_display_fft()
 {
     d_time.start = micros();
-    constexpr int y = 146; // 设置进度条的Y坐标
-    constexpr int x = 61;  // 设置进度条的X起始坐标
+    constexpr int y = 146;  // 设置进度条的Y坐标
+    constexpr int x = 61;   // 设置进度条的X起始坐标
     constexpr int w1 = 262; // 设置进度条的宽度
     uint32_t play_time = (millis() - play_time_start - play_stop_time);
-    static uint32_t total_time = 1;
+    static uint32_t total_time = 0;
     if (backup_buff_updata)
     {
         uint8_t current_buffer = display.current_buffer_idx;
@@ -2403,7 +2403,7 @@ void AppMusicPlayer::show_display_fft()
     }
 
     display.copyBuffer(display.current_buffer_idx, 1); // 从缓冲区1复制显示内容到当前缓冲区
-    int w = 0;        
+    int w = 0;
     if (total_time > 0)
     {
         w = (play_time * w1 + total_time / 2) / total_time;
@@ -2467,7 +2467,8 @@ void AppMusicPlayer::show_display_fft()
             display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
             display.drawFastVLine(i * 3 + 2, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
         }
-    else if(SAMPLES == 512){
+    else if (SAMPLES == 512)
+    {
         uint8_t index = SAMPLES / 256;
         for (int i = 0; i < 128; i++)
         {
@@ -2477,7 +2478,8 @@ void AppMusicPlayer::show_display_fft()
             display.drawFastVLine(i * 3 + 2, 75 - value, value + 1, TFT_BLACK);
         }
     }
-    else {
+    else
+    {
         uint8_t index = SAMPLES / 256;
         for (int i = 0; i < 128; i++)
         {
@@ -2525,7 +2527,8 @@ void AppMusicPlayer::show_display_fft()
         else
             u8g2Fonts.printf("顺序");
     }
-    if (output != nullptr) {
+    if (output != nullptr)
+    {
         int rate = output->GetRate();
         int khz = rate / 1000;
         int frac = (rate % 1000) / 100; // 只取一位小数
@@ -2619,6 +2622,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         break;
     case Flac_Generator:
         flac_generator = new AudioGeneratorFLAC();
+        flac_generator->RegisterMetadataCB(MDCallback, (void *)"FLACTAG");
         generator = flac_generator;
         break;
     case AAC_Generator:
@@ -2759,7 +2763,7 @@ void AppMusicPlayer::setup()
     display.display();
     pinMode(25, ANALOG);
     pinMode(26, ANALOG);
-    
+
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
     vReal = new float[SAMPLES];
     vImag = new float[SAMPLES];

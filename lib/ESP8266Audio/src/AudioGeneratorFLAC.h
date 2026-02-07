@@ -36,21 +36,12 @@ class AudioGeneratorFLAC : public AudioGenerator
     virtual bool stop() override;
     virtual bool isRunning() override;
     typedef void (*MetadataCallback)(void* cbData, const char* type, bool isUnicode, const char* string);
-    
-    // 添加注册回调函数的方法
-    virtual bool RegisterMDCB(MetadataCallback cb, void* cbData) {
-        this->metadataCallback = cb;
-        this->metadataCallbackData = cbData;
-        return true;
-    }
-  private:
-    MetadataCallback metadataCallback = nullptr;
-    void* metadataCallbackData = nullptr;
+
   protected:
     // FLAC info
     uint16_t channels;
-    uint32_t sampleRate;
     uint16_t bitsPerSample;
+    uint32_t sampleRate;
 
     // We need to buffer some data in-RAM to avoid doing 1000s of small reads
     const int *buff[2];
