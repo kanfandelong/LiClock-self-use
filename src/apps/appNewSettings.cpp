@@ -167,6 +167,7 @@ void AppSettings::menu_time()
             {false, "RTC线性偏移修正", nullptr},
             {true, "在上电复位时使用联网对时", set_rtc_in_rst},
             {true, "启用一言", "en_yiyan"},
+            {false, "设置时钟字体", nullptr},
             {false, "闹钟设置", nullptr},
             {false, NULL, nullptr},
         };
@@ -231,6 +232,21 @@ void AppSettings::menu_time()
             end = true;
             break;
         case 6:
+            {
+                const char *str = GUI::fileDialog("请选择时钟字体文件", false, "ttf\nTTF");
+                if (str == NULL)
+                {
+                    hal.pref.remove("clock_font");
+                    GUI::msgbox("提示", "已恢复默认字体");
+                }
+                else
+                {
+                    hal.pref.putString("clock_font", String(str));
+                    GUI::msgbox("提示", "时钟字体设置完成，重启生效");
+                }
+            }
+            break;
+        case 7:
             menu_alarm();
             break;
         default:
