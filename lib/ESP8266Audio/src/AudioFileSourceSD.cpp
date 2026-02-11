@@ -31,7 +31,7 @@ AudioFileSourceSD::AudioFileSourceSD(const char *filename)
 
 bool AudioFileSourceSD::open(const char *filename)
 {
-  f = SD_MMC.open(filename, FILE_READ);
+  f = SD.open(filename, FILE_READ);
   if (f)
   {
     f.setBufferSize(4096);

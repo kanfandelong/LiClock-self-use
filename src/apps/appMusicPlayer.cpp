@@ -2815,7 +2815,7 @@ bool AppMusicPlayer::player_set()
     else
     {
         delete_output();
-        if (hal.pref.getBool(hal.get_char_sha_key("使用25/26/0输出")))
+        if (hal.pref.getBool(hal.get_char_sha_key("使用25/26/0输出"), true))
         {
             i2s_output = new AudioOutputI2S(0, 0, 8, apll);
             output = i2s_output;
@@ -2886,17 +2886,17 @@ void AppMusicPlayer::setup()
     previousSpectrum = new float[SAMPLES / 2];
     initCurveScaling();
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
-    _count = hal.pref.getInt("rst_count", 20);
+    _count = hal.pref.getInt("rst_count", -1);
     gain = hal.pref.getFloat("gain", 0.3);
     _lrcoffset = hal.pref.getInt("_lrcoffset", -50);
-    apll = hal.pref.getBool(hal.get_char_sha_key("audio_pll"), false);
+    apll = hal.pref.getBool(hal.get_char_sha_key("audio_pll"), true);
     bits_per_chan = hal.pref.getBool("bits_per_chan", true);
-    display_debug_mode = hal.pref.getBool("music_debug", false);
+    display_debug_mode = hal.pref.getBool("music_debug", true);
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
-    fft_gain = hal.pref.getFloat("fft_gain", 1.0f);
+    fft_gain = hal.pref.getFloat("fft_gain", 1.2f);
 
     loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
-    autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false);
+    autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), true);
     randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
 
     exit = player_exit;

@@ -22,7 +22,7 @@
 #define _AUDIOFILESOURCESD_H
 
 #include "AudioFileSource.h"
-#include <SD_MMC.h>
+#include <SD.h>
 
 
 class AudioFileSourceSD : public AudioFileSource
