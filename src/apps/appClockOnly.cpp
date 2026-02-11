@@ -28,7 +28,8 @@ public:
 };
 static AppClockOnly app;
 extern const char *dayOfWeek[];
-void AppClockOnly::set(){
+void AppClockOnly::set()
+{
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
 void AppClockOnly::setup()
@@ -37,18 +38,42 @@ void AppClockOnly::setup()
     char timeStr[6];
     sprintf(timeStr, "%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
     display.clearScreen();
-    u8g2Fonts.setFontMode(1);
-    u8g2Fonts.setForegroundColor(0);
-    u8g2Fonts.setBackgroundColor(1);
-    u8g2Fonts.setFont(u8g2_font_logisoso92_tn);
-    w = u8g2Fonts.getUTF8Width(timeStr);
-    // u8g2Fonts.setCursor((296 - w) / 2, 104);
-    u8g2Fonts.setCursor(13, 104);
-    u8g2Fonts.print(timeStr);
+    if (hal.pref.getString("clock_font", "default") == "default")
+    {
+        u8g2Fonts.setFont(u8g2_font_logisoso92_tn);
+        u8g2Fonts.setFontMode(1);
+        u8g2Fonts.setForegroundColor(0);
+        u8g2Fonts.setBackgroundColor(1);
+        u8g2Fonts.setFont(u8g2_font_logisoso92_tn);
+        w = u8g2Fonts.getUTF8Width(timeStr);
+        // Use screen width constant for centering time string
+        u8g2Fonts.setCursor((SCREEN_WIDTH - w) / 2, 124);
+        u8g2Fonts.print(timeStr);
+    }
+    else
+    {
+        File ttfFile = hal.open(hal.pref.getString("clock_font", "default"));
+        if (!ttfFile || !ttf.setTtfFile(ttfFile))
+        {
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+            GUI::info_msgbox("错误", "自定义字体加载失败");
+            appManager.noDeepSleep = false;
+            appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
+            return;
+        }
+        ttf.setFramebuffer(SCREEN_WIDTH, SCREEN_HEIGHT, 1);
+        ttf.setCharacterSize(145);
+        ttf.setCharacterSpacing(0);
+        ttf.setTextColor(65535, 0);
+        ttf.setTextBoundary(0, SCREEN_WIDTH, SCREEN_HEIGHT - 18);
+        w = ttf.getStringWidth(timeStr);
+        ttf.textDraw((SCREEN_WIDTH - w) / 2, 0, timeStr);
+        ttf.end();
+    }
 
     u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
-    display.drawFastHLine(0, 110, 296, 0);
-    u8g2Fonts.setCursor(10, 125);
+    display.drawFastHLine(0, SCREEN_HEIGHT - 18, SCREEN_WIDTH, 0);
+    u8g2Fonts.setCursor(10, SCREEN_HEIGHT - 3);
     u8g2Fonts.printf("%02d月%02d日 星期%s  ", hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, dayOfWeek[hal.timeinfo.tm_wday]);
     if (peripherals.peripherals_current & PERIPHERALS_AHT20_BIT)
     {
@@ -58,7 +83,8 @@ void AppClockOnly::setup()
         peripherals.aht.getEvent(&humidity, &temp);
         xSemaphoreGive(peripherals.i2cMutex);
         u8g2Fonts.printf("温度:%.1f℃ 湿度:%.1f%%", temp.temperature, humidity.relative_humidity);
-    } else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
+    }
+    else if (peripherals.peripherals_current & PERIPHERALS_SHT30_BIT)
     {
         peripherals.load_append(PERIPHERALS_SHT30_BIT);
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
@@ -67,25 +93,17 @@ void AppClockOnly::setup()
         u8g2Fonts.printf("温度:%.1f℃ 湿度:%.1f%%", peripherals.sht.getTemperature(), peripherals.sht.getHumidity());
     }
     // 电池
-    //display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
-    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"),false) && hal.VCC < 4300 && !hal.isCharging){
-        display.drawXBitmap(296 - 25, 111, getBatteryIcon(true), 20, 16, 0);
-        display.fillRect(296 - 22, 117, getBatterysoc(), 4, TFT_BLACK);
-    }else
-        display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
-    // 设置屏幕PLL为50HZ
-    // display.epd2.PLL_set(0x3C);
-    if (force_full_update || part_refresh_count > hal.pref.getInt("display_count", 15))
+    // display.drawXBitmap(296 - 25, 111, getBatteryIcon(), 20, 16, 0);
+    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4300 && !hal.isCharging)
     {
-        display.display();
-        force_full_update = false;
-        part_refresh_count = 0;
+        display.drawXBitmap(SCREEN_WIDTH - 25, SCREEN_HEIGHT - 17, getBatteryIcon(true), 20, 16, 0);
+        display.fillRect(SCREEN_WIDTH - 22, SCREEN_HEIGHT - 11, getBatterysoc(), 4, TFT_BLACK);
     }
     else
-    {
-        display.display();
-        part_refresh_count++;
-    }
+        display.drawXBitmap(SCREEN_WIDTH - 25, SCREEN_HEIGHT - 17, getBatteryIcon(), 20, 16, 0);
+
+    display.display();
+
     appManager.noDeepSleep = false;
     appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
 }

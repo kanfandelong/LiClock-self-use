@@ -278,6 +278,7 @@ namespace GUI
 
         // 确保默认选中在有效范围内
         int selected = constrain(default_selected, 0, total - 1);
+        int prev_selected = selected; // 用于动画起始位置
         int pageStart = 0;
 
         // 计算初始页面起始位置，确保默认选中项可见
@@ -299,7 +300,7 @@ namespace GUI
         {
             if (hal.btnl.isPressing())
             {
-                delay(50);
+                delay(10);
                 if (hal.btnl.isPressing())
                 {
                     if (selected == 0)
@@ -316,7 +317,7 @@ namespace GUI
 
             if (hal.btnr.isPressing())
             {
-                delay(50);
+                delay(10);
                 if (hal.btnr.isPressing())
                 {
                     ++selected;
@@ -350,10 +351,9 @@ namespace GUI
                 wait_time = millis();
             }
 
-            if (updated == true)
+            if (updated)
             {
-                updated = false;
-                // 判断是否出界
+                // 判断是否出界并更新页面起始位置
                 if (selected < pageStart)
                 {
                     pageStart = selected;
@@ -362,34 +362,42 @@ namespace GUI
                 {
                     pageStart = selected - number_of_items + 1;
                 }
-                // 下面渲染菜单
-                drawWindowsWithTitle(title, start_x, start_y, 200, 111);
-                display.setDrawWindow(start_x, start_y, 198, 111);
-                // 项目
-                int max_items = min(number_of_items, total);
-                for (int i = 0; i < max_items; ++i)
+
+                // 动画：平滑移动选框
+                const int steps = 6; // 动画帧数，越大越平滑
+                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
+                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
+                for (int step = 0; step <= steps; ++step)
                 {
-                    int item_y = start_y + 15 + item_height * i;
-                    if (options[i + pageStart].icon != NULL && ico_h <= 14)
+                    // 计算当前矩形 Y 坐标（线性插值）
+                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
+                    // 绘制窗口背景和标题
+                    drawWindowsWithTitle(title, start_x, start_y, 200, 111);
+                    display.setDrawWindow(start_x, start_y + 14, 198, 111 - 16);
+                    // 绘制项目列表
+                    int max_items = min(number_of_items, total);
+                    for (int i = 0; i < max_items; ++i)
                     {
-                        display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, options[i + pageStart].icon, ico_w, ico_h, 0);
+                        int item_y = start_y + 15 + item_height * i;
+                        if (options[i + pageStart].icon != NULL && ico_h <= 14)
+                                                    {
+                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, options[i + pageStart].icon, ico_w, ico_h, 0);
+                        }
+                        u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
+                        
+                        display.drawRoundRect(start_x + 3, cur_y_rect, 195 - 6, 15, 3, 0);
                     }
-                    u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
-                    if (selected == i + pageStart)
+                    // 滚动条
+                    if (total > number_of_items)
                     {
-                        display.drawRoundRect(start_x + 3, item_y, 195 - 6, 15, 3, 0);
+                        barPos = selected * (96 - barHeight) / total;
+                        display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
+                    display.display();
                 }
-                // 滚动条
-                // 以Selected为基准
-                if (total > number_of_items)
-                {
-                    barPos = selected * (96 - barHeight) / total;
-                    display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
-                }
-                // display.displayWindow(start_x, start_y, 200, 111);
-                display.display();
-                yield();
+                // 动画结束后更新 prev_selected
+                prev_selected = selected;
+                updated = false;
             }
             if (waitc == true)
             {
@@ -481,6 +489,7 @@ namespace GUI
 
         // 确保默认选中在有效范围内
         selected = constrain(default_selected, 0, total - 1);
+        int prev_selected = selected; // 用于动画起始位置
 
         // 计算初始页面起始位置，确保默认选中项可见
         if (total > number_of_items)
@@ -493,7 +502,7 @@ namespace GUI
         {
             if (hal.btnl.isPressing())
             {
-                delay(50);
+                delay(10);
                 if (hal.btnl.isPressing())
                 {
                     if (selected == 0)
@@ -510,7 +519,7 @@ namespace GUI
 
             if (hal.btnr.isPressing())
             {
-                delay(50);
+                delay(10);
                 if (hal.btnr.isPressing())
                 {
                     ++selected;
@@ -561,10 +570,9 @@ namespace GUI
                 wait_time = millis();
             }
 
-            if (updated == true)
+            if (updated)
             {
-                updated = false;
-                // 判断是否出界
+                // 判断是否出界并更新页面起始位置
                 if (selected < pageStart)
                 {
                     pageStart = selected;
@@ -573,47 +581,55 @@ namespace GUI
                 {
                     pageStart = selected - number_of_items + 1;
                 }
-                // 下面渲染菜单
-                drawWindowsWithTitle(title, start_x, start_y, 200, 111);
-                display.setDrawWindow(start_x, start_y, 198, 111);
-                // 项目
-                int max_items = min(number_of_items, total);
-                for (int i = 0; i < max_items; ++i)
-                {
-                    int item_y = start_y + 15 + item_height * i;
-                    if (options[i + pageStart].select == true)
-                    {
-                        bool option_val;
-                        if (options[i + pageStart].key == nullptr)
-                            option_val = hal.pref.getBool(sha_option_key[i + pageStart]);
-                        else
-                            option_val = hal.pref.getBool(options[i + pageStart].key);
 
-                        if (option_val)
-                        {
-                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, select_bits, ico_w, ico_h, 0);
-                        }
-                        else
-                        {
-                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, no_select_bits, ico_w, ico_h, 0);
-                        }
-                    }
-                    u8g2Fonts.drawUTF8(start_x + 5 + (options[i + pageStart].select ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
-                    if (selected == i + pageStart)
-                    {
-                        display.drawRoundRect(start_x + 3, item_y, 195 - 6, 15, 3, 0);
-                    }
-                }
-                // 滚动条
-                // 以Selected为基准
-                if (total > number_of_items)
+                // 动画：平滑移动选框
+                const int steps = 6; // 动画帧数，越大越平滑
+                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
+                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
+                for (int step = 0; step <= steps; ++step)
                 {
-                    barPos = selected * (96 - barHeight) / total;
-                    display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
+                    // 计算当前矩形 Y 坐标（线性插值）
+                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
+                    // 绘制窗口背景和标题
+                    drawWindowsWithTitle(title, start_x, start_y, 200, 111);
+                    display.setDrawWindow(start_x, start_y + 14, 198, 111 - 16);
+                    // 绘制项目列表
+                    int max_items = min(number_of_items, total);
+                    for (int i = 0; i < max_items; ++i)
+                    {
+                        int item_y = start_y + 15 + item_height * i;
+                        if (options[i + pageStart].select == true)
+                        {
+                            bool option_val;
+                            if (options[i + pageStart].key == nullptr)
+                                option_val = hal.pref.getBool(sha_option_key[i + pageStart]);
+                            else
+                                option_val = hal.pref.getBool(options[i + pageStart].key);
+
+                            if (option_val)
+                            {
+                                display.drawXBitmap(start_x + 5, item_y + 2, select_bits, ico_w, ico_h, 0);
+                            }
+                            else
+                            {
+                                display.drawXBitmap(start_x + 5, item_y + 2, no_select_bits, ico_w, ico_h, 0);
+                            }
+                        }
+                        u8g2Fonts.drawUTF8(start_x + 5 + (options[i + pageStart].select ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
+                        
+                        display.drawRoundRect(start_x + 3, cur_y_rect, 195 - 6, 15, 3, 0);
+                    }
+                    // 滚动条
+                    if (total > number_of_items)
+                    {
+                        barPos = selected * (96 - barHeight) / total;
+                        display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
+                    }
+                    display.display();
                 }
-                // display.displayWindow(start_x, start_y, 200, 111);
-                display.display();
-                yield();
+                // 动画结束后更新 prev_selected
+                prev_selected = selected;
+                updated = false;
             }
             if (waitc == true)
             {
@@ -827,7 +843,7 @@ namespace GUI
                     }*/
                 }
                 display.fillRect(1, 1, 296 - 2, 43 - 2, TFT_WHITE); // 清空文本框
-                u8g2Fonts.setCursor(5, 15);                           // 在文本框中绘制文本
+                u8g2Fonts.setCursor(5, 15);                         // 在文本框中绘制文本
                 u8g2Fonts.setForegroundColor(TFT_BLACK);
                 u8g2Fonts.setBackgroundColor(TFT_WHITE);
                 u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
@@ -1561,203 +1577,203 @@ namespace GUI
                     // display.init(0, 0, 10, 1);
                     if (partial_update)
                         // display.setPartialWindow(x, y, w, h);
-                    // else
+                        // else
                         // display.setFullWindow();
 
-                    // display.firstPage();
-                    do
-                    {
-                        if (overwrite)
-                            display.fillScreen(TFT_WHITE);
-                        uint32_t rowPosition = flip ? imageOffset + (height - h) * rowSize : imageOffset;
-                        for (uint16_t row = 0; row < h; row++, rowPosition += rowSize) // 对于每条线
+                        // display.firstPage();
+                        do
                         {
-                            uint32_t in_remain = rowSize;
-                            uint32_t in_idx = 0;
-                            uint32_t in_bytes = 0;
-                            uint8_t in_byte = 0; // for depth <= 8
-                            uint8_t in_bits = 0; // for depth <= 8
-                            int16_t color = TFT_WHITE;
-                            file.seek(rowPosition);
-                            for (uint16_t col = 0; col < w; col++) // 对于每个像素 //width 修补 w
+                            if (overwrite)
+                                display.fillScreen(TFT_WHITE);
+                            uint32_t rowPosition = flip ? imageOffset + (height - h) * rowSize : imageOffset;
+                            for (uint16_t row = 0; row < h; row++, rowPosition += rowSize) // 对于每条线
                             {
-                                // 是时候读取更多像素数据了？
-                                if (in_idx >= in_bytes) // 好的，24位也完全匹配（大小是3的倍数）
+                                uint32_t in_remain = rowSize;
+                                uint32_t in_idx = 0;
+                                uint32_t in_bytes = 0;
+                                uint8_t in_byte = 0; // for depth <= 8
+                                uint8_t in_bits = 0; // for depth <= 8
+                                int16_t color = TFT_WHITE;
+                                file.seek(rowPosition);
+                                for (uint16_t col = 0; col < w; col++) // 对于每个像素 //width 修补 w
                                 {
-                                    in_bytes = file.read(input_buffer, in_remain > sizeof(input_buffer) ? sizeof(input_buffer) : in_remain);
-                                    in_remain -= in_bytes;
-                                    in_idx = 0;
-                                }
-                                switch (depth) // 深度 //gray = (0.114*Blue+0.587*Green+0.299*Red)
-                                {
-                                case 24:
-                                    blue = input_buffer[in_idx++];  // 蓝
-                                    green = input_buffer[in_idx++]; // 绿
-                                    red = input_buffer[in_idx++];   // 红
-                                    // whitish = 发白的
-                                    // whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80);
-                                    // colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0));                // 红色还是黄色？ colored = 有色的
-                                    // color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3); // color = 颜色
-                                    // color = 0.114 * float(blue) + 0.587 * float(green) + 0.299 * float(red); //灰度转换
-                                    color = (114 * blue + 587 * green + 299 * red + 500) / 1000; // 灰度转换
-                                    break;
-                                case 16:
-                                {
-                                    uint8_t lsb = input_buffer[in_idx++];
-                                    uint8_t msb = input_buffer[in_idx++];
-                                    if (format == 0) // 555
+                                    // 是时候读取更多像素数据了？
+                                    if (in_idx >= in_bytes) // 好的，24位也完全匹配（大小是3的倍数）
                                     {
-                                        blue = (lsb & 0x1F) << 3;
-                                        green = ((msb & 0x03) << 6) | ((lsb & 0xE0) >> 2);
-                                        red = (msb & 0x7C) << 1;
-                                        // color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
+                                        in_bytes = file.read(input_buffer, in_remain > sizeof(input_buffer) ? sizeof(input_buffer) : in_remain);
+                                        in_remain -= in_bytes;
+                                        in_idx = 0;
+                                    }
+                                    switch (depth) // 深度 //gray = (0.114*Blue+0.587*Green+0.299*Red)
+                                    {
+                                    case 24:
+                                        blue = input_buffer[in_idx++];  // 蓝
+                                        green = input_buffer[in_idx++]; // 绿
+                                        red = input_buffer[in_idx++];   // 红
+                                        // whitish = 发白的
+                                        // whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80);
+                                        // colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0));                // 红色还是黄色？ colored = 有色的
+                                        // color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3); // color = 颜色
+                                        // color = 0.114 * float(blue) + 0.587 * float(green) + 0.299 * float(red); //灰度转换
                                         color = (114 * blue + 587 * green + 299 * red + 500) / 1000; // 灰度转换
-                                    }
-                                    else // 565
+                                        break;
+                                    case 16:
                                     {
-                                        blue = (lsb & 0x1F) << 3;
-                                        green = ((msb & 0x07) << 5) | ((lsb & 0xE0) >> 3);
-                                        red = (msb & 0xF8);
-                                        // color = (msb << 8) | lsb;
-                                        color = (114 * blue + 587 * green + 299 * red + 500) / 1000; // 灰度转换
-                                    }
-                                    // whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
-                                    // colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0)); // 微红或微黄?
-                                }
-                                break;
-                                case 1:
-                                case 4:
-                                {
-                                    if (0 == in_bits)
-                                    {
-                                        in_byte = input_buffer[in_idx++];
-                                        in_bits = 8;
-                                    }
-                                    uint16_t pn = (in_byte >> bitshift) & bitmask;
-                                    whitish = mono_palette_buffer[pn / 8] & (0x1 << pn % 8);
-                                    colored = color_palette_buffer[pn / 8] & (0x1 << pn % 8);
-                                    in_byte <<= depth;
-                                    in_bits -= depth;
-                                    color = rgb_palette_buffer[pn];
-                                }
-                                break;
-                                case 8:
-                                    color = input_buffer[in_idx++];
-                                    break;
-                                }
-
-                                uint16_t yrow = y + (flip ? h - row - 1 : row);
-                                // Serial.print("x + col:" + String(x + col)); Serial.println(" yrow:" + String(yrow));
-                                if (depth == 1) // 位深为1位，直接绘制
-                                {
-                                    if (whitish)
-                                        color = TFT_WHITE;
-                                    // else if (colored && with_color) color = GxEPD_COLORED;
-                                    else
-                                        color = TFT_BLACK;
-                                    display.drawPixel(x + col, yrow, color); // 原始
-                                }
-                                else // 位深为24，16，8位 使用像素抖动绘制
-                                {
-                                    // 亮度对比度调节
-                                    /*float B = 0.1;
-                                      float C = -0.1;
-                                      float K = tan((45 + 44 * C) / 180 * PI);
-                                      color = (color - 127.5 * (1 - B)) * K + 127.5 * (1 + B);
-                                      if (color > 255) color = 255;
-                                      else if (color < 0) color = 0;*/
-                                    // 分段抖动，每3行抖动一次
-                                    bmp8[x + col][yrow1] = color;
-                                    if (x + col == (w - 1)) // X轴填满，换行 //width 修补 w
-                                    {
-                                        yrow1++; // Y轴进位
-                                        // 首次需要存入6行数据再抖动 ，中间每次在012后面存入3行
-                                        if (yrow1 == 6 || (flip == 1 && yrow == 0) || (flip == 0 && yrow == (height - 1)))
+                                        uint8_t lsb = input_buffer[in_idx++];
+                                        uint8_t msb = input_buffer[in_idx++];
+                                        if (format == 0) // 555
                                         {
-                                            int err;
-                                            uint8_t y_max0 = 4; // 首次抖动0-4行 其余抖动1-4行
-                                            // 到最后时将剩余行都一起抖动
-                                            if (flip == 1 && yrow == 0)
-                                                y_max0 = yrow1;
-                                            else if (flip == 0 && yrow == (height - 1))
-                                                y_max0 = yrow1;
+                                            blue = (lsb & 0x1F) << 3;
+                                            green = ((msb & 0x03) << 6) | ((lsb & 0xE0) >> 2);
+                                            red = (msb & 0x7C) << 1;
+                                            // color = ((red & 0xF8) << 8) | ((green & 0xFC) << 3) | ((blue & 0xF8) >> 3);
+                                            color = (114 * blue + 587 * green + 299 * red + 500) / 1000; // 灰度转换
+                                        }
+                                        else // 565
+                                        {
+                                            blue = (lsb & 0x1F) << 3;
+                                            green = ((msb & 0x07) << 5) | ((lsb & 0xE0) >> 3);
+                                            red = (msb & 0xF8);
+                                            // color = (msb << 8) | lsb;
+                                            color = (114 * blue + 587 * green + 299 * red + 500) / 1000; // 灰度转换
+                                        }
+                                        // whitish = with_color ? ((red > 0x80) && (green > 0x80) && (blue > 0x80)) : ((red + green + blue) > 3 * 0x80); // whitish
+                                        // colored = (red > 0xF0) || ((green > 0xF0) && (blue > 0xF0)); // 微红或微黄?
+                                    }
+                                    break;
+                                    case 1:
+                                    case 4:
+                                    {
+                                        if (0 == in_bits)
+                                        {
+                                            in_byte = input_buffer[in_idx++];
+                                            in_bits = 8;
+                                        }
+                                        uint16_t pn = (in_byte >> bitshift) & bitmask;
+                                        whitish = mono_palette_buffer[pn / 8] & (0x1 << pn % 8);
+                                        colored = color_palette_buffer[pn / 8] & (0x1 << pn % 8);
+                                        in_byte <<= depth;
+                                        in_bits -= depth;
+                                        color = rgb_palette_buffer[pn];
+                                    }
+                                    break;
+                                    case 8:
+                                        color = input_buffer[in_idx++];
+                                        break;
+                                    }
 
-                                            // Serial.print("y_max0："); Serial.println(y_max0);
-                                            yrow1 = 2; // Y轴进位回到第3行，012
-
-                                            for (uint16_t y = 0; y <= y_max0; y++) // height width
+                                    uint16_t yrow = y + (flip ? h - row - 1 : row);
+                                    // Serial.print("x + col:" + String(x + col)); Serial.println(" yrow:" + String(yrow));
+                                    if (depth == 1) // 位深为1位，直接绘制
+                                    {
+                                        if (whitish)
+                                            color = TFT_WHITE;
+                                        // else if (colored && with_color) color = GxEPD_COLORED;
+                                        else
+                                            color = TFT_BLACK;
+                                        display.drawPixel(x + col, yrow, color); // 原始
+                                    }
+                                    else // 位深为24，16，8位 使用像素抖动绘制
+                                    {
+                                        // 亮度对比度调节
+                                        /*float B = 0.1;
+                                          float C = -0.1;
+                                          float K = tan((45 + 44 * C) / 180 * PI);
+                                          color = (color - 127.5 * (1 - B)) * K + 127.5 * (1 + B);
+                                          if (color > 255) color = 255;
+                                          else if (color < 0) color = 0;*/
+                                        // 分段抖动，每3行抖动一次
+                                        bmp8[x + col][yrow1] = color;
+                                        if (x + col == (w - 1)) // X轴填满，换行 //width 修补 w
+                                        {
+                                            yrow1++; // Y轴进位
+                                            // 首次需要存入6行数据再抖动 ，中间每次在012后面存入3行
+                                            if (yrow1 == 6 || (flip == 1 && yrow == 0) || (flip == 0 && yrow == (height - 1)))
                                             {
-                                                for (uint16_t x = 0; x < w; x++) // width 修补 w
+                                                int err;
+                                                uint8_t y_max0 = 4; // 首次抖动0-4行 其余抖动1-4行
+                                                // 到最后时将剩余行都一起抖动
+                                                if (flip == 1 && yrow == 0)
+                                                    y_max0 = yrow1;
+                                                else if (flip == 0 && yrow == (height - 1))
+                                                    y_max0 = yrow1;
+
+                                                // Serial.print("y_max0："); Serial.println(y_max0);
+                                                yrow1 = 2; // Y轴进位回到第3行，012
+
+                                                for (uint16_t y = 0; y <= y_max0; y++) // height width
                                                 {
-                                                    if (ddxhFirst == 1 || y != 0) // 第一次对01234行抖动处理 后面至抖动1234行
+                                                    for (uint16_t x = 0; x < w; x++) // width 修补 w
                                                     {
-                                                        if (bmp8[x][y] > 127)
+                                                        if (ddxhFirst == 1 || y != 0) // 第一次对01234行抖动处理 后面至抖动1234行
                                                         {
-                                                            err = bmp8[x][y] - 255;
-                                                            bmp8[x][y] = 255;
+                                                            if (bmp8[x][y] > 127)
+                                                            {
+                                                                err = bmp8[x][y] - 255;
+                                                                bmp8[x][y] = 255;
+                                                            }
+                                                            else
+                                                            {
+                                                                err = bmp8[x][y] - 0;
+                                                                bmp8[x][y] = 0;
+                                                            }
+                                                            if (x != w - 1)
+                                                                bmp8[x + 1][y + 0] = colorThresholdLimit(bmp8[x + 1][y + 0], (err * 7) / 16);
+                                                            if (x != 0)
+                                                                bmp8[x - 1][y + 1] = colorThresholdLimit(bmp8[x - 1][y + 1], (err * 3) / 16);
+                                                            if (1)
+                                                                bmp8[x + 0][y + 1] = colorThresholdLimit(bmp8[x + 0][y + 1], (err * 5) / 16);
+                                                            if (x != w - 1)
+                                                                bmp8[x + 1][y + 1] = colorThresholdLimit(bmp8[x + 1][y + 1], (err * 1) / 16);
                                                         }
-                                                        else
-                                                        {
-                                                            err = bmp8[x][y] - 0;
-                                                            bmp8[x][y] = 0;
-                                                        }
-                                                        if (x != w - 1)
-                                                            bmp8[x + 1][y + 0] = colorThresholdLimit(bmp8[x + 1][y + 0], (err * 7) / 16);
-                                                        if (x != 0)
-                                                            bmp8[x - 1][y + 1] = colorThresholdLimit(bmp8[x - 1][y + 1], (err * 3) / 16);
-                                                        if (1)
-                                                            bmp8[x + 0][y + 1] = colorThresholdLimit(bmp8[x + 0][y + 1], (err * 5) / 16);
-                                                        if (x != w - 1)
-                                                            bmp8[x + 1][y + 1] = colorThresholdLimit(bmp8[x + 1][y + 1], (err * 1) / 16);
                                                     }
-                                                }
-                                                ddxhFirst = 0; // 首行结束
-                                            } // 像素抖动结束
+                                                    ddxhFirst = 0; // 首行结束
+                                                } // 像素抖动结束
 
-                                            // 绘制像素点 bmp[x][y] x轴绘制需全部完 y轴只绘制前5行
-                                            // bmp图片Y轴绘制初始位置
-                                            if (flip == 1 && yrow != 0)
-                                                yrow_old = yrow + 5;
-                                            else if (flip == 0 && yrow != (height - 1))
-                                                yrow_old = yrow - 5; // bmp图片Y轴绘制初始位置
-                                            uint8_t y_max1 = 5;      // 平时绘制5行
-                                            // 到最后时全部绘制完
-                                            if (flip == 1 && yrow == 0)
-                                                y_max1 = yrow_old + 1;
-                                            else if (flip == 0 && yrow == (height - 1))
-                                                y_max1 = height - yrow_old;
-                                            // Serial.print("yrow:"); Serial.println(yrow);
-                                            for (uint16_t y = 0; y < y_max1; y++)
-                                            {
+                                                // 绘制像素点 bmp[x][y] x轴绘制需全部完 y轴只绘制前5行
+                                                // bmp图片Y轴绘制初始位置
+                                                if (flip == 1 && yrow != 0)
+                                                    yrow_old = yrow + 5;
+                                                else if (flip == 0 && yrow != (height - 1))
+                                                    yrow_old = yrow - 5; // bmp图片Y轴绘制初始位置
+                                                uint8_t y_max1 = 5;      // 平时绘制5行
+                                                // 到最后时全部绘制完
+                                                if (flip == 1 && yrow == 0)
+                                                    y_max1 = yrow_old + 1;
+                                                else if (flip == 0 && yrow == (height - 1))
+                                                    y_max1 = height - yrow_old;
+                                                // Serial.print("yrow:"); Serial.println(yrow);
+                                                for (uint16_t y = 0; y < y_max1; y++)
+                                                {
+                                                    for (uint16_t x = 0; x < w; x++) // width 修补 w
+                                                    {
+                                                        /*Serial.print("x:" + String(x));
+                                                          Serial.print(" y:" + String(y));
+                                                          Serial.println(" bmp8:" + String(bmp8[x][y]));*/
+                                                        /*if (yrow_old > 110) {
+                                                          Serial.print("yrow_old:"); Serial.println(yrow_old);
+                                                          }*/
+                                                        display.drawPixel(x, yrow_old, bmp8[x][y]);
+                                                    }
+                                                    // Y轴进位
+                                                    if (flip == 1 && yrow_old != 0)
+                                                        yrow_old--;
+                                                    else if (flip == 0 && yrow_old != (height - 1))
+                                                        yrow_old++;
+                                                }
+                                                // bmp8 4、5行移到开头
                                                 for (uint16_t x = 0; x < w; x++) // width 修补 w
                                                 {
-                                                    /*Serial.print("x:" + String(x));
-                                                      Serial.print(" y:" + String(y));
-                                                      Serial.println(" bmp8:" + String(bmp8[x][y]));*/
-                                                    /*if (yrow_old > 110) {
-                                                      Serial.print("yrow_old:"); Serial.println(yrow_old);
-                                                      }*/
-                                                    display.drawPixel(x, yrow_old, bmp8[x][y]);
+                                                    bmp8[x][0] = bmp8[x][4];
+                                                    bmp8[x][1] = bmp8[x][5];
                                                 }
-                                                // Y轴进位
-                                                if (flip == 1 && yrow_old != 0)
-                                                    yrow_old--;
-                                                else if (flip == 0 && yrow_old != (height - 1))
-                                                    yrow_old++;
-                                            }
-                                            // bmp8 4、5行移到开头
-                                            for (uint16_t x = 0; x < w; x++) // width 修补 w
-                                            {
-                                                bmp8[x][0] = bmp8[x][4];
-                                                bmp8[x][1] = bmp8[x][5];
-                                            }
-                                        } // 像素抖动6行数据处理结束
-                                    } // 像素抖动换行结束
-                                }
-                            } // end pixel
-                        } // end line
-                        delete[] bmp8; // 释放内存
-                    } while (false);
+                                            } // 像素抖动6行数据处理结束
+                                        } // 像素抖动换行结束
+                                    }
+                                } // end pixel
+                            } // end line
+                            delete[] bmp8; // 释放内存
+                        } while (false);
                     display.display();
                     // display.powerOff(); // 为仅关闭电源
                     Serial.println("图像显示完毕");

@@ -1,12 +1,17 @@
 #include "hal.h"
 #include <LittleFS.h>
 
+void HAL::cheak_sd()
+{
+    if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+        peripherals.load(PERIPHERALS_SD_BIT);
+}
+
 File HAL::open(const char *path, const char *mode, const bool create)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
-        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
-            peripherals.load(PERIPHERALS_SD_BIT);
+        cheak_sd();
         return SD.open(remove_path_prefix(path, "/sd"), mode, create);
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -28,6 +33,7 @@ bool HAL::exists(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        cheak_sd();
         return SD.exists(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -49,6 +55,7 @@ bool HAL::remove(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        cheak_sd();
         return SD.remove(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -70,6 +77,7 @@ bool HAL::rename(const char *pathFrom, const char *pathTo)
 {
     if (strncmp(pathFrom, "/sd/", 4) == 0)
     {
+        cheak_sd();
         return SD.rename(remove_path_prefix(pathFrom, "/sd"), pathTo);
     }
     else if (strncmp(pathFrom, "/littlefs/", 10) == 0)
@@ -91,6 +99,7 @@ bool HAL::mkdir(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        cheak_sd();
         return SD.mkdir(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -112,6 +121,7 @@ bool HAL::rmdir(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        cheak_sd();
         return SD.rmdir(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -1259,8 +1269,8 @@ bool HAL::init()
     SPI.setFrequency(40000000);
     display.begin(initial);
     display.display_Inversion(true);
-    if (hal.pref.getBool("high_fps"))
-        display.High_Power_Mode();
+    // if (hal.pref.getBool("high_fps"))
+    //     display.High_Power_Mode();
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(TFT_BLACK);
     u8g2Fonts.setFontMode(1);
@@ -1572,7 +1582,7 @@ static void pre_sleep()
     cmd.end();
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
-    display.Low_Power_Mode();
+    display.setPowerMode(POWER_MODE_LPM);
     buzzer.waitForSleep();
     log_system_deinit();
     LittleFS.end();

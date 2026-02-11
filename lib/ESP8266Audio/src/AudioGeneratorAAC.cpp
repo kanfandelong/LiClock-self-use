@@ -171,6 +171,26 @@ bool AudioGeneratorAAC::loop()
       lastFrameEnd = buffValid - bytesLeft;
       AACFrameInfo fi;
       AACGetLastFrameInfo(hAACDecoder, &fi);
+      // Track bitrate to estimate total duration (similar to MP3 implementation)
+      if (!totalSent && fi.bitRate > 0) {
+        bitrateSum += (uint64_t)fi.bitRate;
+        bitrateCount++;
+      }
+      if (bitrateCount >= 50 && !totalSent) {
+        uint64_t currentAvgBitrate = bitrateSum / bitrateCount;
+        if (bitrateCount == 50 || bitrateCount % 50 == 0) {
+          if (currentAvgBitrate == 0) currentAvgBitrate = fi.bitRate;
+          if (currentAvgBitrate == 0) currentAvgBitrate = 128000;
+          // Estimate total duration based on file size and average bitrate
+          uint64_t total_seconds = ((uint64_t)file->getSize() * 8ULL) / currentAvgBitrate;
+          uint64_t total_ms = total_seconds * 1000ULL;
+          cb.md("tlen", false, ((String)total_ms).c_str());
+          lastAvgBitrate = currentAvgBitrate;
+        }
+        if (bitrateCount >= 400) {
+          totalSent = true;
+        }
+      }
       if ((int)fi.sampRateOut != (int)lastRate) {
         output->SetRate(fi.sampRateOut);
         lastRate = fi.sampRateOut;

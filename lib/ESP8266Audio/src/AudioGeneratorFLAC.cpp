@@ -19,6 +19,7 @@
 */
 
 #include <AudioGeneratorFLAC.h>
+#include <stdlib.h>
 
 AudioGeneratorFLAC::AudioGeneratorFLAC()
 {
@@ -288,24 +289,46 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
     for (unsigned i = 0; i < metadata->data.vorbis_comment.num_comments; ++i) {
       const FLAC__StreamMetadata_VorbisComment_Entry *entry = &metadata->data.vorbis_comment.comments[i];
       // The entry is a "KEY=VALUE" UTF‑8 string (not null‑terminated, length given)
-      // Create a temporary buffer to safely split the string.
-      char buf[256]; // FLAC spec limits comment length to 16 KB, but typical tags are short.
-      unsigned copyLen = (entry->length < sizeof(buf) - 1) ? entry->length : sizeof(buf) - 1;
-      if (copyLen > 256)
-        copyLen = 255;
-      memcpy(buf, entry->entry, copyLen);
-      buf[copyLen] = '\0';
+      // Allocate memory if the entry length exceeds 255 bytes.
+      const unsigned MAX_STATIC = 255; // max length for static buffer (excluding null)
+      char staticBuf[256];
+      char *buf = nullptr;
+      unsigned copyLen = 0;
+      if (entry->length > MAX_STATIC) {
+        // Try dynamic allocation
+        buf = (char*)malloc(entry->length + 1);
+        if (buf) {
+          memcpy(buf, entry->entry, entry->length);
+          buf[entry->length] = '\0';
+          copyLen = entry->length;
+        } else {
+          // Allocation failed, fallback to static buffer and truncate
+          copyLen = MAX_STATIC;
+          memcpy(staticBuf, entry->entry, copyLen);
+          staticBuf[copyLen] = '\0';
+          buf = staticBuf;
+        }
+      } else {
+        // Use static buffer
+        copyLen = entry->length;
+        memcpy(staticBuf, entry->entry, copyLen);
+        staticBuf[copyLen] = '\0';
+        buf = staticBuf;
+      }
       // Find the first '=' separator
       char *eq = strchr(buf, '=');
       if (eq) {
         *eq = '\0'; // split into key and value
         const char *key = buf;
         const char *value = eq + 1;
-        // According to FLAC, Vorbis comments are UTF‑8, so we mark isUnicode = true
         cb.md(key, false, value);
       } else {
         // No '=', treat whole string as type with empty value
         cb.md(buf, false, "");
+      }
+      // Free dynamic allocation if used
+      if (buf != staticBuf && buf != nullptr) {
+        free(buf);
       }
     }
     break;

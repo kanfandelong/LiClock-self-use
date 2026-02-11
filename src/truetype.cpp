@@ -1046,7 +1046,7 @@ int32_t truetypeClass::isLeft(ttCoordinate_t *_p0, ttCoordinate_t *_p1, ttCoordi
   return ((_p1->x - _p0->x) * (_point->y - _p0->y) - (_point->x - _p0->x) * (_p1->y - _p0->y));
 }
 
-void truetypeClass::textDraw(int16_t _x, int16_t _y, const wchar_t _character[])
+void truetypeClass::_textDraw(int16_t _x, int16_t _y, const wchar_t _character[])
 {
   uint16_t c = 0;
   uint16_t prev_code = 0;
@@ -1119,7 +1119,7 @@ void truetypeClass::textDraw(int16_t _x, int16_t _y, const wchar_t _character[])
     c++;
   }
 
-  log_i("绘制%ld耗时%ldms", c, millis() - begin);
+  log_i("绘制%ld个字符耗时%ldms", c, millis() - begin);
 }
 
 void truetypeClass::textDraw(int16_t _x, int16_t _y, const char _character[])
@@ -1134,7 +1134,7 @@ void truetypeClass::textDraw(int16_t _x, int16_t _y, const char _character[])
   {
     wcharacter[i] = _character[i];
   }
-  this->textDraw(_x, _y, wcharacter);
+  this->_textDraw(_x, _y, wcharacter);
   free(wcharacter);
 }
 
@@ -1143,7 +1143,7 @@ void truetypeClass::textDraw(int16_t _x, int16_t _y, const String _string)
   uint16_t length = _string.length();
   wchar_t *wcharacter = (wchar_t *)calloc(sizeof(wchar_t), length + 1);
   this->stringToWchar(_string, wcharacter);
-  this->textDraw(_x, _y, wcharacter);
+  this->_textDraw(_x, _y, wcharacter);
   free(wcharacter);
 }
 

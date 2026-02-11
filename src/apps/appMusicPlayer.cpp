@@ -414,10 +414,14 @@ bool isUtf8(const char *str)
  * @param string 标签内容字符串
  * @note 将标签信息存储到app对象的结构体中
  */
+// 用于记录是否已经通过 ID3TAG 获得了总时长
+static bool id3_tlen_received = false;
+
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string)
 {
     String outputString;
     String id3_type = type;
+    const char *src = static_cast<const char *>(cbData);
 
     if (id3_type.equalsIgnoreCase("APIC"))
     {
@@ -425,9 +429,10 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
         return;
     }
 
+    // ----- 文字编码处理 -----
     if (isUnicode)
     {
-        // 计算字符串长度
+        // 计算 UTF‑16 字符串长度（字节数）
         size_t length = 0;
         const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
         while (ptr[length] != 0 || ptr[length + 1] != 0)
@@ -436,20 +441,18 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
             if (length > 254)
                 break; // 防止缓冲区溢出
         }
-
-        // 转换为UTF-8
         outputString = utf16ToUtf8(reinterpret_cast<const uint8_t *>(string), length);
     }
     else
     {
-        // 检查是否已经是UTF-8
+        // 已经是 UTF‑8 ?
         if (isUtf8(string))
         {
             outputString = string;
         }
         else
         {
-            // 假设是ISO-8859-1编码，转换为UTF-8
+            // 假设 ISO‑8859‑1，手动转为 UTF‑8
             const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
             while (*ptr)
             {
@@ -459,16 +462,15 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
                 }
                 else
                 {
-                    // 转换为双字节UTF-8
                     outputString += static_cast<char>(0xC0 | (*ptr >> 6));
                     outputString += static_cast<char>(0x80 | (*ptr & 0x3F));
                 }
-                ptr++;
+                ++ptr;
             }
         }
     }
 
-    // 存储到相应的字段
+    // ----- 保存标签信息 -----
     if (id3_type.equalsIgnoreCase("title"))
     {
         app.info.title = outputString;
@@ -483,9 +485,48 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     }
     else if (id3_type.equalsIgnoreCase("tlen"))
     {
-        app.info.tlen = strtoul(outputString.c_str(), NULL, 10);
+        unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
+        // 当回调来源是 ID3TAG 时，始终写入并标记已收到
+        if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0)
+        {
+            app.info.tlen = newLen;
+            id3_tlen_received = true;
+        }
+        // 当来源是 MP3INFO 且尚未收到 ID3TAG，则更新（每次回调均可更新）
+        else if (strcmp(src, "MP3INFO") == 0 && !id3_tlen_received)
+        {
+            app.info.tlen = newLen;
+        }
+        // 其它来源保持原值
     }
+    else if (id3_type.equalsIgnoreCase("LYRICS"))
+    {
+        String lyricPath = app.getLyricPath(music_file);
+        if (!hal.exists(lyricPath))
+        {
+            File f = hal.open(lyricPath, "w");
+            if (f)
+            {
+                f.write((const uint8_t *)string, strlen(string));
+                f.close();
+            }
+            else
+            {
+                log_e("无法创建歌词文件: %s", lyricPath.c_str());
+            }
+            info("已写入歌词文件用做缓存: %s", lyricPath.c_str());
+            // 在写入歌词文件后立即加载歌词，因为默认歌词加载位置位于解码开始之前，此时可能还没有歌词文件，导致无法加载到歌词(哪怕回调获取到了歌词)。
+            if (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
+            {
+                app.loadLyrics(music_file);
+            }
+        }
+        else
+            info("歌词文件已存在: %s", lyricPath.c_str());
+    }
+
     info("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
+    // info("%s callback for: %s 的原始值 = '%s'", cbData, type, string);
     app.backup_buff_updata = true;
 }
 #ifdef CONFIG_DAC_32bit
@@ -850,9 +891,21 @@ int countLyricLines(const char *path)
         }
         line = file.readStringUntil('\n');
         line.trim();
+        // 只统计包含实际歌词文本的行，排除仅有元数据的标签行（如 [ti:...], [ar:...], [al:...]）
         if (line.startsWith("["))
         {
-            count++;
+            // 查找首个右方括号的位置
+            int rightBracketPos = line.indexOf(']');
+            if (rightBracketPos != -1)
+            {
+                // 检查右方括号后是否还有非空白字符，若有则视为歌词行
+                String afterBracket = line.substring(rightBracketPos + 1);
+                afterBracket.trim();
+                if (afterBracket.length() > 0)
+                {
+                    count++;
+                }
+            }
         }
     }
     file.close();
@@ -949,6 +1002,11 @@ void AppMusicPlayer::loadLyrics(const char *path)
             {
                 timeStr = line.substring(1, closeBracket);
                 text = line.substring(closeBracket + 1);
+
+                // 去除两端空白并检查是否有实际歌词文本，若无则视为元数据行跳过
+                text.trim();
+                if (text.length() == 0)
+                    continue;
 
                 text.replace(String((char)0xE3) + String((char)0x80) + String((char)0x80), "  ");
                 text.replace(String("—"), "--");
@@ -1102,8 +1160,7 @@ void AppMusicPlayer::startScrollAnimation(int direction)
     scrollOffset = 0;
     scrollStartTime = millis();
 
-    log_i("方向：%d，索引：%d -> %d",
-          direction, oldLyricIndex, newLyricIndex);
+    // log_i("方向：%d，索引：%d -> %d", direction, oldLyricIndex, newLyricIndex);
 }
 
 /**
@@ -1130,7 +1187,7 @@ bool AppMusicPlayer::updateScrollAnimation()
         }
         lastLyricIndex = currentLyricIndex;
 
-        log_i("歌词滚动动画完成");
+        // log_i("歌词滚动动画完成");
         return true;
     }
 
@@ -2673,6 +2730,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
     {
     case MP3_Generator:
         mp3_generator = new AudioGeneratorMP3();
+        mp3_generator->RegisterMetadataCB(MDCallback, (void *)"MP3INFO");
         generator = mp3_generator;
         break;
     case Flac_Generator:
@@ -2738,6 +2796,7 @@ bool AppMusicPlayer::player_set()
     info.title = "---";
     info.tlen = 0;
     backup_buff_updata = true;
+    id3_tlen_received = false;
     app.play_time_start = millis(); // 提前重置一次`,确保歌词正常显示
     if (hal.pref.getBool("music_fft"))
         for (int i = 0; i < 128; i++)
@@ -2814,6 +2873,7 @@ void AppMusicPlayer::setup()
 {
     // display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     hal.cheak_freq(240);
+    display.setPowerMode(POWER_MODE_HPM);
     display.clearScreen();
     display.display();
     pinMode(25, ANALOG);

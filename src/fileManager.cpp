@@ -19,6 +19,9 @@ static const uint8_t sysfile_bits[] = {
 static const uint8_t textfile_bits[] = {
     0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x01, 0x01, 0x7d, 0x01,
     0x01, 0x01, 0x7d, 0x01, 0x01, 0x01, 0x7d, 0x01, 0x01, 0x01, 0xff, 0x01};
+static const uint8_t fontfile_bits[] = {
+   0x7e, 0x00, 0xa1, 0x00, 0x21, 0x01, 0xc1, 0x01, 0x1d, 0x01, 0x09, 0x01,
+   0x09, 0x01, 0x09, 0x01, 0x09, 0x01, 0x01, 0x01, 0x01, 0x01, 0xff, 0x01 };
 // 12*12
 static const uint8_t folder_bits[] = {
     0x00, 0x00, 0x1e, 0x00, 0x21, 0x00, 0xc1, 0x0f, 0x01, 0x08, 0x01, 0x08,
@@ -41,6 +44,8 @@ static const struct s_fileicondict fileicondict[] = {
     {"aac", musicfile_bits},
     {"wav", musicfile_bits},
     {"opus", musicfile_bits}, // 添加opus格式支持
+    {"ttf", fontfile_bits},
+    {"TTF", fontfile_bits},
     {"i", sysfile_bits},
     {"json", sysfile_bits},
     {"bin", sysfile_bits},
@@ -149,6 +154,7 @@ namespace GUI
     void pop_buffer();
     const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system, bool cleardepth)
     {
+        display.setPowerMode(POWER_MODE_HPM);
         // 注意，这个函数完全没有考虑线程安全，no reentrent!!!
         // 处理多扩展名过滤
         char **extensionList = NULL;

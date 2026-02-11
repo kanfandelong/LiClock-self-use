@@ -1,4 +1,5 @@
 #include <AppManager.h>
+#include <algorithm> // for std::max
 AppManager appManager;
 #define MAX_APP_COUNT 128
 AppBase *appList[MAX_APP_COUNT];
@@ -156,6 +157,10 @@ void AppManager::App_Preferences_init()
         log_i("APP隐藏控制参数初始化结束");
     }
 }
+
+const int menu_x_offset = 20;
+const int menu_y_offset = 32;
+
 // AppList每页11个，算左上角一个返回共12个
 // 先build再show
 void AppManager::showAppList(int page)
@@ -200,8 +205,8 @@ void AppManager::showAppList(int page)
         }
     }
     // 返回按钮
-    display.drawXBitmap(12, 21, goBackIcon, 32, 32, 0);
-    u8g2Fonts.drawUTF8(16, 65, "返回");
+    display.drawXBitmap(menu_x_offset + 8, menu_y_offset, goBackIcon, 32, 32, 0);
+    u8g2Fonts.drawUTF8(menu_x_offset + 12, menu_y_offset + 45, "返回");
     int pagebase = page_app_cont * page; // 页基数（这一页第一个）
     int pageItemsCount;
     if (page == totalPage - 1)
@@ -214,11 +219,12 @@ void AppManager::showAppList(int page)
     {
         pageItemsCount = page_app_cont;
     }
+    // 调整图标间隔：水平 50 像素，垂直 70 像素
     for (int16_t i = 0; i < pageItemsCount; i++)
     {
         int16_t x, y;
-        x = ((i + 1) / 2) * 54 + 4;
-        y = ((i + 1) % 2) * 72 + 21; // App左上角位置
+        x = ((i + 1) / 2) * 50 + menu_x_offset; // 原 54 -> 50
+        y = ((i + 1) % 2) * 70 + menu_y_offset; // 原 72 -> 70，App 左上角位置
         if (realAppList[pagebase + i]->image != NULL)
         {
             display.drawXBitmap(x + 8, y, realAppList[pagebase + i]->image, 32, 32, 0);
@@ -254,8 +260,10 @@ AppBase *AppManager::appSelector(bool showHidden)
     bool waitc = false;
     display.swapBuffer(1);
     display.clearScreen();
+    display.display();
+    display.setPowerMode(POWER_MODE_HPM);
     showAppList(currentPage);
-    display.drawRoundRect(4 - 1, 21 - 2, 50, 50, 5, 0); // 绘制选择框
+    display.drawRoundRect(menu_x_offset - 1, menu_y_offset - 2, 50, 50, 5, 0); // 绘制选择框
     display.display();
     // 下面是选择
     hal.hookButton();
@@ -342,21 +350,48 @@ AppBase *AppManager::appSelector(bool showHidden)
             }
             if (selected != last_selected)
             {
-                int16_t x, y;
-                // int16_t last_x, last_y;
-                x = (selected / 2) * 54 + 4;
-                y = (selected % 2) * 72 + 21; // App左上角位置
-                // if (last_selected == -1)
-                //     last_selected = 0;
-                // last_x = (last_selected / 2) * 49 + 4;
-                // last_y = (last_selected % 2) * 52 + 21;
-                last_selected = selected;
-                display.clearScreen();
-                showAppList(currentPage);
-                // display.drawRoundRect(last_x - 1, last_y - 2, 50, 50, 5, 1); // 清除上一个选择框
-                display.drawRoundRect(x - 1, y - 2, 50, 50, 5, 0);           // 绘制选择框
-                display.display();
-                delay(100);
+                // 记录当前页码，以判断是否翻页
+                int currentPageBefore = currentPage;
+                // 计算旧位置和新位置（使用新的间隔）
+                int16_t prev = last_selected;
+                int16_t old_x = (prev / 2) * 50 + menu_x_offset;
+                int16_t old_y = (prev % 2) * 70 + menu_y_offset;
+                int16_t new_x = (selected / 2) * 50 + menu_x_offset;
+                int16_t new_y = (selected % 2) * 70 + menu_y_offset;
+
+                // 如果页面已改变，则不执行动画，仅在后续绘制选框
+                if (currentPage != currentPageBefore)
+                {
+                    // 直接更新选中状态，后面的绘制逻辑会在页面切换后绘制框
+                    last_selected = selected;
+                }
+                else
+                {
+                    // 根据移动距离动态计算动画步数，确保平滑且不太快
+                    int dx = new_x - old_x;
+                    int dy = new_y - old_y;
+                    int distance = std::max(abs(dx), abs(dy)); // 取最大轴向距离
+                    const int MAX_STEPS = 25; // 最大步数限制
+                    int steps = std::min(MAX_STEPS, distance / 4); // 步长5像素，最大步数限制
+                    display.swapBuffer(2);
+                    display.clearScreen();
+                    showAppList(currentPage);
+                    display.swapBuffer(1);
+                    TickType_t xLastWakeTime = xTaskGetTickCount();
+                    TickType_t xFrequency = pdMS_TO_TICKS(18); // 运行周期
+                    for (int s = 1; s <= steps; ++s)
+                    {
+                        // 线性插值计算中间坐标
+                        int16_t ix = old_x + ((new_x - old_x) * s) / steps;
+                        int16_t iy = old_y + ((new_y - old_y) * s) / steps;
+                        display.copyBuffer(1, 2);
+                        display.drawRoundRect(ix - 1, iy - 2, 50, 50, 5, 0);
+                        display.display();
+                        xTaskDelayUntil(&xLastWakeTime, xFrequency);
+                    }
+                    // 更新选中状态
+                    last_selected = selected;
+                }
             }
             if (waitc == true)
             {
@@ -378,8 +413,9 @@ AppBase *AppManager::appSelector(bool showHidden)
         if (finished == false)
         {
             int16_t x, y;
-            x = (selected / 2) * 54 + 4;
-            y = (selected % 2) * 72 + 21; // App左上角位置
+            // 使用新的图标间隔（水平 50，垂直 70）计算选择框位置
+            x = (selected / 2) * 50 + menu_x_offset;
+            y = (selected % 2) * 70 + menu_y_offset; // App左上角位置
             display.clearScreen();
             showAppList(currentPage);
             display.drawRoundRect(x - 1, y - 2, 50, 50, 5, 0); // 绘制选择框

@@ -23,7 +23,7 @@
 
 // #include <ESP32-targz.h>
 
-#define code_version "2.0.a.c" // 代码版本号（16进制格式）
+#define code_version "2.1.1.c" // 代码版本号（16进制格式）
 // 屏幕型号选择宏定义
 // #define E029A01
 // 屏幕多线程且驱动为UC8151C

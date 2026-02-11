@@ -46,6 +46,7 @@ typedef struct
 class HAL
 {
 public:
+    void cheak_sd();
     File open(const char *path, const char *mode = "r", const bool create = false);
     File open(const String &path, const char *mode = "r", const bool create = false);
     bool exists(const char* path);

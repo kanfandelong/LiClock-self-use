@@ -253,12 +253,11 @@ class ElfDatabaseCompressor:
         
         # ELF文件
         elf_info = version.get("elf", {})
-        elf_path = elf_info.get("path")
+        # 兼容字段: path (可能为压缩文件), original_path (压缩前的原始路径)
+        elf_path = elf_info.get("path") or elf_info.get("original_path")
         if elf_path:
-            original_size = elf_info.get("size", 0)
-            # 如果有压缩信息，优先使用原始大小
-            if "compressed_size" in elf_info:
-                original_size = elf_info.get("size", original_size)
+            # 原始大小优先取 'size' 字段
+            original_size = elf_info.get("size", elf_info.get("original_size", 0))
             files.append({
                 "path": elf_path,
                 "type": "elf",
@@ -268,11 +267,9 @@ class ElfDatabaseCompressor:
         
         # BIN文件
         bin_info = version.get("bin", {})
-        bin_path = bin_info.get("path")
+        bin_path = bin_info.get("path") or bin_info.get("original_path")
         if bin_path:
-            original_size = bin_info.get("size", 0)
-            if "compressed_size" in bin_info:
-                original_size = bin_info.get("size", original_size)
+            original_size = bin_info.get("size", bin_info.get("original_size", 0))
             files.append({
                 "path": bin_path,
                 "type": "bin",
@@ -293,16 +290,20 @@ class ElfDatabaseCompressor:
         if "bin" not in version:
             version["bin"] = {}
         
-        # 更新文件信息
+        # 更新文件信息，保留原始路径并记录压缩后路径/文件名
         for file_info in compressed_files:
             if file_info["type"] == "elf":
+                version["elf"]["original_path"] = file_info.get("original_path")
                 version["elf"]["path"] = file_info["compressed_path"]
                 version["elf"]["compressed_size"] = file_info["compressed_size"]
                 version["elf"]["compression_ratio"] = file_info["compression_ratio"]
+                version["elf"]["compressed_filename"] = os.path.basename(file_info["compressed_path"])
             elif file_info["type"] == "bin":
+                version["bin"]["original_path"] = file_info.get("original_path")
                 version["bin"]["path"] = file_info["compressed_path"]
                 version["bin"]["compressed_size"] = file_info["compressed_size"]
                 version["bin"]["compression_ratio"] = file_info["compression_ratio"]
+                version["bin"]["compressed_filename"] = os.path.basename(file_info["compressed_path"])
         
         return version
     

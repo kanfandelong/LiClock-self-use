@@ -395,6 +395,7 @@ void AppInstaller::loadApp(const String path) // 加载TF卡App
 
 void Appwenjian::setup()
 {
+    display.setPowerMode(POWER_MODE_HPM);
     char char_buf[64];
     int used = 0, total = 0, free = 0, res = 1;
     String _filename, dir;

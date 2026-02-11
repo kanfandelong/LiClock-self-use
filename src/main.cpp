@@ -10,6 +10,7 @@ DynamicJsonDocument cfu(2048);
 
 void task_appManager(void *)
 {
+    log_i("应用管理器已启动");
     while (1)
     {
         appManager.update();

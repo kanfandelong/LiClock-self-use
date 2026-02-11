@@ -498,52 +498,41 @@ void ST7305::setDrawWindow(int16_t x, int16_t y, int16_t w, int16_t h)
     y_max = y + h;
 }
 
-void ST7305::Low_Power_Mode()
+
+void ST7305::setPowerMode(PowerMode mode)
 {
-    if (LPM_MODE)
-    {
-        HPM_MODE = false;
-        LPM_MODE = true;
-    }
-    else
-    {
-        HPM_MODE = false;
-        LPM_MODE = true;
-
-        sendCommand(0xC0);
-        sendData(voltageSet[0][0]);
-        sendData(voltageSet[0][1]);
-        sendCommand(0xC9);
-        sendData(0x00); // Source Voltage Select
-        delay(20);
-
-        sendCommand(0x39); // LPM:Low Power Mode ON
-        delay(100);
-    }
-}
-
-void ST7305::High_Power_Mode()
-{
-    if (HPM_MODE)
-    {
-        HPM_MODE = true;
-        LPM_MODE = false;
-    }
-    else
-    {
-        HPM_MODE = true;
-        LPM_MODE = false;
-
-        sendCommand(0x38); // HPM:high Power Mode ON
-        delay(10);
-
-        sendCommand(0xC0);
-        sendData(voltageSet[1][0]);
-        sendData(voltageSet[1][1]);
-        sendCommand(0xC9);
-        sendData(0x01); // Source Voltage Select
-
-        delay(10);
+    if (mode == POWER_MODE_LPM) {
+        if (LPM_MODE) {
+            HPM_MODE = false;
+            LPM_MODE = true;
+        } else {
+            HPM_MODE = false;
+            LPM_MODE = true;
+            sendCommand(0xC0);
+            sendData(voltageSet[0][0]);
+            sendData(voltageSet[0][1]);
+            sendCommand(0xC9);
+            sendData(0x00); // Source Voltage Select
+            delay(20);
+            sendCommand(0x39); // LPM:Low Power Mode ON
+            delay(100);
+        }
+    } else if (mode == POWER_MODE_HPM) {
+        if (HPM_MODE) {
+            HPM_MODE = true;
+            LPM_MODE = false;
+        } else {
+            HPM_MODE = true;
+            LPM_MODE = false;
+            sendCommand(0x38); // HPM:high Power Mode ON
+            delay(10);
+            sendCommand(0xC0);
+            sendData(voltageSet[1][0]);
+            sendData(voltageSet[1][1]);
+            sendCommand(0xC9);
+            sendData(0x01); // Source Voltage Select
+            delay(10);
+        }
     }
 }
 
@@ -565,7 +554,7 @@ void ST7305::display_sleep(bool enabled)
     {
         if (LPM_MODE)
         {
-            High_Power_Mode(); // HPM:high Power Mode ON
+            setPowerMode(POWER_MODE_HPM); // HPM:high Power Mode ON
             delay(300);
         }
         sendCommand(0x10); // sleep ON

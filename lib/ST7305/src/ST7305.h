@@ -26,6 +26,11 @@ typedef enum
 	fps_1600
 } st7305_voltage_t;
 
+enum PowerMode {
+    POWER_MODE_LPM,
+    POWER_MODE_HPM
+};
+
 class ST7305 : public Adafruit_GFX
 {
 public:
@@ -42,8 +47,7 @@ public:
 	// void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
 	void setRotation(uint8_t m);
 	void setDrawWindow(int16_t x = 0, int16_t y = 0, int16_t w = MAX_X, int16_t h = MAX_Y);
-	void Low_Power_Mode();
-	void High_Power_Mode();
+	void setPowerMode(PowerMode mode);
 	void display_on(bool enabled = true);
 	void display_sleep(bool enabled = true);
 	void display_Inversion(bool enabled);

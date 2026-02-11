@@ -21,21 +21,6 @@
     "raspberrypi",
     "libretiny"
   ],
-  "dependencies": [
-    {
-      "owner": "ESP32Async",
-      "name": "AsyncTCP",
-      "version": "^3.4.9",
-      "platforms": [
-        "espressif32",
-        "libretiny"
-      ]
-    },
-    {
-      "name": "Hash",
-      "platforms": "espressif8266"
-    }
-  ],
   "export": {
     "include": [
       "examples",

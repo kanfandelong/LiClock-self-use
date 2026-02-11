@@ -40,7 +40,7 @@ SYNC_CONFIGS = [
 BUILD_DIR = "./.pio/build/esp32solo1"
 ELF_STORAGE_DIR = "./elf_versions"
 DATABASE_FILE = "./elf_versions/elf_database.json"
-MAX_VERSIONS = 150
+MAX_VERSIONS = 50
 # ===================
 
 def check_rsync_available():
@@ -246,10 +246,6 @@ def fix_windows_paths():
     print(f"✅ 路径修复完成，共修复 {total_fixes} 处")
     return total_fixes > 0
 
-# ===== 主执行逻辑 =====
-print(f"\n{'='*60}")
-print("🔧 LiClock 开发环境同步工具")
-print(f"{'='*60}")
 
 # 1. 同步所有目录
 # sync_successful = sync_all_directories()
@@ -331,42 +327,60 @@ def post_build_elf_versions():
         else:
             database = {"versions": [], "last_updated": None}
         
-        # 检查是否已存在相同SHA256的版本
-        existing = [v for v in database["versions"] 
-                   if v["elf"]["sha256_short"] == elf_sha256_short]
+        # 检查是否已存在相同SHA256的版本（兼容缺失字段）
+        existing = [v for v in database.get("versions", [])
+               if v.get("elf", {}).get("sha256_short") == elf_sha256_short]
         
         is_new = len(existing) == 0
         if is_new:
             database["versions"].append(metadata)
             database["last_updated"] = build_time
-            
+
             # 限制版本数量，删除旧版本文件但保留记录
             if len(database["versions"]) > MAX_VERSIONS:
                 database["versions"].sort(key=lambda x: x["timestamp"], reverse=True)
                 to_remove = database["versions"][MAX_VERSIONS:]
-                # 删除对应的文件
                 for v in to_remove:
                     try:
-                        elf_path_to_remove = v["elf"].get("path")
+                        # 兼容不同字段与已压缩文件（.xz）
+                        elf_path_to_remove = v.get("elf", {}).get("path")
                         if elf_path_to_remove and os.path.exists(elf_path_to_remove):
                             os.remove(elf_path_to_remove)
+                            print(f"删除{elf_path_to_remove}")
+                        # 无论是否存在文件，清除path字段以表示物理文件已移除
+                        if "elf" in v:
+                            v["elf"]["path"] = None
+
                         if "bin" in v:
-                            bin_path_to_remove = v["bin"].get("path")
+                            bin_path_to_remove = v.get("bin", {}).get("path")
                             if bin_path_to_remove and os.path.exists(bin_path_to_remove):
                                 os.remove(bin_path_to_remove)
+                                print(f"删除{bin_path_to_remove}")
+                            v["bin"]["path"] = None
                     except Exception as e:
                         print(f"⚠️ 删除旧版本文件失败: {e}")
-                # 保留版本记录，只截断列表
-                database["versions"] = database["versions"][:MAX_VERSIONS]
-            
+                # 保留所有历史记录，不截断列表
+
             # 确保数据库目录存在
             os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
-            
+
             # 保存数据库
             with open(DATABASE_FILE, 'w') as f:
                 json.dump(database, f, indent=2, ensure_ascii=False)
-        
+
         # 输出结果
+        # 统计：历史总条目数 与 当前实际保存的（物理文件存在）版本数
+        total_versions = len(database.get("versions", []))
+        def version_has_physical_files(v):
+            elf_path = v.get("elf", {}).get("path")
+            bin_path = v.get("bin", {}).get("path")
+            if elf_path and os.path.exists(elf_path):
+                return True
+            if bin_path and os.path.exists(bin_path):
+                return True
+            return False
+
+        current_versions = sum(1 for v in database.get("versions", []) if version_has_physical_files(v))
         if is_new:
             print(f"✅ 固件归档成功:")
             print(f"   ELF: {metadata['elf']['filename']}")
@@ -376,13 +390,10 @@ def post_build_elf_versions():
                 print(f"   BIN: {metadata['bin']['filename']} ({metadata['bin']['size']:,} bytes)")
             print(f"   时间: {timestamp}")
             print(f"   存储位置: {ELF_STORAGE_DIR}")
-            
-            # 显示版本总数
-            print(f"   版本库中共有 {len(database['versions'])} 个版本")
+            print(f"   版本库历史总数: {total_versions}，当前保存版本数: {current_versions}")
         else:
             print(f"⚠️  版本已存在: {elf_sha256_short}")
-            print(f"   跳过归档 (已有 {len(database['versions'])} 个版本)")
-        
+            print(f"   跳过归档 (历史总数: {total_versions}，当前保存版本数: {current_versions})")
         return is_new
         
     except Exception as e:

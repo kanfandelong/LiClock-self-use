@@ -156,13 +156,13 @@ class truetypeClass {
     uint16_t getStringWidth(const char _character[]);
     uint16_t getStringWidth(const String _string);
 
-    void textDraw(int16_t _x, int16_t _y, const wchar_t _character[]);
     void textDraw(int16_t _x, int16_t _y, const char _character[]);
     void textDraw(int16_t _x, int16_t _y, const String _string);
 
     void end();
 
   private:
+    void _textDraw(int16_t _x, int16_t _y, const wchar_t _character[]);
     File file;
 
     uint16_t charCode;
