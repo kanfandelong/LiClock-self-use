@@ -57,11 +57,11 @@ int AppInstaller::getAppSize(const String path, bool fromTF)
         if (fromTF == false)
             root = LittleFS.open(filenames.back());
         else
-            root = SD.open(filenames.back());
+            root = SD_MMC.open(filenames.back());
         filenames.pop_back();
         if (!root)
         {
-            Serial.println("[文件] 无法打开目录");
+            Serial0.println("[文件] 无法打开目录");
             continue;
         }
         file = root.openNextFile();
@@ -91,7 +91,7 @@ void AppInstaller::getLocalApp()
     root = LittleFS.open("/");
     if (!root)
     {
-        Serial.println("[文件] root未打开");
+        Serial0.println("[文件] root未打开");
     }
     file = root.openNextFile();
     while (file)
@@ -127,11 +127,11 @@ bool AppInstaller::install(const String path)
     filenames.push_back(path);
     while (filenames.empty() == false)
     {
-        root = SD.open(filenames.back());
+        root = SD_MMC.open(filenames.back());
         filenames.pop_back();
         if (!root)
         {
-            Serial.println("[文件] 无法打开目录");
+            Serial0.println("[文件] 无法打开目录");
             continue;
         }
         LittleFS.mkdir(path);
@@ -152,7 +152,7 @@ bool AppInstaller::install(const String path)
                 {
                     // 打开失败
                     GUI::msgbox("安装失败", "无法写入文件，可能空间已满");
-                    Serial.println("无法写入文件");
+                    Serial0.println("无法写入文件");
                     file.close();
                     root.close();
                     return false;
@@ -213,7 +213,7 @@ void AppInstaller::setup()
             return;
             break;
         case 1:
-            if (SD.cardSize() != 0)
+            if (SD_MMC.cardSize() != 0)
                 menu_tf();
             break;
         case 2:

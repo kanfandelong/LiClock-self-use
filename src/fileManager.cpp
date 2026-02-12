@@ -264,8 +264,8 @@ namespace GUI
         entries[0].title = "..";
         while (1)
         {
-            Serial.print("[文件浏览] 当前工作目录：");
-            Serial.println(cwd);
+            Serial0.print("[文件浏览] 当前工作目录：");
+            Serial0.println(cwd);
             // 首先清除
             total_entries = 1;
             while (titles[total_entries] != NULL)
@@ -281,7 +281,7 @@ namespace GUI
         open_root:
             if (useSD)
             {
-                root = SD.open(cwd);
+                root = SD_MMC.open(cwd);
             }
             else
             {
@@ -323,13 +323,13 @@ namespace GUI
                     ext = "";
                 }
                 if (file.isDirectory())
-                    Serial.printf("\033[36m%s\033[0m\n", tmp.c_str());
+                    Serial0.printf("\033[36m%s\033[0m\n", tmp.c_str());
                 else
                 {
                     if (tmp.endsWith(".lua"))
-                        Serial.printf("\033[32m%s\033[0m\n", tmp.c_str());
+                        Serial0.printf("\033[32m%s\033[0m\n", tmp.c_str());
                     else
-                        Serial.println(tmp);
+                        Serial0.println(tmp);
                 }
                 if (gotoendsWidth != NULL)
                 {

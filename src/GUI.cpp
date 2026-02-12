@@ -103,7 +103,7 @@ namespace GUI
         int16_t val2_int = val2;
         int16_t tmp = val1_int + val2_int;
         int16_t out = 0;
-        // Serial.print("val1_int:" + String(val1_int)); Serial.print(" val2_int:" + String(val2_int)); Serial.println(" tmp:" + String(tmp));
+        // Serial0.print("val1_int:" + String(val1_int)); Serial0.print(" val2_int:" + String(val2_int)); Serial0.println(" tmp:" + String(tmp));
         if (tmp > 255)
             return 255;
         else if (tmp < 0)
@@ -418,7 +418,7 @@ namespace GUI
         hal.unhookButton();
         return selected;
     }
-#include <esp32/rom/sha.h>
+#include <esp32s3/rom/sha.h>
     static const uint8_t select_bits[] = {
         0xfe, 0x07, 0x03, 0x0c, 0x01, 0x08, 0xf1, 0x08, 0xf9, 0x09, 0xf9, 0x09,
         0xf9, 0x09, 0xf9, 0x09, 0xf1, 0x08, 0x01, 0x08, 0x03, 0x0c, 0xfe, 0x07};
@@ -428,9 +428,9 @@ namespace GUI
 
     void sha256(const char *input, uint8_t output[32], SHA_CTX *ctx)
     {
-        ets_sha_init(ctx);                                                        // 初始化上下文
-        ets_sha_update(ctx, SHA2_256, (const uint8_t *)input, strlen(input) * 8); // 更新哈希值
-        ets_sha_finish(ctx, SHA2_256, output);                                    // 完成哈希计算
+        ets_sha_init(ctx, SHA2_256);                                                        // 初始化上下文
+        ets_sha_update(ctx, (const uint8_t *)input, strlen(input) * 8, true); // 更新哈希值
+        ets_sha_finish(ctx, output);                                    // 完成哈希计算
     }
     /**
      * @brief 多项设置GUI
@@ -1313,7 +1313,7 @@ namespace GUI
         uint8_t *img = (uint8_t *)malloc(imgsize);
         if (!img)
         {
-            Serial.printf("malloc failed!\n");
+            Serial0.printf("malloc failed!\n");
             fclose(fp);
             return;
         }
@@ -1486,10 +1486,10 @@ namespace GUI
             uint16_t depth = read16(file);        // 每像素位数
             uint32_t format = read32(file);       // 格式
 
-            Serial.print("width0:");
-            Serial.println(width);
-            Serial.print("height0:");
-            Serial.println(height);
+            Serial0.print("width0:");
+            Serial0.println(width);
+            Serial0.print("height0:");
+            Serial0.println(height);
 
             // 检测图片大小 设置方向
             /*if (width <= display.width() && height > display.height())
@@ -1499,13 +1499,13 @@ namespace GUI
             if (width > max_row_width)
             {
                 msgbox("错误", "图片width过大，应小于等于500");
-                Serial.print("错误：图片width过大，应小于等于500\n");
+                Serial0.print("错误：图片width过大，应小于等于500\n");
                 return;
             }
             else if (height > max_row_width)
             {
                 msgbox("错误", "图片height过大，应小于等于500");
-                Serial.print("错误：图片height过大，应小于等于500\n");
+                Serial0.print("错误：图片height过大，应小于等于500\n");
                 return;
             }
 
@@ -1516,11 +1516,11 @@ namespace GUI
             boolean ddxhFirst = 1; // 抖动循环的首次状态
             uint16_t yrow1 = 0;    // Y轴移位
             uint16_t yrow_old = 0; // 绘制像素点时 初始Y轴存储
-            // Serial.print("depth:"); Serial.println(depth);
+            // Serial0.print("depth:"); Serial0.println(depth);
             if (depth >= 32)
             {
                 msgbox("错误", "不支持32位深度的图片");
-                Serial.print("不支持32位深度的图片\n");
+                Serial0.print("不支持32位深度的图片\n");
                 return;
             }
             if ((planes == 1) && ((format == 0) || (format == 3))) // 处理未压缩，565同样
@@ -1551,8 +1551,8 @@ namespace GUI
                         with_color = false;
                     if (depth <= 8) // 8位颜色及以下使用调色板,如不使用有些图会翻转颜色
                     {
-                        Serial.print("depth:");
-                        Serial.print(depth);
+                        Serial0.print("depth:");
+                        Serial0.print(depth);
                         if (depth < 8)
                             bitmask >>= depth;
                         // file.seek(54); //调色板始终 @ 54
@@ -1663,7 +1663,7 @@ namespace GUI
                                     }
 
                                     uint16_t yrow = y + (flip ? h - row - 1 : row);
-                                    // Serial.print("x + col:" + String(x + col)); Serial.println(" yrow:" + String(yrow));
+                                    // Serial0.print("x + col:" + String(x + col)); Serial0.println(" yrow:" + String(yrow));
                                     if (depth == 1) // 位深为1位，直接绘制
                                     {
                                         if (whitish)
@@ -1698,7 +1698,7 @@ namespace GUI
                                                 else if (flip == 0 && yrow == (height - 1))
                                                     y_max0 = yrow1;
 
-                                                // Serial.print("y_max0："); Serial.println(y_max0);
+                                                // Serial0.print("y_max0："); Serial0.println(y_max0);
                                                 yrow1 = 2; // Y轴进位回到第3行，012
 
                                                 for (uint16_t y = 0; y <= y_max0; y++) // height width
@@ -1742,16 +1742,16 @@ namespace GUI
                                                     y_max1 = yrow_old + 1;
                                                 else if (flip == 0 && yrow == (height - 1))
                                                     y_max1 = height - yrow_old;
-                                                // Serial.print("yrow:"); Serial.println(yrow);
+                                                // Serial0.print("yrow:"); Serial0.println(yrow);
                                                 for (uint16_t y = 0; y < y_max1; y++)
                                                 {
                                                     for (uint16_t x = 0; x < w; x++) // width 修补 w
                                                     {
-                                                        /*Serial.print("x:" + String(x));
-                                                          Serial.print(" y:" + String(y));
-                                                          Serial.println(" bmp8:" + String(bmp8[x][y]));*/
+                                                        /*Serial0.print("x:" + String(x));
+                                                          Serial0.print(" y:" + String(y));
+                                                          Serial0.println(" bmp8:" + String(bmp8[x][y]));*/
                                                         /*if (yrow_old > 110) {
-                                                          Serial.print("yrow_old:"); Serial.println(yrow_old);
+                                                          Serial0.print("yrow_old:"); Serial0.println(yrow_old);
                                                           }*/
                                                         display.drawPixel(x, yrow_old, bmp8[x][y]);
                                                     }
@@ -1776,7 +1776,7 @@ namespace GUI
                         } while (false);
                     display.display();
                     // display.powerOff(); // 为仅关闭电源
-                    Serial.println("图像显示完毕");
+                    Serial0.println("图像显示完毕");
                 }
             }
         }
@@ -1784,7 +1784,7 @@ namespace GUI
         if (!valid)
         {
             msgbox("警告", "发生未知错误");
-            Serial.print("发生未知错误\n");
+            Serial0.print("发生未知错误\n");
             return;
         }
     }
@@ -1806,10 +1806,10 @@ namespace GUI
 
         // 获取jpeg的宽度和高度（以像素为单位）
         TJpgDec.getFsJpgSize(&jpgWidth, &jpgHeight, name, fs);
-        Serial.print("jpgWidth = ");
-        Serial.print(jpgWidth);
-        Serial.print(", jpgHeight = ");
-        Serial.println(jpgHeight);
+        Serial0.print("jpgWidth = ");
+        Serial0.print(jpgWidth);
+        Serial0.print(", jpgHeight = ");
+        Serial0.println(jpgHeight);
 
         // 设置屏幕方向
         // display.setRotation(ScreenOrientation); // 用户方向
@@ -1832,8 +1832,8 @@ namespace GUI
             scale = 8; // 至多8倍缩放
         TJpgDec.setJpgScale(scale);
 
-        Serial.print("scale:");
-        Serial.println(scale);
+        Serial0.print("scale:");
+        Serial0.println(scale);
 
         // 重新计算缩放后的长宽
         jpgWidth = jpgWidth / scale;
@@ -1845,10 +1845,10 @@ namespace GUI
         // 自动居中
         int32_t x_center = (display.width() / 2) - (jpgWidth / 2);
         int32_t y_center = (display.height() / 2) - (jpgHeight / 2);
-        Serial.print("x_center:");
-        Serial.println(x_center);
-        Serial.print("y_center:");
-        Serial.println(y_center);
+        Serial0.print("x_center:");
+        Serial0.println(x_center);
+        Serial0.print("y_center:");
+        Serial0.println(y_center);
 
         // display.init(0, 0, 10, 1);
         // // display.setFullWindow();
@@ -1882,8 +1882,8 @@ namespace GUI
                 sprintf(buf, "文件%s\n错误原因:%s", name.c_str(), str.c_str());
                 msgbox("JPG解码库错误", buf);
             }
-            Serial.println("error:" + String(error) + " " + str);
-            Serial.println("");
+            Serial0.println("error:" + String(error) + " " + str);
+            Serial0.println("");
         } while (false);
 
         display.display(); // 关闭屏幕电源
@@ -1896,11 +1896,11 @@ namespace GUI
     int16_t y_start; // 绘制像素点的y轴坐标初始值记录
     bool epd_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint8_t *bitmap)
     {
-        // Serial.print("x:"); Serial.println(x);
-        // Serial.print("y:"); Serial.println(y);
-        // Serial.print("w:"); Serial.println(w);
-        // Serial.print("h:"); Serial.println(h);
-        //  Serial.println(" ");
+        // Serial0.print("x:"); Serial0.println(x);
+        // Serial0.print("y:"); Serial0.println(y);
+        // Serial0.print("w:"); Serial0.println(w);
+        // Serial0.print("h:"); Serial0.println(h);
+        //  Serial0.println(" ");
 
         yield();
         // 绘制像素点的 x y从哪里开始

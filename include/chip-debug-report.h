@@ -8,7 +8,7 @@
 #include "esp_chip_info.h"
 #include "esp_idf_version.h"
 #include "esp_arduino_version.h"
-#include "esp32/rom/spi_flash.h"
+#include "esp32s3/rom/spi_flash.h"
 #include "esp_flash.h"
 #include "esp_partition.h"
 #include "esp_app_format.h"

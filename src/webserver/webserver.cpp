@@ -99,7 +99,7 @@ void renameHandler(AsyncWebServerRequest *request)
         String newpath = request->arg("new");
         if (file_for_TF)
         {
-            if (SD.rename(path, newpath))
+            if (SD_MMC.rename(path, newpath))
             {
                 request->send(200, "text/plain", "OK");
                 return;
@@ -123,7 +123,7 @@ void mkdirHandler(AsyncWebServerRequest *request)
         String path = request->arg("path");
         if (file_for_TF)
         {
-            if (SD.mkdir(path))
+            if (SD_MMC.mkdir(path))
             {
                 request->send(200, "text/plain", "OK");
                 return;
@@ -148,12 +148,12 @@ void fs_status(AsyncWebServerRequest *request)
     {
         if (sd_total == 0)
         {
-            sd_total = SD.totalBytes();
+            sd_total = SD_MMC.totalBytes();
         }
         status += "{\n";
         status += "    \"type\":\"TF\",\n";
         status += "    \"isOk\":\"true\",\n";
-        status += "    \"usedBytes\":" + String(SD.usedBytes()) + ",\n";
+        status += "    \"usedBytes\":" + String(SD_MMC.usedBytes()) + ",\n";
         status += "    \"totalBytes\":" + String(sd_total) + ",\n";
         status += "    \"unsupportedFiles\":\"\"\n";
         status += "}";
@@ -190,7 +190,7 @@ bool myxcopy(const String path, const String newpath)
         filenames.pop_back();
         if (!root)
         {
-            Serial.println("[文件] 无法打开目录");
+            Serial0.println("[文件] 无法打开目录");
             continue;
         }
         LittleFS.mkdir(tmp);
@@ -214,7 +214,7 @@ bool myxcopy(const String path, const String newpath)
                 if (!newFile)
                 {
                     // 打开失败
-                    Serial.println("无法写入文件");
+                    Serial0.println("无法写入文件");
                     file.close();
                     root.close();
                     return false;
@@ -260,7 +260,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         if (info->final && info->index == 0 && info->len == len)
         {
             // the whole message is in a single frame and we got all of it's data
-            // Serial.printf("ws[%u]", client->id());
+            // Serial0.printf("ws[%u]", client->id());
             if (info->opcode == WS_TEXT)
             {
                 /*
@@ -313,7 +313,7 @@ void beginFileServer(bool for_TF)
     {
         if (!peripherals.isSDLoaded())
             peripherals.load(PERIPHERALS_SD_BIT);
-        spiffs_upload_handler = new SPIFFSEditor(SD);
+        spiffs_upload_handler = new SPIFFSEditor(SD_MMC);
     }
     else
     {
@@ -384,7 +384,7 @@ void beginFileServer(bool for_TF)
                     if (!peripherals.isSDLoaded()) {
                         peripherals.load(PERIPHERALS_SD_BIT);
                         if (peripherals.isSDLoaded()) {
-                            spiffs_upload_handler->setFileSystem(SD);
+                            spiffs_upload_handler->setFileSystem(SD_MMC);
                             request->send(200, "text/plain", "SD");
                         }
                         else {
@@ -397,7 +397,7 @@ void beginFileServer(bool for_TF)
                         }
                     }
                     else {   
-                        spiffs_upload_handler->setFileSystem(SD);
+                        spiffs_upload_handler->setFileSystem(SD_MMC);
                         request->send(200, "text/plain", "SD");
                     }
                 } else {
@@ -420,9 +420,9 @@ void beginFileServer(bool for_TF)
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
-        Serial.println("Error setting up MDNS responder!");
+        Serial0.println("Error setting up MDNS responder!");
 
-    Serial.println("File Server started");
+    Serial0.println("File Server started");
     serverRunning = true;
     hal.can_sleep = false;
 }
@@ -569,7 +569,7 @@ void beginWebServer()
 
     server.on("/conf", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                Serial.println(request->getParam("json", true, false)->value());
+                Serial0.println(request->getParam("json", true, false)->value());
                                 deserializeJson(config, request->getParam(0)->value());
                                 request->send(200, "text/plain", "OK");
                                 hal.saveConfig(); });
@@ -587,7 +587,7 @@ void beginWebServer()
                                     if (!peripherals.isSDLoaded()) {
                                         peripherals.load(PERIPHERALS_SD_BIT);
                                         if (peripherals.isSDLoaded()) {
-                                            spiffs_upload_handler->setFileSystem(SD);
+                                            spiffs_upload_handler->setFileSystem(SD_MMC);
                                             request->send(200, "text/plain", "SD");
                                         }
                                         else {
@@ -600,7 +600,7 @@ void beginWebServer()
                                         }
                                     }
                                     else {   
-                                        spiffs_upload_handler->setFileSystem(SD);
+                                        spiffs_upload_handler->setFileSystem(SD_MMC);
                                         request->send(200, "text/plain", "SD");
                                     }
                                 } else {
@@ -633,7 +633,7 @@ void beginWebServer()
     {
         if (!peripherals.isSDLoaded())
             peripherals.load(PERIPHERALS_SD_BIT);
-        spiffs_upload_handler = new SPIFFSEditor(SD);
+        spiffs_upload_handler = new SPIFFSEditor(SD_MMC);
     }
     else
     {
@@ -651,8 +651,8 @@ void beginWebServer()
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
-        Serial.println("Error setting up MDNS responder!");
-    Serial.println("HTTP server started");
+        Serial0.println("Error setting up MDNS responder!");
+    Serial0.println("HTTP server started");
     serverRunning = true;
     hal.can_sleep = false;
 }

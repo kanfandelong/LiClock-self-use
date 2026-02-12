@@ -1,5 +1,5 @@
 #include "AppManager.h"
-#include <rtc_wdt.h>
+// #include <rtc_wdt.h>
 static const uint8_t ebook_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x03,
@@ -110,7 +110,7 @@ static void appebook_exit()
     }
     // hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
     app.ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
-    Serial.printf("退出电子书，当前页：%d\n", currentPage);
+    Serial0.printf("退出电子书，当前页：%d\n", currentPage);
     currentPage = -1;
     ebook_run = false;
 }
@@ -152,14 +152,14 @@ void AppEBook::set()
 
 void AppEBook::setup()
 {
-    esp_task_wdt_init(portMAX_DELAY, false);
-    rtc_wdt_protect_off();
-    // rtc_wdt_set_length_of_reset_signal(RTC_WDT_SYS_RESET_SIG, RTC_WDT_LENGTH_3_2us);
-    // rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_INTERRUPT);
-    // rtc_wdt_set_time(RTC_WDT_STAGE0, 30000); // 30秒超时
-    // rtc_wdt_enable();
-    rtc_wdt_disable();
-    rtc_wdt_protect_on();
+    // esp_task_wdt_init(portMAX_DELAY, false);
+    // rtc_wdt_protect_off();
+    // // rtc_wdt_set_length_of_reset_signal(RTC_WDT_SYS_RESET_SIG, RTC_WDT_LENGTH_3_2us);
+    // // rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_INTERRUPT);
+    // // rtc_wdt_set_time(RTC_WDT_STAGE0, 30000); // 30秒超时
+    // // rtc_wdt_enable();
+    // rtc_wdt_disable();
+    // rtc_wdt_protect_on();
     bool page_changed = false;
     ebook_nvs.begin("ebook");
     app.exit = appebook_exit;
@@ -293,7 +293,7 @@ void AppEBook::setup()
             if (hal.btn_activelow)
             {
                 esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0);
-                esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ALL_LOW);
+                esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW);
                 gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
             }
             else
@@ -381,7 +381,7 @@ bool AppEBook::indexcode_1()
     indexFileHandle = fopen(indexname.c_str(), "wb");
     if (indexFileHandle == NULL)
     {
-        Serial.println("打开索引文件失败");
+        Serial0.println("打开索引文件失败");
         GUI::msgbox("打开索引文件失败", indexname.c_str());
         return false;
     }
@@ -393,7 +393,7 @@ bool AppEBook::indexcode_1()
     // 检查是否为 BOM 头
     if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
     {
-        Serial.println("File starts with UTF-8 BOM");
+        Serial0.println("File starts with UTF-8 BOM");
         fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
     }
     else
@@ -558,7 +558,7 @@ bool AppEBook::indexcode_2()
     indexFileHandle = fopen(indexname.c_str(), "wb");
     if (indexFileHandle == NULL)
     {
-        Serial.println("打开索引文件失败");
+        Serial0.println("打开索引文件失败");
         GUI::msgbox("打开索引文件失败", indexname.c_str());
         return false;
     }
@@ -570,7 +570,7 @@ bool AppEBook::indexcode_2()
     // 检查是否为 BOM 头
     if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
     {
-        Serial.println("File starts with UTF-8 BOM");
+        Serial0.println("File starts with UTF-8 BOM");
         fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
     }
     else
@@ -997,7 +997,7 @@ bool AppEBook::indexcode_3()
                             {
                                 if (file_fs_sd)
                                 {
-                                    indexesFile = SD.open(indexesName, FILE_APPEND);
+                                    indexesFile = SD_MMC.open(indexesName, FILE_APPEND);
                                 }
                                 else
                                 {
@@ -1028,9 +1028,9 @@ bool AppEBook::indexcode_3()
                 log_i("文件名称：%s 索引进度：%0.2f%%", currentFilename, shengyu_float);
                 last = millis();
             }
-            // Serial.println("写入索引文件");
+            // Serial0.println("写入索引文件");
             // }
-            // Serial.print("第"); Serial.print(pageCount); Serial.print("页，页首位置："); Serial.println(yswz_uint32);
+            // Serial0.print("第"); Serial0.print(pageCount); Serial0.print("页，页首位置："); Serial0.println(yswz_uint32);
         }
 
         c = txtFile.read();                          // 读取一个字节
@@ -1183,7 +1183,7 @@ bool AppEBook::indexcode_3()
     //     {
     //         if (file_fs_sd)
     //         {
-    //             indexesFile = SD.open(indexesName, FILE_APPEND);
+    //             indexesFile = SD_MMC.open(indexesName, FILE_APPEND);
     //         }
     //         else
     //         {
@@ -1200,7 +1200,7 @@ bool AppEBook::indexcode_3()
     //     if (!indexesFile)
     //     {
     //         if (file_fs_sd)
-    //             indexesFile = SD.open(indexesName, FILE_APPEND);
+    //             indexesFile = SD_MMC.open(indexesName, FILE_APPEND);
     //         else
     //             indexesFile = LittleFS.open(indexesName, "a");
     //     }
@@ -1218,8 +1218,8 @@ bool AppEBook::indexcode_3()
 
     indexesFile = hal.open(indexesName, "r", true);
     uint32_t indexes_size = indexesFile.size();
-    // Serial.print("yswz_count：");
-    // Serial.println(yswz_count);
+    // Serial0.print("yswz_count：");
+    // Serial0.println(yswz_count);
     info("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 2));
     info("索引文件大小：%lu", indexes_size);
 
@@ -1250,7 +1250,7 @@ bool AppEBook::indexcode_3()
         // if (strncmp(currentFilename, "/littlefs/", 10) == 0)
         //     LittleFS.remove(indexesName);
         // else if (strncmp(currentFilename, "/sd/", 4) == 0)
-        //     SD.remove(indexesName);
+        //     SD_MMC.remove(indexesName);
         GUI::msgbox("警告", "索引文件大小与预期大小不符", 5);
     }
 
@@ -1349,7 +1349,7 @@ bool AppEBook::indexcode_ttf()
                             {
                                 if (file_fs_sd)
                                 {
-                                    indexesFile = SD.open(indexesName, FILE_APPEND);
+                                    indexesFile = SD_MMC.open(indexesName, FILE_APPEND);
                                 }
                                 else
                                 {
@@ -1380,9 +1380,9 @@ bool AppEBook::indexcode_ttf()
                 log_i("文件名称：%s 索引进度：%0.2f%%", currentFilename, shengyu_float);
                 last = millis();
             }
-            // Serial.println("写入索引文件");
+            // Serial0.println("写入索引文件");
             // }
-            // Serial.print("第"); Serial.print(pageCount); Serial.print("页，页首位置："); Serial.println(yswz_uint32);
+            // Serial0.print("第"); Serial0.print(pageCount); Serial0.print("页，页首位置："); Serial0.println(yswz_uint32);
         }
 
         c = txtFile.read();                          // 读取一个字节
@@ -1535,7 +1535,7 @@ bool AppEBook::indexcode_ttf()
     //     {
     //         if (file_fs_sd)
     //         {
-    //             indexesFile = SD.open(indexesName, FILE_APPEND);
+    //             indexesFile = SD_MMC.open(indexesName, FILE_APPEND);
     //         }
     //         else
     //         {
@@ -1552,7 +1552,7 @@ bool AppEBook::indexcode_ttf()
     //     if (!indexesFile)
     //     {
     //         if (file_fs_sd)
-    //             indexesFile = SD.open(indexesName, FILE_APPEND);
+    //             indexesFile = SD_MMC.open(indexesName, FILE_APPEND);
     //         else
     //             indexesFile = LittleFS.open(indexesName, "a");
     //     }
@@ -1566,8 +1566,8 @@ bool AppEBook::indexcode_ttf()
 
     indexesFile = hal.open(indexesName, "r", true);
     uint32_t indexes_size = indexesFile.size();
-    // Serial.print("yswz_count：");
-    // Serial.println(yswz_count);
+    // Serial0.print("yswz_count：");
+    // Serial0.println(yswz_count);
     info("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 1));
     info("索引文件大小：%lu", indexes_size);
 
@@ -1598,7 +1598,7 @@ bool AppEBook::indexcode_ttf()
         // if (strncmp(currentFilename, "/littlefs/", 10) == 0)
         //     LittleFS.remove(indexesName);
         // else if (strncmp(currentFilename, "/sd/", 4) == 0)
-        //     SD.remove(indexesName);
+        //     SD_MMC.remove(indexesName);
         GUI::msgbox("警告", "索引文件大小与预期大小不符", 5);
     }
 
@@ -1763,12 +1763,12 @@ bool AppEBook::gotoPage(uint32_t page)
         {
             // uint32_t gbwz = 0;    // 计算上一页的页首位置
             // String gbwz_str = ""; // 光标位置String
-            // Serial.print("当前页1："); Serial.println(pageCurrent);
+            // Serial0.print("当前页1："); Serial0.println(pageCurrent);
             // 计算上一页的页首位置
             // 因为第一页不需要记录所以要减1，因为我要的是上一页所以再减1
             // gbwz = (page + 1) * 7 - 7;
             // gbwz = (page + 1) * 4 - 4;
-            // Serial.print("gbwz："); Serial.println(gbwz);
+            // Serial0.print("gbwz："); Serial0.println(gbwz);
             // 打开索引，寻找上一页的页首位置
             indexesFile.seek((page - 1) * 4, SeekSet);
             // 获取索引的数据
@@ -1833,7 +1833,7 @@ bool AppEBook::draw_page1()
         // 检查是否为 BOM 头
         if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
         {
-            Serial.println("File starts with UTF-8 BOM");
+            Serial0.println("File starts with UTF-8 BOM");
             fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
         }
         else
@@ -1978,7 +1978,7 @@ bool AppEBook::draw_page2()
     // 检查是否为 BOM 头
     if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
     {
-        Serial.println("File starts with UTF-8 BOM");
+        Serial0.println("File starts with UTF-8 BOM");
         fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
     }
     else
@@ -2037,7 +2037,7 @@ bool AppEBook::draw_page2()
             }
             else
             {
-                Serial.println("非预期的UTF8编码");
+                Serial0.println("非预期的UTF8编码");
                 warn("绘制文本时索引错误，可能文件非UTF-8编码");
                 return false;
                 break;
@@ -2224,19 +2224,19 @@ bool AppEBook::draw_page3()
 
         /*if (line == 4)
           {
-          Serial.println("");
-          Serial.println(txt[line]);
-          Serial.print("ch_count:"); Serial.println(ch_count);
-          Serial.print("en_count:"); Serial.println(en_count);
-          Serial.print("预计像素长度:"); Serial.println(StringLength);
-          Serial.print("实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+          Serial0.println("");
+          Serial0.println(txt[line]);
+          Serial0.print("ch_count:"); Serial0.println(ch_count);
+          Serial0.print("en_count:"); Serial0.println(en_count);
+          Serial0.print("预计像素长度:"); Serial0.println(StringLength);
+          Serial0.print("实际像素长度:"); Serial0.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
         if (StringLength >= (mode ? 115 : 283)) // 检查是否已填满屏幕 283
         {
-            // Serial.println("");
-            // Serial.print("行"); Serial.print(line); Serial.print(" 预计像素长度:"); Serial.println(StringLength);
-            // Serial.print("行"); Serial.print(line); Serial.print(" 实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+            // Serial0.println("");
+            // Serial0.print("行"); Serial0.print(line); Serial0.print(" 预计像素长度:"); Serial0.println(StringLength);
+            // Serial0.print("行"); Serial0.print(line); Serial0.print(" 实际像素长度:"); Serial0.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
             if (asciiState == 0) // 最后一个字符是中文，直接换行
             {
                 line++;
@@ -2249,10 +2249,10 @@ bool AppEBook::draw_page3()
                 txtFile.seek(-1, SeekCur); // 往回移
                 int8_t cz = (mode ? 126 : 294) - StringLength;
                 int8_t t_length = getCharLength(t);
-                /*Serial.print("字符t:"); Serial.println(t);
-                  Serial.print("字符t:"); Serial.println(t, HEX);
-                  Serial.print("t长度:"); Serial.println(t_length);
-                  Serial.print("差值:"); Serial.println(cz);*/
+                /*Serial0.print("字符t:"); Serial0.println(t);
+                  Serial0.print("字符t:"); Serial0.println(t, HEX);
+                  Serial0.print("t长度:"); Serial0.println(t_length);
+                  Serial0.print("差值:"); Serial0.println(cz);*/
                 byte a = B11100000;
                 byte b = t & a;
                 if (b == B11100000 || b == B11000000) // 中文 ascii扩展
@@ -2260,19 +2260,19 @@ bool AppEBook::draw_page3()
                     line++;
                     en_count = 0;
                     ch_count = 0;
-                    // Serial.println("测试2");
+                    // Serial0.println("测试2");
                 }
                 else if (t_length > cz)
                 {
                     line++;
                     en_count = 0;
                     ch_count = 0;
-                    // Serial.println("测试3");
+                    // Serial0.println("测试3");
                 }
             }
         }
     }
-    // for (uint8_t i = 0; i < 8; i++) Serial.println(txt[i]); //串口输出内容
+    // for (uint8_t i = 0; i < 8; i++) Serial0.println(txt[i]); //串口输出内容
     if (hal.pref.getBool(hal.get_char_sha_key("反色显示")))
     {
         display.clearScreen(TFT_BLACK);
@@ -2537,19 +2537,19 @@ begin:
 
         /*if (line == 4)
           {
-          Serial.println("");
-          Serial.println(txt[line]);
-          Serial.print("ch_count:"); Serial.println(ch_count);
-          Serial.print("en_count:"); Serial.println(en_count);
-          Serial.print("预计像素长度:"); Serial.println(StringLength);
-          Serial.print("实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+          Serial0.println("");
+          Serial0.println(txt[line]);
+          Serial0.print("ch_count:"); Serial0.println(ch_count);
+          Serial0.print("en_count:"); Serial0.println(en_count);
+          Serial0.print("预计像素长度:"); Serial0.println(StringLength);
+          Serial0.print("实际像素长度:"); Serial0.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
         if (StringLength >= 283) // 检查是否已填满屏幕 283
         {
-            // Serial.println("");
-            // Serial.print("行"); Serial.print(line); Serial.print(" 预计像素长度:"); Serial.println(StringLength);
-            // Serial.print("行"); Serial.print(line); Serial.print(" 实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+            // Serial0.println("");
+            // Serial0.print("行"); Serial0.print(line); Serial0.print(" 预计像素长度:"); Serial0.println(StringLength);
+            // Serial0.print("行"); Serial0.print(line); Serial0.print(" 实际像素长度:"); Serial0.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
             if (asciiState == 0) // 最后一个字符是中文，直接换行
             {
                 line++;
@@ -2562,10 +2562,10 @@ begin:
                 txtFile.seek(-1, SeekCur); // 往回移
                 int8_t cz = 294 - StringLength;
                 int8_t t_length = getCharLength(t);
-                /*Serial.print("字符t:"); Serial.println(t);
-                  Serial.print("字符t:"); Serial.println(t, HEX);
-                  Serial.print("t长度:"); Serial.println(t_length);
-                  Serial.print("差值:"); Serial.println(cz);*/
+                /*Serial0.print("字符t:"); Serial0.println(t);
+                  Serial0.print("字符t:"); Serial0.println(t, HEX);
+                  Serial0.print("t长度:"); Serial0.println(t_length);
+                  Serial0.print("差值:"); Serial0.println(cz);*/
                 byte a = B11100000;
                 byte b = t & a;
                 if (b == B11100000 || b == B11000000) // 中文 ascii扩展

@@ -422,7 +422,7 @@ void AppSettings::menu_network()
             File configFile = LittleFS.open(wifi_config_file);
             if (!configFile)
             {
-                Serial.println("Failed to open file for reading");
+                Serial0.println("Failed to open file for reading");
             }
 
             StaticJsonDocument<1024> wifi_list;
@@ -494,7 +494,7 @@ void AppSettings::menu_network()
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00};
             WiFi.mode(WIFI_STA);
             hal.searchWiFi();
-            Serial.printf("搜索到的个数:%d", hal.numNetworks);
+            Serial0.printf("搜索到的个数:%d", hal.numNetworks);
             char winfo[hal.numNetworks][64];
             int rssis[hal.numNetworks];
             char _ssid[hal.numNetworks][64];
@@ -668,7 +668,7 @@ void AppSettings::menu_network()
                 QRCode qrcode;
                 uint8_t qrcodeData[qrcode_getBufferSize(7)];
                 qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-                Serial.println(qrcode.size);
+                Serial0.println(qrcode.size);
                 for (uint8_t y = 0; y < qrcode.size; y++)
                 {
                     // Each horizontal module
@@ -736,7 +736,7 @@ void AppSettings::menu_network()
             QRCode qrcode;
             uint8_t qrcodeData[qrcode_getBufferSize(7)];
             qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-            Serial.println(qrcode.size);
+            Serial0.println(qrcode.size);
             for (uint8_t y = 0; y < qrcode.size; y++)
             {
                 // Each horizontal module
@@ -783,8 +783,8 @@ void AppSettings::menu_network()
             uint8_t qrcodeData[2][qrcode_getBufferSize(7)];
             qrcode_initText(&qrcode1, qrcodeData[0], 6, 2, str1.c_str());
             qrcode_initText(&qrcode2, qrcodeData[1], 6, 2, str2.c_str());
-            Serial.println(qrcode1.size);
-            Serial.println(qrcode2.size);
+            Serial0.println(qrcode1.size);
+            Serial0.println(qrcode2.size);
             for (uint8_t y = 0; y < qrcode1.size; y++)
             {
                 // Each horizontal module
@@ -1119,13 +1119,13 @@ void AppSettings::menu_peripherals()
             {
                 config[TFmode] = "1";
                 hal.saveConfig();
-                Serial.printf("修改TF卡电源控制,当卸载后才断电");
+                Serial0.printf("修改TF卡电源控制,当卸载后才断电");
             }
             else
             {
                 config[TFmode] = "0";
                 hal.saveConfig();
-                Serial.printf("修改TF卡电源控制,休眠后就断电");
+                Serial0.printf("修改TF卡电源控制,休眠后就断电");
             }
             break;
         case 5:
@@ -1260,7 +1260,7 @@ void AppSettings::menu_system()
                 AppBase *tmp = appManager.appSelector(true);
                 if (tmp)
                 {
-                    Serial.println(tmp->name);
+                    Serial0.println(tmp->name);
                     if (GUI::msgbox_yn("警告", "选择不兼容的App可能会导致无法进入菜单，是否确认？") == true)
                     {
                         if (strcmp(tmp->name, "clock") == 0)
@@ -1380,16 +1380,16 @@ void AppSettings::menu_system()
             if (freq != new_freq)
             {
                 bool cpuset = setCpuFrequencyMhz(new_freq);
-                Serial.begin(115200);
-                Serial.printf("CpuFreq: %dMHZ -> %dMHZ ......", freq, new_freq);
+                Serial0.begin(115200);
+                Serial0.printf("CpuFreq: %dMHZ -> %dMHZ ......", freq, new_freq);
                 if (cpuset)
                 {
-                    Serial.print("ok\n");
+                    Serial0.print("ok\n");
                     GUI::msgbox("提示", "频率修改成功");
                 }
                 else
                 {
-                    Serial.print("err\n");
+                    Serial0.print("err\n");
                     GUI::msgbox("错误", "频率未能修改");
                     error("CPU频率修改失败,设置的值:%d", new_freq);
                 }
@@ -1430,7 +1430,7 @@ void AppSettings::menu_system()
             bool file_true = true;
             if (!cfufile)
             {
-                Serial.println("Failed to open cfu file");
+                Serial0.println("Failed to open cfu file");
                 file_true = false;
             }
             deserializeJson(cfu, cfufile);
@@ -1505,7 +1505,7 @@ void AppSettings::menu_system()
                 }
                 else
                 {
-                    Serial.printf("备份成功，大小：%d字节\n", written);
+                    Serial0.printf("备份成功，大小：%d字节\n", written);
                     GUI::info_msgbox("操作成功", "已创建备份文件nvs.bin");
                 }
             }
@@ -1830,7 +1830,7 @@ void AppSettings::menu_DS3231()
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
             sprintf(buf, "20%d年%d月%d日 星期%d %d:%d:%d", Srtc.getYear(), Srtc.getMonth(), Srtc.getDate(), Srtc.getDoW(), Srtc.getHour(), Srtc.getMinute(), Srtc.getSecond());
             xSemaphoreGive(peripherals.i2cMutex);
-            Serial.println(buf);
+            Serial0.println(buf);
             GUI::msgbox("DS3231时间", buf);
         }
         break;
@@ -1950,25 +1950,25 @@ void AppSettings::tfcard_info()
     display.clearScreen();
     GUI::drawWindowsWithTitle("TF卡信息", 0, 0, 296, 128);
     // u8g2Fonts.setCursor(5,30);
-    // u8g2Fonts.printf("类型：%s",SD.cardType());
+    // u8g2Fonts.printf("类型：%s",SD_MMC.cardType());
     if (peripherals.isSDLoaded())
     {
         u8g2Fonts.setCursor(5, 30);
-        float cardSizeMB = (float)SD.cardSize() / 1024.0 / 1024.0;
-        u8g2Fonts.printf("大小：%uBytes %.2fMB ", SD.cardSize(), cardSizeMB);
-        u8g2Fonts.setCursor(5, 45);
-        u8g2Fonts.printf("扇区数量：%u", SD.numSectors());
-        u8g2Fonts.setCursor(5, 60);
-        u8g2Fonts.printf("扇区大小：%u Bytes", SD.sectorSize());
+        float cardSizeMB = (float)SD_MMC.cardSize() / 1024.0 / 1024.0;
+        u8g2Fonts.printf("大小：%uBytes %.2fMB ", SD_MMC.cardSize(), cardSizeMB);
+        // u8g2Fonts.setCursor(5, 45);
+        // u8g2Fonts.printf("扇区数量：%u", SD_MMC.numSectors());
+        // u8g2Fonts.setCursor(5, 60);
+        // u8g2Fonts.printf("扇区大小：%u Bytes", SD_MMC.sectorSize());
         u8g2Fonts.setCursor(5, 75);
-        float cardSizeuse = (float)SD.usedBytes() / 1024.0 / 1024.0;
-        float cardSizetotal = (float)SD.totalBytes() / 1024.0 / 1024.0;
+        float cardSizeuse = (float)SD_MMC.usedBytes() / 1024.0 / 1024.0;
+        float cardSizetotal = (float)SD_MMC.totalBytes() / 1024.0 / 1024.0;
         u8g2Fonts.printf("空间使用:%0.2f%%(%.2f/%.2f)MB", cardSizeuse * 100.0 / cardSizetotal, cardSizeuse, cardSizetotal);
         u8g2Fonts.setCursor(5, 90);
         u8g2Fonts.printf("可用空间：%.2fMB", cardSizetotal - cardSizeuse);
         u8g2Fonts.setCursor(5, 105);
         char tf_type[20];
-        sdcard_type_t tf_type_num = SD.cardType();
+        sdcard_type_t tf_type_num = SD_MMC.cardType();
         switch (tf_type_num)
         {
         case CARD_NONE:

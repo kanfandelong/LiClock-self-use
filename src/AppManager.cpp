@@ -648,19 +648,19 @@ void AppManager::clearTimer()
 void AppManager::attachLocalEvent()
 {
     hal.detachAllButtonEvents();
-    Serial.println("正在更新按键事件");
+    Serial0.println("正在更新按键事件");
     hal.btnc.attachLongPressStart([](void *scope)
                                   {if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) ((AppManager *)scope)->method = APPMANAGER_SHOWAPPSELECTOR; },
                                   this);
     hal.btnl.attachLongPressStart([](void *scope)
-                                  { if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) {((AppManager *)scope)->method = APPMANAGER_GOBACK; Serial.println("Back."); } },
+                                  { if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) {((AppManager *)scope)->method = APPMANAGER_GOBACK; Serial0.println("Back."); } },
                                   this);
 }
 void AppManager::loadLuaApps()
 {
     if (luaLoaded == false)
     {
-        Serial.println("延迟加载Lua APP列表");
+        Serial0.println("延迟加载Lua APP列表");
         searchForLuaAPP();
         luaLoaded = true;
     }
@@ -675,8 +675,8 @@ bool AppManager::recover(AppBase *home)
 {
     if (latest_appname[0] != 0)
     {
-        Serial.print("重新打开上个APP：");
-        Serial.println(latest_appname);
+        Serial0.print("重新打开上个APP：");
+        Serial0.println(latest_appname);
         if (home != NULL)
             appStack.push(home);
         else
@@ -685,7 +685,7 @@ bool AppManager::recover(AppBase *home)
         {
             if (strcmp(home->name, "clockonly") == 0)
             {
-                Serial.println("已设置离线模式，此App被替换为clockonly");
+                Serial0.println("已设置离线模式，此App被替换为clockonly");
                 gotoApp("clockonly");
                 return true;
             }

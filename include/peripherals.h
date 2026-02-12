@@ -6,7 +6,7 @@
 #include <SparkFunBQ27441.h>
 #include <SHT85.h>
 #include <Wire.h>
-#include <SD.h>
+#include <SD_MMC.h>
 #include <DS3231.h>
 #define PERIPHERALS_SD_BIT 1
 #define PERIPHERALS_AHT20_BIT 2

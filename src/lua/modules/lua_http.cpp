@@ -22,7 +22,7 @@ int lua_http_begin(lua_State *L)
     }
     if(url[4] == 's')
     {
-        Serial.printf("使用https\n");
+        Serial0.printf("使用https\n");
         last_is_https = true;
         lua_https.begin(url);
     }

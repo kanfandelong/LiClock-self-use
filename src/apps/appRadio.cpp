@@ -160,7 +160,7 @@ void AppRadio::setup()
         rda.setSeekThreshold(50);    // Sets RSSI Seek Threshold (0 to 127)
     }
     rssi = rda.getRssi();
-    Serial.printf("frequency: %d, rssi: %d, volume: %d\n", frequency, rssi, volume);
+    Serial0.printf("frequency: %d, rssi: %d, volume: %d\n", frequency, rssi, volume);
     drawRadioUI(true);
     bool end = false;
     while (!end)

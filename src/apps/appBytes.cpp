@@ -4,8 +4,8 @@
 
 #define LOG(fmt, ...) \
   do { \
-    Serial.printf("[%s:%d] ", __FILE__, __LINE__); \
-    Serial.printf(fmt, ##__VA_ARGS__); \
+    Serial0.printf("[%s:%d] ", __FILE__, __LINE__); \
+    Serial0.printf(fmt, ##__VA_ARGS__); \
   } while (0)
 
 static const menu_item Bytes_menu[] =
@@ -152,7 +152,7 @@ void AppBytes::xianshi()
     File r;
     if (strncmp(textname, "/sd/", 4) == 0)
     {
-        r = SD.open(remove_path_prefix(textname,"/sd"), "r");
+        r = SD_MMC.open(remove_path_prefix(textname,"/sd"), "r");
     }
     else if (strncmp(textname, "/littlefs/", 10) == 0)
     {
@@ -192,7 +192,7 @@ void AppBytes::ceshi()
     File r;
     if (strncmp(textname, "/sd/", 4) == 0)
     {
-        r = SD.open(remove_path_prefix(textname,"/sd"), "r");
+        r = SD_MMC.open(remove_path_prefix(textname,"/sd"), "r");
     }
     else if (strncmp(textname, "/littlefs/", 10) == 0)
     {
@@ -265,7 +265,7 @@ void AppBytes::menu()
         File r;
         if (strncmp(textname, "/sd/", 4) == 0)
         {
-            r = SD.open(remove_path_prefix(textname,"/sd"), "r");
+            r = SD_MMC.open(remove_path_prefix(textname,"/sd"), "r");
         }
         else if (strncmp(textname, "/littlefs/", 10) == 0)
         {
@@ -332,7 +332,7 @@ void AppBytes::shezhi()
     File r;
     if (strncmp(textname, "/sd/", 4) == 0)
     {
-        r = SD.open(remove_path_prefix(textname,"/sd"), "r");
+        r = SD_MMC.open(remove_path_prefix(textname,"/sd"), "r");
     }
     else if (strncmp(textname, "/littlefs/", 10) == 0)
     {
@@ -369,7 +369,7 @@ void AppBytes::shuzi()
         File f;
         if (strncmp(textname, "/sd/", 4) == 0)
         {
-            f = SD.open(remove_path_prefix(textname,"/sd"), "r");
+            f = SD_MMC.open(remove_path_prefix(textname,"/sd"), "r");
         }
         else if (strncmp(textname, "/littlefs/", 10) == 0)
         {
@@ -397,7 +397,7 @@ void AppBytes::shuzi()
         File f;
         if (strncmp(textname, "/sd/", 4) == 0)
         {
-            f = SD.open(remove_path_prefix(textname,"/sd"), GUI::englishInput("文件打开模式:a,r+,w+,a+"));
+            f = SD_MMC.open(remove_path_prefix(textname,"/sd"), GUI::englishInput("文件打开模式:a,r+,w+,a+"));
         }
         else if (strncmp(textname, "/littlefs/", 10) == 0)
         {
@@ -428,7 +428,7 @@ void AppBytes::shuzi()
         File r;
         if (strncmp(textname, "/sd/", 4) == 0)
         {
-            r = SD.open(remove_path_prefix(textname,"/sd"), "r");
+            r = SD_MMC.open(remove_path_prefix(textname,"/sd"), "r");
         }
         else if (strncmp(textname, "/littlefs/", 10) == 0)
         {

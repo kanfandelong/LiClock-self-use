@@ -138,7 +138,7 @@ void distanceCalculationTask(void *parameter)
             }
             else if (millis() - signalLostTime > signalLostThreshold)
             {
-                // Serial.println("GPS signal lost for too long, using speed estimation.");
+                // Serial0.println("GPS signal lost for too long, using speed estimation.");
                 isRunning = false; // 暂停正常距离计算，启用速度预估
             }
 
@@ -161,11 +161,11 @@ void distanceCalculationTask(void *parameter)
                 previousLat = estimatedLat;
                 previousLng = estimatedLng;
 
-                // Serial.print("Estimated Distance: ");
-                // Serial.print(calculatedDistance, 6);
-                // Serial.print(" km, Total Distance: ");
-                // Serial.print(totalDistance, 6);
-                // Serial.println(" km");
+                // Serial0.print("Estimated Distance: ");
+                // Serial0.print(calculatedDistance, 6);
+                // Serial0.print(" km, Total Distance: ");
+                // Serial0.print(totalDistance, 6);
+                // Serial0.println(" km");
             }
         }
         else
@@ -174,7 +174,7 @@ void distanceCalculationTask(void *parameter)
             {
                 gpsSignalLost = false;
                 isRunning = true; // 恢复正常距离计算
-                                  // Serial.println("GPS signal restored!");
+                                  // Serial0.println("GPS signal restored!");
             }
 
             // 如果任务正在运行，计算距离
@@ -187,11 +187,11 @@ void distanceCalculationTask(void *parameter)
                 {
                     double distance = app.calculateDistance(previousLat, previousLng, currentLat, currentLng);
                     totalDistance += distance;
-                    //   Serial.print("Distance: ");
-                    //   Serial.print(distance, 6);
-                    //   Serial.print(" km, Total Distance: ");
-                    //   Serial.print(totalDistance, 6);
-                    //   Serial.println(" km");
+                    //   Serial0.print("Distance: ");
+                    //   Serial0.print(distance, 6);
+                    //   Serial0.print(" km, Total Distance: ");
+                    //   Serial0.print(totalDistance, 6);
+                    //   Serial0.println(" km");
                 }
 
                 // 更新上一个点的经纬度

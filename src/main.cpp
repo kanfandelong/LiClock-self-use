@@ -69,8 +69,8 @@ void setup()
 
     alarms.load();
     alarms.check();
-    Serial.print("当前CPU频率：");
-    Serial.println(ESP.getCpuFreqMHz());
+    Serial0.print("当前CPU频率：");
+    Serial0.println(ESP.getCpuFreqMHz());
     log_i("启动appManager...");
     xTaskCreate(task_appManager, "appManager", 8192, NULL, 3, NULL);
     if (hal.pref.getInt("oobe", 0) <= 2)

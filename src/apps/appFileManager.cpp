@@ -547,7 +547,7 @@ file_info:
                     {
                         if (strncmp(filename, "/sd/", 4) == 0)
                         {
-                            // OK = SD.rmdir(directoryname);
+                            // OK = SD_MMC.rmdir(directoryname);
                             String dirname = "/sd" + String(directoryname);
                             dirname[dirname.length() - 1] = '\0';
                             hal.rm_rf(dirname.c_str());
@@ -573,9 +573,9 @@ file_info:
             {
                 LittleFS.mkdir("/userdat");
             }
-            if (SD.exists("/userdat") == false)
+            if (SD_MMC.exists("/userdat") == false)
             {
-                SD.mkdir("/userdat");
+                SD_MMC.mkdir("/userdat");
             }
             selctwenjianjia();
             File newfile, file;
@@ -586,13 +586,13 @@ file_info:
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
-                    // Serial.println("[文件管理]file无法打开文件");
+                    // Serial0.println("[文件管理]file无法打开文件");
                     error("无法打开文件%s", filename);
                     break;
                 }
                 if (!newfile)
                 {
-                    // Serial.println("[文件管理]newfile 无法打开文件");
+                    // Serial0.println("[文件管理]newfile 无法打开文件");
                     error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
@@ -624,24 +624,24 @@ file_info:
             }
             else if (strncmp(filename, "/littlefs/", 10) == 0)
             {
-                newfile = SD.open(combinePath(directoryname, getFileName(filename)), "w");
+                newfile = SD_MMC.open(combinePath(directoryname, getFileName(filename)), "w");
                 file = hal.open(filename);
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
-                    // Serial.println("[文件管理]file无法打开文件");
+                    // Serial0.println("[文件管理]file无法打开文件");
                     error("无法打开文件%s", filename);
                 }
                 if (!newfile)
                 {
-                    // Serial.println("[文件管理]newfile 无法打开文件");
+                    // Serial0.println("[文件管理]newfile 无法打开文件");
                     error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                 }
                 unsigned long begin = millis();
                 if (!hal.copy(newfile, file))
                 {
                     GUI::msgbox("提示", "复制失败!");
-                    SD.remove(combinePath(directoryname, getFileName(filename)));
+                    SD_MMC.remove(combinePath(directoryname, getFileName(filename)));
                 }
                 else
                 {
@@ -679,7 +679,7 @@ file_info:
                 }
                 else
                 {
-                    ok = SD.mkdir(newfile);
+                    ok = SD_MMC.mkdir(newfile);
                 }
                 if (!ok)
                 {
@@ -698,7 +698,7 @@ file_info:
                 }
                 else
                 {
-                    f = SD.open(newfile, "w");
+                    f = SD_MMC.open(newfile, "w");
                     f.close();
                 }
             }
@@ -902,7 +902,7 @@ void Appwenjian::openfile()
         /*
         File file;
         if (strncmp(filename, "/sd/", 4) == 0) {
-            file = SD.open(remove_path_prefix(filename,"/sd"),"r");
+            file = SD_MMC.open(remove_path_prefix(filename,"/sd"),"r");
         }
         else if (strncmp(filename, "/littlefs/", 10) == 0) {
             file = LittleFS.open(remove_path_prefix(filename,"/littlefs"),"r");
@@ -1053,7 +1053,7 @@ void Appwenjian::selctwenjianjia(bool _file)
     {
         if (strncmp(filename, "/sd/", 4) == 0)
         {
-            root = SD.open("/");
+            root = SD_MMC.open("/");
             if (!root)
             {
                 log_e("\033[33mroot未打开\033[32m\n");
@@ -1083,7 +1083,7 @@ void Appwenjian::selctwenjianjia(bool _file)
         }
         else if (strncmp(filename, "/littlefs/", 10) == 0)
         {
-            root = SD.open("/");
+            root = SD_MMC.open("/");
             if (!root)
             {
                 log_e("\033[33mroot未打开\033[32m\n");
@@ -1137,7 +1137,7 @@ void Appwenjian::selctwenjianjia(bool _file)
         strcpy(result, fileList[appIdx].title);
         strcat(result, "/");
         directoryname = result;
-        Serial.print(directoryname);*/
+        Serial0.print(directoryname);*/
 
         /*std::string original(fileList[appIdx].title);
         std::string modified = "/" + original + "/";

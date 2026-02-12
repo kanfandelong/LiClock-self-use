@@ -578,8 +578,8 @@ static void player_exit()
     if (hal.bat_info.current.avg < 0)
         hal.pref.putInt("player_power", hal.bat_info.current.avg);
     // is_ran = true;
-    pinMode(25, OUTPUT);
-    pinMode(26, OUTPUT);
+    digitalWrite(PIN_DAC_XSMT, 0);
+    digitalWrite(PIN_DAC_EN, 0);
     hal.pref.putFloat("gain", app.gain);
     int i = 0;
     if (app.titles != nullptr && app.maxSong != 0)
@@ -1718,7 +1718,7 @@ void AppMusicPlayer::bulid_music_list()
             if (is_root)
             {
                 if (!in_littlefs)
-                    root = SD.open("/");
+                    root = SD_MMC.open("/");
                 else
                     root = LittleFS.open("/");
                 log_i("创建音乐列表,从根目录");
@@ -1726,7 +1726,7 @@ void AppMusicPlayer::bulid_music_list()
             else
             {
                 if (!in_littlefs)
-                    root = SD.open(currentDir);
+                    root = SD_MMC.open(currentDir);
                 else
                     root = LittleFS.open(currentDir);
                 // root = hal.open(currentDir);
@@ -2819,7 +2819,7 @@ bool AppMusicPlayer::player_set()
         {
             i2s_output = new AudioOutputI2S(0, 0, 8, apll);
             output = i2s_output;
-            i2s_output->SetPinout(0, 25, 26);
+            i2s_output->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
             i2s_output->SetMclk(false);
             i2s_output->set_ConsumeSample_CB(GetSampleCB);
             if (bits_per_chan)
@@ -2871,13 +2871,13 @@ void initCurveScaling()
  */
 void AppMusicPlayer::setup()
 {
+    digitalWrite(PIN_DAC_EN, 1);
     // display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     hal.cheak_freq(240);
     display.setPowerMode(POWER_MODE_HPM);
     display.clearScreen();
     display.display();
-    pinMode(25, ANALOG);
-    pinMode(26, ANALOG);
+    digitalWrite(PIN_DAC_XSMT, 1);
 
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
     vReal = new float[SAMPLES];

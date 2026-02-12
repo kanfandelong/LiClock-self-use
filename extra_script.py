@@ -40,7 +40,7 @@ SYNC_CONFIGS = [
 BUILD_DIR = "./.pio/build/esp32solo1"
 ELF_STORAGE_DIR = "./elf_versions"
 DATABASE_FILE = "./elf_versions/elf_database.json"
-MAX_VERSIONS = 50
+MAX_VERSIONS = 20
 # ===================
 
 def check_rsync_available():
@@ -409,7 +409,7 @@ def copy_artifacts_to_windows(source, target, env):
     print("[构建后] 复制产物到Windows")
     
     build_dir = env.subst("$BUILD_DIR")
-    windows_build_dir = os.path.join(WINDOWS_BASE_DIR, "build")
+    windows_build_dir = os.path.join(WINDOWS_BASE_DIR, "build/S3")
     
     print(f"  从: {build_dir}")
     print(f"  到: {windows_build_dir}")

@@ -83,7 +83,7 @@ void AppTemp::setup(){
         esp_sleep_enable_timer_wakeup(450000UL);
         if (hal.btn_activelow){
             esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0);
-            esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ALL_LOW);
+            esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW);
             gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
         }else{
             esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);

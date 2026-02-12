@@ -37,11 +37,11 @@ void AppDemoSGP30::setup()
     Ethanol = peripherals.sgp.rawEthanol;
     char datbuf[100];
     sprintf(datbuf, "TVOC: %u ppb\neCO2: %u ppm\nrawH2: %u ppm\nrawEthanol: %u ppm\n", TVOC,eCO2,H2,Ethanol);
-    Serial.printf(datbuf);
+    Serial0.printf(datbuf);
     GUI::msgbox("传感器信息",datbuf);
     peripherals.sgp.softReset();
     xSemaphoreGive(peripherals.i2cMutex);
-    Serial.printf("软复位SGP30，以进入休眠");
+    Serial0.printf("软复位SGP30，以进入休眠");
     appManager.goBack();
 }
 

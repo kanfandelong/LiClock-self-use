@@ -102,8 +102,8 @@ static int gui_menu(lua_State *L)
     const char *title = NULL;
     title = luaL_checkstring(L, 1);
     int len = lua_rawlen(L, 2); // 第二个参数：table，里面是string
-    Serial.print("len=");
-    Serial.println(len);
+    Serial0.print("len=");
+    Serial0.println(len);
     menu_item *options = new menu_item[len + 1];
     for (int i = 0; i < len; i++)
     {

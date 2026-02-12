@@ -115,7 +115,7 @@ int log_printfv(const char *format, va_list arg)
     vsnprintf(buffer, len + 1, format, arg);
     
     // 输出到串口
-    Serial.write(buffer, len);
+    Serial0.write(buffer, len);
     
     // 如果需要写入文件
     if (hal.pref.getBool("sys_log", true))
@@ -163,7 +163,7 @@ void log_write(const char *fmt, ...)
             char temp_buf[128];
             vsnprintf(temp_buf, sizeof(temp_buf), fmt, arg);
             va_end(arg);
-            Serial.print(temp_buf);
+            Serial0.print(temp_buf);
             return;
         }
     }

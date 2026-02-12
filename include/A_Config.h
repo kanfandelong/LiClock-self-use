@@ -37,27 +37,42 @@
 
 #define SCREEN_WIDTH 384
 #define SCREEN_HEIGHT 168
-#define PIN_ADC 33
+#define PIN_ADC 16
 
-#define PIN_BUTTONL 35
-#define PIN_BUTTONC 34
-#define PIN_BUTTONR 39
+#define PIN_BUTTONL 7
+#define PIN_BUTTONC 6
+#define PIN_BUTTONR 5
 
 // #define PIN_RTC_IRQ 25
 // #define PIN_CHARGING 26
 
-#define PIN_RTC_IRQ 36
-#define PIN_CHARGING 32
+#define PIN_RTC_IRQ 4
+#define PIN_CHARGING 15
 
-#define PIN_SDVDD_CTRL 27
-#define PIN_SD_CS 14
-#define PIN_SD_MOSI 12
-#define PIN_SD_SCLK 13
-#define PIN_SD_MISO 15
-#define PIN_SD_CARDDETECT 2
-#define PIN_BUZZER 21
-#define PIN_SDA 23
-#define PIN_SCL 22
+#define PIN_SDVDD_CTRL 8
+#define PIN_SD_CARDDETECT 45
+#define PIN_SD_SCLK 21
+#define PIN_SD_CMD 14
+#define PIN_SD_D0 47
+#define PIN_SD_D1 48
+#define PIN_SD_D2 12
+#define PIN_SD_D3 13
+
+#define PIN_SD_CS PIN_SD_D3
+#define PIN_SD_MOSI PIN_SD_CMD
+#define PIN_SD_MISO PIN_SD_D0
+
+#define PIN_I2S_MCLK 17
+#define PIN_I2S_DOUT 10
+#define PIN_I2S_BCLK 9
+#define PIN_I2S_LRCK 11
+#define PIN_DAC_EN 18
+#define PIN_DAC_FMT 3
+#define PIN_DAC_XSMT 46
+
+#define PIN_BUZZER 42
+#define PIN_SDA 1
+#define PIN_SCL 2
 
 #define wifi_config_file "/System/wifi_config.json"
 

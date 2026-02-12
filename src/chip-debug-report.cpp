@@ -14,47 +14,47 @@ void _printMemCapsInfo(uint32_t caps, const char *caps_str) {
 /** EFUSE_RD_CHIP_PACKAGE : RW; bitpos: [11:9]; default: 0;
  *  Chip package identifier
  */
-#define EFUSE_RD_CHIP_PACKAGE    0x00000007U
-#define EFUSE_RD_CHIP_PACKAGE_M  (EFUSE_RD_CHIP_PACKAGE_V << EFUSE_RD_CHIP_PACKAGE_S)
-#define EFUSE_RD_CHIP_PACKAGE_V  0x00000007U
-#define EFUSE_RD_CHIP_PACKAGE_S  9
-void printPkgVersion(void) {
-  chip_report_printf("  Package           : ");
-#if CONFIG_IDF_TARGET_ESP32
-  uint32_t pkg_ver = REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_PACKAGE);
-  switch (pkg_ver) {
-    case EFUSE_RD_CHIP_VER_PKG_ESP32D0WDR2V3: chip_report_printf("D0WD-R2-V3"); break;
-    case EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6:   chip_report_printf("D0WD-Q6"); break;
-    case EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ5:   chip_report_printf("D0WD-Q5"); break;
-    case EFUSE_RD_CHIP_VER_PKG_ESP32D2WDQ5:   chip_report_printf("D2WD-Q5"); break;
-    case EFUSE_RD_CHIP_VER_PKG_ESP32U4WDH:    chip_report_printf("U4WD-H"); break;
-    case EFUSE_RD_CHIP_VER_PKG_ESP32PICOD4:   chip_report_printf("PICO-D4"); break;
-    case EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302: chip_report_printf("PICO-V3-02"); break;
-  }
-#elif CONFIG_IDF_TARGET_ESP32S2
-  uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SPI_SYS_3_REG, EFUSE_PKG_VERSION);
-  switch (pkg_ver) {
-    case 1:  chip_report_printf("FH16"); break;
-    case 2:  chip_report_printf("FH32"); break;
-    default: chip_report_printf("%lu", pkg_ver); break;
-  }
-#elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6
-  uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SPI_SYS_3_REG, EFUSE_PKG_VERSION);
-  chip_report_printf("%lu", pkg_ver);
-#elif CONFIG_IDF_TARGET_ESP32C2
-  uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_BLK2_DATA1_REG, EFUSE_PKG_VERSION);
-  chip_report_printf("%lu", pkg_ver);
-#elif CONFIG_IDF_TARGET_ESP32H2
-  uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SYS_4_REG, EFUSE_PKG_VERSION);
-  chip_report_printf("%lu", pkg_ver);
-#elif CONFIG_IDF_TARGET_ESP32P4
-  uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SYS_2_REG, EFUSE_PKG_VERSION);
-  chip_report_printf("%lu", pkg_ver);
-#else
-  chip_report_printf("Unknown");
-#endif
-  chip_report_printf("\n");
-}
+// #define EFUSE_RD_CHIP_PACKAGE    0x00000007U
+// #define EFUSE_RD_CHIP_PACKAGE_M  (EFUSE_RD_CHIP_PACKAGE_V << EFUSE_RD_CHIP_PACKAGE_S)
+// #define EFUSE_RD_CHIP_PACKAGE_V  0x00000007U
+// #define EFUSE_RD_CHIP_PACKAGE_S  9
+// void printPkgVersion(void) {
+//   chip_report_printf("  Package           : ");
+// #if CONFIG_IDF_TARGET_ESP32
+//   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_PACKAGE);
+//   switch (pkg_ver) {
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32D0WDR2V3: chip_report_printf("D0WD-R2-V3"); break;
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ6:   chip_report_printf("D0WD-Q6"); break;
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32D0WDQ5:   chip_report_printf("D0WD-Q5"); break;
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32D2WDQ5:   chip_report_printf("D2WD-Q5"); break;
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32U4WDH:    chip_report_printf("U4WD-H"); break;
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32PICOD4:   chip_report_printf("PICO-D4"); break;
+//     case EFUSE_RD_CHIP_VER_PKG_ESP32PICOV302: chip_report_printf("PICO-V3-02"); break;
+//   }
+// #elif CONFIG_IDF_TARGET_ESP32S2
+//   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SPI_SYS_3_REG, EFUSE_PKG_VERSION);
+//   switch (pkg_ver) {
+//     case 1:  chip_report_printf("FH16"); break;
+//     case 2:  chip_report_printf("FH32"); break;
+//     default: chip_report_printf("%lu", pkg_ver); break;
+//   }
+// #elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32C6
+//   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SPI_SYS_3_REG, EFUSE_P);
+//   chip_report_printf("%lu", pkg_ver);
+// #elif CONFIG_IDF_TARGET_ESP32C2
+//   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_BLK2_DATA1_REG, EFUSE_PKG_VERSION);
+//   chip_report_printf("%lu", pkg_ver);
+// #elif CONFIG_IDF_TARGET_ESP32H2
+//   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SYS_4_REG, EFUSE_PKG_VERSION);
+//   chip_report_printf("%lu", pkg_ver);
+// #elif CONFIG_IDF_TARGET_ESP32P4
+//   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_RD_MAC_SYS_2_REG, EFUSE_PKG_VERSION);
+//   chip_report_printf("%lu", pkg_ver);
+// #else
+//   chip_report_printf("Unknown");
+// #endif
+//   chip_report_printf("\n");
+// }
 
 void printChipInfo(void) {
   esp_chip_info_t info;
@@ -274,8 +274,8 @@ void printPerimanInfo(void) {
 
 void printBeforeSetupInfo(void) {
 #if ARDUINO_USB_CDC_ON_BOOT
-  Serial.begin(0);
-  Serial.setDebugOutput(true);
+  Serial0.begin(0);
+  Serial0.setDebugOutput(true);
   uint8_t t = 0;
   while (!Serial && (t++ < 200)) {
     delay(10);  //wait up to 2 seconds for the IDE to connect

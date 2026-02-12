@@ -71,13 +71,13 @@ void AppLBM::setup(){
     File root;
     if (is_root){
         if (!in_littlefs)
-            root = SD.open("/");
+            root = SD_MMC.open("/");
         else
             root = LittleFS.open("/");
     }
     else{
         if (!in_littlefs)
-            root = SD.open(_dir);
+            root = SD_MMC.open(_dir);
         else
             root = LittleFS.open(_dir);
     }
@@ -107,13 +107,13 @@ void AppLBM::setup(){
     }
     if (is_root){
         if (!in_littlefs)
-            root = SD.open("/");
+            root = SD_MMC.open("/");
         else
             root = LittleFS.open("/");
     }
     else{
         if (!in_littlefs)
-            root = SD.open(_dir);
+            root = SD_MMC.open(_dir);
         else
             root = LittleFS.open(_dir);
     }
@@ -127,7 +127,7 @@ void AppLBM::setup(){
             titles[i] = (char *)malloc(strlen(dir.name()) + 1);
             strcpy(titles[i], dir.name());
             i++;
-            Serial.printf("%s\n", dir.name());
+            Serial0.printf("%s\n", dir.name());
         }
         dir.close();
         dir = root.openNextFile();

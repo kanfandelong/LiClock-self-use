@@ -131,7 +131,7 @@ void openLua_simple()
 {
     if (L)
         return;
-    Serial.println("Lua 部分初始化");
+    Serial0.println("Lua 部分初始化");
     L = luaL_newstate();
 }
 
@@ -139,7 +139,7 @@ void openLua()
 {
     if (L)
         return;
-    Serial.println("Lua 初始化");
+    Serial0.println("Lua 初始化");
     L = luaL_newstate();
     luaL_openlibs(L);
     lua_pushcfunction(L, common_delay);

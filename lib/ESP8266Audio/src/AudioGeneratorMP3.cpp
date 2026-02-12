@@ -183,7 +183,7 @@ bool AudioGeneratorMP3::DecodeNextFrame()
   
   nsCountMax = MAD_NSBSAMPLES(&frame->header);
   
-  // 只统计有效比特率
+/*   // 只统计有效比特率
   if (!totalSent && frame->header.bitrate > 0) {
     bitrateSum += (uint64_t)frame->header.bitrate;
     bitrateCount++;
@@ -217,8 +217,8 @@ bool AudioGeneratorMP3::DecodeNextFrame()
     if (bitrateCount >= 400) { // 200帧后认为比特率已稳定
       totalSent = true;
       // log_i("比特率已稳定，基于 %u 帧，平均比特率: %llu bps", bitrateCount, lastAvgBitrate);
-    }
-  }
+    } 
+  }*/
   
   return true;
 }

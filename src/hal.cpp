@@ -12,7 +12,7 @@ File HAL::open(const char *path, const char *mode, const bool create)
     if (strncmp(path, "/sd/", 4) == 0)
     {
         cheak_sd();
-        return SD.open(remove_path_prefix(path, "/sd"), mode, create);
+        return SD_MMC.open(remove_path_prefix(path, "/sd"), mode, create);
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
     {
@@ -34,7 +34,7 @@ bool HAL::exists(const char *path)
     if (strncmp(path, "/sd/", 4) == 0)
     {
         cheak_sd();
-        return SD.exists(remove_path_prefix(path, "/sd"));
+        return SD_MMC.exists(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
     {
@@ -56,7 +56,7 @@ bool HAL::remove(const char *path)
     if (strncmp(path, "/sd/", 4) == 0)
     {
         cheak_sd();
-        return SD.remove(remove_path_prefix(path, "/sd"));
+        return SD_MMC.remove(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
     {
@@ -78,7 +78,7 @@ bool HAL::rename(const char *pathFrom, const char *pathTo)
     if (strncmp(pathFrom, "/sd/", 4) == 0)
     {
         cheak_sd();
-        return SD.rename(remove_path_prefix(pathFrom, "/sd"), pathTo);
+        return SD_MMC.rename(remove_path_prefix(pathFrom, "/sd"), pathTo);
     }
     else if (strncmp(pathFrom, "/littlefs/", 10) == 0)
     {
@@ -100,7 +100,7 @@ bool HAL::mkdir(const char *path)
     if (strncmp(path, "/sd/", 4) == 0)
     {
         cheak_sd();
-        return SD.mkdir(remove_path_prefix(path, "/sd"));
+        return SD_MMC.mkdir(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
     {
@@ -122,7 +122,7 @@ bool HAL::rmdir(const char *path)
     if (strncmp(path, "/sd/", 4) == 0)
     {
         cheak_sd();
-        return SD.rmdir(remove_path_prefix(path, "/sd"));
+        return SD_MMC.rmdir(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
     {
@@ -141,69 +141,69 @@ bool HAL::rmdir(const String &path)
 
 void HAL::printBatteryInfo()
 {
-    Serial.println("\n------ Battery Information ------");
+    Serial0.println("\n------ Battery Information ------");
 
     // 基础信息
-    Serial.print("SOC: ");
-    Serial.print(hal.bat_info.soc);
-    Serial.println("%");
-    Serial.print("SOH: ");
-    Serial.print(hal.bat_info.soh);
-    Serial.println("%");
-    Serial.printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
-    Serial.printf("Voltage: %.3f V\n", hal.bat_info.voltage);
-    Serial.print("Avg Power: ");
-    Serial.print(hal.bat_info.power);
-    Serial.println(" mW");
+    Serial0.print("SOC: ");
+    Serial0.print(hal.bat_info.soc);
+    Serial0.println("%");
+    Serial0.print("SOH: ");
+    Serial0.print(hal.bat_info.soh);
+    Serial0.println("%");
+    Serial0.printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
+    Serial0.printf("Voltage: %.3f V\n", hal.bat_info.voltage);
+    Serial0.print("Avg Power: ");
+    Serial0.print(hal.bat_info.power);
+    Serial0.println(" mW");
 
     // 电流信息
-    Serial.println("\n-- Current --");
-    Serial.print("Average: ");
-    Serial.print(hal.bat_info.current.avg);
-    Serial.println(" mA");
-    Serial.print("Max: ");
-    Serial.print(hal.bat_info.current.max);
-    Serial.println(" mA");
-    Serial.print("Standby: ");
-    Serial.print(hal.bat_info.current.stby);
-    Serial.println(" mA");
+    Serial0.println("\n-- Current --");
+    Serial0.print("Average: ");
+    Serial0.print(hal.bat_info.current.avg);
+    Serial0.println(" mA");
+    Serial0.print("Max: ");
+    Serial0.print(hal.bat_info.current.max);
+    Serial0.println(" mA");
+    Serial0.print("Standby: ");
+    Serial0.print(hal.bat_info.current.stby);
+    Serial0.println(" mA");
 
     // 容量信息
-    Serial.println("\n-- Capacity --");
-    Serial.print("Remaining: ");
-    Serial.print(hal.bat_info.capacity.remain);
-    Serial.println(" mAh");
-    Serial.print("Full: ");
-    Serial.print(hal.bat_info.capacity.full);
-    Serial.println(" mAh");
-    Serial.print("Available: ");
-    Serial.print(hal.bat_info.capacity.avail);
-    Serial.println(" mAh");
-    Serial.print("Available Full: ");
-    Serial.print(hal.bat_info.capacity.avail_full);
-    Serial.println(" mAh");
-    Serial.print("Remaining Filtered: ");
-    Serial.print(hal.bat_info.capacity.remain_f);
-    Serial.println(" mAh");
-    Serial.print("Full Filtered: ");
-    Serial.print(hal.bat_info.capacity.full_f);
-    Serial.println(" mAh");
-    Serial.print("Design: ");
-    Serial.print(hal.bat_info.capacity.design);
-    Serial.println(" mAh");
+    Serial0.println("\n-- Capacity --");
+    Serial0.print("Remaining: ");
+    Serial0.print(hal.bat_info.capacity.remain);
+    Serial0.println(" mAh");
+    Serial0.print("Full: ");
+    Serial0.print(hal.bat_info.capacity.full);
+    Serial0.println(" mAh");
+    Serial0.print("Available: ");
+    Serial0.print(hal.bat_info.capacity.avail);
+    Serial0.println(" mAh");
+    Serial0.print("Available Full: ");
+    Serial0.print(hal.bat_info.capacity.avail_full);
+    Serial0.println(" mAh");
+    Serial0.print("Remaining Filtered: ");
+    Serial0.print(hal.bat_info.capacity.remain_f);
+    Serial0.println(" mAh");
+    Serial0.print("Full Filtered: ");
+    Serial0.print(hal.bat_info.capacity.full_f);
+    Serial0.println(" mAh");
+    Serial0.print("Design: ");
+    Serial0.print(hal.bat_info.capacity.design);
+    Serial0.println(" mAh");
 
     // 状态标志
-    Serial.println("\n-- Flags --");
-    Serial.print("Discharging: ");
-    Serial.println(hal.bat_info.flag.DSG ? "Yes" : "No");
-    Serial.print("Fully Charged: ");
-    Serial.println(hal.bat_info.flag.FC ? "Yes" : "No");
-    Serial.print("Charging Allowed: ");
-    Serial.println(hal.bat_info.flag.CHG ? "Yes" : "No");
+    Serial0.println("\n-- Flags --");
+    Serial0.print("Discharging: ");
+    Serial0.println(hal.bat_info.flag.DSG ? "Yes" : "No");
+    Serial0.print("Fully Charged: ");
+    Serial0.println(hal.bat_info.flag.FC ? "Yes" : "No");
+    Serial0.print("Charging Allowed: ");
+    Serial0.println(hal.bat_info.flag.CHG ? "Yes" : "No");
 
-    Serial.printf("Update Time: [%06d]\n", hal.bat_info.update_time);
+    Serial0.printf("Update Time: [%06d]\n", hal.bat_info.update_time);
 
-    Serial.println("---------------------------------\n");
+    Serial0.println("---------------------------------\n");
 }
 
 void task_bat_info(void *)
@@ -575,7 +575,7 @@ void HAL::getTime()
         localtime_r(&now, &timeinfo);
     }
 }
-#include <esp32/rom/sha.h>
+#include <esp32s3/rom/sha.h>
 /**
  * @brief 计算字符串的SHA-256哈希值，并返回前15个字符组成的字符串
  * @param str 要计算哈希值的字符串
@@ -587,9 +587,9 @@ char *HAL::get_char_sha_key(const char *str, bool mode)
     uint8_t hash[32];  // SHA-256产生32字节哈希
     char hex_hash[65]; // 64 字节的十六进制字符串 + 1 字节的 null 终止符
     ets_sha_enable();
-    ets_sha_init(&ctx);                                                    // 初始化上下文
-    ets_sha_update(&ctx, SHA2_256, (const uint8_t *)str, strlen(str) * 8); // 更新哈希值
-    ets_sha_finish(&ctx, SHA2_256, hash);                                  // 完成哈希计算
+    ets_sha_init(&ctx, SHA2_256);                                                    // 初始化上下文
+    ets_sha_update(&ctx, (const uint8_t *)str, strlen(str) * 8, true); // 更新哈希值
+    ets_sha_finish(&ctx, hash);                                  // 完成哈希计算
     ets_sha_disable();
     if (mode)
     {
@@ -695,7 +695,7 @@ bool HAL::cheak_firmware_update()
             // 防止缓冲区溢出
             if (index >= file_size * 2)
             {
-                Serial.println("缓冲区溢出，证书可能被截断");
+                Serial0.println("缓冲区溢出，证书可能被截断");
                 break;
             }
         }
@@ -719,7 +719,7 @@ run:
         DynamicJsonDocument doc(2048);
         String http_str = http.getString();
         deserializeJson(doc, http_str);
-        Serial.println("正在写入固件版本检查文件...");
+        Serial0.println("正在写入固件版本检查文件...");
         File f = LittleFS.open("/System/CFU.json", "w");
         f.print(http_str);
         f.close();
@@ -728,12 +728,12 @@ run:
     {
         for (int i = 0; i < 5; i++)
         {
-            Serial.println("连接失败，正在重试...");
+            Serial0.println("连接失败，正在重试...");
             delay(1000);
             httpCode = http.GET();
             if (httpCode != HTTP_CODE_OK)
             {
-                Serial.printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
+                Serial0.printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
                 delay(1000); // 等待1秒后重试
             }
             else
@@ -774,9 +774,9 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     if (freq < _freq || (setfreq && (freq != _freq)))
     {
         bool cpuset = setCpuFrequencyMhz(_freq);
-        Serial.end();
-        Serial.begin(pref.getUInt("uart_baud", 115200));
-        Serial.setDebugOutput(true);
+        Serial0.end();
+        Serial0.begin(pref.getUInt("uart_baud", 115200));
+        // Serial0.setDebugOutput(true);
         info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
         {
@@ -802,11 +802,11 @@ void HAL::WiFiConfigSmartConfig()
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);
-        Serial.print(".");
+        Serial0.print(".");
         ++count;
         if (count >= 240) // 120秒超时
         {
-            Serial.println("SmartConfig超时");
+            Serial0.println("SmartConfig超时");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("SmartConfig超时");
@@ -822,7 +822,7 @@ void HAL::WiFiConfigSmartConfig()
     */
     if (WiFi.waitForConnectResult() == WL_CONNECTED)
     {
-        Serial.println("WiFi connected");
+        Serial0.println("WiFi connected");
         config[PARAM_SSID] = WiFi.SSID();
         config[PARAM_PASS] = WiFi.psk();
         hal.saveConfig();
@@ -861,7 +861,7 @@ void HAL::WiFiConfigManual()
                 // QRCode qrcode;
                 // uint8_t qrcodeData[qrcode_getBufferSize(7)];
                 qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-                Serial.println(qrcode.size);
+                Serial0.println(qrcode.size);
                 for (uint8_t y = 0; y < qrcode.size; y++)
                 {
                     // Each horizontal module
@@ -891,7 +891,7 @@ void HAL::WiFiConfigManual()
             display.fillScreen(TFT_WHITE);
             display.drawXBitmap(0, 0, wifi_manual_bits, 296, 128, TFT_BLACK);
             qrcode_initText(&qrcode, qrcodeData, 6, 0, str.c_str());
-            Serial.println(qrcode.size);
+            Serial0.println(qrcode.size);
             for (uint8_t y = 0; y < qrcode.size; y++)
             {
                 // Each horizontal module
@@ -908,7 +908,7 @@ void HAL::WiFiConfigManual()
         }
         if (millis() - last_millis > 300000) // 10分钟超时
         {
-            Serial.println("手动配置超时");
+            Serial0.println("手动配置超时");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("手动配置超时");
@@ -1009,7 +1009,7 @@ void HAL::ReqWiFiConfig()
     size_request = size_physical - 0x310000;// - 0x1000
     if (hal.pref.getUInt("size", 0) != size_request)
     {
-        Serial.println("检测到分区大小不一致，正在格式化");
+        Serial0.println("检测到分区大小不一致，正在格式化");
         hal.pref.putUInt("size", size_request);
         LittleFS.format();
     }
@@ -1031,34 +1031,34 @@ void HAL::ReqWiFiConfig()
     size_request = size_physical - 0x310000;// - 0x1000
     esp_flash_read(esp_flash_default_chip, table, 0x8000, sizeof(table));
     memcpy(partition_size.size_byte, &table[16 * 2 * PARTITION_SPIFFS + 0x8], 4);
-    Serial.printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
+    Serial0.printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
     if (partition_size.size != size_request)
     {
-        Serial.printf("正在修改分区表\n");
+        Serial0.printf("正在修改分区表\n");
         partition_size.size = size_request;
         memcpy(&table[16 * 2 * PARTITION_SPIFFS + 0x8], partition_size.size_byte, 4);
-        Serial.println("正在计算MD5\n");
+        Serial0.println("正在计算MD5\n");
         esp_rom_md5_update(&ctx, table, 16 * 2 * PARTITION_TOTAL);
         esp_rom_md5_final(&table[16 * (2 * PARTITION_TOTAL + 1)], &ctx);
         esp_flash_set_chip_write_protect(esp_flash_default_chip, false);
-        Serial.println("\n正在写入");
+        Serial0.println("\n正在写入");
         if (esp_flash_erase_region(esp_flash_default_chip, 0x8000, 0x1000) != ESP_OK)
         {
-            Serial.println("擦除失败");
+            Serial0.println("擦除失败");
             while (1)
                 vTaskDelay(1000);
         }
         if (esp_flash_write(esp_flash_default_chip, table, 0x8000, sizeof(table)) != ESP_OK)
         {
-            Serial.println("写入失败");
+            Serial0.println("写入失败");
             while (1)
                 vTaskDelay(1000);
         }
-        Serial.println("完成，正在校验结果");
+        Serial0.println("完成，正在校验结果");
         esp_flash_read(esp_flash_default_chip, table1, 0x8000, sizeof(table1));
         if (memcmp(table, table1, sizeof(table)) != 0)
         {
-            Serial.println("校验失败");
+            Serial0.println("校验失败");
             while (1)
                 vTaskDelay(1000);
         }
@@ -1066,10 +1066,10 @@ void HAL::ReqWiFiConfig()
         {
             for (size_t i = 0; i < 16 * 12; i++)
             {
-                Serial.printf("0x%02X ", table[i]);
+                Serial0.printf("0x%02X ", table[i]);
                 if ((i + 1) % 16 == 0)
                 {
-                    Serial.println();
+                    Serial0.println();
                 }
             }
         }
@@ -1092,7 +1092,7 @@ void HAL::wait_input(uint32_t sleeptime)
             gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
             esp_sleep_enable_gpio_wakeup();
             esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTONL, 0);
-            esp_sleep_enable_ext1_wakeup((1LL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ALL_LOW);
+            esp_sleep_enable_ext1_wakeup((1LL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_LOW);
         }
         else
         {
@@ -1165,6 +1165,7 @@ void HAL::coredump_file()
 
 static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
 static const char esp_sleep_str[13][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
+SPIClass DisplaySPI(FSPI);
 bool HAL::init()
 {
     int16_t total_gnd = 0;
@@ -1174,8 +1175,8 @@ bool HAL::init()
     pref.begin("clock");
     uint32_t uart_band = pref.getUInt("uart_baud", 115200);
     log_i("change band to %lu", uart_band);
-    Serial.flush();
-    Serial.begin(uart_band);
+    // Serial0.flush();
+    Serial0.begin(uart_band);
     log_i("\n\n"
           "   © 2024 - 2026 看番の龙 | LiClock   \n"
           "          Powered by 看番の龙         \n"
@@ -1222,11 +1223,21 @@ bool HAL::init()
         btn_activelow = true;
     }
     esp_task_wdt_init(portMAX_DELAY, false);
-    pinMode(PIN_CHARGING, INPUT);
+    pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SDVDD_CTRL, OUTPUT);
     pinMode(PIN_SCL, OUTPUT | PULLUP);
     pinMode(PIN_SDA, OUTPUT | PULLUP);
+
+    pinMode(PIN_DAC_FMT, OUTPUT);
+    digitalWrite(PIN_DAC_FMT, 0);
+    pinMode(PIN_DAC_EN, OUTPUT);
+    digitalWrite(PIN_DAC_EN, 0);
+    pinMode(PIN_DAC_XSMT, OUTPUT);
+    digitalWrite(PIN_DAC_XSMT, 0);
+    pinMode(PIN_I2S_MCLK, OUTPUT);
+    digitalWrite(PIN_I2S_MCLK, 0);
+
     digitalWrite(PIN_SDVDD_CTRL, 1);
     digitalWrite(PIN_BUZZER, 0);
     pinMode(PIN_BUZZER, OUTPUT);
@@ -1265,6 +1276,7 @@ bool HAL::init()
     // display.epd2.startQueue(hal.pref.getUInt("display_list", 3), hal.pref.getUInt("disp_priority", 1));
 #endif
     // // display.epd2.T5D_mode(!pref.getBool("UC8151C"));
+    log_i("初始化屏幕...");
     SPI.begin(CONFIG_SPI_SCK, -1, CONFIG_SPI_MOSI, -1);
     SPI.setFrequency(40000000);
     display.begin(initial);
@@ -1294,7 +1306,7 @@ bool HAL::init()
         LittleFS.format();
         if (LittleFS.begin(false) == false)
         {
-            Serial.println("LittleFS格式化失败");
+            Serial0.println("LittleFS格式化失败");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("LittleFS格式化失败");
@@ -1320,7 +1332,7 @@ bool HAL::init()
         }
         if (LittleFS.exists("/System/config.json") == false)
         {
-            Serial.println("正在写入默认配置");
+            Serial0.println("正在写入默认配置");
             File f = LittleFS.open("/System/config.json", "w");
             f.print(DEFAULT_CONFIG);
             f.close();
@@ -1509,7 +1521,7 @@ void HAL::set_sleep_set_gpio_interrupt()
     if (hal.btn_activelow)
     {
         esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0);
-        esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ALL_LOW);
+        esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW);
     }
     else
     {
@@ -1565,8 +1577,8 @@ void printDisplayVertical()
 
         // 打印这一行
         // 注意：实际串口输出可能需要根据你的串口库调整
-        Serial.write((const uint8_t *)lineBuffer, 169); // 输出168个字符+换行符
-        // 或者使用 Serial.print(lineBuffer);
+        Serial0.write((const uint8_t *)lineBuffer, 169); // 输出168个字符+换行符
+        // 或者使用 Serial0.print(lineBuffer);
     }
 }
 #include "driver/ledc.h"
@@ -1577,7 +1589,7 @@ static void pre_sleep()
     while (!hal.can_sleep)
     {
         delay(100);
-        Serial.print(".");
+        Serial0.print(".");
     }
     cmd.end();
     peripherals.sleep();
@@ -1744,22 +1756,22 @@ void HAL::checkNightSleep()
 {
     if (hal.timeinfo.tm_year < (2016 - 1900))
     {
-        Serial.println("[夜间模式] 时间错误，直接返回");
+        Serial0.println("[夜间模式] 时间错误，直接返回");
         return;
     }
     if (config[PARAM_SLEEPATNIGHT].as<String>() == "0")
     {
-        Serial.println("[夜间模式] 夜间模式已禁用");
+        Serial0.println("[夜间模式] 夜间模式已禁用");
         return;
     }
     if (night_sleep_today == hal.timeinfo.tm_mday)
     {
-        Serial.println("[夜间模式] 当天暂时退出夜间模式");
+        Serial0.println("[夜间模式] 当天暂时退出夜间模式");
         return;
     }
     if (hal.timeinfo.tm_year < (2016 - 1900))
     {
-        Serial.println("[夜间模式] 时间错误");
+        Serial0.println("[夜间模式] 时间错误");
         night_sleep = 0;
         night_sleep_today = -1;
         return;
@@ -1812,7 +1824,7 @@ void HAL::checkNightSleep()
     // 判断当前屏幕显示
     if (night_sleep != night_sleep_pend)
     {
-        Serial.println("[DEBUG] 夜间模式重绘");
+        Serial0.println("[DEBUG] 夜间模式重绘");
         night_sleep = night_sleep_pend;
         display.clearScreen();
         if (night_sleep == 1)

@@ -42,22 +42,22 @@ void cmd_task(void *) {
     memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
     CYAN;
     HEADER_COLOR;
-    Serial.println("LiClock Serial Tool");
-    Serial.println("Type '#help*' for available commands");
+    Serial0.println("LiClock Serial Tool");
+    Serial0.println("Type '#help*' for available commands");
     RESET_COLOR;
     RESET;
     while(1) {
         // 读取串口数据
-        while (Serial.available() > 0) {
-            char c = Serial.read();
+        while (Serial0.available() > 0) {
+            char c = Serial0.read();
   
             if (c == COMMAND_TERMINATOR || c == '\n') {
                 cmd.cmdBuffer[bufIndex] = '\0';
                 GREEN;
                 if (c == COMMAND_TERMINATOR)
-                    Serial.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
+                    Serial0.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
                 else 
-                    Serial.printf("[DEBUG] Raw command: %s\"n\n", cmd.cmdBuffer);
+                    Serial0.printf("[DEBUG] Raw command: %s\"n\n", cmd.cmdBuffer);
                 RESET;
                 cmd.parseCommand(cmd.cmdBuffer);
                 bufIndex = 0;                   // 重置bufIndex
@@ -73,7 +73,7 @@ void cmd_task(void *) {
                 bufIndex = 0;
                 memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
                 RED;
-                Serial.println("Error: Buffer overflow");
+                Serial0.println("Error: Buffer overflow");
                 RESET;
             }
         }
@@ -91,7 +91,7 @@ void IRAM_ATTR serialRxCallback() {
 }
 void CMD::begin(){
     xTaskCreate(cmd_task, "cmd_task", 4096, NULL, 4, &cmd_task_handle); // 创建 cmd_task，且不指定核心
-    Serial.onReceive(serialRxCallback, true);
+    Serial0.onReceive(serialRxCallback, true);
 }
 void CMD::stop(){
     vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
@@ -108,78 +108,78 @@ void CMD::end(){
 }
 void CMD::printHelp(){
     HEADER_COLOR;
-    Serial.println("LiClock Serial Tool");
-    Serial.println("===================================");
+    Serial0.println("LiClock Serial Tool");
+    Serial0.println("===================================");
     RESET_COLOR;
     
-    Serial.println("This tool is designed for firmware development, debugging, and recovery operations.");
-    Serial.println("Command Format: #command[parameter]*");
+    Serial0.println("This tool is designed for firmware development, debugging, and recovery operations.");
+    Serial0.println("Command Format: #command[parameter]*");
     
     HEADER_COLOR;
-    Serial.println("\nAVAILABLE COMMANDS:");
-    Serial.println("===================");
+    Serial0.println("\nAVAILABLE COMMANDS:");
+    Serial0.println("===================");
     RESET_COLOR;
     
     // 系统命令
     HEADER_COLOR;
-    Serial.println("\n[SYSTEM COMMANDS]");
+    Serial0.println("\n[SYSTEM COMMANDS]");
     RESET_COLOR;
-    Serial.printf("  %-20s - %s\n", help, "Display this help information");
-    Serial.printf("  %-20s - %s\n", esp_light_sleep, "Put device into light sleep (wake by button)");
-    Serial.printf("  %-20s - %s\n", ((String)esp_light_sleep + "[timeout]").c_str(), "Put device into light sleep with timeout");
-    Serial.printf("  %-20s - %s\n", esp_restart_, "Restart the device");
-    Serial.printf("  %-20s - %s\n", free_heap_size, "Display free heap memory");
-    Serial.printf("  %-20s - %s\n", get_runtime, "Display device runtime");
-    Serial.printf("  %-20s - %s\n", get_bat_info, "Display battery information");
-    Serial.printf("  %-20s - %s\n", file_server_begin, "Start file server");
-    Serial.printf("  %-20s - %s\n", file_server_end, "Stop file server");
-    Serial.printf("  %-20s - %s\n", ((String)set_display_debug + "[0/1]").c_str(), "Enable/disable display driver debug output");
-    Serial.printf("  %-20s - %s\n", esp_partition_info, "Display partition table information");
+    Serial0.printf("  %-20s - %s\n", help, "Display this help information");
+    Serial0.printf("  %-20s - %s\n", esp_light_sleep, "Put device into light sleep (wake by button)");
+    Serial0.printf("  %-20s - %s\n", ((String)esp_light_sleep + "[timeout]").c_str(), "Put device into light sleep with timeout");
+    Serial0.printf("  %-20s - %s\n", esp_restart_, "Restart the device");
+    Serial0.printf("  %-20s - %s\n", free_heap_size, "Display free heap memory");
+    Serial0.printf("  %-20s - %s\n", get_runtime, "Display device runtime");
+    Serial0.printf("  %-20s - %s\n", get_bat_info, "Display battery information");
+    Serial0.printf("  %-20s - %s\n", file_server_begin, "Start file server");
+    Serial0.printf("  %-20s - %s\n", file_server_end, "Stop file server");
+    Serial0.printf("  %-20s - %s\n", ((String)set_display_debug + "[0/1]").c_str(), "Enable/disable display driver debug output");
+    Serial0.printf("  %-20s - %s\n", esp_partition_info, "Display partition table information");
 
     // 硬件控制
     HEADER_COLOR;
-    Serial.println("\n[HARDWARE COMMANDS]");
+    Serial0.println("\n[HARDWARE COMMANDS]");
     RESET_COLOR;
-    Serial.printf("  %-20s - %s\n", get_cpu_usage, "Display CPU usage (ESP-IDF only)");
-    Serial.printf("  %-20s - %s\n", set_cpu_freq, "Get current CPU frequency");
-    Serial.printf("  %-20s - %s\n", ((String)set_cpu_freq + "[freq]").c_str(), "Set CPU frequency (takes effect immediately)");
-    Serial.printf("  %-20s - %s\n", ((String)config_cpu_freq + "[freq]").c_str(), "Save CPU frequency to settings (takes effect after reboot)");
-    Serial.println("    Valid frequencies: 240, 160, 80, 40, 20, 10 (MHz)");
-    Serial.printf("  %-20s - %s\n", esp_chip_info_, "Display chip information");
-    Serial.printf("  %-20s - %s\n", ((String)set_display + "[gray]").c_str(), "Force set display gray level");
-    Serial.printf("  %-20s - %s\n", ((String)set_display_PLL + "[value]").c_str(), "Set display PLL clock (resets after ESP32 reboot)");
-    Serial.printf("  %-20s - %s\n", ((String)cfg_display_PLL + "[value]").c_str(), "Set display PLL clock and save to NVS");
+    Serial0.printf("  %-20s - %s\n", get_cpu_usage, "Display CPU usage (ESP-IDF only)");
+    Serial0.printf("  %-20s - %s\n", set_cpu_freq, "Get current CPU frequency");
+    Serial0.printf("  %-20s - %s\n", ((String)set_cpu_freq + "[freq]").c_str(), "Set CPU frequency (takes effect immediately)");
+    Serial0.printf("  %-20s - %s\n", ((String)config_cpu_freq + "[freq]").c_str(), "Save CPU frequency to settings (takes effect after reboot)");
+    Serial0.println("    Valid frequencies: 240, 160, 80, 40, 20, 10 (MHz)");
+    Serial0.printf("  %-20s - %s\n", esp_chip_info_, "Display chip information");
+    Serial0.printf("  %-20s - %s\n", ((String)set_display + "[gray]").c_str(), "Force set display gray level");
+    Serial0.printf("  %-20s - %s\n", ((String)set_display_PLL + "[value]").c_str(), "Set display PLL clock (resets after ESP32 reboot)");
+    Serial0.printf("  %-20s - %s\n", ((String)cfg_display_PLL + "[value]").c_str(), "Set display PLL clock and save to NVS");
 
     // 文件系统
     HEADER_COLOR;
-    Serial.println("\n[FILESYSTEM COMMANDS]");
+    Serial0.println("\n[FILESYSTEM COMMANDS]");
     RESET_COLOR;
-    Serial.printf("  %-20s - %s\n", littlefs_format, "Format LittleFS filesystem");
-    Serial.printf("  %-20s - %s\n", littlefs_info, "Display filesystem information");
-    Serial.printf("  %-20s - %s\n", erase_nvs, "Erase NVS storage");
-    Serial.printf("  %-20s - %s\n", getnvs, "read NVS Key");
-    Serial.printf("  %-20s - %s\n", putnvs, "write NVS key");
-    Serial.printf("  %-20s - %s\n", format_tf, "Format TF card");
+    Serial0.printf("  %-20s - %s\n", littlefs_format, "Format LittleFS filesystem");
+    Serial0.printf("  %-20s - %s\n", littlefs_info, "Display filesystem information");
+    Serial0.printf("  %-20s - %s\n", erase_nvs, "Erase NVS storage");
+    Serial0.printf("  %-20s - %s\n", getnvs, "read NVS Key");
+    Serial0.printf("  %-20s - %s\n", putnvs, "write NVS key");
+    Serial0.printf("  %-20s - %s\n", format_tf, "Format TF card");
 
     // 参数设置
     HEADER_COLOR;
-    Serial.println("\n[SETTINGS COMMANDS]");
+    Serial0.println("\n[SETTINGS COMMANDS]");
     RESET_COLOR;
-    Serial.printf("  %-20s - %s\n", set_long_press, "Get long press threshold");
-    Serial.printf("  %-20s - %s\n", ((String)set_long_press + "[time]").c_str(), "Set long press threshold (ms)");
-    Serial.printf("  %-20s - %s\n", set_boot_app, "Set default boot app to clock");
-    Serial.printf("  %-20s - %s\n", temp_log, "Get temperature logging status");
-    Serial.printf("  %-20s - %s\n", ((String)temp_log + "[0/1]").c_str(), "Enable/disable temperature logging");
+    Serial0.printf("  %-20s - %s\n", set_long_press, "Get long press threshold");
+    Serial0.printf("  %-20s - %s\n", ((String)set_long_press + "[time]").c_str(), "Set long press threshold (ms)");
+    Serial0.printf("  %-20s - %s\n", set_boot_app, "Set default boot app to clock");
+    Serial0.printf("  %-20s - %s\n", temp_log, "Get temperature logging status");
+    Serial0.printf("  %-20s - %s\n", ((String)temp_log + "[0/1]").c_str(), "Enable/disable temperature logging");
 
     HEADER_COLOR;
-    Serial.println("\nEXAMPLES:");
+    Serial0.println("\nEXAMPLES:");
     RESET_COLOR;
-    Serial.println("  #cpufreq[240]*      - Set CPU frequency to 240MHz");
-    Serial.println("  #chipinfo*          - Display chip information");
-    Serial.println("  #help*              - Show this help");
+    Serial0.println("  #cpufreq[240]*      - Set CPU frequency to 240MHz");
+    Serial0.println("  #chipinfo*          - Display chip information");
+    Serial0.println("  #help*              - Show this help");
     
     HEADER_COLOR;
-    Serial.println("\nFor more information about a specific command, type the command without parameters.");
+    Serial0.println("\nFor more information about a specific command, type the command without parameters.");
     RESET_COLOR;
 }
 
@@ -227,7 +227,7 @@ void CMD::parseCommand(const char* command) {
     // 检查命令头
     if (command[0] != COMMAND_HEADER) {
         PRINT_ERROR("Invalid command header");
-        Serial.println("Command Format: #command[parameter]*");
+        Serial0.println("Command Format: #command[parameter]*");
         PRINT_INFO("Use '#help*' for available commands");
         return;
     }
@@ -243,36 +243,36 @@ void CMD::parseCommand(const char* command) {
     if (strcmp(cmd, set_cpu_freq) == 0) {
         if (parsed == 1){
             int freq = atoi(param[0]);
-            Serial.end();
+            Serial0.end();
             if (setCpuFrequencyMhz(freq)){
-                Serial.begin(hal.pref.getUInt("uart_baud", 115200));
-                Serial.setDebugOutput(true);
+                Serial0.begin(hal.pref.getUInt("uart_baud", 115200));
+                Serial0.setDebugOutput(true);
                 PRINT_SUCCESS("CPU frequency set successfully");
-                Serial.printf("New frequency: %d MHz\n", freq);
+                Serial0.printf("New frequency: %d MHz\n", freq);
             } else {
-                Serial.begin(hal.pref.getUInt("uart_baud", 115200));
-                Serial.setDebugOutput(true);
+                Serial0.begin(hal.pref.getUInt("uart_baud", 115200));
+                Serial0.setDebugOutput(true);
                 PRINT_ERROR("Failed to set CPU frequency");
                 PRINT_INFO("Valid frequencies: 240, 160, 80, 40, 20, 10");
             }
         } else {
-            Serial.printf("Current CPU frequency: %u MHz\n", ESP.getCpuFreqMHz());
+            Serial0.printf("Current CPU frequency: %u MHz\n", ESP.getCpuFreqMHz());
         }
     } else if (strcmp(cmd, set_long_press) == 0) {
         if (parsed == 1) {
             int value = atoi(param[0]);
             hal.pref.putInt("lpt", value);
             PRINT_SUCCESS("Long press threshold updated");
-            Serial.printf("New threshold: %d ms\n", value * 10);
+            Serial0.printf("New threshold: %d ms\n", value * 10);
         } else {
-            Serial.printf("Current long press threshold: %d ms\n", hal.pref.getInt("lpt", 20) * 10);
+            Serial0.printf("Current long press threshold: %d ms\n", hal.pref.getInt("lpt", 20) * 10);
         }
     } else if (strcmp(cmd, config_cpu_freq) == 0) {
         if (parsed == 1) {
             int freq = atoi(param[0]);
             hal.pref.putInt("CpuFreq", freq);
             PRINT_SUCCESS("CPU frequency configuration saved");
-            Serial.printf("Frequency will be set to %d MHz after reboot\n", freq);
+            Serial0.printf("Frequency will be set to %d MHz after reboot\n", freq);
         } else {
             PRINT_ERROR("Missing frequency parameter");
             PRINT_INFO("Usage: #cfgcpufreq[frequency]*");
@@ -291,7 +291,7 @@ void CMD::parseCommand(const char* command) {
             int value = atoi(param[0]);
             // display.epd2.PLL_set(value);
             PRINT_SUCCESS("Display PLL clock set temporarily");
-            Serial.println("Note: This setting will reset after ESP32 reboot");
+            Serial0.println("Note: This setting will reset after ESP32 reboot");
         } else {
             PRINT_ERROR("Missing PLL value parameter");
             PRINT_INFO("Usage: #PLL[value]*");
@@ -311,7 +311,7 @@ void CMD::parseCommand(const char* command) {
             int value = atoi(param[0]);
             hal.pref.putInt("display_debug", value);
             PRINT_SUCCESS("Display debug mode updated");
-            Serial.printf("Debug mode: %s\n", value ? "ENABLED" : "DISABLED");
+            Serial0.printf("Debug mode: %s\n", value ? "ENABLED" : "DISABLED");
         } else {
             PRINT_ERROR("Missing parameter");
             PRINT_INFO("Usage: #display_debug[0/1]*");
@@ -321,14 +321,14 @@ void CMD::parseCommand(const char* command) {
             int value = atoi(param[0]);
             hal.pref.putBool("temp_log", (bool)value);
             PRINT_SUCCESS("Temperature logging updated");
-            Serial.printf("Temperature logging: %s\n", value ? "ENABLED" : "DISABLED");
+            Serial0.printf("Temperature logging: %s\n", value ? "ENABLED" : "DISABLED");
         } else {
             bool enabled = hal.pref.getBool("temp_log");
-            Serial.printf("Temperature logging: %s\n", enabled ? "ENABLED" : "DISABLED");
+            Serial0.printf("Temperature logging: %s\n", enabled ? "ENABLED" : "DISABLED");
         }
     } else if (strcmp(cmd, erase_nvs) == 0) {
         WARNING_COLOR;
-        Serial.println("WARNING: This will erase all NVS data!");
+        Serial0.println("WARNING: This will erase all NVS data!");
         RESET_COLOR;
         if (nvs_flash_erase() == ESP_OK) {
             PRINT_SUCCESS("NVS erased successfully");
@@ -340,7 +340,7 @@ void CMD::parseCommand(const char* command) {
         }
     } else if (strcmp(cmd, littlefs_format) == 0) {
         WARNING_COLOR;
-        Serial.println("WARNING: This will format LittleFS and erase all data!");
+        Serial0.println("WARNING: This will format LittleFS and erase all data!");
         RESET_COLOR;
         LittleFS.end();
         if (LittleFS.format()){
@@ -364,14 +364,15 @@ void CMD::parseCommand(const char* command) {
             delay(50);
             uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
             info("设置TF卡频率:%d HZ\n", freq); 
-            if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
+            SD_MMC.setPins(PIN_SD_SCLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
+            if (SD_MMC.begin("/sd", false, false, freq) == false)
             {
                 delay(100);
                 warn("TF卡挂载失败,尝试重新挂载");
-                if (SD.begin(PIN_SD_CS, SDSPI, freq, "/sd", 5, true) == false)
+                if (SD_MMC.begin("/sd", false, false, freq) == false)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载");
-                    SD.end();
+                    SD_MMC.end();
                     gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
                     digitalWrite(PIN_SDVDD_CTRL, 1);
                     gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
@@ -383,41 +384,41 @@ void CMD::parseCommand(const char* command) {
     } else if (strcmp(cmd, littlefs_info) == 0) {
         size_t total = LittleFS.totalBytes(), used = LittleFS.usedBytes();
         HEADER_COLOR;
-        Serial.println("LITTLEFS FILESYSTEM INFORMATION:");
+        Serial0.println("LITTLEFS FILESYSTEM INFORMATION:");
         RESET_COLOR;
-        Serial.printf("  Total space: %d KB\n", total / 1024);
-        Serial.printf("  Used space:  %d KB (%.02f%%)\n", used / 1024, (float)used / (float)total * 100.0);
-        Serial.printf("  Free space:  %d KB\n", (total - used) / 1024);
+        Serial0.printf("  Total space: %d KB\n", total / 1024);
+        Serial0.printf("  Used space:  %d KB (%.02f%%)\n", used / 1024, (float)used / (float)total * 100.0);
+        Serial0.printf("  Free space:  %d KB\n", (total - used) / 1024);
     } else if (strcmp(cmd, free_heap_size) == 0) {
         uint32_t heap = ESP.getHeapSize(), free_heap = ESP.getFreeHeap();
         HEADER_COLOR;
-        Serial.println("MEMORY INFORMATION:");
+        Serial0.println("MEMORY INFORMATION:");
         RESET_COLOR;
-        Serial.printf("  Total heap:  %.2f KB\n", (float)heap / 1024.0);
-        Serial.printf("  Free heap:   %.2f KB\n", (float)free_heap / 1024.0);
-        Serial.printf("  Usage:       %.02f%%\n", ((float)heap - (float)free_heap) / (float)heap * 100.0);
+        Serial0.printf("  Total heap:  %.2f KB\n", (float)heap / 1024.0);
+        Serial0.printf("  Free heap:   %.2f KB\n", (float)free_heap / 1024.0);
+        Serial0.printf("  Usage:       %.02f%%\n", ((float)heap - (float)free_heap) / (float)heap * 100.0);
     } else if (strcmp(cmd, esp_chip_info_) == 0) {
         HEADER_COLOR;
-        Serial.println("CHIP INFORMATION:");
+        Serial0.println("CHIP INFORMATION:");
         RESET_COLOR;
-        Serial.printf("  Model:       %s\n", ESP.getChipModel());
-        Serial.printf("  Revision:    %u\n", ESP.getChipRevision());
-        Serial.printf("  Cores:       %u\n", ESP.getChipCores());
+        Serial0.printf("  Model:       %s\n", ESP.getChipModel());
+        Serial0.printf("  Revision:    %u\n", ESP.getChipRevision());
+        Serial0.printf("  Cores:       %u\n", ESP.getChipCores());
         
         uint64_t chipmacid = ESP.getEfuseMac();
         uint8_t* mac = (uint8_t*)&chipmacid;
         char macStr[18];
         snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        Serial.printf("  MAC:         %s\n", macStr);
-        Serial.printf("  Flash size:  %d MB\n", ESP.getFlashChipSize() / 1048576);
+        Serial0.printf("  MAC:         %s\n", macStr);
+        Serial0.printf("  Flash size:  %d MB\n", ESP.getFlashChipSize() / 1048576);
         
         uint32_t flash_id;
         uint64_t flash_unique_id;
         esp_flash_read_id(esp_flash_default_chip, &flash_id);
         esp_flash_read_unique_chip_id(esp_flash_default_chip, &flash_unique_id);
-        Serial.printf("  Flash ID:    %04x\n", flash_id);
-        Serial.printf("  Unique ID:   %016llx\n", flash_unique_id);
+        Serial0.printf("  Flash ID:    %04x\n", flash_id);
+        Serial0.printf("  Unique ID:   %016llx\n", flash_unique_id);
     } else if (strcmp(cmd, esp_restart_) == 0) {
         PRINT_INFO("Restarting device...");
         hal.pref.end();
@@ -432,7 +433,7 @@ void CMD::parseCommand(const char* command) {
         remaining %= 60000;
         long seconds = remaining / 1000;
         long tenths = (remaining % 1000) / 100;
-        Serial.printf("Device runtime: %4d:%02d:%02d.%d\n", hours, minutes, seconds, tenths);
+        Serial0.printf("Device runtime: %4d:%02d:%02d.%d\n", hours, minutes, seconds, tenths);
     } else if (strcmp(cmd, get_bat_info) == 0){
         hal.printBatteryInfo();
     } else if (strcmp(cmd, get_cpu_usage) == 0) { 
@@ -446,9 +447,9 @@ void CMD::parseCommand(const char* command) {
         int value = 0;
         if (parsed == 1) {
             value = atoi(param[0]);
-            Serial.printf("Entering light sleep with timeout: %d ms\n", value);
+            Serial0.printf("Entering light sleep with timeout: %d ms\n", value);
         } else {
-            Serial.println("Entering light sleep (press button to wake)");
+            Serial0.println("Entering light sleep (press button to wake)");
         }
         hal.wait_input(value);
     } else if (strcmp(cmd, file_server_begin) == 0) {
@@ -463,7 +464,7 @@ void CMD::parseCommand(const char* command) {
         PRINT_SUCCESS("File server stopped");
     } else if (strcmp(cmd, esp_partition_info) == 0) {
         INFO_COLOR;
-        Serial.println("PARTITION INFORMATION:");
+        Serial0.println("PARTITION INFORMATION:");
         RESET_COLOR;
         printPartitionsInfo();
     } else if (strcmp(cmd, putnvs) == 0) {
@@ -495,7 +496,7 @@ void CMD::parseCommand(const char* command) {
                 value = hal.pref.getInt(param[0]);
             else if (strcmp(param[1], "uint") == 0)
                 value = hal.pref.getUInt(param[0]);
-            Serial.printf("%s: %ld\n", param[0], value);
+            Serial0.printf("%s: %ld\n", param[0], value);
         }
         else
             PRINT_ERROR("参数不足");
@@ -504,7 +505,7 @@ void CMD::parseCommand(const char* command) {
         {
             bool value;
             value = hal.pref.getBool(param[0]);
-            Serial.printf("%s: %s\n", param[0], value ? "true" : "false");
+            Serial0.printf("%s: %s\n", param[0], value ? "true" : "false");
         }
         else
             PRINT_ERROR("参数不足");
