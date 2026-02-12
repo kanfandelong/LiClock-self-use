@@ -629,7 +629,7 @@ file_info:
                     error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
-                if (file.size() > free)
+                if (filesize > free)
                 {
                     GUI::msgbox("警告", "littlefs剩余的空间不足以复制当前的文件,自动取消当前复制!");
                     newfile.close();

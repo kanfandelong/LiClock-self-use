@@ -523,8 +523,8 @@ void player_loop(void *)
                 delay(5); // 避免意外情况
         }
         else
-            delay(5); // 避免意外情况
-        delay(1);     // 释放cpu
+            delay(1); // 避免意外情况
+        // delay(1);     // 释放cpu
     }
 }
 
@@ -1632,9 +1632,9 @@ void AppMusicPlayer::begin_player_task()
     log_i("将为解码任务分配%ld字节堆栈", stack_size);
     log_i("app运行在: core%d", core);
     if (core == 0)
-        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 5, &player_loop_task_handle, 1);
+        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 8, &player_loop_task_handle, 1);
     else
-        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 5, &player_loop_task_handle, 0);
+        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 8, &player_loop_task_handle, 0);
 }
 /**
  * @brief 显示播放器界面
