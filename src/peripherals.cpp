@@ -111,12 +111,12 @@ bool Peripherals::load(uint16_t bitmask)
             SD_MMC.setPins(PIN_SD_SCLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
             uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
             Serial0.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
-            if (SD_MMC.begin("/sd", false, false, freq) == false)
+            if (SD_MMC.begin("/sd", false, false, freq, 20) == false)
             {
                 SD_MMC.end();
                 delay(100);
                 info("TF卡挂载失败,尝试重新挂载");
-                if (SD_MMC.begin("/sd", false, false, freq) == false)
+                if (SD_MMC.begin("/sd", false, false, freq, 20) == false)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载", 5);
                     SD_MMC.end();
