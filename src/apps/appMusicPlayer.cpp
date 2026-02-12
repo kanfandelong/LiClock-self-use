@@ -690,8 +690,8 @@ void player_loop(void *)
                 delay(5); // 避免意外情况
         }
         else
-            delay(5); // 避免意外情况
-        delay(1);     // 释放cpu
+            delay(1); // 避免意外情况
+        // delay(1);     // 释放cpu
     }
 }
 
@@ -2630,7 +2630,7 @@ void AppMusicPlayer::show_display_fft()
     u8g2Fonts.setCursor(3, 165);
     if (loopPlay)
     {
-        u8g2Fonts.printf("单曲循环");
+        u8g2Fonts.printf("循环");
     }
     else if (autoPlay)
     {
