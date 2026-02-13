@@ -29,6 +29,8 @@ bool HAL::exists(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
         return SD.exists(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -50,6 +52,8 @@ bool HAL::remove(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
         return SD.remove(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -71,6 +75,8 @@ bool HAL::rename(const char *pathFrom, const char *pathTo)
 {
     if (strncmp(pathFrom, "/sd/", 4) == 0)
     {
+        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
         return SD.rename(remove_path_prefix(pathFrom, "/sd"), pathTo);
     }
     else if (strncmp(pathFrom, "/littlefs/", 10) == 0)
@@ -92,6 +98,8 @@ bool HAL::mkdir(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
         return SD.mkdir(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -113,6 +121,8 @@ bool HAL::rmdir(const char *path)
 {
     if (strncmp(path, "/sd/", 4) == 0)
     {
+        if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
+            peripherals.load(PERIPHERALS_SD_BIT);
         return SD.rmdir(remove_path_prefix(path, "/sd"));
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)

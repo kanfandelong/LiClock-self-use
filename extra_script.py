@@ -250,16 +250,16 @@ def fix_windows_paths():
     return total_fixes > 0
 
 # ===== 主执行逻辑 =====
-print(f"\n{'='*60}")
-print("🔧 LiClock 开发环境同步工具")
-print(f"{'='*60}")
+# print(f"\n{'='*60}")
+# print("🔧 LiClock 开发环境同步工具")
+# print(f"{'='*60}")
 
-# 1. 同步所有目录
-sync_successful = sync_all_directories()
+# # 1. 同步所有目录
+# sync_successful = sync_all_directories()
 
 # 2. 修复路径问题（仅在同步成功时执行）
-if sync_successful:
-    fix_windows_paths()
+# if sync_successful:
+#     fix_windows_paths()
 
 # ===== ELF版本管理功能 =====
 def calculate_sha256(filepath):
