@@ -953,11 +953,12 @@ bool AppEBook::indexcode_3()
     {
         indexesFile.close();
         hal.remove(indexesName);
-        indexesFile = hal.open(indexesName, "a", true);
     }
+    indexesFile = hal.open(indexesName, "a+", true);
     if (!indexesFile)
     {
-        indexesFile = hal.open(indexesName, FILE_APPEND, true);
+        GUI::msgbox("索引错误", "无法创建索引文件");
+        return false;
     }
     indexesFile.setBufferSize(8192);
     while (txtFile.available())
@@ -1692,8 +1693,9 @@ bool AppEBook::openFile(const char *filename)
             if (!index_ok)
                 return false;
         }
-        uint32_t lasttxtsize, nowtxtsize = txtFile.size();
+        uint32_t lasttxtsize, nowtxtsize;
         index_info info;
+        nowtxtsize = txtFile.size();
         indexesFile.seek(indexesFile.size() - 8, SeekSet);
         indexesFile.readBytes((char *)&lasttxtsize, 4);
         indexesFile.readBytes((char *)&info, 4);

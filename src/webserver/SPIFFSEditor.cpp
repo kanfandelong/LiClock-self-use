@@ -343,7 +343,7 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
                 }
                 else
                 {
-                    request->send(404, "text/plain", "资源文件不存在");
+                    request->send(404, "text/plain", "/System/edit.html.gz not found");
                 }
             }
         }
@@ -353,7 +353,7 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
         if (request->hasParam("path", true))
         {
             _fs.remove(request->getParam("path", true)->value());
-            request->send(200, "", "DELETE: " + request->getParam("path", true)->value());
+            request->send(200, "text/plain", "DELETE: " + request->getParam("path", true)->value());
         }
         else
         {
@@ -363,7 +363,7 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
     else if (request->method() == HTTP_POST)
     {
         if (request->hasParam("data", true, true) && _fs.exists(request->getParam("data", true, true)->value()))
-            request->send(200, "", "UPLOADED: " + request->getParam("data", true, true)->value());
+            request->send(200, "text/plain", "UPLOADED: " + request->getParam("data", true, true)->value());
         else
         {
             request->send(500);
@@ -385,11 +385,11 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
                 {
                     f.write((uint8_t)0x00);
                     f.close();
-                    request->send(200, "", "CREATE: " + filename);
+                    request->send(200, "text/plain", "CREATE: " + filename);
                 }
                 else
                 {
-                    request->send(500);
+                    request->send(500, "text/plain", "CREATE: " + filename + " FAILED");
                 }
             }
         }
