@@ -919,7 +919,7 @@ void Appwenjian::openfile()
         fclose(fp);
         display.fillScreen(TFT_WHITE);
         display.display();
-        GUI::drawLBM((296 - w) / 2, (128 - h) / 2, filename, TFT_BLACK);
+        GUI::drawLBM((SCREEN_WIDTH - w) / 2, (SCREEN_HEIGHT - h) / 2, filename, TFT_BLACK);
         while (1)
         {
             if (hal.btnr.isPressing())

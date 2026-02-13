@@ -1429,7 +1429,7 @@ namespace GUI
                     bitMask = 0x80; // 从最高位开始
                 }
                 // 检查当前位并绘制像素
-                if (b & bitMask)
+                if (!(b & bitMask))
                 {
                     display.drawPixel(x + i, y, color);
                 }
