@@ -232,20 +232,20 @@ void AppSettings::menu_time()
             end = true;
             break;
         case 5:
+        {
+            const char *str = GUI::fileDialog("请选择时钟字体文件", false, "ttf\nTTF");
+            if (str == NULL)
             {
-                const char *str = GUI::fileDialog("请选择时钟字体文件", false, "ttf\nTTF");
-                if (str == NULL)
-                {
-                    hal.pref.remove("clock_font");
-                    GUI::msgbox("提示", "已恢复默认字体");
-                }
-                else
-                {
-                    hal.pref.putString("clock_font", String(str));
-                    GUI::msgbox("提示", "时钟字体设置完成，重启生效");
-                }
+                hal.pref.remove("clock_font");
+                GUI::msgbox("提示", "已恢复默认字体");
             }
-            break;
+            else
+            {
+                hal.pref.putString("clock_font", String(str));
+                GUI::msgbox("提示", "时钟字体设置完成，重启生效");
+            }
+        }
+        break;
         case 6:
             menu_alarm();
             break;
@@ -745,7 +745,7 @@ void AppSettings::menu_network()
                     display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE);
                 }
             }
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
             u8g2Fonts.setCursor(120, (128 - (17 * 2)) / 2);
             char buf[50];
             sprintf(buf, "扫描二维码以连接本机分享的WiFi");
@@ -801,7 +801,7 @@ void AppSettings::menu_network()
                     display.fillRect(2 * x + 196, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode2, x, y) ? TFT_BLACK : TFT_WHITE);
                 }
             }
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
             char buf[2][32];
             sprintf(buf[0], "网页配置界面");
             sprintf(buf[1], "Blockly界面");
@@ -1030,6 +1030,7 @@ void AppSettings::menu_power()
 
                 GUI::info_msgbox("提示", "正在写入配置...");
 
+                lipo.softReset();
                 lipo.enterConfig();                 // To configure the values below, you must be in config mode
                 lipo.setCapacity(BATTERY_CAPACITY); // Set the battery capacity
 
@@ -1580,7 +1581,7 @@ void AppSettings::menu_system()
             ArduinoOTA.setPort(3232);
             ArduinoOTA
                 .onStart([]()
-                {
+                         {
                     String type;
                     if (ArduinoOTA.getCommand() == U_FLASH)
                         type = "sketch";
@@ -1588,20 +1589,16 @@ void AppSettings::menu_system()
                         type = "filesystem";
 
                     String msg = "开始更新 " + type;
-                    GUI::info_msgbox("OTA开始", msg.c_str());
-                })
+                    GUI::info_msgbox("OTA开始", msg.c_str()); })
                 .onEnd([]()
-                {
-                    GUI::info_msgbox("OTA结束", "更新完成");
-                })
+                       { GUI::info_msgbox("OTA结束", "更新完成"); })
                 .onProgress([](unsigned int progress, unsigned int total)
-                {
+                            {
                     char buf[64];
                     snprintf(buf, sizeof(buf), "总计:   %07u字节\n已完成: %07u字节\n进度: %u%%", total, progress, (progress / (total / 100)));
-                    GUI::info_msgbox("OTA进度", buf);
-                })
+                    GUI::info_msgbox("OTA进度", buf); })
                 .onError([](ota_error_t error)
-                {
+                         {
                     char* msg;
                     if (error == OTA_AUTH_ERROR) msg = "认证失败";
                     else if (error == OTA_BEGIN_ERROR) msg = "开始失败";
@@ -1610,14 +1607,14 @@ void AppSettings::menu_system()
                     else if (error == OTA_END_ERROR) msg = "结束失败";
                     else msg = "未知错误";
 
-                    GUI::info_msgbox("OTA错误", msg);
-                });
+                    GUI::info_msgbox("OTA错误", msg); });
             ArduinoOTA.begin();
             char buf[128];
-            sprintf(buf, "请在同局域网下使用此IP进行OTA\nip: %s",hal.getip().toString().c_str());
+            sprintf(buf, "请在同局域网下使用此IP进行OTA\nip: %s", hal.getip().toString().c_str());
             GUI::info_msgbox("已就绪", buf);
-            while(1){
-                ArduinoOTA.handle();            
+            while (1)
+            {
+                ArduinoOTA.handle();
                 if (hal.btnl.isPressing())
                 {
                     while (hal.btnl.isPressing())
@@ -1948,56 +1945,208 @@ void AppSettings::cheak_config(char *a)
 void AppSettings::tfcard_info()
 {
     display.clearScreen();
-    GUI::drawWindowsWithTitle("TF卡信息", 0, 0, 296, 128);
-    // u8g2Fonts.setCursor(5,30);
-    // u8g2Fonts.printf("类型：%s",SD_MMC.cardType());
-    if (peripherals.isSDLoaded())
-    {
-        u8g2Fonts.setCursor(5, 30);
-        float cardSizeMB = (float)SD_MMC.cardSize() / 1024.0 / 1024.0;
-        u8g2Fonts.printf("大小：%uBytes %.2fMB ", SD_MMC.cardSize(), cardSizeMB);
-        // u8g2Fonts.setCursor(5, 45);
-        // u8g2Fonts.printf("扇区数量：%u", SD_MMC.numSectors());
-        // u8g2Fonts.setCursor(5, 60);
-        // u8g2Fonts.printf("扇区大小：%u Bytes", SD_MMC.sectorSize());
-        u8g2Fonts.setCursor(5, 75);
-        float cardSizeuse = (float)SD_MMC.usedBytes() / 1024.0 / 1024.0;
-        float cardSizetotal = (float)SD_MMC.totalBytes() / 1024.0 / 1024.0;
-        u8g2Fonts.printf("空间使用:%0.2f%%(%.2f/%.2f)MB", cardSizeuse * 100.0 / cardSizetotal, cardSizeuse, cardSizetotal);
-        u8g2Fonts.setCursor(5, 90);
-        u8g2Fonts.printf("可用空间：%.2fMB", cardSizetotal - cardSizeuse);
-        u8g2Fonts.setCursor(5, 105);
-        char tf_type[20];
-        sdcard_type_t tf_type_num = SD_MMC.cardType();
-        switch (tf_type_num)
-        {
-        case CARD_NONE:
-            sprintf(tf_type, "此卡类型字段为空");
-            break;
-        case CARD_MMC:
-            sprintf(tf_type, "MMC卡");
-            break;
-        case CARD_SD:
-            sprintf(tf_type, "SD卡");
-            break;
-        case CARD_SDHC:
-            sprintf(tf_type, "SDHC卡");
-            break;
-        case CARD_UNKNOWN:
-            sprintf(tf_type, "未知的卡类型");
-            break;
-        }
-        u8g2Fonts.printf("TF卡类型:%s", tf_type);
-        display.display();
-    }
-    else
-    {
+    GUI::drawWindowsWithTitle("TF卡信息");
+
+    if (!peripherals.isSDLoaded()) {
         GUI::info_msgbox("提示", "未插入TF卡或文件系统挂载失败，无法显示信息");
+        hal.wait_input();
+        return;
     }
+
+    sdmmc_card_t *card = SD_MMC.get();
+    if (!card) {
+        GUI::info_msgbox("错误", "无法获取卡信息");
+        hal.wait_input();
+        return;
+    }
+
+    // ---------- 辅助函数：SD卡制造商名称 ----------
+    auto get_manufacturer_name = [](int mfg_id) -> const char* {
+        switch (mfg_id) {
+            case 0x01: return "Panasonic";
+            case 0x02: return "Toshiba";
+            case 0x03: return "SanDisk";
+            case 0x1B: return "Samsung";
+            case 0x1D: return "AData";
+            case 0x27: return "Phision";
+            case 0x28: return "Lexar";
+            case 0x31: return "Silicon Power";
+            case 0x41: return "Kingston";
+            case 0x74: return "Transcend";
+            case 0x82: return "Sony";
+            default:   return "Unknown";
+        }
+    };
+
+    // ---------- 辅助函数：eMMC制造商名称 ----------
+    auto get_emmc_manufacturer_name = [](uint8_t mid) -> const char* {
+        switch (mid) {
+            case 0x02: return "Sandisk";
+            case 0x11: return "Toshiba";
+            case 0x13: return "Micron";
+            case 0x15: return "Samsung";
+            case 0x1A: return "Hynix";
+            case 0x1C: return "Intel";
+            case 0x37: return "Kingston";
+            default:   return "Unknown";
+        }
+    };
+
+    // ---------- 辅助函数：OEM ID（两个ASCII字符）----------
+    auto oem_id_to_str = [](int oem_id, char *out) {
+        out[0] = (oem_id >> 8) & 0xFF;
+        out[1] = oem_id & 0xFF;
+        out[2] = '\0';
+    };
+
+    // ---------- 辅助函数：版本号（主.次）----------
+    auto revision_to_str = [](int rev, char *out) {
+        int major = (rev >> 4) & 0xF;
+        int minor = rev & 0xF;
+        sprintf(out, "%d.%d", major, minor);
+    };
+
+    int y = 30;                 // 起始Y坐标
+    const int line_height = 14; // 行高
+
+    // ---- 第1行：总容量 + 总扇区数 ----
+    float totalMB = (float)SD_MMC.cardSize() / 1024.0 / 1024.0;
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("大小: %.2fMB (扇区: %u)", totalMB, card->csd.capacity);
+    y += line_height;
+
+    // ---- 第2行：已用/总空间 + 可用空间 ----
+    float usedMB = (float)SD_MMC.usedBytes() / 1024.0 / 1024.0;
+    float totalFS_MB = (float)SD_MMC.totalBytes() / 1024.0 / 1024.0;
+    float freeMB = totalFS_MB - usedMB;
+    float percent = (totalFS_MB > 0) ? (usedMB * 100.0 / totalFS_MB) : 0;
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("使用:%.2f/%.2fMB (%.1f%%) 可用:%.2fMB",
+                     usedMB, totalFS_MB, percent, freeMB);
+    y += line_height;
+
+    // ---- 第3行：卡类型、总线宽度、DDR支持 ----
+    const char *card_type_str = "未知";
+    if (card->is_mmc) {
+        card_type_str = "eMMC";
+    } else if (card->is_sdio) {
+        card_type_str = "SDIO";
+    } else if (card->is_mem) {
+        const uint32_t SD_OCR_SDHC_CAP = 1UL << 30;
+        if (card->ocr & SD_OCR_SDHC_CAP) {
+            uint64_t total_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
+            card_type_str = (total_bytes > 32ULL * 1024 * 1024 * 1024) ? "SDXC" : "SDHC";
+        } else {
+            card_type_str = "SDSC";
+        }
+    }
+    int bus_width = 1 << card->log_bus_width;
+    const char *ddr = card->is_ddr ? "是" : "否";
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("类型:%s 总线:%d-bit DDR:%s", card_type_str, bus_width, ddr);
+    y += line_height;
+
+    // ==================== 根据卡类型显示CID信息 ====================
+    if (card->is_mmc) {
+        // ---------- eMMC 专用解析（基于字节数组，小端序CPU）----------
+        uint8_t *cid = (uint8_t*)card->raw_cid; // cid[0] = 响应第一个字节
+
+        uint8_t mid = cid[0];                          // 制造商ID
+        // 以下字段位置基于常见eMMC规范（JEDEC）及您的数据验证调整
+        uint8_t cbx = (cid[1] >> 6) & 0x03;            // 设备类型（高2位）
+        uint16_t oid = (cid[1] << 8) | cid[2];         // OEM/应用ID (16位)
+        char pnm[7] = {0};                              // 产品名 (6字节)
+        pnm[0] = cid[7];  // 根据您的数据，产品名从字节7开始
+        pnm[1] = cid[8];
+        pnm[2] = cid[9];
+        pnm[3] = cid[10];
+        pnm[4] = cid[11];
+        pnm[5] = cid[12];
+        pnm[6] = '\0'; // 确保字符串结束
+        uint8_t prv = cid[13];                          // 产品版本 (8位)
+        uint32_t psn = (cid[14] << 24) | (cid[15] << 16) | (cid[16] << 8) | cid[17]; // 序列号 (4字节，注意越界？实际cid只有16字节)
+        // 修正：cid只有0-15，序列号可能占用4字节，例如cid[10]-cid[13]
+        psn = (cid[10] << 24) | (cid[11] << 16) | (cid[12] << 8) | cid[13];
+        uint8_t mdt = cid[14];                          // 生产日期 (8位)
+        uint8_t crc = cid[15] >> 1;                     // CRC7 (高7位)
+
+        int year_code = (mdt >> 4) & 0x0F;              // 高4位年份码
+        int month = mdt & 0x0F;                          // 低4位月份
+        int year = 2013 + year_code;                     // 现代eMMC基准2013
+
+        int major = (prv >> 4) & 0x0F;
+        int minor = prv & 0x0F;
+
+        // ---- 第4行：制造商/OEM/产品 ----
+        u8g2Fonts.setCursor(5, y);
+        u8g2Fonts.printf("制造商:0x%02X (%s) CBX:%d OEM:0x%04X 产品:%-6s",
+                         mid, get_emmc_manufacturer_name(mid), cbx, oid, pnm);
+        y += line_height;
+
+        // ---- 第5行：版本/序列号/生产日期 ----
+        u8g2Fonts.setCursor(5, y);
+        u8g2Fonts.printf("版本:%d.%d 序列号:%u 生产日期:%02d/%04d",
+                         major, minor, psn, month, year);
+        y += line_height;
+    } else {
+        // ---------- SD卡通用解析 ----------
+        char oem_str[3];
+        oem_id_to_str(card->cid.oem_id, oem_str);
+        u8g2Fonts.setCursor(5, y);
+        u8g2Fonts.printf("制造商:%s (0x%02X) OEM:%s",
+                         get_manufacturer_name(card->cid.mfg_id),
+                         card->cid.mfg_id, oem_str);
+        y += line_height;
+
+        // ---- 第5行：产品名 + 产品版本 ----
+        char prod_name[9] = {0};
+        strncpy(prod_name, card->cid.name, 8);
+        char rev_str[8];
+        revision_to_str(card->cid.revision, rev_str);
+        u8g2Fonts.setCursor(5, y);
+        u8g2Fonts.printf("产品:%-8s 版本:%s", prod_name, rev_str);
+        y += line_height;
+
+        // ---- 第6行：序列号 + 生产日期 ----
+        int year_raw = card->cid.date >> 4;
+        int month = card->cid.date & 0x0F;
+        int year = 2000 + year_raw;
+        u8g2Fonts.setCursor(5, y);
+        u8g2Fonts.printf("序列号:%u 生产日期:%04d/%02d",
+                         card->cid.serial, year, month);
+        y += line_height;
+    }
+
+    // ==================== 通用信息（所有卡类型）====================
+    // ---- 第6行（eMMC）/第7行（SD）：CSD版本 + MMC版本 ----
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("CSD版本:%d MMC版本:%d", card->csd.csd_ver, card->csd.mmc_ver);
+    y += line_height;
+
+    // ---- 第7行（eMMC）/第8行（SD）：最大传输速度 + 读块长度 ----
+    float speedMBs = (float)card->csd.tr_speed / 1024.0 / 1024.0;
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("最大速度:%.2fMB/s 读块长:%u", speedMBs, card->csd.read_block_len);
+    y += line_height;
+
+    // ---- 第8行（eMMC）/第9行（SD）：命令类 + 卡特定信息 ----
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("命令类:0x%03X", card->csd.card_command_class);
+    if (card->is_mem && !card->is_mmc) {
+        u8g2Fonts.printf(" SD版本:%d", card->scr.sd_spec);
+    }
+    if (card->is_mmc) {
+        u8g2Fonts.printf(" 功率类:%d", card->ext_csd.power_class);
+    }
+    y += line_height;
+
+    // ---- 第9行（eMMC）/第10行（SD）：最大频率 ----
+    u8g2Fonts.setCursor(5, y);
+    u8g2Fonts.printf("最大频率:%u kHz", card->max_freq_khz);
+    // 最后一行不增加y，留空
+
+    display.display();
     hal.wait_input();
-    /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
-        delay(100);
-    } */
 }
 
 void AppSettings::bat_info()

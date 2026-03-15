@@ -32,6 +32,7 @@ extern "C" void lua_printf(const char *format, ...)
     if (wsRunning)
     {
         ws.textAll(str);
+        ws.textAll("\r\n");
     }
     else
     {

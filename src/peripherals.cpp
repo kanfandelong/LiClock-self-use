@@ -103,14 +103,14 @@ bool Peripherals::load(uint16_t bitmask)
         // 首先测试TF卡是否存在
         if (digitalRead(PIN_SD_CARDDETECT) != 1)
         {
-            Serial0.println("[外设] 加载TF卡");
+            info("[外设] 加载TF卡");
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             delay(50);
             SD_MMC.setPins(PIN_SD_SCLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
-            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
-            Serial0.printf("[外设] 设置TF卡频率:%d HZ\n", freq); 
+            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000) / 1000;
+            info("[外设] 设置TF卡频率:%d kHZ\n", freq); 
             if (SD_MMC.begin("/sd", false, false, freq, 20) == false)
             {
                 SD_MMC.end();
@@ -135,7 +135,7 @@ bool Peripherals::load(uint16_t bitmask)
     else if ((bitmask & PERIPHERALS_SD_BIT) == 0 && peripherals_load & PERIPHERALS_SD_BIT)
     {
         // 卸载TF卡
-        Serial0.println("[外设] 卸载TF卡");
+        info("[外设] 卸载TF卡");
         SD_MMC.end();
         delay(50);
         gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
@@ -145,7 +145,7 @@ bool Peripherals::load(uint16_t bitmask)
     // 只有sgp和SD卡需要重新加载
     if (bitmask & PERIPHERALS_SGP30_BIT && (peripherals_current & PERIPHERALS_SGP30_BIT) && (peripherals_load & PERIPHERALS_SGP30_BIT == 0))
     {
-        Serial0.println("[外设] 加载SGP30");
+        info("[外设] 加载SGP30");
         // 需要加载sgp
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!sgpInited)
@@ -165,7 +165,7 @@ bool Peripherals::load(uint16_t bitmask)
     //  尝试按需初始化外设
     if (bitmask & PERIPHERALS_AHT20_BIT && (peripherals_current & PERIPHERALS_AHT20_BIT) && ahtInited == false)
     {
-        Serial0.println("[外设] 首次加载AHT20");
+        info("[外设] 首次加载AHT20");
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!aht.begin())
         {
@@ -179,7 +179,7 @@ bool Peripherals::load(uint16_t bitmask)
     }
     if ((bitmask & PERIPHERALS_SHT30_BIT) && (peripherals_current & PERIPHERALS_SHT30_BIT == 0))
     {
-        Serial0.println("[外设] 首次加载SHT30");
+        info("[外设] 首次加载SHT30");
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!sht.begin())
         {
@@ -195,7 +195,7 @@ bool Peripherals::load(uint16_t bitmask)
     // if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     if (bitmask & PERIPHERALS_BMP280_BIT && peripherals_current & PERIPHERALS_BMP280_BIT && bmpInited == false)
     {
-        Serial0.println("[外设] 首次加载BMP280");
+        info("[外设] 首次加载BMP280");
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!bmp.begin())
         {

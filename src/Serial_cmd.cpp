@@ -1,87 +1,131 @@
 #include "Serial_cmd.h"
 #include <nvs_flash.h>
 #include "chip-debug-report.h"
+#include <cstring>
 
 extern SPIClass SDSPI;
 CMD cmd;
-char task_list[1024];
-bool stop_fileserver = false; 
+bool stop_fileserver = false;
+static TaskHandle_t console_task_handle = NULL;
 extern bool serverRunning;
-void fileserver_task(void *){
+extern QueueHandle_t multi_thread_queue;
+
+// Forward declaration for custom hint lookup
+static const char *find_cmd_hint(const char *cmdName);
+
+// 任务函数
+static void console_task(void *pvParameters)
+{
+    size_t bufIndex = 0;
+    memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
+    // 使用宏定义统一日志输出颜色
+    PRINT_INFO("LiClock Serial Tool");
+    PRINT_INFO("Type 'help' for available commands");
+    while (1)
+    {
+        while (Serial0.available() > 0)
+        {
+            char c = Serial0.read();
+
+            if (c == '\n' || c == '\r' || c == '*')
+            {
+                if (bufIndex == 0)
+                    continue; // 忽略空行
+                cmd.cmdBuffer[bufIndex] = '\0';
+                // 执行命令
+                int ret;
+                esp_err_t err = esp_console_run(cmd.cmdBuffer, &ret);
+                if (err == ESP_ERR_NOT_FOUND)
+                {
+                    PRINT_ERROR("Command not found");
+                }
+                else if (err == ESP_OK)
+                {
+                    if (ret == 1)
+                    {
+                        PRINT_ERROR("参数错误");
+                        // Use custom hint lookup instead of esp_console_get_hint
+                        const char *hint_str = find_cmd_hint(cmd.cmdBuffer);
+                        if (hint_str)
+                        {
+                            // Show the hint as normal info (no error prefix)
+                            ERROR_COLOR;
+                            Serial0.printf("%s\n", hint_str);
+                            RESET_COLOR;
+                        }
+                    }
+                    if (ret == 2)
+                    {
+                        PRINT_ERROR("命令 '%s' 执行失败", cmd.cmdBuffer);
+                    }
+                }
+                else if (err != ESP_OK)
+                {
+                    PRINT_ERROR("%s", esp_err_to_name(err));
+                }
+                bufIndex = 0;
+                memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
+            }
+            else
+            {
+                if (bufIndex < COMMAND_BUFFER_SIZE - 1)
+                {
+                    cmd.cmdBuffer[bufIndex++] = c;
+                }
+                else
+                {
+                    // 缓冲区溢出处理
+                    bufIndex = 0;
+                    memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
+                    RED;
+                    PRINT_ERROR("Error: Buffer overflow");
+                }
+            }
+        }
+        // 没有数据时挂起任务，等待中断唤醒
+        vTaskSuspend(NULL);
+    }
+}
+
+void fileserver_task(void *)
+{
     DNSServer dnsServer;
     bool wifi = hal.autoConnectWiFi(false);
     String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
     String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;", str1;
-    if (wifi){
+    if (wifi)
+    {
         str1 = WiFi.localIP().toString();
-    }else{
+    }
+    else
+    {
         WiFi.softAP("WeatherClock", passwd.c_str());
         WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
         dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
         str1 = "192.168.4.1";
-        log_i("WiFi pass: %s\n", passwd.c_str());
+        log_i("WiFi pass: %s", passwd.c_str());
     }
-    log_i("WiFi IP: %s\n", str1.c_str());
+    log_i("WiFi IP: %s", str1.c_str());
     beginFileServer();
-    while(1){
-        if (stop_fileserver){
+    while (1)
+    {
+        if (stop_fileserver)
+        {
             if (!wifi)
                 dnsServer.stop();
             server.end();
             serverRunning = false;
-            hal.can_sleep  = true;
-            hal.can_light_sleep  = true;
+            hal.can_sleep = true;
+            hal.can_light_sleep = true;
             vTaskDelete(NULL);
-        }else
+        }
+        else
             vTaskDelay(100);
     }
 }
 
-void cmd_task(void *) {
-    size_t bufIndex = 0;
-    memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
-    CYAN;
-    HEADER_COLOR;
-    Serial0.println("LiClock Serial Tool");
-    Serial0.println("Type '#help*' for available commands");
-    RESET_COLOR;
-    RESET;
-    while(1) {
-        // 读取串口数据
-        while (Serial0.available() > 0) {
-            char c = Serial0.read();
-  
-            if (c == COMMAND_TERMINATOR || c == '\n') {
-                cmd.cmdBuffer[bufIndex] = '\0';
-                GREEN;
-                if (c == COMMAND_TERMINATOR)
-                    Serial0.printf("[DEBUG] Raw command: %s*\n", cmd.cmdBuffer); // 调试日志
-                else 
-                    Serial0.printf("[DEBUG] Raw command: %s\"n\n", cmd.cmdBuffer);
-                RESET;
-                cmd.parseCommand(cmd.cmdBuffer);
-                bufIndex = 0;                   // 重置bufIndex
-                memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
-                continue;
-            }
-            
-            if (c == '\r') continue; // 忽略回车符
-            
-            if (bufIndex < COMMAND_BUFFER_SIZE - 1) {
-                cmd.cmdBuffer[bufIndex++] = c;
-            } else {
-                bufIndex = 0;
-                memset(cmd.cmdBuffer, 0, sizeof(cmd.cmdBuffer));
-                RED;
-                Serial0.println("Error: Buffer overflow");
-                RESET;
-            }
-        }
-  
-        vTaskSuspend(NULL);
-    }
-}
-void IRAM_ATTR serialRxCallback() {
+void IRAM_ATTR serialRxCallback()
+{
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
     // 唤醒 cmd_task
@@ -89,428 +133,618 @@ void IRAM_ATTR serialRxCallback() {
 
     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
-void CMD::begin(){
-    xTaskCreate(cmd_task, "cmd_task", 4096, NULL, 4, &cmd_task_handle); // 创建 cmd_task，且不指定核心
+
+void CMD::begin()
+{
+    // 初始化 esp_console
+    esp_console_config_t console_config = {
+        .max_cmdline_length = 256,
+        .max_cmdline_args = 32,
+        .hint_color = 39,
+        .hint_bold = 0};
+    esp_console_init(&console_config);
+
+    // 注册内置 help 命令
+    esp_console_register_help_command();
+
+    // 注册自定义命令
+    register_commands();
+
+    // 创建控制台任务
+    xTaskCreate(console_task, "console_task", 4096, NULL, 4, &console_task_handle);
+    Serial0.onReceive(serialRxCallback, true);
+    is_run = true;
+}
+
+void CMD::SetCallback()
+{
     Serial0.onReceive(serialRxCallback, true);
 }
-void CMD::stop(){
-    vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
+
+void CMD::stop()
+{
+    vTaskSuspend(console_task_handle);
 }
-void CMD::run(){ 
-    vTaskResume(cmd_task_handle);
+
+void CMD::run()
+{
+    vTaskResume(console_task_handle);
 }
-void CMD::end(){
-    if (cmd_task_handle != NULL){
-        vTaskSuspend(cmd_task_handle);  // 挂起串口指令任务
-        vTaskDelete(cmd_task_handle);   // 删除串口指令任务
-        cmd_task_handle = NULL;
+
+void CMD::end()
+{
+    if (console_task_handle != NULL)
+    {
+        vTaskSuspend(console_task_handle);
+        vTaskDelete(console_task_handle);
+        console_task_handle = NULL;
+    }
+    if (is_run)
+    {
+        esp_console_deinit();
     }
 }
-void CMD::printHelp(){
-    HEADER_COLOR;
-    Serial0.println("LiClock Serial Tool");
-    Serial0.println("===================================");
-    RESET_COLOR;
-    
-    Serial0.println("This tool is designed for firmware development, debugging, and recovery operations.");
-    Serial0.println("Command Format: #command[parameter]*");
-    
-    HEADER_COLOR;
-    Serial0.println("\nAVAILABLE COMMANDS:");
-    Serial0.println("===================");
-    RESET_COLOR;
-    
-    // 系统命令
-    HEADER_COLOR;
-    Serial0.println("\n[SYSTEM COMMANDS]");
-    RESET_COLOR;
-    Serial0.printf("  %-20s - %s\n", help, "Display this help information");
-    Serial0.printf("  %-20s - %s\n", esp_light_sleep, "Put device into light sleep (wake by button)");
-    Serial0.printf("  %-20s - %s\n", ((String)esp_light_sleep + "[timeout]").c_str(), "Put device into light sleep with timeout");
-    Serial0.printf("  %-20s - %s\n", esp_restart_, "Restart the device");
-    Serial0.printf("  %-20s - %s\n", free_heap_size, "Display free heap memory");
-    Serial0.printf("  %-20s - %s\n", get_runtime, "Display device runtime");
-    Serial0.printf("  %-20s - %s\n", get_bat_info, "Display battery information");
-    Serial0.printf("  %-20s - %s\n", file_server_begin, "Start file server");
-    Serial0.printf("  %-20s - %s\n", file_server_end, "Stop file server");
-    Serial0.printf("  %-20s - %s\n", ((String)set_display_debug + "[0/1]").c_str(), "Enable/disable display driver debug output");
-    Serial0.printf("  %-20s - %s\n", esp_partition_info, "Display partition table information");
 
-    // 硬件控制
-    HEADER_COLOR;
-    Serial0.println("\n[HARDWARE COMMANDS]");
-    RESET_COLOR;
-    Serial0.printf("  %-20s - %s\n", get_cpu_usage, "Display CPU usage (ESP-IDF only)");
-    Serial0.printf("  %-20s - %s\n", set_cpu_freq, "Get current CPU frequency");
-    Serial0.printf("  %-20s - %s\n", ((String)set_cpu_freq + "[freq]").c_str(), "Set CPU frequency (takes effect immediately)");
-    Serial0.printf("  %-20s - %s\n", ((String)config_cpu_freq + "[freq]").c_str(), "Save CPU frequency to settings (takes effect after reboot)");
-    Serial0.println("    Valid frequencies: 240, 160, 80, 40, 20, 10 (MHz)");
-    Serial0.printf("  %-20s - %s\n", esp_chip_info_, "Display chip information");
-    Serial0.printf("  %-20s - %s\n", ((String)set_display + "[gray]").c_str(), "Force set display gray level");
-    Serial0.printf("  %-20s - %s\n", ((String)set_display_PLL + "[value]").c_str(), "Set display PLL clock (resets after ESP32 reboot)");
-    Serial0.printf("  %-20s - %s\n", ((String)cfg_display_PLL + "[value]").c_str(), "Set display PLL clock and save to NVS");
+// 此处定义一下命令处理函数的返回值的对应原因
+// 0: 命令成功
+// 1: 命令参数错误
+// 2: 命令执行失败
 
-    // 文件系统
-    HEADER_COLOR;
-    Serial0.println("\n[FILESYSTEM COMMANDS]");
-    RESET_COLOR;
-    Serial0.printf("  %-20s - %s\n", littlefs_format, "Format LittleFS filesystem");
-    Serial0.printf("  %-20s - %s\n", littlefs_info, "Display filesystem information");
-    Serial0.printf("  %-20s - %s\n", erase_nvs, "Erase NVS storage");
-    Serial0.printf("  %-20s - %s\n", getnvs, "read NVS Key");
-    Serial0.printf("  %-20s - %s\n", putnvs, "write NVS key");
-    Serial0.printf("  %-20s - %s\n", format_tf, "Format TF card");
-
-    // 参数设置
-    HEADER_COLOR;
-    Serial0.println("\n[SETTINGS COMMANDS]");
-    RESET_COLOR;
-    Serial0.printf("  %-20s - %s\n", set_long_press, "Get long press threshold");
-    Serial0.printf("  %-20s - %s\n", ((String)set_long_press + "[time]").c_str(), "Set long press threshold (ms)");
-    Serial0.printf("  %-20s - %s\n", set_boot_app, "Set default boot app to clock");
-    Serial0.printf("  %-20s - %s\n", temp_log, "Get temperature logging status");
-    Serial0.printf("  %-20s - %s\n", ((String)temp_log + "[0/1]").c_str(), "Enable/disable temperature logging");
-
-    HEADER_COLOR;
-    Serial0.println("\nEXAMPLES:");
-    RESET_COLOR;
-    Serial0.println("  #cpufreq[240]*      - Set CPU frequency to 240MHz");
-    Serial0.println("  #chipinfo*          - Display chip information");
-    Serial0.println("  #help*              - Show this help");
-    
-    HEADER_COLOR;
-    Serial0.println("\nFor more information about a specific command, type the command without parameters.");
-    RESET_COLOR;
-}
-
-
-int parse_command_simple(const char *command, char *cmd, char params[][32], int max_params) {
-    const char *p = command;
-    int param_count = 0;
-    
-    // 跳过 #
-    if (*p == '#') p++;
-    
-    // 提取命令 (直到 [ 或字符串结束)
-    char *cmd_ptr = cmd;
-    while (*p && *p != '[') {
-        *cmd_ptr++ = *p++;
-    }
-    *cmd_ptr = '\0';
-    
-    // 提取参数
-    while (*p && param_count < max_params) {
-        if (*p == '[') {
-            p++;  // 跳过 [
-            char *param_ptr = params[param_count];
-            
-            // 提取参数内容直到 ]
-            while (*p && *p != ']') {
-                *param_ptr++ = *p++;
-            }
-            *param_ptr = '\0';
-            
-            if (*p == ']') {
-                p++;  // 跳过 ]
-                param_count++;
-            }
-        } else {
-            p++;  // 跳过其他字符
-        }
-    }
-    
-    return param_count;
-}
-
-// 命令解析函数
-void CMD::parseCommand(const char* command) {
-    // 检查命令头
-    if (command[0] != COMMAND_HEADER) {
-        PRINT_ERROR("Invalid command header");
-        Serial0.println("Command Format: #command[parameter]*");
-        PRINT_INFO("Use '#help*' for available commands");
-        return;
-    }
-  
-    // 指令解析
-    char cmd[32] = {0};
-    char param[5][32] = {0};
-    // int parsed = sscanf(command, "#%[^[][%[^]]]", cmd, param);
-    int parsed = parse_command_simple(command, cmd, param, 5);
-  
-    // 命令处理
-    
-    if (strcmp(cmd, set_cpu_freq) == 0) {
-        if (parsed == 1){
-            int freq = atoi(param[0]);
-            Serial0.end();
-            if (setCpuFrequencyMhz(freq)){
-                Serial0.begin(hal.pref.getUInt("uart_baud", 115200));
-                Serial0.setDebugOutput(true);
-                PRINT_SUCCESS("CPU frequency set successfully");
-                Serial0.printf("New frequency: %d MHz\n", freq);
-            } else {
-                Serial0.begin(hal.pref.getUInt("uart_baud", 115200));
-                Serial0.setDebugOutput(true);
-                PRINT_ERROR("Failed to set CPU frequency");
-                PRINT_INFO("Valid frequencies: 240, 160, 80, 40, 20, 10");
-            }
-        } else {
-            Serial0.printf("Current CPU frequency: %u MHz\n", ESP.getCpuFreqMHz());
-        }
-    } else if (strcmp(cmd, set_long_press) == 0) {
-        if (parsed == 1) {
-            int value = atoi(param[0]);
-            hal.pref.putInt("lpt", value);
-            PRINT_SUCCESS("Long press threshold updated");
-            Serial0.printf("New threshold: %d ms\n", value * 10);
-        } else {
-            Serial0.printf("Current long press threshold: %d ms\n", hal.pref.getInt("lpt", 20) * 10);
-        }
-    } else if (strcmp(cmd, config_cpu_freq) == 0) {
-        if (parsed == 1) {
-            int freq = atoi(param[0]);
-            hal.pref.putInt("CpuFreq", freq);
-            PRINT_SUCCESS("CPU frequency configuration saved");
-            Serial0.printf("Frequency will be set to %d MHz after reboot\n", freq);
-        } else {
-            PRINT_ERROR("Missing frequency parameter");
-            PRINT_INFO("Usage: #cfgcpufreq[frequency]*");
-        }
-    } else if (strcmp(cmd, set_display) == 0) {
-        if (parsed == 1) {
-            int value = atoi(param[0]);
-            hal.pref.putInt("dlsplay", value);
-            PRINT_SUCCESS("Display gray level set");
-        } else {
-            PRINT_ERROR("Missing parameter");
-            PRINT_INFO("Usage: #displaygray[level]*");
-        }
-    } else if (strcmp(cmd, set_display_PLL) == 0) {
-        if (parsed == 1) {
-            int value = atoi(param[0]);
-            // display.epd2.PLL_set(value);
-            PRINT_SUCCESS("Display PLL clock set temporarily");
-            Serial0.println("Note: This setting will reset after ESP32 reboot");
-        } else {
-            PRINT_ERROR("Missing PLL value parameter");
-            PRINT_INFO("Usage: #PLL[value]*");
-        }
-    } else if (strcmp(cmd, cfg_display_PLL) == 0) {
-        if (parsed == 1) {
-            int value = atoi(param[0]);
-            hal.pref.putUInt("pllset", value);
-            // display.epd2.PLL_set(value);
-            PRINT_SUCCESS("Display PLL clock configured and saved");
-        } else {
-            PRINT_ERROR("Missing PLL value parameter");
-            PRINT_INFO("Usage: #cfgPLL[value]*");
-        }
-    } else if (strcmp(cmd, set_display_debug) == 0) {
-        if (parsed == 1) {
-            int value = atoi(param[0]);
-            hal.pref.putInt("display_debug", value);
-            PRINT_SUCCESS("Display debug mode updated");
-            Serial0.printf("Debug mode: %s\n", value ? "ENABLED" : "DISABLED");
-        } else {
-            PRINT_ERROR("Missing parameter");
-            PRINT_INFO("Usage: #display_debug[0/1]*");
-        }
-    } else if (strcmp(cmd, temp_log) == 0) {
-        if (parsed == 1) {
-            int value = atoi(param[0]);
-            hal.pref.putBool("temp_log", (bool)value);
-            PRINT_SUCCESS("Temperature logging updated");
-            Serial0.printf("Temperature logging: %s\n", value ? "ENABLED" : "DISABLED");
-        } else {
-            bool enabled = hal.pref.getBool("temp_log");
-            Serial0.printf("Temperature logging: %s\n", enabled ? "ENABLED" : "DISABLED");
-        }
-    } else if (strcmp(cmd, erase_nvs) == 0) {
-        WARNING_COLOR;
-        Serial0.println("WARNING: This will erase all NVS data!");
+static int cmd_cpufreq(int argc, char **argv)
+{
+    if (argc == 1)
+    {
+        SUCCESS_COLOR;
+        PRINT_INFO("Current CPU frequency: %u MHz", ESP.getCpuFreqMHz());
         RESET_COLOR;
-        if (nvs_flash_erase() == ESP_OK) {
-            PRINT_SUCCESS("NVS erased successfully");
-            PRINT_INFO("Device will restart in 3 seconds...");
-            delay(3000);
-            ESP.restart();
-        } else {
-            PRINT_ERROR("Failed to erase NVS");
-        }
-    } else if (strcmp(cmd, littlefs_format) == 0) {
-        WARNING_COLOR;
-        Serial0.println("WARNING: This will format LittleFS and erase all data!");
-        RESET_COLOR;
-        LittleFS.end();
-        if (LittleFS.format()){
-            if (LittleFS.begin()) {
-                PRINT_SUCCESS("LittleFS formatted successfully");
-            } else {
-                PRINT_ERROR("Failed to remount LittleFS after format");
-            }
-        } else {
-            PRINT_ERROR("Failed to format LittleFS");
-        }
-    } else if (strcmp(cmd, format_tf) == 0) {
-        // 需要加载TF卡
-        // 首先测试TF卡是否存在
-        if (digitalRead(PIN_SD_CARDDETECT) != 1)
+        return 0;
+    }
+    else if (argc == 2)
+    {
+        int freq = atoi(argv[1]);
+        // 检查频率有效性
+        bool valid = (freq == 240 || freq == 160 || freq == 80);
+        if (!valid)
         {
-            info("加载TF卡");
-            gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
-            digitalWrite(PIN_SDVDD_CTRL, 0);
-            gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
-            delay(50);
-            uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000);
-            info("设置TF卡频率:%d HZ\n", freq); 
-            SD_MMC.setPins(PIN_SD_SCLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
-            if (SD_MMC.begin("/sd", false, false, freq) == false)
-            {
-                delay(100);
-                warn("TF卡挂载失败,尝试重新挂载");
-                if (SD_MMC.begin("/sd", false, false, freq) == false)
-                {
-                    GUI::msgbox("错误", "存在TF卡，但无法挂载");
-                    SD_MMC.end();
-                    gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
-                    digitalWrite(PIN_SDVDD_CTRL, 1);
-                    gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
-                }
-            }
-        }else{
-            log_w("[外设] 未插入TF卡");
+            return 1;
         }
-    } else if (strcmp(cmd, littlefs_info) == 0) {
-        size_t total = LittleFS.totalBytes(), used = LittleFS.usedBytes();
-        HEADER_COLOR;
-        Serial0.println("LITTLEFS FILESYSTEM INFORMATION:");
-        RESET_COLOR;
-        Serial0.printf("  Total space: %d KB\n", total / 1024);
-        Serial0.printf("  Used space:  %d KB (%.02f%%)\n", used / 1024, (float)used / (float)total * 100.0);
-        Serial0.printf("  Free space:  %d KB\n", (total - used) / 1024);
-    } else if (strcmp(cmd, free_heap_size) == 0) {
-        uint32_t heap = ESP.getHeapSize(), free_heap = ESP.getFreeHeap();
-        HEADER_COLOR;
-        Serial0.println("MEMORY INFORMATION:");
-        RESET_COLOR;
-        Serial0.printf("  Total heap:  %.2f KB\n", (float)heap / 1024.0);
-        Serial0.printf("  Free heap:   %.2f KB\n", (float)free_heap / 1024.0);
-        Serial0.printf("  Usage:       %.02f%%\n", ((float)heap - (float)free_heap) / (float)heap * 100.0);
-    } else if (strcmp(cmd, esp_chip_info_) == 0) {
-        HEADER_COLOR;
-        Serial0.println("CHIP INFORMATION:");
-        RESET_COLOR;
-        Serial0.printf("  Model:       %s\n", ESP.getChipModel());
-        Serial0.printf("  Revision:    %u\n", ESP.getChipRevision());
-        Serial0.printf("  Cores:       %u\n", ESP.getChipCores());
-        
-        uint64_t chipmacid = ESP.getEfuseMac();
-        uint8_t* mac = (uint8_t*)&chipmacid;
-        char macStr[18];
-        snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
-            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        Serial0.printf("  MAC:         %s\n", macStr);
-        Serial0.printf("  Flash size:  %d MB\n", ESP.getFlashChipSize() / 1048576);
-        
-        uint32_t flash_id;
-        uint64_t flash_unique_id;
-        esp_flash_read_id(esp_flash_default_chip, &flash_id);
-        esp_flash_read_unique_chip_id(esp_flash_default_chip, &flash_unique_id);
-        Serial0.printf("  Flash ID:    %04x\n", flash_id);
-        Serial0.printf("  Unique ID:   %016llx\n", flash_unique_id);
-    } else if (strcmp(cmd, esp_restart_) == 0) {
-        PRINT_INFO("Restarting device...");
-        hal.pref.end();
-        LittleFS.end();
-        delay(1000);
+        if (setCpuFrequencyMhz(freq))
+        {
+            SUCCESS_COLOR;
+            PRINT_INFO("CPU frequency set to %d MHz", freq);
+            RESET_COLOR;
+        }
+        else
+        {
+            PRINT_ERROR("Failed to set CPU frequency");
+            return 2;
+        }
+        return 0;
+    }
+    else
+    {
+        // Usage hint provided via command registration
+        return 1;
+    }
+}
+
+static int cmd_longpress(int argc, char **argv)
+{
+    if (argc == 1)
+    {
+        PRINT_INFO("Current long press threshold: %d ms", hal.pref.getInt("lpt", 20) * 10);
+        return 0;
+    }
+    else if (argc == 2)
+    {
+        int value = atoi(argv[1]);
+        hal.pref.putInt("lpt", value);
+        PRINT_INFO("Long press threshold updated to %d ms", value * 10);
+        return 0;
+    }
+    else
+    {
+        // Usage hint provided via command registration
+        return 1;
+    }
+}
+
+static int cmd_cfgcpufreq(int argc, char **argv)
+{
+    if (argc == 2)
+    {
+        int freq = atoi(argv[1]);
+        hal.pref.putInt("CpuFreq", freq);
+        PRINT_INFO("CPU frequency configuration saved to %d MHz (will take effect after reboot)", freq);
+        return 0;
+    }
+    else
+    {
+        // Usage hint provided via command registration
+        return 1;
+    }
+}
+
+static int cmd_erasenvs(int argc, char **argv)
+{
+    PRINT_WARNING("WARNING: This will erase all NVS data!");
+    if (nvs_flash_erase() == ESP_OK)
+    {
+        PRINT_SUCCESS("NVS erased successfully");
+        PRINT_INFO("Device will restart in 3 seconds...");
+        delay(3000);
         ESP.restart();
-    } else if (strcmp(cmd, get_runtime) == 0) {
-        long timeMillis = millis();
-        long hours = timeMillis / 3600000;
-        long remaining = timeMillis % 3600000;
-        long minutes = remaining / 60000;
-        remaining %= 60000;
-        long seconds = remaining / 1000;
-        long tenths = (remaining % 1000) / 100;
-        Serial0.printf("Device runtime: %4d:%02d:%02d.%d\n", hours, minutes, seconds, tenths);
-    } else if (strcmp(cmd, get_bat_info) == 0){
-        hal.printBatteryInfo();
-    } else if (strcmp(cmd, get_cpu_usage) == 0) { 
-        PRINT_WARNING("CPU usage monitoring only available in ESP-IDF environment");
-    } else if (strcmp(cmd, set_boot_app) == 0) {
-        hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
-        PRINT_SUCCESS("Default boot application set to 'clock'");
-    } else if (strcmp(cmd, help) == 0) {
-        printHelp();
-    } else if (strcmp(cmd, esp_light_sleep) == 0) {
-        int value = 0;
-        if (parsed == 1) {
-            value = atoi(param[0]);
-            Serial0.printf("Entering light sleep with timeout: %d ms\n", value);
-        } else {
-            Serial0.println("Entering light sleep (press button to wake)");
-        }
-        hal.wait_input(value);
-    } else if (strcmp(cmd, file_server_begin) == 0) {
-        stop_fileserver = false;
-        hal.can_sleep  = false;
-        hal.can_light_sleep  = false;
-        xTaskCreatePinnedToCore(fileserver_task, "fileserver", 8192, NULL, 1, NULL, 0);
-        PRINT_SUCCESS("File server started");
-    } else if (strcmp(cmd, file_server_end) == 0) {
-        stop_fileserver = true;
-        delay(200);
-        PRINT_SUCCESS("File server stopped");
-    } else if (strcmp(cmd, esp_partition_info) == 0) {
-        INFO_COLOR;
-        Serial0.println("PARTITION INFORMATION:");
-        RESET_COLOR;
-        printPartitionsInfo();
-    } else if (strcmp(cmd, putnvs) == 0) {
-        if (parsed == 3)
+    }
+    else
+    {
+        // Execution failure
+        PRINT_ERROR("Failed to erase NVS");
+        return 2;
+    }
+    return 0;
+}
+
+static int cmd_lfsformat(int argc, char **argv)
+{
+    PRINT_WARNING("WARNING: This will format LittleFS and erase all data!");
+    LittleFS.end();
+    if (LittleFS.format())
+    {
+        if (LittleFS.begin())
         {
-            int value = atoi(param[1]);
-            int error = 0;
-            if (strcmp(param[2], "bool") == 0)
-                error = hal.pref.putBool(param[0], value);
-            else if (strcmp(param[2], "int") == 0)
-                error = hal.pref.putInt(param[0], value);
-            else if (strcmp(param[2], "uint") == 0)
-                error = hal.pref.putUInt(param[0], value);
-            else if (strcmp(param[2], "u8") == 0)
-                error = hal.pref.putUChar(param[0], value);
-            if (error = 0){
-                PRINT_ERROR("写入失败");
-            }
+            PRINT_SUCCESS("LittleFS formatted successfully");
         }
         else
-            PRINT_ERROR("参数不足");
-    } else if (strcmp(cmd, getnvs) == 0) {
-        if (parsed == 2)
         {
-            int value;
-            if (strcmp(param[1], "bool") == 0)
-                value = hal.pref.getBool(param[0]);
-            else if (strcmp(param[1], "int") == 0)
-                value = hal.pref.getInt(param[0]);
-            else if (strcmp(param[1], "uint") == 0)
-                value = hal.pref.getUInt(param[0]);
-            Serial0.printf("%s: %ld\n", param[0], value);
+            // Execution failure: could not remount after format
+            PRINT_ERROR("Failed to remount LittleFS after format");
+            return 2;
+        }
+    }
+    else
+    {
+        // Execution failure: format failed
+        PRINT_ERROR("Failed to format LittleFS");
+        return 2;
+    }
+    return 0;
+}
+
+static int cmd_lfsinfo(int argc, char **argv)
+{
+    size_t total = LittleFS.totalBytes(), used = LittleFS.usedBytes();
+    PRINT_INFO("LITTLEFS FILESYSTEM INFORMATION:");
+    PRINT_INFO("  Total space: %5d KB", total / 1024);
+    PRINT_INFO("  Used space:  %5d KB (%.02f%%)", used / 1024, (float)used / (float)total * 100.0);
+    PRINT_INFO("  Free space:  %5d KB", (total - used) / 1024);
+    return 0;
+}
+
+static int cmd_heap(int argc, char **argv)
+{
+    printMemCapsInfo(INTERNAL);
+    if (psramFound())
+    {
+        printMemCapsInfo(SPIRAM);
+    }
+    return 0;
+}
+
+static int cmd_chipinfo(int argc, char **argv)
+{
+    PRINT_INFO("CHIP INFORMATION:");
+    PRINT_INFO("  Model:       %s", ESP.getChipModel());
+    PRINT_INFO("  Revision:    %u", ESP.getChipRevision());
+    PRINT_INFO("  Cores:       %u", ESP.getChipCores());
+    uint64_t chipmacid = ESP.getEfuseMac();
+    uint8_t *mac = (uint8_t *)&chipmacid;
+    char macStr[18];
+    snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    PRINT_INFO("  MAC:         %s", macStr);
+    PRINT_INFO("  Flash size:  %d MB", ESP.getFlashChipSize() / 1048576);
+    uint32_t flash_id;
+    uint64_t flash_unique_id;
+    esp_flash_read_id(esp_flash_default_chip, &flash_id);
+    esp_flash_read_unique_chip_id(esp_flash_default_chip, &flash_unique_id);
+    PRINT_INFO("  Flash ID:    %04x", flash_id);
+    PRINT_INFO("  Unique ID:   %016llx", flash_unique_id);
+    return 0;
+}
+
+static int cmd_rst(int argc, char **argv)
+{
+    PRINT_INFO("Restarting device...");
+    // hal.pref.end(); // 避免panic时回退
+    LittleFS.end();
+    delay(1000);
+    ESP.restart();
+    return 0;
+}
+
+static int cmd_runtime(int argc, char **argv)
+{
+    long timeMillis = millis();
+    long hours = timeMillis / 3600000;
+    long remaining = timeMillis % 3600000;
+    long minutes = remaining / 60000;
+    remaining %= 60000;
+    long seconds = remaining / 1000;
+    long tenths = (remaining % 1000) / 100;
+    PRINT_INFO("Device runtime: %4d:%02d:%02d.%d", hours, minutes, seconds, tenths);
+    return 0;
+}
+
+static int cmd_batinfo(int argc, char **argv)
+{
+    hal.printBatteryInfo();
+    return 0;
+}
+
+static int cmd_cpuuse(int argc, char **argv)
+{
+    PRINT_INFO("CPU usage monitoring only available in ESP-IDF environment");
+    return 0;
+}
+
+static int cmd_bootapp_clock(int argc, char **argv)
+{
+    hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
+    PRINT_INFO("Default boot application set to 'clock'");
+    return 0;
+}
+
+static int cmd_lightsleep(int argc, char **argv)
+{
+    int timeout = 0;
+    if (argc == 2)
+    {
+        timeout = atoi(argv[1]);
+        PRINT_INFO("Entering light sleep with timeout: %d ms", timeout);
+    }
+    else
+    {
+        PRINT_INFO("Entering light sleep (press button to wake)");
+    }
+    hal.wait_input(timeout);
+    return 0;
+}
+
+static int cmd_fserverbegin(int argc, char **argv)
+{
+    stop_fileserver = false;
+    hal.can_sleep = false;
+    hal.can_light_sleep = false;
+    xTaskCreatePinnedToCore(fileserver_task, "fileserver", 8192, NULL, 1, NULL, 0);
+    PRINT_INFO("File server started");
+    return 0;
+}
+
+static int cmd_fserverend(int argc, char **argv)
+{
+    stop_fileserver = true;
+    delay(200);
+    PRINT_INFO("File server stopped");
+    return 0;
+}
+
+static int cmd_partitioninfo(int argc, char **argv)
+{
+    PRINT_INFO("PARTITION INFORMATION:");
+    printPartitionsInfo();
+    return 0;
+}
+
+static int cmd_putnvs(int argc, char **argv)
+{
+    // Expected usage: putnvs <key> <value> <type>
+    if (argc != 4)
+    {
+        // Incorrect number of arguments
+        return 1;
+    }
+
+    const char *key = argv[1];
+    const char *valueStr = argv[2];
+    const char *type = argv[3];
+    bool ok = false;
+
+    // Handle each supported type explicitly
+    if (strcmp(type, "bool") == 0)
+    {
+        ok = hal.pref.putBool(key, atoi(valueStr));
+    }
+    else if (strcmp(type, "int") == 0)
+    {
+        ok = hal.pref.putInt(key, atoi(valueStr));
+    }
+    else if (strcmp(type, "uint") == 0)
+    {
+        ok = hal.pref.putUInt(key, (uint32_t)atoi(valueStr));
+    }
+    else if (strcmp(type, "i8") == 0)
+    {
+        ok = hal.pref.putChar(key, (int8_t)atoi(valueStr));
+    }
+    else if (strcmp(type, "u8") == 0)
+    {
+        ok = hal.pref.putUChar(key, (uint8_t)atoi(valueStr));
+    }
+    else if (strcmp(type, "i16") == 0)
+    {
+        ok = hal.pref.putShort(key, (int16_t)atoi(valueStr));
+    }
+    else if (strcmp(type, "u16") == 0)
+    {
+        ok = hal.pref.putUShort(key, (uint16_t)atoi(valueStr));
+    }
+    else if (strcmp(type, "i32") == 0)
+    {
+        ok = hal.pref.putInt(key, atoi(valueStr));
+    }
+    else if (strcmp(type, "u32") == 0)
+    {
+        ok = hal.pref.putUInt(key, (uint32_t)atoi(valueStr));
+    }
+    else if (strcmp(type, "i64") == 0)
+    {
+        ok = hal.pref.putLong64(key, atoll(valueStr));
+    }
+    else if (strcmp(type, "u64") == 0)
+    {
+        ok = hal.pref.putULong64(key, strtoull(valueStr, nullptr, 0));
+    }
+    else if (strcmp(type, "float") == 0)
+    {
+        ok = hal.pref.putFloat(key, atof(valueStr));
+    }
+    else if (strcmp(type, "double") == 0)
+    {
+        ok = hal.pref.putDouble(key, atof(valueStr));
+    }
+    else if (strcmp(type, "string") == 0)
+    {
+        ok = hal.pref.putString(key, valueStr);
+    }
+    else
+    {
+        // Invalid type: rely on command hint for detailed usage information
+        return 1;
+    }
+
+    if (ok)
+    {
+        PRINT_SUCCESS("NVS write successful");
+    }
+    else
+    {
+        PRINT_ERROR("NVS write failed");
+    }
+    return 0;
+}
+
+static int cmd_getnvs(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        return 1;
+    }
+
+    const char *key = argv[1];
+    const char *type = (argc >= 3) ? argv[2] : nullptr;
+
+    // 指定类型读取
+    if (type != nullptr)
+    {
+        // 先检查键是否存在
+        if (hal.pref.getType(key) == PT_INVALID)
+        {
+            PRINT_ERROR("Key '%s' not found", key);
+            return 1;
+        }
+
+        if (strcmp(type, "float") == 0)
+        {
+            float val = hal.pref.getFloat(key);
+            PRINT_INFO("%s: %f", key, val);
+        }
+        else if (strcmp(type, "double") == 0)
+        {
+            double val = hal.pref.getDouble(key);
+            PRINT_INFO("%s: %lf", key, val);
         }
         else
-            PRINT_ERROR("参数不足");
-    } else if (strcmp(cmd, removenvs) == 0) {
-        if (parsed == 1)
         {
-            bool value;
-            value = hal.pref.getBool(param[0]);
-            Serial0.printf("%s: %s\n", param[0], value ? "true" : "false");
+            return 1;
         }
-        else
-            PRINT_ERROR("参数不足");
-    } else {
-        PRINT_ERROR("Unknown command");
-        PRINT_INFO("Use '#help*' to see available commands");
+        return 0;
+    }
+
+    // 自动检测类型
+    PreferenceType pt = hal.pref.getType(key);
+    switch (pt)
+    {
+    case PT_I8:
+    {
+        int8_t val = hal.pref.getChar(key);
+        PRINT_INFO("%s (int8): %d", key, val);
+        break;
+    }
+    case PT_U8:
+    {
+        uint8_t val = hal.pref.getUChar(key);
+        PRINT_INFO("%s (uint8): %u", key, val);
+        break;
+    }
+    case PT_I16:
+    {
+        int16_t val = hal.pref.getShort(key);
+        PRINT_INFO("%s (int16): %d", key, val);
+        break;
+    }
+    case PT_U16:
+    {
+        uint16_t val = hal.pref.getUShort(key);
+        PRINT_INFO("%s (uint16): %u", key, val);
+        break;
+    }
+    case PT_I32:
+    {
+        int32_t val = hal.pref.getInt(key);
+        PRINT_INFO("%s (int32): %d", key, val);
+        break;
+    }
+    case PT_U32:
+    {
+        uint32_t val = hal.pref.getUInt(key);
+        PRINT_INFO("%s (uint32): %u", key, val);
+        break;
+    }
+    case PT_I64:
+    {
+        int64_t val = hal.pref.getLong64(key);
+        PRINT_INFO("%s (int64): %lld", key, (long long)val);
+        break;
+    }
+    case PT_U64:
+    {
+        uint64_t val = hal.pref.getULong64(key);
+        PRINT_INFO("%s (uint64): %llu", key, (unsigned long long)val);
+        break;
+    }
+    case PT_STR:
+    {
+        String val = hal.pref.getString(key);
+        PRINT_INFO("%s (string): \"%s\"", key, val.c_str());
+        break;
+    }
+    case PT_BLOB:
+    {
+        size_t len = hal.pref.getBytesLength(key);
+        PRINT_INFO("%s (blob): length %u bytes", key, len);
+        // 如需打印前几个字节，可额外读取
+        break;
+    }
+    case PT_INVALID:
+    default:
+        PRINT_ERROR("Key '%s' not found", key);
+        return 1;
+    }
+    return 0;
+}
+
+static int cmd_display_debug(int argc, char **argv)
+{
+    if (argc == 2)
+    {
+        bool en = atoi(argv[1]);
+        bool valid = (en == 1 || en == 0);
+        if (!valid)
+        {
+            return 1;
+        }
+        display.debug_log((bool)en);
+        return 0;
+    }
+    else
+        return 1;
+    return 0;
+}
+
+static int cmd_file_task_info(int argc, char **argv)
+{
+    if (multi_thread_queue != NULL)
+    {
+        UBaseType_t count = uxQueueMessagesWaiting(multi_thread_queue);
+        PRINT_INFO("当前文件写入任务队列深度:%lu", count);
+    }
+    else
+        PRINT_WARNING("当前文件写入任务队列为空");
+    return 0;
+}
+
+#include "soc/soc.h"
+#include "soc/system_reg.h"
+
+static int cmd_cpufreq_reg(int argc, char **argv)
+{
+    if (argc == 2)
+    {
+        uint8_t val = atoi(argv[1]);
+        bool valid = (val < 4);
+        if (!valid)
+        {
+            return 1;
+        }
+        REG_SET_FIELD(SYSTEM_CPU_PER_CONF_REG, SYSTEM_CPUPERIOD_SEL, val);
+        int64_t start_us = esp_timer_get_time();
+        for (int i = 0; i < 3000; ++i)
+        {
+            _NOP();
+        }
+        int64_t end_us = esp_timer_get_time();
+        int64_t elapsed_us = end_us - start_us;
+        PRINT_INFO("NOP latency: %lld us\n", elapsed_us);
+        return 0;
+    }
+    else
+        return 1;
+    return 0;
+}
+
+// 命令注册表
+// Register all console commands defined in this file
+static const char *no_info = "";
+static const esp_console_cmd_t cmds[] = {
+    {.command = "cpufreq", .help = "获取当前CPU频率或设置频率", .hint = "Usage: cpufreq [freq]\n  freq: 240,160,80", .func = &cmd_cpufreq, .argtable = NULL},
+    {.command = "longpress", .help = "设置长按检测时间（X10ms）", .hint = "Usage: longpress [value]", .func = &cmd_longpress, .argtable = NULL},
+    {.command = "heap", .help = "显示堆内存使用情况", .hint = no_info, .func = &cmd_heap, .argtable = NULL},
+    {.command = "cfgcpufreq", .help = "配置CPU频率（重启后生效）", .hint = "Usage: cfgcpufreq <freq>\n  freq: 240,160,80", .func = &cmd_cfgcpufreq, .argtable = NULL},
+    {.command = "erasenvs", .help = "擦除所有NVS数据并重启", .hint = "谨慎操作", .func = &cmd_erasenvs, .argtable = NULL},
+    {.command = "lfsformat", .help = "格式化LittleFS文件系统", .hint = "谨慎操作", .func = &cmd_lfsformat, .argtable = NULL},
+    {.command = "lfsinfo", .help = "显示LittleFS文件系统信息", .hint = no_info, .func = &cmd_lfsinfo, .argtable = NULL},
+    {.command = "chipinfo", .help = "显示芯片信息", .hint = no_info, .func = &cmd_chipinfo, .argtable = NULL},
+    {.command = "rst", .help = "重启设备", .hint = no_info, .func = &cmd_rst, .argtable = NULL},
+    {.command = "runtime", .help = "显示设备运行时间", .hint = no_info, .func = &cmd_runtime, .argtable = NULL},
+    {.command = "batinfo", .help = "显示电池信息", .hint = no_info, .func = &cmd_batinfo, .argtable = NULL},
+    {.command = "cpuuse", .help = "CPU使用率（仅ESP-IDF环境）", .hint = no_info, .func = &cmd_cpuuse, .argtable = NULL},
+    {.command = "bootapp_clock", .help = "设置默认启动应用为clock", .hint = no_info, .func = &cmd_bootapp_clock, .argtable = NULL},
+    {.command = "lightsleep", .help = "进入轻睡眠模式，可选超时", .hint = "Usage: lightsleep [timeout]", .func = &cmd_lightsleep, .argtable = NULL},
+    {.command = "fserverbegin", .help = "启动文件服务器", .hint = no_info, .func = &cmd_fserverbegin, .argtable = NULL},
+    {.command = "fserverend", .help = "停止文件服务器", .hint = no_info, .func = &cmd_fserverend, .argtable = NULL},
+    {.command = "partitioninfo", .help = "显示分区信息", .hint = no_info, .func = &cmd_partitioninfo, .argtable = NULL},
+    {.command = "putnvs", .help = "写入NVS键值", .hint = "Usage: putnvs <key> <value> <type>\n  type: bool, int, uint, i8, u8, i16, u16, i32, u32, i64, u64, float, double, string", .func = &cmd_putnvs, .argtable = NULL},
+    {.command = "getnvs", .help = "读取NVS键值", .hint = "Usage: getnvs <key> [type]\n  type: bool, int, uint, float, double (omit for auto-detect)", .func = &cmd_getnvs, .argtable = NULL},
+    {.command = "display_debug", .help = "控制屏幕驱动debug输出", .hint = no_info, .func = &cmd_display_debug, .argtable = NULL},
+    {.command = "filetaskinfo", .help = "显示文件写入任务的队列情况", .hint = no_info, .func = &cmd_file_task_info, .argtable = NULL},
+    {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
+
+// Custom helper to retrieve the hint string for a given command name.
+// Returns the hint pointer from the cmds array, or nullptr if not found.
+static const char *find_cmd_hint(const char *cmdline)
+{
+    // Extract the command name (first token) from cmdline, ignoring any arguments.
+    // Find the first whitespace character.
+    const char *space = strchr(cmdline, ' ');
+    size_t nameLen = space ? (size_t)(space - cmdline) : strlen(cmdline);
+
+    // Iterate over the static cmds array defined above.
+    size_t cmdCount = sizeof(cmds) / sizeof(cmds[0]);
+    for (size_t i = 0; i < cmdCount; ++i)
+    {
+        // Compare only the command name length.
+        if (strlen(cmds[i].command) == nameLen &&
+            strncmp(cmds[i].command, cmdline, nameLen) == 0)
+        {
+            return cmds[i].hint;
+        }
+    }
+    return nullptr;
+}
+void CMD::register_commands()
+{
+    for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); ++i)
+    {
+        esp_console_cmd_register(&cmds[i]);
     }
 }

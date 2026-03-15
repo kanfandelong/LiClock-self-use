@@ -195,6 +195,9 @@ void AppManager::showAppList(int page)
         x -= 20 - 2;
         // 电池电量数值
         u8g2Fonts.setCursor(x - 44, 12);
+        if (hal.bat_info.voltage != 0.0)
+        u8g2Fonts.printf("%.03fV", hal.bat_info.voltage);
+        else
         u8g2Fonts.printf("%d.%03dV", hal.VCC / 1000, hal.VCC % 1000);
         x -= 50 - 4;
         // WiFi
@@ -260,7 +263,7 @@ AppBase *AppManager::appSelector(bool showHidden)
     bool waitc = false;
     display.swapBuffer(1);
     display.clearScreen();
-    display.display();
+    // display.display();
     display.setPowerMode(POWER_MODE_HPM);
     showAppList(currentPage);
     display.drawRoundRect(menu_x_offset - 1, menu_y_offset - 2, 50, 50, 5, 0); // 绘制选择框

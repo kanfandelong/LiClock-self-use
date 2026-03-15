@@ -151,6 +151,7 @@ void HAL::printBatteryInfo()
     Serial0.print(hal.bat_info.soh);
     Serial0.println("%");
     Serial0.printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
+    Serial0.printf("S3 Temperature: %.3f ℃\n", hal.bat_info.s3_temp);
     Serial0.printf("Voltage: %.3f V\n", hal.bat_info.voltage);
     Serial0.print("Avg Power: ");
     Serial0.print(hal.bat_info.power);
@@ -237,6 +238,7 @@ void task_bat_info(void *)
             hal.bat_info.soh = lipo.soh();
             hal.bat_info.power = lipo.power();
             hal.bat_info.temp = (float)lipo.temperature(INTERNAL_TEMP) / 100.0;
+            hal.bat_info.s3_temp = temperatureRead();
             hal.bat_info.capacity.remain = lipo.capacity(REMAIN);
             hal.bat_info.capacity.full = lipo.capacity(FULL);
             hal.bat_info.capacity.avail = lipo.capacity(AVAIL);
@@ -611,6 +613,72 @@ char *HAL::get_char_sha_key(const char *str, bool mode)
     // log_i("%s", key);
     return key;
 }
+
+
+String HAL::get_CAcert(char* filePath)
+{
+    File CAcert = hal.open(filePath, "r");
+    if (!CAcert)
+    {
+        error("Failed to open CAcert file");
+        return String();
+    }
+    size_t file_size = CAcert.size();
+    char ca_cert[file_size + 1]; // +1为终止符
+    size_t index = 0;
+    while (CAcert.available())// 读取证书内容并替换CRLF为LF
+    {
+        char c = CAcert.read();
+        if (c == '\r' && CAcert.peek() == '\n')
+        {
+            // 遇到CRLF，替换为LF
+            ca_cert[index++] = '\n';
+            CAcert.read(); // 跳过下一个字符（\n）
+        }
+        else
+        {
+            ca_cert[index++] = c;
+        }
+        // 防止缓冲区溢出
+        if (index >= file_size + 1)
+        {
+            error("缓冲区溢出，证书可能被截断");
+            break;
+        }
+    }
+    ca_cert[index] = '\0'; // 添加终止符
+    return String(ca_cert);
+}
+
+String HAL::get_yiyan(uint8_t maxlen)
+{
+    if (WiFi.isConnected())
+    {
+        HTTPClient http;
+        String ca_cert = get_CAcert("/littlefs/System/GTS Root R4.crt");
+        static const char* url_yiyan = "https://v1.hitokoto.cn/?c=c&c=a&c=d&c=f&c=i&encode=text&charset=utf-8&max_length=";
+        String _url = String(url_yiyan) + String(maxlen);
+        http.begin((String)_url, ca_cert.c_str());
+        int httpCode = http.GET();
+        if (httpCode == HTTP_CODE_OK)
+        {
+            String payload = http.getString();
+            http.end();
+            return payload;
+        }
+        else
+        {
+            error("一言获取失败: %s", http.errorToString(httpCode).c_str());
+            http.end();
+            return String("一言获取失败");
+        }
+    }
+    else
+    {
+        return String("网络未连接");
+    }
+}
+
 /**
  * @brief 获取当前设备的IP地址（根据WIFI模式自动切换获取）
  * @return 返回IP地址
@@ -776,7 +844,8 @@ void HAL::cheak_freq(int _freq, bool setfreq)
         bool cpuset = setCpuFrequencyMhz(_freq);
         Serial0.end();
         Serial0.begin(pref.getUInt("uart_baud", 115200));
-        // Serial0.setDebugOutput(true);
+        Serial0.setDebugOutput(true);
+        cmd.SetCallback();
         info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
         {
@@ -870,7 +939,7 @@ void HAL::WiFiConfigManual()
                         display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE);
                     }
                 }
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
                 u8g2Fonts.setCursor(120, ((128 - (14 * 6)) / 2) + 14);
                 char buf[256];
                 sprintf(buf, "如果使用的是电脑或手机未跳转至配置界面(移动数据可能会干扰跳转),请扫描二维码打开配置界面或浏览器打开http://192.168.4.1");
@@ -1126,7 +1195,6 @@ void HAL::coredump_file()
     }
     uint8_t *buffer;
     File file;
-    hal.pref.end();
     buffer = (uint8_t *)malloc(coredump_partition->size);
     if (!buffer)
     {
@@ -1155,9 +1223,9 @@ void HAL::coredump_file()
     }
     else
     {
-        log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节\n", written);
+        log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
-            GUI::msgbox("系统异常", "检测到程序运行错误，coredump分区已转储至/System/coredump.elf", 5);
+            GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢", 5);
         else
             GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
     }
@@ -1165,7 +1233,7 @@ void HAL::coredump_file()
 
 static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
 static const char esp_sleep_str[13][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
-SPIClass DisplaySPI(FSPI);
+
 bool HAL::init()
 {
     int16_t total_gnd = 0;
@@ -1177,6 +1245,7 @@ bool HAL::init()
     log_i("change band to %lu", uart_band);
     // Serial0.flush();
     Serial0.begin(uart_band);
+    Serial0.setDebugOutput(true);
     log_i("\n\n"
           "   © 2024 - 2026 看番の龙 | LiClock   \n"
           "          Powered by 看番の龙         \n"
@@ -1207,21 +1276,21 @@ bool HAL::init()
     total_gnd += digitalRead(PIN_BUTTONR);
     total_gnd += digitalRead(PIN_BUTTONL);
     total_gnd += digitalRead(PIN_BUTTONC);
-    if (total_gnd <= 1)
-    {
+    // if (total_gnd != 3) // 神秘错误,错误识别了按键电平,
+    // {
         btnl._buttonPressed = 1;
         btnr._buttonPressed = 1;
         btnc._buttonPressed = 1;
         btn_activelow = false;
-    }
-    else
-    {
-        ESP_LOGW("HAL", "此设备为旧版硬件，建议尽快升级以获得最佳体验。");
-        btnl._buttonPressed = 0;
-        btnr._buttonPressed = 0;
-        btnc._buttonPressed = 0;
-        btn_activelow = true;
-    }
+    // }
+    // else
+    // {
+    //     ESP_LOGW("HAL", "此设备为旧版硬件，建议尽快升级以获得最佳体验。");
+    //     btnl._buttonPressed = 0;
+    //     btnr._buttonPressed = 0;
+    //     btnc._buttonPressed = 0;
+    //     btn_activelow = true;
+    // }
     esp_task_wdt_init(portMAX_DELAY, false);
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
@@ -1277,19 +1346,17 @@ bool HAL::init()
 #endif
     // // display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     log_i("初始化屏幕...");
-    SPI.begin(CONFIG_SPI_SCK, -1, CONFIG_SPI_MOSI, -1);
-    SPI.setFrequency(40000000);
     display.begin(initial);
     display.display_Inversion(true);
-    // if (hal.pref.getBool("high_fps"))
-    //     display.High_Power_Mode();
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(TFT_BLACK);
     u8g2Fonts.setFontMode(1);
     u8g2Fonts.setForegroundColor(TFT_BLACK);
     u8g2Fonts.setBackgroundColor(TFT_WHITE);
-    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+
+    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
     u8g2Fonts.begin(display);
+
     // display.epd2.PLL_set(pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
     if (hal.btnl.isPressing() && (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED))
     {
@@ -1589,7 +1656,13 @@ static void pre_sleep()
     while (!hal.can_sleep)
     {
         delay(100);
-        Serial0.print(".");
+        Serial0.printf("\r|");
+        delay(100);
+        Serial0.printf("\r/");
+        delay(100);
+        Serial0.printf("\r-");
+        delay(100);
+        Serial0.printf("\r\\");
     }
     cmd.end();
     peripherals.sleep();
@@ -1699,17 +1772,8 @@ void HAL::update(void)
     long adc;
     adc = analogRead(PIN_ADC);
     adc = adc * ppc / 4096; // pref.getInt("ppc",7230)
-    if (adc > 4400)
-    {
-        VCC = adc;
-    }
-    else
-    {
-        if (hal.bat_info.voltage > 0)
-            VCC = (int16_t)(hal.bat_info.voltage * 1000);
-        else
-            VCC = adc;
-    } // int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
+    VCC = adc;
+    // int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
     if (hal.VCC < auto_sleep_mv)
     {
@@ -1717,7 +1781,7 @@ void HAL::update(void)
         GUI::info_msgbox("警告", buf);
         hal.powerOff(false);
     }
-    if (adc > 4400)
+    if (adc > 4300)
     {
         USBPluggedIn = true;
     }
@@ -1850,6 +1914,17 @@ void HAL::setWakeupIO(int io1, int io2)
     _wakeupIO[0] = io1;
     _wakeupIO[1] = io2;
 }
+/**
+ * @brief 复制文件内容到新文件。
+ *
+ * 该函数从源文件 `file` 读取数据块并写入目标文件 `newFile`，
+ * 在复制过程中会实时显示进度并支持长按按钮暂停或中止。
+ *
+ * @param newFile 目标文件对象，写入复制的数据。
+ * @param file    源文件对象，读取数据的来源。
+ * @return true   复制成功完成。
+ * @return false  复制过程中出现错误或被用户中止。
+ */
 bool HAL::copy(File &newFile, File &file)
 {
     log_i("开始文件复制");

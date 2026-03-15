@@ -30,6 +30,7 @@ uint8_t truetypeClass::setTtfFile(File _file, uint8_t _checkCheckSum)
   }
 
   this->file = _file;
+  file.setBufferSize(8192);
   if (this->readTableDirectory(_checkCheckSum) == 0)
   {
     file.close();

@@ -527,8 +527,8 @@ int8_t u8g2_GetGlyphWidth(u8g2_font_t *u8g2, uint16_t requested_encoding)
     return u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_delta_x);
   }
   else
-  {    // === 缺失字符处理：获取 □ 的宽度===
-    const uint16_t QUESTION_MARK = 0x25A1; // Unicode字符 □
+  {                                                 // === 缺失字符处理：获取 □ 的宽度===
+    const uint16_t QUESTION_MARK = 0x25A1;          // Unicode字符 □
     return u8g2_GetGlyphWidth(u8g2, QUESTION_MARK); // 返回回退字符的宽度
   }
 }
@@ -577,15 +577,70 @@ int16_t u8g2_DrawStr(u8g2_font_t *u8g2, int16_t x, int16_t y, const char *s)
   return sum;
 }
 
-void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t *font)
-{
-  if (u8g2->font != font)
-  {
-    u8g2->font = font;
-    u8g2->font_decode.is_transparent = 0;
+/* 为了避免多次分配导致内存泄漏，保存上一次在 PSRAM 中分配的指针 */
+static const uint8_t *psram_font_ptr = nullptr;
 
-    u8g2_read_font_info(&(u8g2->font_info), font);
+/* --------------------------------------------------------------
+   u8g2_SetFont 的改写（位于原来的 u8g2_SetFont 实现处）
+   -------------------------------------------------------------- */
+void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t *font, size_t font_size)
+{
+  /* 如果已经是同一个字体则直接返回 */
+  // 更完整的判断：
+  // 1. 当字体已被复制到 PSRAM 时，u8g2->font 指向 psram_font_ptr。
+  // 2. 当未使用 PSRAM 时，u8g2->font 指向传入的 font（即 Flash 中的原始指针）。
+  // 只有当当前使用的指针正好与对应的来源指针相同，才认为是同一字体并直接返回。
+  if ((psram_font_ptr && u8g2->font == psram_font_ptr) ||
+      (!psram_font_ptr && u8g2->font == font))
+    return;
+
+  /* 检查是否真的有 PSRAM */
+  if (psramFound())
+  {
+    /* ------------------------------------------------------
+       1) 估算字体数据的大小
+          U8g2 字体的末尾会出现两个连续的 0 字节（结束标记），
+          这里用一个安全上限（例如 64 KB）防止意外遍历过长。
+       ------------------------------------------------------ */
+    if (font_size == 0)
+    {
+      if (psram_font_ptr)
+        heap_caps_free((void *)psram_font_ptr);
+      goto no_psram;
+    }
+    const uint8_t *p = font;
+    size_t font_sz = font_size;
+
+    /* ------------------------------------------------------
+       2) 在 PSRAM 中分配内存
+       ------------------------------------------------------ */
+    uint8_t *buf = (uint8_t *)heap_caps_malloc(font_sz, MALLOC_CAP_SPIRAM);
+    if (buf != nullptr)
+    {
+      log_i("加载字体到PSRAM...");
+      /* 复制字体数据 */
+      memcpy(buf, font, font_sz);
+
+      /* 释放上一次的 PSRAM 缓冲（如果有的话） */
+      if (psram_font_ptr)
+        heap_caps_free((void *)psram_font_ptr);
+      psram_font_ptr = buf;
+
+      /* 使用 PSRAM 中的副本 */
+      u8g2->font = buf;
+      u8g2->font_decode.is_transparent = 0;
+      u8g2_read_font_info(&(u8g2->font_info), buf);
+      return; // 已完成 PSRAM 版的设置
+    }
+    /* 若分配失败则回退到普通方式 */
   }
+  /* ------------------------------------------------------
+     没有 PSRAM 或者分配失败时的普通处理（直接使用 Flash 中的指针）
+     ------------------------------------------------------ */
+no_psram:
+  u8g2->font = font;
+  u8g2->font_decode.is_transparent = 0;
+  u8g2_read_font_info(&(u8g2->font_info), font);
 }
 
 void u8g2_SetForegroundColor(u8g2_font_t *u8g2, uint16_t fg)

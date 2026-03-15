@@ -866,7 +866,7 @@ const char *Appwenjian::get_houzhui(const char *filename)
  */
 void Appwenjian::openfile()
 {
-    log_i("openfile,filename:%s\n", filename);
+    log_i("openfile,filename:%s", filename);
     const char *houzhui = get_houzhui(filename);
     if (strcasecmp(houzhui, "txt") == 0)
     {
@@ -986,14 +986,14 @@ void Appwenjian::openfile()
     else if (strcasecmp(houzhui, "lua") == 0)
     {
         setPath(filepath);
-        log_i("pach:%s\n", filepath);
+        log_i("pach:%s", filepath);
         String _str = "./" + (String)getFileName(filename);
         String _str2 = (String)filepath + "/conf.lua";
         const char *_file = _str.c_str();
         log_i("准备运行Lua脚本...");
         if (file_exist(_str2.c_str()))
         {
-            log_i("存在配置文件%s，加载配置文件...\n", _str2.c_str());
+            log_i("存在配置文件%s，加载配置文件...", _str2.c_str());
             closeLua();
             openLua_simple();
             lua_pushinteger(L, 0);
@@ -1008,7 +1008,7 @@ void Appwenjian::openfile()
             lua_settop(L, 0);
             closeLua();
         }
-        log_i("目标运行脚本: %s\n", getRealPath(_file));
+        log_i("目标运行脚本: %s", getRealPath(_file));
         closeLua();
         openLua();
         if (file_exist(getRealPath(_file)))
@@ -1056,7 +1056,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = SD_MMC.open("/");
             if (!root)
             {
-                log_e("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m");
             }
             file = root.openNextFile();
         }
@@ -1065,7 +1065,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = LittleFS.open("/");
             if (!root)
             {
-                log_e("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m");
             }
             file = root.openNextFile();
         }
@@ -1077,7 +1077,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = LittleFS.open("/");
             if (!root)
             {
-                log_e("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m");
             }
             file = root.openNextFile();
         }
@@ -1086,7 +1086,7 @@ void Appwenjian::selctwenjianjia(bool _file)
             root = SD_MMC.open("/");
             if (!root)
             {
-                log_e("\033[33mroot未打开\033[32m\n");
+                log_e("\033[33mroot未打开\033[32m");
             }
             file = root.openNextFile();
         }

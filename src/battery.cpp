@@ -40,6 +40,7 @@ static const uint8_t usb_power_bits[] = {
     0x3f, 0x40, 0x00, 0x20, 0xc0, 0x0f, 0x60, 0x40, 0x00, 0xc0, 0x40, 0x00,
     0x00, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 
 };
+
 /**
  * @brief Get the battery icon to display on the screen.
  * @param forceEmptyIcon 是否强制返回为空电量图标
@@ -76,7 +77,7 @@ const uint8_t *getBatteryIcon(bool forceEmptyIcon)
     {
         batteryIcon = battery_full_bits;
     }
-    else if (batteryLevel > 4400 && !hal.isCharging)
+    else if (batteryLevel > 4300 && !hal.isCharging)
     {
         batteryIcon = usb_power_bits;
     }

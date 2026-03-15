@@ -40,7 +40,7 @@
 
 #ifndef FLAC__INTEGER_ONLY_LIBRARY
 
-#include "private/float.h"
+#include "../private/float.h"
 
 #define FLAC__MAX_APODIZATION_FUNCTIONS 32
 

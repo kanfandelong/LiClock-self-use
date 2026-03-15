@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <ST7305.h>
 #include <Fonts/Picopixel.h>
 #include <U8g2_for_Adafruit_GFX.h>
 #include <WiFi.h>
@@ -24,13 +23,14 @@
 // #include <ESP32-targz.h>
 
 #define code_version "2.1.1.c" // 代码版本号（16进制格式）
-// 屏幕型号选择宏定义
-// #define E029A01
-// 屏幕多线程且驱动为UC8151C
-// #define Queue
-// #define T5
-#define T5D
-// #define T5D_gray
+
+#define DMA
+
+#ifndef DMA
+#include <ST7305.h>
+#else
+#include <ST7305_DMA.h>
+#endif
 
 #define TFT_BLACK     0x0000
 #define TFT_WHITE     0xFFFF
@@ -88,7 +88,7 @@
 #define Textfile "p11"
 #define isp_file "p12"
 #define Time_Zone "p13"
-typedef struct
+    typedef struct
 {
     const uint8_t *data;
     uint16_t width;
@@ -112,7 +112,11 @@ const char *remove_path_prefix(const char *path, const char *prefix);
 
 extern DynamicJsonDocument config;
 extern DynamicJsonDocument cfu;
+#ifndef DMA
 extern ST7305 display;
+#else
+extern ST7305_DMA display;
+#endif
 extern U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 extern TJpg_Decoder TJpgDec;
 

@@ -2,8 +2,12 @@
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
-
-ST7305 display(SCREEN_WIDTH, SCREEN_HEIGHT, &SPI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_BUSY);
+#ifndef DMA
+SPIClass DisplaySPI(FSPI);
+ST7305 display(SCREEN_WIDTH, SCREEN_HEIGHT, &DisplaySPI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_BUSY);
+#else
+ST7305_DMA display(SCREEN_WIDTH, SCREEN_HEIGHT, SPI2_HOST, CONFIG_SPI_SCK, CONFIG_SPI_MOSI, CONFIG_SPI_MOSI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_BUSY);
+#endif
 
 DynamicJsonDocument config(1024);
 DynamicJsonDocument cfu(2048);
@@ -72,7 +76,7 @@ void setup()
     Serial0.print("当前CPU频率：");
     Serial0.println(ESP.getCpuFreqMHz());
     log_i("启动appManager...");
-    xTaskCreate(task_appManager, "appManager", 8192, NULL, 3, NULL);
+    xTaskCreatePinnedToCore(task_appManager, "appManager", 8192, NULL, 4, NULL, 1);
     if (hal.pref.getInt("oobe", 0) <= 2)
     {
         appManager.gotoApp("oobe");

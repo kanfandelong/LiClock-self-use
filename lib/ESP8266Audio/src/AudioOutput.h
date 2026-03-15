@@ -107,7 +107,8 @@ class AudioOutput
     #endif
 
   protected:
-    uint16_t hertz;
+    // Use 32-bit to support high sample rates (e.g., 88200 Hz) without overflow
+    uint32_t hertz;
     uint8_t bps;
     uint8_t channels;
     uint8_t gainF2P6; // Fixed point 2.6

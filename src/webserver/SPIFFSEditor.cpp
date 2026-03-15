@@ -1,144 +1,76 @@
 #include "SPIFFSEditor.h"
 #include <FS.h>
 
-#define SPIFFS_MAXLENGTH_FILEPATH 32
-const char *excludeListFile = "/.exclude.files";
 
-typedef struct ExcludeListS
+typedef enum {
+    OP_WRITE,
+    OP_CLOSE
+} file_op_t;
+
+typedef struct
 {
-    char *item;
-    ExcludeListS *next;
-} ExcludeList;
+    file_op_t op;      // 操作类型
+    File *file;
+    uint8_t *data;
+    size_t size;
+} multi_thread_params_t;
 
-static ExcludeList *excludes = NULL;
+static TaskHandle_t file_task_handle = NULL;
+QueueHandle_t multi_thread_queue = NULL;
 
-static bool matchWild(const char *pattern, const char *testee)
+static void process_multi_thread_queue()
 {
-    const char *nxPat = NULL, *nxTst = NULL;
-
-    while (*testee)
-    {
-        if ((*pattern == '?') || (*pattern == *testee))
-        {
-            pattern++;
-            testee++;
-            continue;
-        }
-        if (*pattern == '*')
-        {
-            nxPat = pattern++;
-            nxTst = testee;
-            continue;
-        }
-        if (nxPat)
-        {
-            pattern = nxPat + 1;
-            testee = ++nxTst;
-            continue;
-        }
-        return false;
+    multi_thread_params_t params;
+    xQueueReceive(multi_thread_queue, &params, portMAX_DELAY);
+    if (params.op == OP_WRITE && params.size != 0) {
+        params.file->write(params.data, params.size);
+        free(params.data);
+    } else if (params.op == OP_CLOSE) {
+        params.file->close();
     }
-    while (*pattern == '*')
-    {
-        pattern++;
-    }
-    return (*pattern == 0);
 }
 
-static bool addExclude(const char *item)
+static void task_file_write(void *params)
 {
-    size_t len = strlen(item);
-    if (!len)
+    multi_thread_queue = xQueueCreate(100, sizeof(multi_thread_params_t));
+    while (1)
     {
-        return false;
+        process_multi_thread_queue();
+        delay(1);
     }
-    ExcludeList *e = (ExcludeList *)malloc(sizeof(ExcludeList));
-    if (!e)
-    {
-        return false;
-    }
-    e->item = (char *)malloc(len + 1);
-    if (!e->item)
-    {
-        free(e);
-        return false;
-    }
-    memcpy(e->item, item, len + 1);
-    e->next = excludes;
-    excludes = e;
-    return true;
 }
 
-static void loadExcludeList(fs::FS &_fs, const char *filename)
+void begin_file_task()
 {
-    static char linebuf[SPIFFS_MAXLENGTH_FILEPATH];
-    fs::File excludeFile = _fs.open(filename, "r");
-    if (!excludeFile)
-    {
-        // addExclude("/*.js.gz");
-        return;
-    }
-#ifdef ESP32
-    if (excludeFile.isDirectory())
-    {
-        excludeFile.close();
-        return;
-    }
-#endif
-    if (excludeFile.size() > 0)
-    {
-        uint8_t idx;
-        bool isOverflowed = false;
-        while (excludeFile.available())
-        {
-            linebuf[0] = '\0';
-            idx = 0;
-            int lastChar;
-            do
-            {
-                lastChar = excludeFile.read();
-                if (lastChar != '\r')
-                {
-                    linebuf[idx++] = (char)lastChar;
-                }
-            } while ((lastChar >= 0) && (lastChar != '\n') && (idx < SPIFFS_MAXLENGTH_FILEPATH));
-
-            if (isOverflowed)
-            {
-                isOverflowed = (lastChar != '\n');
-                continue;
-            }
-            isOverflowed = (idx >= SPIFFS_MAXLENGTH_FILEPATH);
-            linebuf[idx - 1] = '\0';
-            if (!addExclude(linebuf))
-            {
-                excludeFile.close();
-                return;
-            }
-        }
-    }
-    excludeFile.close();
+    if (file_task_handle == NULL)
+        xTaskCreate(task_file_write, "task_file_w", 4096, NULL, 1, &file_task_handle);
 }
 
-static bool isExcluded(fs::FS &_fs, const char *filename)
+void file_write(File *file, uint8_t *data, size_t size)
 {
-    if (excludes == NULL)
-    {
-        // loadExcludeList(_fs, excludeListFile);
-    }
-    ExcludeList *e = excludes;
-    while (e)
-    {
-        if (matchWild(e->item, filename))
-        {
-            return true;
-        }
-        e = e->next;
-    }
-    return false;
+    if (file_task_handle == NULL) // 确保任务已启动
+        xTaskCreate(task_file_write, "task_file_w", 4096, NULL, 1, &file_task_handle);
+    multi_thread_params_t params;
+    params.op = OP_WRITE;
+    params.file = file;
+    params.size = size;
+    params.data = (uint8_t *)ps_malloc(size);
+    memcpy(params.data, data, size);
+    xQueueSend(multi_thread_queue, &params, portMAX_DELAY);
+    // log_i("add write %lu", size);
 }
 
-// WEB HANDLER IMPLEMENTATION
+void file_close(File *file)
+{
+    if (file_task_handle == NULL)
+        xTaskCreate(task_file_write, "task_file_w", 4096, NULL, 1, &file_task_handle);
+    multi_thread_params_t params;
+    params.op = OP_CLOSE;
+    params.file = file;
+    params.data = NULL;
+    params.size = 0;
+    xQueueSend(multi_thread_queue, &params, portMAX_DELAY);
+}
 
 #ifdef ESP32
 SPIFFSEditor::SPIFFSEditor(const fs::FS &fs, const String &username, const String &password)
@@ -258,13 +190,6 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
             {
                 fs::File entry = dir.openFile("r");
 #endif
-                if (isExcluded(_fs, entry.name()))
-                {
-#ifdef ESP32
-                    entry = dir.openNextFile();
-#endif
-                    continue;
-                }
                 if (output != "[")
                     output += ',';
                 output += "{\"type\":\"";
@@ -416,10 +341,12 @@ void SPIFFSEditor::handleUpload(AsyncWebServerRequest *request, const String &fi
     {
         if (len)
         {
+            // file_write(&request->_tempFile, data, len);
             request->_tempFile.write(data, len);
         }
         if (final)
         {
+            // file_close(&request->_tempFile);
             request->_tempFile.close();
         }
     }

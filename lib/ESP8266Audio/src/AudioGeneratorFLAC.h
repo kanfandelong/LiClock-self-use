@@ -26,6 +26,13 @@ extern "C" {
     #include "libflac/FLAC/stream_decoder.h"
 };
 
+#define ENABLE_FLAC_DECODE_TIMING 0
+// Macro to control decode timing logging. Define ENABLE_FLAC_DECODE_TIMING to 0 to disable.
+// Users can override this definition via compiler flags or before including this header.
+#ifndef ENABLE_FLAC_DECODE_TIMING
+#define ENABLE_FLAC_DECODE_TIMING 1
+#endif
+
 class AudioGeneratorFLAC : public AudioGenerator
 {
   public:
@@ -48,6 +55,12 @@ class AudioGeneratorFLAC : public AudioGenerator
     uint16_t buffPtr;
     uint16_t buffLen;
     FLAC__StreamDecoder *flac;
+    // Timing statistics for decoder processing (enabled when ENABLE_FLAC_DECODE_TIMING != 0)
+  #if ENABLE_FLAC_DECODE_TIMING
+    uint64_t decodeTimeSumUs = 0;      // Sum of decode times in microseconds
+    uint32_t decodeCount = 0;         // Number of decode calls measured
+    uint32_t lastLogMs = 0;           // Last time average was logged (milliseconds)
+  #endif
 
     // FLAC callbacks, need static functions to bounce into c++ from c
     static FLAC__StreamDecoderReadStatus _read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes, void *client_data) {

@@ -39,6 +39,7 @@ AudioOutputI2S::AudioOutputI2S(int port, int output_mode, int dma_buf_count, int
   this->output_mode = output_mode;
   this->use_apll = use_apll;
   bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT;
+  timeout = 100;
   //set defaults
   mono = false;
   lsb_justified = false;
@@ -387,7 +388,8 @@ bool AudioOutputI2S::ConsumeSample(int16_t sample[2])
     samples_data[1] = Amplify(ms[LEFTCHANNEL]);
     
     size_t i2s_bytes_written;
-    i2s_write((i2s_port_t)portNo, &samples_data, sizeof(int) * 2, &i2s_bytes_written, 0);
+    // 设置超时100ms，当前架构允许阻塞
+    i2s_write((i2s_port_t)portNo, &samples_data, sizeof(int) * 2, &i2s_bytes_written, timeout);
     return i2s_bytes_written;
     #else
     uint32_t s32;

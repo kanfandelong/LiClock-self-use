@@ -34,6 +34,7 @@ typedef struct
     uint8_t soc = 255;            // 电池百分比电量
     uint8_t soh;            // 电池健康度
     float temp = 25.0;             // 温度
+    float s3_temp = 25.0;             // 温度
     float voltage = 0.0;          // 电池电压
     _bat_current current;   // 电池电流
     _bat_capacity capacity; // 电池容量
@@ -73,6 +74,8 @@ public:
     void loadConfig();
     void getTime();
     char* get_char_sha_key(const char *str, bool mode = false);
+    String get_CAcert(char* filePath);
+    String get_yiyan(uint8_t maxlen = 17);
     IPAddress getip();
     bool cheak_firmware_update();
     void cheak_freq(int _freq = 80, bool setfreq = false);

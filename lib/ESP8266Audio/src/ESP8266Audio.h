@@ -5,6 +5,8 @@
 // Input stage
 #include "AudioFileSourceBuffer.h"
 // #include "AudioFileSourceFATFS.h"
+#include "AudioFileSourceVorbis.h"
+
 #include "AudioFileSourceFS.h"
 #include "AudioFileSource.h"
 #include "AudioFileSourceHTTPStream.h"

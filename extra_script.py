@@ -14,7 +14,7 @@ Import("env")
 print("[钩子脚本] extra_script.py 已加载")
 
 # ===== 配置区域 =====
-WINDOWS_BASE_DIR = "/mnt/d/LiClock-dev_multithread-ST7305"
+WINDOWS_BASE_DIR = "/mnt/IDCN823/LiClock-dev_multithread-ST7305"
 PROJECT_DIR = env.subst("$PROJECT_DIR")
 
 # 需要同步的目录配置
@@ -37,7 +37,7 @@ SYNC_CONFIGS = [
 ]
 
 # 其他配置
-BUILD_DIR = "./.pio/build/esp32solo1"
+BUILD_DIR = "./.pio/build/MusicPlayer"
 ELF_STORAGE_DIR = "./elf_versions"
 DATABASE_FILE = "./elf_versions/elf_database.json"
 MAX_VERSIONS = 20

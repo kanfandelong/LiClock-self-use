@@ -8,11 +8,6 @@ ST7305::ST7305(int16_t w, int16_t h, SPIClass *spi, int8_t cs_pin, int8_t dc_pin
                                                 _rst_pin(rst_pin),
                                                 _te_pin(te_pin), rotation(0)
 { // Initialize rotation to
-
-    buffer = _buffers[0];
-    memset(_buffers[0], 0x00, sizeof(BYTES_PER_BUFFER));
-    memset(_buffers[1], 0x00, sizeof(BYTES_PER_BUFFER));
-    memset(_buffers[2], 0x00, sizeof(BYTES_PER_BUFFER));
     // temp_buffer = (uint8_t *)malloc(192 * 14 * 3);
     // 像素数据结构为：
     // P1 P3 P5 P7
@@ -26,8 +21,35 @@ ST7305::ST7305(int16_t w, int16_t h, SPIClass *spi, int8_t cs_pin, int8_t dc_pin
     // BIT6 BIT4 BIT2 BIT0
 }
 
+typedef union {
+    uint32_t value;
+    struct {
+            uint32_t clkcnt_l:       6;                     /*it must be equal to spi_clkcnt_N.*/
+            uint32_t clkcnt_h:       6;                     /*it must be floor((spi_clkcnt_N+1)/2-1).*/
+            uint32_t clkcnt_n:       6;                     /*it is the divider of spi_clk. So spi_clk frequency is system/(spi_clkdiv_pre+1)/(spi_clkcnt_N+1)*/
+#if CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32S3
+            uint32_t clkdiv_pre:     4;                     /*it is pre-divider of spi_clk.*/
+            uint32_t reserved:       9;  					/*reserved*/
+#else
+            uint32_t clkdiv_pre:    13;                     /*it is pre-divider of spi_clk.*/
+#endif
+            uint32_t clk_equ_sysclk: 1;                     /*1: spi_clk is eqaul to system 0: spi_clk is divided from system clock.*/
+    };
+} spiClk_t;
+
 bool ST7305::begin(bool reset)
 {
+    log_i("缓冲区初始化...");
+    _buffers[0] = (uint8_t*) ps_malloc(BYTES_PER_BUFFER);
+    _buffers[1] = (uint8_t*) ps_malloc(BYTES_PER_BUFFER);
+    _buffers[2] = (uint8_t*) ps_malloc(BYTES_PER_BUFFER);
+    _buffers[3] = (uint8_t*) ps_malloc(BYTES_PER_BUFFER);
+    buffer = _buffers[0];
+    memset(_buffers[0], 0xFF, sizeof(BYTES_PER_BUFFER));
+    memset(_buffers[1], 0xFF, sizeof(BYTES_PER_BUFFER));
+    memset(_buffers[2], 0xFF, sizeof(BYTES_PER_BUFFER));
+    memset(_buffers[3], 0xFF, sizeof(BYTES_PER_BUFFER));
+    log_i("GPIO初始化...");
     // Initialize pins
     pinMode(_cs_pin, OUTPUT);
     pinMode(_dc_pin, OUTPUT);
@@ -39,6 +61,7 @@ bool ST7305::begin(bool reset)
 
     digitalWrite(_cs_pin, HIGH);
 
+    log_i("屏幕复位...");
     if (reset)
     {
         // Hardware reset
@@ -46,11 +69,22 @@ bool ST7305::begin(bool reset)
         digitalWrite(_rst_pin, HIGH);
         delay(50);
         digitalWrite(_rst_pin, LOW);
-        delay(100);
+        delay(5);
         digitalWrite(_rst_pin, HIGH);
         gpio_hold_en((gpio_num_t)_rst_pin);
+        delay(120);
     }
-    // Initialize display
+    
+    log_i("初始化SPI总线...");
+    _spi->begin(CONFIG_SPI_SCK, -1, CONFIG_SPI_MOSI, -1);
+    _spi->setFrequency(33333333);
+    #define ClkRegToFreq(reg) (apb_freq / (((reg)->clkdiv_pre + 1) * ((reg)->clkcnt_n + 1)))
+    uint32_t apb_freq = getApbFrequency();
+    spiClk_t reg = { _spi->getClockDivider() };
+    uint32_t freq = ClkRegToFreq(&reg);
+    log_i("目标时钟频率33.3M,实际时钟频率: %lu", freq);
+    
+    log_i("初始化屏幕...");
     initDisplay();
 
     clearDisplay();
@@ -96,43 +130,40 @@ void ST7305::set(uint8_t cmd, uint8_t *data, size_t len)
 
 void ST7305::initDisplay()
 {
-    sendCommand(0xD6);
-    sendData(0x13);
-    sendData(0x02); // NVM Load Control
-    sendCommand(0xD1);
-    sendData(0x01); // Booster Enable
-    sendCommand(0xC0);
+    sendCommand(0xD6); // NVM Load Control
+    sendData(0x17);
+    sendData(0x02);
+
+    sendCommand(0xD1); // Booster Enable
+    sendData(0x01);
+
+    sendCommand(0xC0); // Gate Voltage Setting
     sendData(voltageSet[0][0]);
-    sendData(voltageSet[0][1]); // Gate Voltage Setting
+    sendData(voltageSet[0][1]);
 
-    // VSH-VSL  -0.3 ~ +6.2V
-    // 电压 = 3.7 + 0.02*设置值，3.7~6.2V
-    sendCommand(0xC1);          // VSHP Setting
-    sendData(voltageSet[0][2]); // VSHP1
-    sendData(voltageSet[1][2]); // VSHP2
-    sendData(voltageSet[2][2]); // VSHP3
-    sendData(voltageSet[3][2]); // VSHP4
+    sendCommand(0xC1); // VSHP Setting (4.8V)
+    sendData(voltageSet[0][2]);
+    sendData(voltageSet[1][2]);
+    sendData(voltageSet[2][2]);
+    sendData(voltageSet[3][2]);
 
-    // 电压 = 0.02*设置值，0~2V
-    sendCommand(0xC2);          // VSLP Setting
-    sendData(voltageSet[0][3]); // VSLP1
-    sendData(voltageSet[1][3]); // VSLP2
-    sendData(voltageSet[2][3]); // VSLP3
-    sendData(voltageSet[3][3]); // VSLP4
+    sendCommand(0xC2); // VSLP Setting (0.98V)
+    sendData(voltageSet[0][3]);
+    sendData(voltageSet[1][3]);
+    sendData(voltageSet[2][3]);
+    sendData(voltageSet[3][3]);
 
-    // 电压 = -2.5 - 0.02*设置值，-5.3~2.5V
-    sendCommand(0xC4);          // VSHN Setting
-    sendData(voltageSet[0][4]); // VSHN1
-    sendData(voltageSet[1][4]); // VSHN2
-    sendData(voltageSet[2][4]); // VSHN3
-    sendData(voltageSet[3][4]); // VSHN4
+    sendCommand(0xC4); // VSHN Setting (-3.6V)
+    sendData(voltageSet[0][4]);
+    sendData(voltageSet[1][4]);
+    sendData(voltageSet[2][4]);
+    sendData(voltageSet[3][4]);
 
-    // 电压 = 1 - 0.02*设置值，-1.8~1.0V
-    sendCommand(0xC5);          // VSLN Setting
-    sendData(voltageSet[0][5]); // VSLP1
-    sendData(voltageSet[1][5]); // VSLP2
-    sendData(voltageSet[2][5]); // VSLP3
-    sendData(voltageSet[3][5]); // VSLP4
+    sendCommand(0xC5); // VSLN Setting (0.22V)
+    sendData(voltageSet[0][5]);
+    sendData(voltageSet[1][5]);
+    sendData(voltageSet[2][5]);
+    sendData(voltageSet[3][5]);
 
     // 配合下面Frame Rate Control设置HPM刷新率{0xA6 0xE9  16/32Hz} {0x80 0xE9  25.5/51Hz}
     sendCommand(0xD8); // OSC Setting
@@ -168,7 +199,7 @@ void ST7305::initDisplay()
     sendData(0x60); // Gate Line Setting: 384 line
 
     sendCommand(0x11); // Sleep out
-    delay(100);
+    delay(120);
 
     sendCommand(0xC9);
     sendData(0x00); // Source Voltage Select
@@ -194,8 +225,8 @@ void ST7305::initDisplay()
         sendData(0x00); // TE
     }
 
-    sendCommand(0xD0);
-    sendData(0xFF);    // Auto power down
+    sendCommand(0xD0); // Auto power down
+    sendData(0xFF);
     sendCommand(0x39); // 低功耗模式
     sendCommand(0x29); // Display on
     // setvoltage(fps_5100);
@@ -290,24 +321,29 @@ IRAM_ATTR void ST7305::drawPixel(int16_t x, int16_t y, uint16_t color)
     switch (rotation)
     {
     case 1: // 0°
+        // No rotation, coordinates unchanged
         new_x = x;
         new_y = y;
         break;
     case 2: // 90°
-        new_x = y;
-        new_y = PHYSICAL_WIDTH - x - 1;
+        // Clockwise 90° rotation
+        new_x = PHYSICAL_WIDTH - y - 1;
+        new_y = x;
         break;
     case 3: // 180°
         new_x = PHYSICAL_WIDTH - x - 1;
         new_y = PHYSICAL_HEIGHT - y - 1;
         break;
     default: // 270°
-        new_x = PHYSICAL_HEIGHT - y - 1;
-        new_y = x;
+        // Clockwise 270° rotation (or 90° counter‑clockwise)
+        new_x = y;
+        new_y = PHYSICAL_HEIGHT - x - 1;
         break;
     }
 
     // 旋转后坐标边界检查（使用显示缓冲区的尺寸）
+    if (log_out)
+        log_i("new_x:%3d new_y:%3d", new_x, new_y);
     if (new_x < 0 || new_x >= PHYSICAL_WIDTH || new_y < 0 || new_y >= PHYSICAL_HEIGHT)
         return;
 
@@ -498,40 +534,105 @@ void ST7305::setDrawWindow(int16_t x, int16_t y, int16_t w, int16_t h)
     y_max = y + h;
 }
 
-
 void ST7305::setPowerMode(PowerMode mode)
 {
-    if (mode == POWER_MODE_LPM) {
-        if (LPM_MODE) {
+    if (mode == POWER_MODE_LPM)
+    {
+        if (LPM_MODE)
+        {
             HPM_MODE = false;
             LPM_MODE = true;
-        } else {
+        }
+        else
+        {
             HPM_MODE = false;
             LPM_MODE = true;
-            sendCommand(0xC0);
+
+            sendCommand(0x38); // HPM:high Power Mode ON
+
+            sendCommand(0xC0); // Gate Voltage Setting
             sendData(voltageSet[0][0]);
             sendData(voltageSet[0][1]);
-            sendCommand(0xC9);
-            sendData(0x00); // Source Voltage Select
+
+            sendCommand(0xC1); // VSHP Setting (4.8V)
+            sendData(voltageSet[0][2]);
+            sendData(voltageSet[1][2]);
+            sendData(voltageSet[2][2]);
+            sendData(voltageSet[3][2]);
+
+            sendCommand(0xC2); // VSLP Setting (0.98V)
+            sendData(voltageSet[0][3]);
+            sendData(voltageSet[1][3]);
+            sendData(voltageSet[2][3]);
+            sendData(voltageSet[3][3]);
+
+            sendCommand(0xC4); // VSHN Setting (-3.6V)
+            sendData(voltageSet[0][4]);
+            sendData(voltageSet[1][4]);
+            sendData(voltageSet[2][4]);
+            sendData(voltageSet[3][4]);
+
+            sendCommand(0xC5); // VSLN Setting (0.22V)
+            sendData(voltageSet[0][5]);
+            sendData(voltageSet[1][5]);
+            sendData(voltageSet[2][5]);
+            sendData(voltageSet[3][5]);
+
+            sendCommand(0xC9); // Source Voltage Select
+            sendData(0X00);    // VSHP1; VSLP1 ; VSHN1 ; VSLN1
+
             delay(20);
             sendCommand(0x39); // LPM:Low Power Mode ON
             delay(100);
         }
-    } else if (mode == POWER_MODE_HPM) {
-        if (HPM_MODE) {
+    }
+    else if (mode == POWER_MODE_HPM)
+    {
+        if (HPM_MODE)
+        {
             HPM_MODE = true;
             LPM_MODE = false;
-        } else {
+        }
+        else
+        {
             HPM_MODE = true;
             LPM_MODE = false;
+            sendCommand(0x39);
             sendCommand(0x38); // HPM:high Power Mode ON
-            delay(10);
-            sendCommand(0xC0);
+            delay(300);
+
+            sendCommand(0xC0); // Gate Voltage Setting
             sendData(voltageSet[1][0]);
             sendData(voltageSet[1][1]);
-            sendCommand(0xC9);
-            sendData(0x01); // Source Voltage Select
-            delay(10);
+
+            sendCommand(0xC1); // VSHP Setting (4.8V)
+            sendData(voltageSet[0][2]);
+            sendData(voltageSet[1][2]);
+            sendData(voltageSet[2][2]);
+            sendData(voltageSet[3][2]);
+
+            sendCommand(0xC2); // VSLP Setting (0.98V)
+            sendData(voltageSet[0][3]);
+            sendData(voltageSet[1][3]);
+            sendData(voltageSet[2][3]);
+            sendData(voltageSet[3][3]);
+
+            sendCommand(0xC4); // VSHN Setting (-3.6V)
+            sendData(voltageSet[0][4]);
+            sendData(voltageSet[1][4]);
+            sendData(voltageSet[2][4]);
+            sendData(voltageSet[3][4]);
+
+            sendCommand(0xC5); // VSLN Setting (0.22V)
+            sendData(voltageSet[0][5]);
+            sendData(voltageSet[1][5]);
+            sendData(voltageSet[2][5]);
+            sendData(voltageSet[3][5]);
+
+            sendCommand(0xC9); // Source Voltage Select
+            sendData(0X01);    // VSHP1; VSLP1 ; VSHN1 ; VSLN1
+
+            delay(20);
         }
     }
 }

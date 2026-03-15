@@ -129,7 +129,7 @@ void u8g2_SetFontMode(u8g2_font_t *u8g2, uint8_t is_transparent);
 void u8g2_SetFontDirection(u8g2_font_t *u8g2, uint8_t dir);
 int16_t u8g2_DrawGlyph(u8g2_font_t *u8g2, int16_t x, int16_t y, uint16_t encoding);
 int16_t u8g2_DrawStr(u8g2_font_t *u8g2, int16_t x, int16_t y, const char *s);
-void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t  *font);
+void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t  *font, size_t font_size);
 void u8g2_SetForegroundColor(u8g2_font_t *u8g2, uint16_t fg);
 void u8g2_SetBackgroundColor(u8g2_font_t *u8g2, uint16_t bg);
 
@@ -150,8 +150,8 @@ class U8G2_FOR_ADAFRUIT_GFX : public Print {
   
     U8G2_FOR_ADAFRUIT_GFX(void) {u8g2.font = NULL; u8g2.font_decode.fg_color = 1; u8g2.font_decode.is_transparent = 1; u8g2.font_decode.dir = 0; home(); } 
     void begin(Adafruit_GFX &gfx) { u8g2.gfx = &gfx; }
-    void setFont(const uint8_t *font)             // set u8g2 font
-      { u8g2_SetFont(&u8g2, font); }
+    void setFont(const uint8_t *font, size_t font_size = 0)             // set u8g2 font
+      { u8g2_SetFont(&u8g2, font, font_size); }
     void setFontMode(uint8_t is_transparent)      // is_transparent==0: Background is not drawn
       { u8g2_SetFontMode(&u8g2, is_transparent); }
     void setFontDirection(uint8_t d)              // 0; 0 degree, 1: 90 degree, 2: 180 degree, 3: 270 degree

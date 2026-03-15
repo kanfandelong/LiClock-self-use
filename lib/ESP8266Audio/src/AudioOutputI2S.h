@@ -65,6 +65,10 @@ class AudioOutputI2S : public AudioOutput
     bool Set_bits_per_chan(i2s_bits_per_chan_t _i2s_per_chan);
     bool set_ConsumeSample_CB(SampleCB fn);
     bool SwapClocks(bool swap_clocks);  // Swap BCLK and WCLK
+    bool SetTimeout(TickType_t _timeout) {
+      timeout = _timeout;      
+      return true;
+    }
 
   protected:
     bool SetPinout();
@@ -80,6 +84,7 @@ class AudioOutputI2S : public AudioOutput
     bool use_mclk;
     bool swap_clocks;
     i2s_bits_per_chan_t bits_per_chan;
+    TickType_t timeout;
     // We can restore the old values and free up these pins when in NoDAC mode
     uint32_t orig_bck;
     uint32_t orig_ws;

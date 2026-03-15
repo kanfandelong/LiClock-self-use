@@ -1,5 +1,7 @@
 #include <A_Config.h>
 
+#define GUI_Frequency 20
+
 namespace GUI
 {
     int last_buffer_idx = 0;
@@ -71,7 +73,7 @@ namespace GUI
         {
             u8g2Fonts.setBackgroundColor(1);
             u8g2Fonts.setForegroundColor(0);
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
             wchar = u8g2Fonts.getUTF8Width(title);
             u8g2Fonts.setCursor(x + (w - wchar) / 2, y + 12);
             u8g2Fonts.print(title);
@@ -363,6 +365,8 @@ namespace GUI
                     pageStart = selected - number_of_items + 1;
                 }
 
+                TickType_t xLastWakeTime = xTaskGetTickCount();
+                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency); // 运行周期
                 // 动画：平滑移动选框
                 const int steps = 6; // 动画帧数，越大越平滑
                 int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
@@ -394,6 +398,7 @@ namespace GUI
                         display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
                     display.display();
+                    xTaskDelayUntil(&xLastWakeTime, xFrequency);
                 }
                 // 动画结束后更新 prev_selected
                 prev_selected = selected;
@@ -582,6 +587,8 @@ namespace GUI
                     pageStart = selected - number_of_items + 1;
                 }
 
+                TickType_t xLastWakeTime = xTaskGetTickCount();
+                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency); // 运行周期
                 // 动画：平滑移动选框
                 const int steps = 6; // 动画帧数，越大越平滑
                 int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
@@ -626,6 +633,7 @@ namespace GUI
                         display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
                     display.display();
+                    xTaskDelayUntil(&xLastWakeTime, xFrequency);
                 }
                 // 动画结束后更新 prev_selected
                 prev_selected = selected;
@@ -846,7 +854,7 @@ namespace GUI
                 u8g2Fonts.setCursor(5, 15);                         // 在文本框中绘制文本
                 u8g2Fonts.setForegroundColor(TFT_BLACK);
                 u8g2Fonts.setBackgroundColor(TFT_WHITE);
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self);
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
                 autoIndentDraw(inputBuffer, 190, 5);
                 u8g2Fonts.drawUTF8(5, 40, name);
                 display.display(); // 更新文本框内容
@@ -1010,6 +1018,7 @@ namespace GUI
         pop_buffer();
         hal.unhookButton();
         display.display(); // 全局刷新一次
+        display.setDrawWindow(); // 恢复绘制窗口
         return currentNumber;
     }
     /**
@@ -1155,6 +1164,7 @@ namespace GUI
         pop_buffer();
         hal.unhookButton();
         display.display(); // 刷新
+        display.setDrawWindow(); // 恢复绘制窗口
         return currentNumber;
     }
     int msgbox_time(const char *title, int pre_value)
@@ -1275,6 +1285,7 @@ namespace GUI
         pop_buffer();
         hal.unhookButton();
         display.display(); // 全局刷新一次
+        display.setDrawWindow(); // 恢复绘制窗口
         return current_value;
     }
     /**
@@ -1291,7 +1302,7 @@ namespace GUI
         FILE *fp = fopen(getRealPath(filename), "rb");
         if (!fp)
         {
-            error("File %s not found!\n", filename);
+            error("File %s not found!", filename);
             return;
         }
         HEADGRAY header;
@@ -1304,7 +1315,7 @@ namespace GUI
         w = header.w;
         h = header.h;
         pixel_bit = header.gray;
-        log_i("w: %d, h: %d, grayLevels(每像素位数): %d\n", w, h, pixel_bit);
+        log_i("w: %d, h: %d, grayLevels(每像素位数): %d", w, h, pixel_bit);
         size_t imgsize;
         uint16_t tmp = w / (8 / pixel_bit);
         if (w % (8 / pixel_bit) != 0)

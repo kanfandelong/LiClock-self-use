@@ -183,42 +183,11 @@ bool AudioGeneratorMP3::DecodeNextFrame()
   
   nsCountMax = MAD_NSBSAMPLES(&frame->header);
   
-/*   // 只统计有效比特率
+  // 只统计有效比特率
   if (!totalSent && frame->header.bitrate > 0) {
     bitrateSum += (uint64_t)frame->header.bitrate;
     bitrateCount++;
   }
-  
-  // 只有有足够帧数来计算平均比特率时才进行处理
-  if (bitrateCount >= 50 && !totalSent) {
-    uint64_t currentAvgBitrate = bitrateSum / bitrateCount;
-    
-    // 如果是第一次计算，或者帧数刚好是50的倍数时重新计算
-    // 这样可以避免频繁计算，只在关键点更新
-    if (bitrateCount == 50 || bitrateCount % 50 == 0) {
-      // 避免除零错误
-      if (currentAvgBitrate == 0) currentAvgBitrate = frame->header.bitrate;
-      if (currentAvgBitrate == 0) currentAvgBitrate = 128000;
-      
-      // 计算总时长（毫秒）
-      uint64_t total_seconds = ((uint64_t)(file->getSize() - first_frame_pos) * 8ULL) / currentAvgBitrate;
-      uint64_t total_ms = total_seconds * 1000ULL;
-      
-      // 发送总时长回调
-      cb.md("tlen", false, ((String)total_ms).c_str());
-      
-      // log_i("更新总时长: %llu ms, 平均比特率: %llu bps (基于 %u 帧)", total_ms, currentAvgBitrate, bitrateCount);
-      
-      // 记录最后一次计算时的比特率
-      lastAvgBitrate = currentAvgBitrate;
-    }
-    
-    // 当有足够多帧数时检查稳定性
-    if (bitrateCount >= 400) { // 200帧后认为比特率已稳定
-      totalSent = true;
-      // log_i("比特率已稳定，基于 %u 帧，平均比特率: %llu bps", bitrateCount, lastAvgBitrate);
-    } 
-  }*/
   
   return true;
 }
@@ -307,7 +276,37 @@ void print_mad_error(enum mad_error error) {
 bool AudioGeneratorMP3::loop()
 {
   if (!running) goto done; // Nothing to do here!
-
+  
+  // 只有有足够帧数来计算平均比特率时才进行处理
+  if (bitrateCount >= 50 && !totalSent) {
+    uint64_t currentAvgBitrate = bitrateSum / bitrateCount;
+    
+    // 如果是第一次计算，或者帧数刚好是50的倍数时重新计算
+    // 这样可以避免频繁计算，只在关键点更新
+    if (bitrateCount == 50 || bitrateCount % 50 == 0) {
+      // 避免除零错误
+      if (currentAvgBitrate == 0) currentAvgBitrate = frame->header.bitrate;
+      if (currentAvgBitrate == 0) currentAvgBitrate = 128000;
+      
+      // 计算总时长（毫秒）
+      uint64_t total_seconds = ((uint64_t)(file->getSize() - first_frame_pos) * 8ULL) / currentAvgBitrate;
+      uint64_t total_ms = total_seconds * 1000ULL;
+      
+      // 发送总时长回调
+      cb.md("tlen", false, ((String)total_ms).c_str());
+      
+      // log_i("更新总时长: %llu ms, 平均比特率: %llu bps (基于 %u 帧)", total_ms, currentAvgBitrate, bitrateCount);
+      
+      // 记录最后一次计算时的比特率
+      lastAvgBitrate = currentAvgBitrate;
+    }
+    
+    // 当有足够多帧数时检查稳定性
+    if (bitrateCount >= 400) { // 200帧后认为比特率已稳定
+      totalSent = true;
+      // log_i("比特率已稳定，基于 %u 帧，平均比特率: %llu bps", bitrateCount, lastAvgBitrate);
+    } 
+  }
   // First, try and push in the stored sample.  If we can't, then punt and try later
   if (!output->ConsumeSample(lastSample)) goto done; // Can't send, but no error detected
 

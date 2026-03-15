@@ -32,6 +32,12 @@ AudioGeneratorFLAC::AudioGeneratorFLAC()
   buffPtr = 0;
   buffLen = 0;
   running = false;
+  // Initialize timing statistics (if enabled)
+#if ENABLE_FLAC_DECODE_TIMING
+  decodeTimeSumUs = 0;
+  decodeCount = 0;
+  lastLogMs = 0;
+#endif
 }
 
 AudioGeneratorFLAC::~AudioGeneratorFLAC()
@@ -59,8 +65,9 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
   (void)FLAC__stream_decoder_set_md5_checking(flac, false);
   // Request only the metadata types we need (stream info and Vorbis comments).
   // Skipping picture metadata avoids large memory allocations on constrained devices.
-  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_STREAMINFO);
-  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+  // FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_STREAMINFO);
+  // FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+  FLAC__stream_decoder_set_metadata_respond_all(flac);
 
   FLAC__StreamDecoderInitStatus ret = FLAC__stream_decoder_init_stream(
       flac,
@@ -81,7 +88,7 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
   }
   // Process metadata immediately so that callbacks (e.g., Vorbis comments) are invoked before audio playback starts
   FLAC__stream_decoder_process_until_end_of_metadata(flac);
-  
+
   output->begin();
   running = true;
   lastSample[0] = 0;
@@ -104,7 +111,24 @@ bool AudioGeneratorFLAC::loop()
   {
     if (buffPtr == buffLen)
     {
+      // Decode timing (optional)
+    #if ENABLE_FLAC_DECODE_TIMING
+      uint64_t startUs = micros();
       ret = FLAC__stream_decoder_process_single(flac);
+      uint64_t elapsedUs = micros() - startUs;
+      decodeTimeSumUs += elapsedUs;
+      decodeCount++;
+      uint32_t nowMs = millis();
+      if (nowMs - lastLogMs >= 5000 && decodeCount > 0) {
+        uint64_t avgUs = decodeTimeSumUs / decodeCount;
+        log_i("Avg FLAC decode time: %llu us over %u calls", avgUs, decodeCount);
+        decodeTimeSumUs = 0;
+        decodeCount = 0;
+        lastLogMs = nowMs;
+      }
+    #else
+      ret = FLAC__stream_decoder_process_single(flac);
+    #endif
       if (!ret)
       {
         FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(flac);
@@ -274,19 +298,21 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
           metadata->data.stream_info.bits_per_sample,
           metadata->data.stream_info.channels,
           metadata->data.stream_info.total_samples);
-    if (metadata->data.stream_info.sample_rate != 0 && metadata->data.stream_info.total_samples != 0) {
+    if (metadata->data.stream_info.sample_rate != 0 && metadata->data.stream_info.total_samples != 0)
+    {
       uint64_t total_time = metadata->data.stream_info.total_samples * 1000 / metadata->data.stream_info.sample_rate;
       log_i("tatal time: %llu", total_time);
       cb.md("tlen", false, ((String)total_time).c_str());
     }
-    
+
     break;
   case FLAC__METADATA_TYPE_VORBIS_COMMENT:
     // 处理 Vorbis 注释（标签信息）
     log_i("FLAC Vorbis Comments: %u comments",
           metadata->data.vorbis_comment.num_comments);
     // If a user‑provided metadata callback is registered, forward each comment
-    for (unsigned i = 0; i < metadata->data.vorbis_comment.num_comments; ++i) {
+    for (unsigned i = 0; i < metadata->data.vorbis_comment.num_comments; ++i)
+    {
       const FLAC__StreamMetadata_VorbisComment_Entry *entry = &metadata->data.vorbis_comment.comments[i];
       // The entry is a "KEY=VALUE" UTF‑8 string (not null‑terminated, length given)
       // Allocate memory if the entry length exceeds 255 bytes.
@@ -294,21 +320,27 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
       char staticBuf[256];
       char *buf = nullptr;
       unsigned copyLen = 0;
-      if (entry->length > MAX_STATIC) {
+      if (entry->length > MAX_STATIC)
+      {
         // Try dynamic allocation
-        buf = (char*)malloc(entry->length + 1);
-        if (buf) {
+        buf = (char *)malloc(entry->length + 1);
+        if (buf)
+        {
           memcpy(buf, entry->entry, entry->length);
           buf[entry->length] = '\0';
           copyLen = entry->length;
-        } else {
+        }
+        else
+        {
           // Allocation failed, fallback to static buffer and truncate
           copyLen = MAX_STATIC;
           memcpy(staticBuf, entry->entry, copyLen);
           staticBuf[copyLen] = '\0';
           buf = staticBuf;
         }
-      } else {
+      }
+      else
+      {
         // Use static buffer
         copyLen = entry->length;
         memcpy(staticBuf, entry->entry, copyLen);
@@ -317,17 +349,21 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
       }
       // Find the first '=' separator
       char *eq = strchr(buf, '=');
-      if (eq) {
+      if (eq)
+      {
         *eq = '\0'; // split into key and value
         const char *key = buf;
         const char *value = eq + 1;
         cb.md(key, false, value);
-      } else {
+      }
+      else
+      {
         // No '=', treat whole string as type with empty value
         cb.md(buf, false, "");
       }
       // Free dynamic allocation if used
-      if (buf != staticBuf && buf != nullptr) {
+      if (buf != staticBuf && buf != nullptr)
+      {
         free(buf);
       }
     }

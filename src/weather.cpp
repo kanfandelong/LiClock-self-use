@@ -86,7 +86,7 @@ int8_t Weather::refresh()
         auto s = http.getStream();
         DeserializationError error = deserializeJson(doc, s);
         if (error) {
-            log_w("JSON解析失败: %s\n", error.c_str());
+            log_w("JSON解析失败: %s", error.c_str());
             return -4;
         }
         if (doc["status"] != "ok")

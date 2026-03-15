@@ -149,7 +149,7 @@ String truncatePath(const String& cwd, U8G2_FOR_ADAFRUIT_GFX& u8g2) {
 
 namespace GUI
 {
-    char filedialog_buffer[300];
+    char filedialog_buffer[512];
     void push_buffer();
     void pop_buffer();
     const char *fileDialog(const char *title, bool isApp, const char *endsWidth, const char *gotoendsWidth, String cwd, const char *file_system, bool cleardepth)
@@ -487,7 +487,8 @@ namespace GUI
             else
             {
                 selectedStack[depth] = selected;
-                sprintf(filedialog_buffer, "%s%s%s", useSD ? "/sd" : "/littlefs", cwd.c_str(), entries[selected].title);
+                // 避免缓冲区溢出：使用 snprintf 并限制长度
+                snprintf(filedialog_buffer, sizeof(filedialog_buffer), "%s%s%s", useSD ? "/sd" : "/littlefs", cwd.c_str(), entries[selected].title);
                 break;
             }
         }
