@@ -27,6 +27,11 @@
 #include <Arduino.h>
 #include <I2S.h>
 #endif
+#ifdef CONFIG_DAC_32bit
+typedef void (*SampleCB)(int32_t sample[2]);
+#else
+typedef void (*SampleCB)(int16_t sample[2]);
+#endif
 
 class AudioOutputI2S : public AudioOutput
 {
@@ -45,7 +50,11 @@ class AudioOutputI2S : public AudioOutput
     virtual bool SetBitsPerSample(int bits) override;
     virtual bool SetChannels(int channels) override;
     virtual bool begin() override { return begin(true); }
+    #ifdef CONFIG_DAC_32bit
+    virtual bool ConsumeSample(int32_t sample[2]) override;
+    #else
     virtual bool ConsumeSample(int16_t sample[2]) override;
+    #endif
     virtual void flush() override;
     virtual bool stop() override;
     
@@ -54,11 +63,13 @@ class AudioOutputI2S : public AudioOutput
     bool SetLsbJustified(bool lsbJustified);  // Allow supporting non-I2S chips, e.g. PT8211 
     bool SetMclk(bool enabled);  // Enable MCLK output (if supported)
     bool Set_bits_per_chan(i2s_bits_per_chan_t _i2s_per_chan);
+    bool set_ConsumeSample_CB(SampleCB fn);
     bool SwapClocks(bool swap_clocks);  // Swap BCLK and WCLK
 
   protected:
     bool SetPinout();
     virtual int AdjustI2SRate(int hz) { return hz; }
+    SampleCB ConsumeSampleCB = NULL;
     uint8_t portNo;
     int output_mode;
     bool mono;

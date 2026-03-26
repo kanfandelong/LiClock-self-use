@@ -32,6 +32,7 @@ AudioGeneratorMP3::AudioGeneratorMP3()
   stream = NULL;
   nsCountMax = 1152/32;
   madInitted = false;
+  totalSent = false;
 }
 
 AudioGeneratorMP3::AudioGeneratorMP3(void *space, int size): preallocateSpace(space), preallocateSize(size)
@@ -45,6 +46,7 @@ AudioGeneratorMP3::AudioGeneratorMP3(void *space, int size): preallocateSpace(sp
   stream = NULL;
   nsCountMax = 1152/32;
   madInitted = false;
+  totalSent = false;
 }
 
 AudioGeneratorMP3::AudioGeneratorMP3(void *buff, int buffSize, void *stream, int streamSize, void *frame, int frameSize, void *synth, int synthSize):
@@ -62,6 +64,7 @@ AudioGeneratorMP3::AudioGeneratorMP3(void *buff, int buffSize, void *stream, int
   stream = NULL;
   nsCountMax = 1152/32;
   madInitted = false;
+  totalSent = false;
 }
 
 AudioGeneratorMP3::~AudioGeneratorMP3()
@@ -118,7 +121,7 @@ enum mad_flow AudioGeneratorMP3::ErrorToFlow()
   snprintf_P(errLine, sizeof(errLine), PSTR("Decoding error '%s' at byte offset %d"),
            err, (stream->this_frame - buff) + lastReadPos);
   yield(); // Something bad happened anyway, ensure WiFi gets some time, too
-  cb.st(stream->error, errLine);
+  log_e("error_code:%d %s", stream->error, errLine);
   return MAD_FLOW_CONTINUE;
 }
 
@@ -174,14 +177,25 @@ void AudioGeneratorMP3::desync ()
 bool AudioGeneratorMP3::DecodeNextFrame()
 {
   if (mad_frame_decode(frame, stream) == -1) {
-    ErrorToFlow(); // Always returns CONTINUE
+    // ErrorToFlow(); // Always returns CONTINUE
     return false;
   }
-  nsCountMax  = MAD_NSBSAMPLES(&frame->header);
+  
+  nsCountMax = MAD_NSBSAMPLES(&frame->header);
+  
+  // 只统计有效比特率
+  if (!totalSent && frame->header.bitrate > 0) {
+    bitrateSum += (uint64_t)frame->header.bitrate;
+    bitrateCount++;
+  }
+  
   return true;
 }
-
+#ifdef CONFIG_DAC_32bit
+bool AudioGeneratorMP3::GetOneSample(int32_t sample[2])
+#else
 bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
+#endif
 {
   if (synth->pcm.samplerate != lastRate) {
     output->SetRate(synth->pcm.samplerate);
@@ -194,8 +208,13 @@ bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
 
   // If we're here, we have one decoded frame and sent 0 or more samples out
   if (samplePtr < synth->pcm.length) {
+    #ifdef CONFIG_DAC_32bit
+    sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr] << 16;
+    sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr] << 16;
+    #else
     sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr];
     sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr];
+    #endif
     samplePtr++;
   } else {
     samplePtr = 0;
@@ -208,8 +227,13 @@ bool AudioGeneratorMP3::GetOneSample(int16_t sample[2])
           break; // Do nothing
     }
     // for IGNORE and CONTINUE, just play what we have now
+    #ifdef CONFIG_DAC_32bit
+    sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr] << 16;
+    sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr] << 16;
+    #else
     sample[AudioOutput::LEFTCHANNEL ] = synth->pcm.samples[0][samplePtr];
     sample[AudioOutput::RIGHTCHANNEL] = synth->pcm.samples[1][samplePtr];
+    #endif
     samplePtr++;
   }
   return true;
@@ -244,7 +268,7 @@ const char* mad_error_to_string(enum mad_error error) {
 }
 
 void print_mad_error(enum mad_error error) {
-  if (error != MAD_ERROR_NONE) {
+  if (error != MAD_ERROR_NONE && error != MAD_ERROR_BUFLEN && error != MAD_ERROR_LOSTSYNC) {
     log_e("MP3 Decoding error: %s", mad_error_to_string(error));
   }
 }
@@ -252,7 +276,37 @@ void print_mad_error(enum mad_error error) {
 bool AudioGeneratorMP3::loop()
 {
   if (!running) goto done; // Nothing to do here!
-
+  
+  // 只有有足够帧数来计算平均比特率时才进行处理
+  if (bitrateCount >= 50 && !totalSent) {
+    uint64_t currentAvgBitrate = bitrateSum / bitrateCount;
+    
+    // 如果是第一次计算，或者帧数刚好是50的倍数时重新计算
+    // 这样可以避免频繁计算，只在关键点更新
+    if (bitrateCount == 50 || bitrateCount % 50 == 0) {
+      // 避免除零错误
+      if (currentAvgBitrate == 0) currentAvgBitrate = frame->header.bitrate;
+      if (currentAvgBitrate == 0) currentAvgBitrate = 128000;
+      
+      // 计算总时长（毫秒）
+      uint64_t total_seconds = ((uint64_t)(file->getSize() - first_frame_pos) * 8ULL) / currentAvgBitrate;
+      uint64_t total_ms = total_seconds * 1000ULL;
+      
+      // 发送总时长回调
+      cb.md("tlen", false, ((String)total_ms).c_str());
+      
+      // log_i("更新总时长: %llu ms, 平均比特率: %llu bps (基于 %u 帧)", total_ms, currentAvgBitrate, bitrateCount);
+      
+      // 记录最后一次计算时的比特率
+      lastAvgBitrate = currentAvgBitrate;
+    }
+    
+    // 当有足够多帧数时检查稳定性
+    if (bitrateCount >= 400) { // 200帧后认为比特率已稳定
+      totalSent = true;
+      // log_i("比特率已稳定，基于 %u 帧，平均比特率: %llu bps", bitrateCount, lastAvgBitrate);
+    } 
+  }
   // First, try and push in the stored sample.  If we can't, then punt and try later
   if (!output->ConsumeSample(lastSample)) goto done; // Can't send, but no error detected
 
@@ -267,6 +321,7 @@ retry:
       }
 
       if (!DecodeNextFrame()) {
+        // 仅在需要时开启
         // print_mad_error(stream->error);
         if (stream->error == MAD_ERROR_BUFLEN) {
           // randomly seeking can lead to endless
@@ -317,6 +372,7 @@ bool AudioGeneratorMP3::begin(AudioFileSource *source, AudioOutput *output)
     return false; // Error
   }
 
+  first_frame_pos = file->getPos();
   // Reset error count from previous file
   unrecoverable = 0;
 

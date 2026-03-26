@@ -1,5 +1,6 @@
 #pragma once
 #include "A_Config.h"
+#include "esp_console.h"
 // 缓冲区大小
 #define COMMAND_BUFFER_SIZE 1024
 // 命令头标识
@@ -8,7 +9,6 @@
 #define COMMAND_TERMINATOR '*'
 
 //命令列表
-#define help                "help"
 #define set_cpu_freq        "cpufreq"
 #define set_display         "displaygray"
 #define set_display_debug   "display_debug"
@@ -32,6 +32,7 @@
 #define esp_restart_        "rst"
 #define temp_log            "templog"
 #define format_tf           "formattf"
+#define aboutcode           "aboutcode"
 
 #define getnvs              "getnvs"
 #define putnvs              "putnvs"
@@ -53,22 +54,23 @@
 #define HEADER_COLOR    Serial.print("\033[95m")  // 亮紫色
 #define RESET_COLOR     Serial.print("\033[0m")
 
-#define PRINT_ERROR(msg)     do { ERROR_COLOR; Serial.print("ERROR: "); Serial.println(msg); RESET_COLOR; } while(0)
-#define PRINT_WARNING(msg)   do { WARNING_COLOR; Serial.print("WARNING: "); Serial.println(msg); RESET_COLOR; } while(0)
-#define PRINT_SUCCESS(msg)   do { SUCCESS_COLOR; Serial.print("SUCCESS: "); Serial.println(msg); RESET_COLOR; } while(0)
-#define PRINT_INFO(msg)      do { INFO_COLOR; Serial.println(msg); RESET_COLOR; } while(0)
+#define PRINT_ERROR(fmt, ...)     do { ERROR_COLOR; Serial.print("ERROR: "); Serial.printf(fmt, ##__VA_ARGS__); Serial.println(); RESET_COLOR; } while(0)
+#define PRINT_WARNING(fmt, ...)   do { WARNING_COLOR; Serial.print("WARNING: "); Serial.printf(fmt, ##__VA_ARGS__); Serial.println(); RESET_COLOR; } while(0)
+#define PRINT_SUCCESS(fmt, ...)   do { SUCCESS_COLOR; Serial.print("SUCCESS: "); Serial.printf(fmt, ##__VA_ARGS__); Serial.println(); RESET_COLOR; } while(0)
+#define PRINT_INFO(fmt, ...)      do { INFO_COLOR; Serial.printf(fmt, ##__VA_ARGS__); Serial.println(); RESET_COLOR; } while(0)
 
 class CMD
 {
 private:
-    TaskHandle_t cmd_task_handle = NULL;
+    void register_commands();
+    bool is_run = false;
+
 public:
     char cmdBuffer[COMMAND_BUFFER_SIZE];
     void begin();
+    void SetCallback();
     void run();
     void stop();
     void end();
-    void printHelp();
-    void parseCommand(const char* command);
 };
 extern CMD cmd;

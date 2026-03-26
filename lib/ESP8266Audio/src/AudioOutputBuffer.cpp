@@ -24,8 +24,13 @@
 AudioOutputBuffer::AudioOutputBuffer(int buffSizeSamples, AudioOutput *dest)
 {
   buffSize = buffSizeSamples;
+  #ifdef CONFIG_DAC_32bit
+  leftSample = (int32_t*)malloc(sizeof(int32_t) * buffSize);
+  rightSample = (int32_t*)malloc(sizeof(int32_t) * buffSize);
+  #else
   leftSample = (int16_t*)malloc(sizeof(int16_t) * buffSize);
   rightSample = (int16_t*)malloc(sizeof(int16_t) * buffSize);
+  #endif
   writePtr = 0;
   readPtr = 0;
   sink = dest;
@@ -58,12 +63,20 @@ bool AudioOutputBuffer::begin()
   return sink->begin();
 }
 
+#ifdef CONFIG_DAC_32bit
+bool AudioOutputBuffer::ConsumeSample(int32_t sample[2])
+#else
 bool AudioOutputBuffer::ConsumeSample(int16_t sample[2])
+#endif
 {
   // First, try and fill I2S...
   if (filled) {
     while (readPtr != writePtr) {
+      #ifdef CONFIG_DAC_32bit
+      int32_t s[2] = {leftSample[readPtr], rightSample[readPtr]};
+      #else
       int16_t s[2] = {leftSample[readPtr], rightSample[readPtr]};
+      #endif
       if (!sink->ConsumeSample(s)) break; // Can't stuff any more in I2S...
       readPtr = (readPtr + 1) % buffSize;
     }

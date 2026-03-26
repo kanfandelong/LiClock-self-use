@@ -105,13 +105,25 @@ void AudioOutputI2SNoDAC::DeltaSigma(int16_t sample[2], uint32_t dsBuff[8])
     dsBuff[j] = bits;
   }
 }
-
+#ifdef CONFIG_DAC_32bit
+bool AudioOutputI2SNoDAC::ConsumeSample(int32_t sample[2])
+#else
 bool AudioOutputI2SNoDAC::ConsumeSample(int16_t sample[2])
+#endif
 {
   int16_t ms[2];
+  #ifdef CONFIG_DAC_32bit
+  int samp_32[2];
+  samp_32[0] = sample[0];
+  samp_32[1] = sample[1];
+  MakeSampleStereo16( samp_32 );
+  ms[0] = samp_32[0] >> 16;
+  ms[1] = samp_32[1] >> 16;
+  #else
   ms[0] = sample[0];
   ms[1] = sample[1];
   MakeSampleStereo16( ms );
+  #endif
 
   // Make delta-sigma filled buffer
   uint32_t dsBuff[8];

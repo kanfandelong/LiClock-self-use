@@ -858,6 +858,7 @@ void HAL::cheak_freq(int _freq, bool setfreq)
         Serial.end();
         Serial.begin(pref.getUInt("uart_baud", 115200));
         Serial.setDebugOutput(true);
+        cmd.SetCallback();
         info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
         {

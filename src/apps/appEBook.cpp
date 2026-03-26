@@ -50,9 +50,10 @@ public:
     FILE *indexFileHandle = NULL;
     FILE *currentFileHandle = NULL;
     File txtFile, indexesFile;
-    char indexesName[256];
+    char indexesName[512];
+    char chapterTitle[512];
     size_t currentFileOffset = 0;
-    char currentFilename[256];
+    char currentFilename[512];
     bool __eof = false;
     bool exit_app = false;       // 是否退出app
     bool need_deepsleep = false; // 在启用lightsleep时是否需要间歇性deepsleep（不进行此操作似乎会导致看门狗复位）
@@ -2402,7 +2403,9 @@ bool isChapterTitle(const String &str)
 
 int AppEBook::findchapterTitle(bool up)
 {
-    String txt[9] = {};    // 0-8行为一页 共9行
+    bool mode = hal.pref.getBool("Vertical");
+    int8_t maxline = mode ? 21 : 9;
+    String txt[mode ? 22 : 10] = {};
     char c;                // 中间数据
     int8_t line = 0;       // 当前行
     uint16_t en_count = 0; // 统计ascii和ascii扩展字符 1-2个字节
@@ -2436,16 +2439,16 @@ begin:
             return save_page + 1;
     }
     log_i("查找%Ld页", currentPage);
-    for (uint8_t a = 0; a < 9; a++)
+    for (uint8_t a = 0; a < maxline; a++)
     {
-        txt[a] = "";
+        txt[a].clear();
     }
     line = 0;      // 当前行
     en_count = 0;  // 统计ascii和ascii扩展字符 1-2个字节
     ch_count = 0;  // 统计中文等 3个字节的字符
     line_old = 0;  // 记录旧行位置
     hskgState = 1; // 行首4个空格检测 0-检测过 1-未检测
-    while (line < 9)
+    while (line < maxline)
     {
         if (line_old != line) // 行首4个空格检测状态重置
         {
@@ -2455,7 +2458,7 @@ begin:
 
         c = txtFile.read(); // 读取一个字节
 
-        while (c == '\n' && line <= 8) // 检查换行符,并将多个连续空白的换行合并成一个
+        while (c == '\n' && line <= (mode ? 20 : 8)) // 检查换行符,并将多个连续空白的换行合并成一个
         {
             // 检测到首行并且为空白则不需要插入换行
             if (line == 0) // 等于首行，并且首行不为空，才插入换行
@@ -2474,7 +2477,7 @@ begin:
                     line++;
                 /*else if (txt[line].length() == 1 && txt[line - 1].length() == 1) hh = 0;*/
             }
-            if (line <= 8)
+            if (line <= (mode ? 20 : 8))
                 c = txtFile.read();
             en_count = 0;
             ch_count = 0;
@@ -2527,7 +2530,7 @@ begin:
 
         uint16_t StringLength = en_count + (ch_count * 12);
 
-        if (StringLength >= 260 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
+        if (StringLength >= (mode ? 96 : 260) && hskgState) // 检测到行首的4个空格预计的长度再加长一点
         {
             if (txt[line][0] == ' ' && txt[line][1] == ' ' &&
                 txt[line][2] == ' ' && txt[line][3] == ' ')
@@ -2547,7 +2550,7 @@ begin:
           Serial.print("实际像素长度:"); Serial.println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
-        if (StringLength >= 283) // 检查是否已填满屏幕 283
+        if (StringLength >= (mode ? 115 : 283)) // 检查是否已填满屏幕 283
         {
             // Serial.println("");
             // Serial.print("行"); Serial.print(line); Serial.print(" 预计像素长度:"); Serial.println(StringLength);
@@ -2558,11 +2561,11 @@ begin:
                 en_count = 0;
                 ch_count = 0;
             }
-            else if (StringLength >= 286) // 286 最后一个字符不是中文，在继续检测
+            else if (StringLength >= (mode ? 118 : 286)) // 286 最后一个字符不是中文，在继续检测
             {
                 char t = txtFile.read();
                 txtFile.seek(-1, SeekCur); // 往回移
-                int8_t cz = 294 - StringLength;
+                int8_t cz = (mode ? 126 : 294) - StringLength;
                 int8_t t_length = getCharLength(t);
                 /*Serial.print("字符t:"); Serial.println(t);
                   Serial.print("字符t:"); Serial.println(t, HEX);
@@ -2575,22 +2578,25 @@ begin:
                     line++;
                     en_count = 0;
                     ch_count = 0;
+                    // Serial.println("测试2");
                 }
                 else if (t_length > cz)
                 {
                     line++;
                     en_count = 0;
                     ch_count = 0;
+                    // Serial.println("测试3");
                 }
             }
         }
     }
-    for (uint8_t i = 0; i < 9; i++)
+    for (uint8_t i = 0; i < maxline; i++)
     {
         if (isChapterTitle(txt[i]))
         {
             is_find = true;
-            log_i("%s", txt[i].c_str());
+            log_i("在%d行找到 \"%s\"", txt[i].c_str());
+            sprintf(chapterTitle, "%s", txt[i].c_str());
             return currentPage + 1;
         }
     }
@@ -2652,6 +2658,7 @@ void AppEBook::openMenu()
         {NULL, "跳转至页"},
         {NULL, "跳转至下一章"},
         {NULL, "跳转至上一章"},
+        {NULL, "跳转至上/下X章"},
         {NULL, NULL},
     };
     int ret = GUI::menu(title, items);
@@ -2681,6 +2688,35 @@ void AppEBook::openMenu()
             GUI::info_msgbox("跳转至上一章", "正在查找......\n请稍候...\n长按左键以终止查找");
             page = findchapterTitle(true);
             break;
+        case 4:
+        {
+            char buf[2][256];
+            int i = GUI::msgbox_number("跳转至上/下X章", 3, 0);
+            sprintf(buf[0], "跳转至%s%d章", (1 > 0) ? "下" : "上", i);
+            GUI::info_msgbox(buf[0], "正在查找......\n请稍候...\n长按左键以终止查找");
+            chapterTitle[0] = '\0';
+            if (i > 0)
+            {
+                for (int a = 0; a < abs(i); a++)
+                {
+                    page = findchapterTitle();
+                    sprintf(buf[0], "查找进度 %d / %d", a, abs(i));
+                    sprintf(buf[1], "找到章节行\n\" %s \"", chapterTitle);
+                    GUI::info_msgbox(buf[0], buf[1]);
+                }
+            }
+            if (i < 0)
+            {
+                for (int a = 0; a < abs(i); a++)
+                {
+                    page = findchapterTitle(true);
+                    sprintf(buf[0], "查找进度 %d / %d", a, abs(i));
+                    sprintf(buf[1], "找到章节行\n\" %s \"", chapterTitle);
+                    GUI::info_msgbox(buf[0], buf[1]);
+                }
+            }
+        }
+        break;
         default:
             GUI::msgbox("错误", "无效的选项,或此选项为空");
             break;
@@ -2693,8 +2729,13 @@ void AppEBook::openMenu()
                 error("跳转失败，%d超出范围", page - 1);
                 gotoPage(currentPage);
             }
+            delay(250);
+            GUI::info_msgbox("章节跳转", "查找结束,即将跳转...");
+            delay(250);
             drawCurrentPage();
         }
+        else
+            GUI::msgbox("章节跳转", "发生未知错误");
     }
     break;
     case 3:

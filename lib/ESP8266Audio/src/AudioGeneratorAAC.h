@@ -58,6 +58,12 @@ class AudioGeneratorAAC : public AudioGenerator
     unsigned int lastRate;
     int lastChannels;
 
+    // Bitrate tracking for total duration estimation (similar to MP3 implementation)
+    uint64_t bitrateSum = 0;          // Sum of observed bitrates (bits per second)
+    uint32_t bitrateCount = 0;        // Number of frames counted
+    bool totalSent = false;           // Whether total duration has been sent to GUI
+    uint64_t lastAvgBitrate = 0;      // Last average bitrate used for calculation
+
 };
 
 #endif

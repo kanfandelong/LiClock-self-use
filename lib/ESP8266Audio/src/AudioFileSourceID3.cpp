@@ -219,10 +219,85 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
         cb.md("APIC", true, "已跳过");
         continue;
       }
+      // Handle USLT (unsynchronized lyrics) frame specially to extract only lyrics text
+      if ((frameid[0]=='U' && frameid[1]=='S' && frameid[2]=='L' && frameid[3] == 'T'))
+      {
+        int encoding = id3.getByte();                     // 1 byte encoding
+        // Read language (3 bytes) and ignore
+        char lang[4];
+        lang[0] = id3.getByte();
+        lang[1] = id3.getByte();
+        lang[2] = id3.getByte();
+        lang[3] = 0;
+        
+        bool descIsUnicode = (encoding == 1 || encoding == 2); // UTF-16 if true
+        int consumed = 1 + 3; // encoding + language
+        int descBytes = 0;
+        
+        // Skip content descriptor until null terminator
+        if (descIsUnicode) {
+          // UTF-16: ends with 0x00 0x00
+          while (true) {
+            int b1 = id3.getByte();
+            if (b1 < 0) break;
+            descBytes++;
+            if (b1 == 0) {
+              int b2 = id3.getByte();
+              if (b2 < 0) break;
+              descBytes++;
+              if (b2 == 0) break;
+            }
+          }
+        } else {
+          // Single-byte encoding (ISO-8859-1 or UTF-8): ends with 0x00
+          while (true) {
+            int b = id3.getByte();
+            if (b <= 0) { // 0 or -1
+              if (b == 0) descBytes++;
+              break;
+            }
+            descBytes++;
+          }
+        }
+        consumed += descBytes;
+        int lyricsLen = framesize - consumed;
+        if (lyricsLen < 0) lyricsLen = 0;
+        
+        // Allocate buffer for lyrics (limit to 10KB to avoid memory exhaustion)
+        uint32_t buffer_size = lyricsLen + 1;
+        if (buffer_size > 10 * 1024) {
+          buffer_size = 10 * 1024;
+        }
+        char *lyrics = (char *)malloc(buffer_size);
+        if (lyrics) {
+          uint32_t i;
+          for (i = 0; i < (uint32_t)lyricsLen && i < buffer_size - 1; i++) {
+            int b = id3.getByte();
+            if (b < 0) break;
+            lyrics[i] = (char)b;
+          }
+          lyrics[i] = '\0';
+          // log_i("i: %lu", i);
+          // Skip any remaining bytes in this frame
+          for (; i < (uint32_t)lyricsLen; i++) {
+            id3.getByte();
+          }
+          bool isUnicode = (encoding == 1); // Keep original logic
+          cb.md("USLT", isUnicode, lyrics);
+          free(lyrics);
+        } else {
+          // malloc failed, skip the rest of the frame
+          for (int i = 0; i < framesize - consumed; i++) {
+            id3.getByte();
+          }
+        }
+        continue; // skip generic handling
+      }
+
       // Read the value and send to callback
       char *value;
       uint32_t buffer_size = framesize + 2;
-      if (framesize > 2048){
+      if (framesize > 1024 * 10){
         buffer_size = 128;
         value = (char *)malloc(buffer_size);
       } else {
@@ -264,6 +339,8 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
         cb.md("Popularimeter", isUnicode, value);
       } else if ( (frameid[0]=='T' && frameid[1]=='C' && frameid[2]=='M' && frameid[3] == 'P') ) {
         cb.md("Compilation", isUnicode, value);
+      } else if ( (frameid[0]=='U' && frameid[1]=='S' && frameid[2]=='L' && frameid[3] == 'T') ) {
+        cb.md("USLT", isUnicode, value);
       } else {
         cb.md((char *)frameid, isUnicode, value);
       }

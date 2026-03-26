@@ -45,7 +45,11 @@ class AudioGenerator
     bool running;
     AudioFileSource *file;
     AudioOutput *output;
+    #ifdef CONFIG_DAC_32bit
+    int32_t lastSample[2];
+    #else
     int16_t lastSample[2];
+    #endif
 
   protected:
     AudioStatus cb;

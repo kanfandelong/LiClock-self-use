@@ -337,40 +337,44 @@ bool isUtf8(const char *str)
  * @param string 标签内容字符串
  * @note 将ID3标签信息存储到app对象的info结构体中
  */
+// 用于记录是否已经通过 ID3TAG 获得了总时长
+static bool id3_tlen_received = false;
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string)
 {
     String outputString;
     String id3_type = type;
+    const char *src = static_cast<const char *>(cbData);
+
     if (id3_type.equalsIgnoreCase("APIC"))
     {
         info("%s callback for: %s = '%s'", cbData, type, string);
         return;
     }
+
+    // ----- 文字编码处理 -----
     if (isUnicode)
     {
-        // 计算字符串长度
+        // 计算 UTF‑16 字符串长度（字节数）
         size_t length = 0;
         const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
         while (ptr[length] != 0 || ptr[length + 1] != 0)
         {
             length += 2;
-            if (length > 254)
+            if (length > 1024 * 10)
                 break; // 防止缓冲区溢出
         }
-
-        // 转换为UTF-8
         outputString = utf16ToUtf8(reinterpret_cast<const uint8_t *>(string), length);
     }
     else
     {
-        // 检查是否已经是UTF-8
+        // 已经是 UTF‑8 ?
         if (isUtf8(string))
         {
             outputString = string;
         }
         else
         {
-            // 假设是ISO-8859-1编码，转换为UTF-8
+            // 假设 ISO‑8859‑1，手动转为 UTF‑8
             const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
             while (*ptr)
             {
@@ -380,16 +384,15 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
                 }
                 else
                 {
-                    // 转换为双字节UTF-8
                     outputString += static_cast<char>(0xC0 | (*ptr >> 6));
                     outputString += static_cast<char>(0x80 | (*ptr & 0x3F));
                 }
-                ptr++;
+                ++ptr;
             }
         }
     }
 
-    // 存储到相应的字段
+    // ----- 保存标签信息 -----
     if (id3_type.equalsIgnoreCase("title"))
     {
         app.info.title = outputString;
@@ -398,16 +401,56 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     {
         app.info.album = outputString;
     }
-    else if (id3_type.equalsIgnoreCase("performer"))
+    else if (id3_type.equalsIgnoreCase("performer") || id3_type.equalsIgnoreCase("artist"))
     {
         app.info.performer = outputString;
     }
     else if (id3_type.equalsIgnoreCase("tlen"))
     {
-        app.info.tlen = strtoul(outputString.c_str(), NULL, 10);
+        unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
+        // 当回调来源是 ID3TAG 时，始终写入并标记已收到
+        if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0)
+        {
+            app.info.tlen = newLen;
+            id3_tlen_received = true;
+        }
+        // 当来源是 MP3INFO 且尚未收到 ID3TAG，则更新（每次回调均可更新）
+        else if (strcmp(src, "MP3INFO") == 0 && !id3_tlen_received)
+        {
+            app.info.tlen = newLen;
+        }
+        // 其它来源保持原值
+    }
+    else if (id3_type.equalsIgnoreCase("LYRICS") || id3_type.equalsIgnoreCase("USLT"))
+    {
+        String lyricPath = app.getLyricPath(music_file);
+        if (!hal.exists(lyricPath))
+        {
+            File f = hal.open(lyricPath, "w");
+            if (f)
+            {
+                info("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
+                f.write((const uint8_t *)outputString.c_str(), strlen(outputString.c_str()));
+                f.close();
+            }
+            else
+            {
+                log_e("无法创建歌词文件: %s", lyricPath.c_str());
+            }
+            info("已写入歌词文件用做缓存: %s", lyricPath.c_str());
+            // 在写入歌词文件后立即加载歌词，因为默认歌词加载位置位于解码开始之前，此时可能还没有歌词文件，导致无法加载到歌词(哪怕回调获取到了歌词)。
+            if (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
+            {
+                app.loadLyrics(music_file);
+            }
+            return;
+        }
+        else
+            info("歌词文件已存在: %s", lyricPath.c_str());
     }
 
     info("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
+    // info("%s callback for: %s 的原始值 = '%s'", cbData, type, string);
 }
 
 /**
@@ -643,32 +686,39 @@ String AppMusicPlayer::truncateStringWithEllipsis(const char *input, int maxWidt
 String AppMusicPlayer::getLyricPath(const char *musicPath)
 {
     log_i("生成歌词文件路径");
-    String musicPathStr(musicPath);
-
-    // 移除文件系统前缀（如/sd或/littlefs）
-    String basePath = musicPathStr;
-
-    // 分离目录和文件名
+    String basePath(musicPath);
     int lastSlash = basePath.lastIndexOf('/');
-    String dir = basePath.substring(0, lastSlash);
     String filename = basePath.substring(lastSlash + 1);
-
     // 替换扩展名为.lrc
     int dotIndex = filename.lastIndexOf('.');
     if (dotIndex != -1)
-    {
         filename = filename.substring(0, dotIndex) + ".lrc";
-    }
     else
-    {
         filename += ".lrc";
+
+    // 生成两个歌词路径
+    static const String sdLrcDir = "/sd/lrc";
+    static const String littlefsLrcDir = "/littlefs/lrc";
+    String sdLrcPath = sdLrcDir + "/" + filename;
+    String littlefsLrcPath = littlefsLrcDir + "/" + filename;
+
+    // 检查并创建lrc文件夹
+    if (!hal.exists(sdLrcDir)) {
+        hal.mkdir(sdLrcDir);
+    }
+    if (!hal.exists(littlefsLrcDir)) {
+        hal.mkdir(littlefsLrcDir);
     }
 
-    // 拼接为完整路径
-    String lrcPath;
-    lrcPath = dir + "/lrc/" + filename;
-
-    return lrcPath;
+    // 优先返回SD卡路径，如果需要可以切换为littlefs
+    if (basePath.startsWith("/sd/")) {
+        return sdLrcPath;
+    } else if (basePath.startsWith("/littlefs/")) {
+        return littlefsLrcPath;
+    } else {
+        // 默认返回SD卡路径
+        return sdLrcPath;
+    }
 }
 
 /**
@@ -688,7 +738,7 @@ int countLyricLines(const char *path)
     if (!file)
         return -1;
 
-    bool debug = hal.pref.getBool("debug_log");
+    bool debug = hal.pref.getBool("lrc_debug");
 
     if (file.available() >= 3)
     {
@@ -718,15 +768,27 @@ int countLyricLines(const char *path)
         if (millis() - startTime > timeout)
         {
             log_e("歌词行数获取超时");
-            GUI::msgbox("错误", "歌词行数获取超时");
+            GUI::msgbox("错误", "歌词行数获取超时", 5);
             file.close();
             return -1;
         }
         line = file.readStringUntil('\n');
         line.trim();
+        // 只统计包含实际歌词文本的行，排除仅有元数据的标签行（如 [ti:...], [ar:...], [al:...]）
         if (line.startsWith("["))
         {
-            count++;
+            // 查找首个右方括号的位置
+            int rightBracketPos = line.indexOf(']');
+            if (rightBracketPos != -1)
+            {
+                // 检查右方括号后是否还有非空白字符，若有则视为歌词行
+                String afterBracket = line.substring(rightBracketPos + 1);
+                afterBracket.trim();
+                if (afterBracket.length() > 0)
+                {
+                    count++;
+                }
+            }
         }
     }
     file.close();
@@ -756,6 +818,11 @@ void AppMusicPlayer::loadLyrics(const char *path)
         warn("歌词文件 \"%s\" 不存在,中止加载操作", lrcPath.c_str());
         return;
     }
+    else if (totalLyricLines == 0)
+    {
+        warn("未在歌词文件 \"%s\" 中识别到有效的歌词,中止加载操作", lrcPath.c_str());
+        return;
+    }
 
     // 预先分配内存
     lyricArray = new LyricLine[totalLyricLines];
@@ -775,7 +842,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
     }
     log_i("开始加载歌词，歌词行数：%d", totalLyricLines);
 
-    bool debug = hal.pref.getBool("debug_log");
+    bool debug = hal.pref.getBool("lrc_debug");
 
     if (file.available() >= 3)
     {
@@ -809,7 +876,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
         if (millis() - startTime > timeout)
         {
             warn("歌词加载超时");
-            GUI::msgbox("错误", "歌词加载超时");
+            GUI::msgbox("错误", "歌词加载超时", 5);
             file.close();
             lrcisload = false;
             return;
@@ -823,6 +890,14 @@ void AppMusicPlayer::loadLyrics(const char *path)
             {
                 timeStr = line.substring(1, closeBracket);
                 text = line.substring(closeBracket + 1);
+
+                // 去除两端空白并检查是否有实际歌词文本，若无则视为元数据行跳过
+                text.trim();
+                if (text.length() == 0)
+                    continue;
+
+                text.replace(String((char)0xE3) + String((char)0x80) + String((char)0x80), "  ");
+                text.replace(String("—"), "--");
 
                 // 解析时间戳
                 int colon = timeStr.indexOf(':');
@@ -1182,12 +1257,19 @@ void AppMusicPlayer::delete_playtask()
 {
     if (!_play_end && player_loop_task_handle != NULL)
     {
-        xSemaphoreTake(audio_control_sem, 200 / portTICK_PERIOD_MS);
-        delay(100);
-        if (player_loop_task_handle != NULL)
+        if (xSemaphoreTake(audio_control_sem, 1000 / portTICK_PERIOD_MS) == pdTRUE)
+        {
+            vTaskDelete(player_loop_task_handle);
+            player_loop_task_handle = NULL;
+        }
+        else {
+            vTaskSuspend(player_loop_task_handle);
+            vTaskDelete(player_loop_task_handle);
+            player_loop_task_handle = NULL;
+        }
+        if (generator != nullptr)
         {
             generator->stop();
-            vTaskDelete(player_loop_task_handle);
             player_loop_task_handle = NULL;
         }
     }
@@ -2017,10 +2099,12 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
     {
     case MP3_Generator:
         mp3_generator = new AudioGeneratorMP3();
+        mp3_generator->RegisterMetadataCB(MDCallback, (void *)"MP3INFO");
         generator = mp3_generator;
         break;
     case Flac_Generator:
         flac_generator = new AudioGeneratorFLAC();
+        flac_generator->RegisterMetadataCB(MDCallback, (void *)"FLACTAG");
         generator = flac_generator;
         break;
     case AAC_Generator:
