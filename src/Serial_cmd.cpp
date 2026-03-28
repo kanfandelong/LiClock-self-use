@@ -907,6 +907,39 @@ static int cmd_getnvs(int argc, char **argv)
     return 0;
 }
 
+// 删除 NVS 键值对命令
+static int cmd_rmnvs(int argc, char **argv)
+{
+    // Usage: rmnvs <key>
+    if (argc != 2)
+    {
+        // 参数个数错误，返回1会自动显示帮助
+        return 1;
+    }
+
+    const char *key = argv[1];
+
+    // 检查键是否存在
+    if (hal.pref.getType(key) == PT_INVALID)
+    {
+        PRINT_ERROR("Key '%s' not found", key);
+        return 2;   // 执行失败
+    }
+
+    // 执行删除
+    bool ok = hal.pref.remove(key);
+    if (ok)
+    {
+        PRINT_SUCCESS("NVS key '%s' removed", key);
+        return 0;
+    }
+    else
+    {
+        PRINT_ERROR("Failed to remove key '%s'", key);
+        return 2;
+    }
+}
+
 static int cmd_display_debug(int argc, char **argv)
 {
     if (argc == 2)
@@ -1528,6 +1561,7 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "partitioninfo", .help = "显示分区信息", .hint = no_info, .func = &cmd_partitioninfo, .argtable = NULL},
     {.command = "putnvs", .help = "写入NVS键值", .hint = "Usage: putnvs <key> <value> [type]\n  type: bool, int, uint, i8, u8, i16, u16, i32, u32, i64, u64, float, double, string (omit for auto-detect)", .func = &cmd_putnvs, .argtable = NULL},
     {.command = "getnvs", .help = "读取NVS键值", .hint = "Usage: getnvs <key> [type]\n  type: bool, int, uint, i8, u8, i16, u16, i32, u32, i64, u64, float, double, string (omit for auto-detect)", .func = &cmd_getnvs, .argtable = NULL},
+    {.command = "rmnvs", .help = "删除NVS键值对", .hint = "Usage: rmnvs <key>", .func = &cmd_rmnvs, .argtable = NULL},
     {.command = "display_debug", .help = "控制屏幕驱动debug输出", .hint = no_info, .func = &cmd_display_debug, .argtable = NULL},
     {.command = "filetaskinfo", .help = "显示文件写入任务的队列情况", .hint = no_info, .func = &cmd_file_task_info, .argtable = NULL},
     {.command = "download", .help = "从网络下载文件", .hint = "Usage: download <ca_id> <url> <save_file>", .func = &cmd_download, .argtable = NULL},

@@ -1276,6 +1276,11 @@ bool HAL::init()
         hal.btnl = OneButton(PIN_BUTTONL);
         hal.btnr = OneButton(PIN_BUTTONR);
     }
+    lpt = pref.getInt("lpt", 25);
+    uint32_t longPress = lpt * 10;
+    hal.btnl.setLongPressIntervalMs(longPress);
+    hal.btnc.setLongPressIntervalMs(longPress);
+    hal.btnr.setLongPressIntervalMs(longPress);
 
     int freq = pref.getInt("CpuFreq", 80);
     cheak_freq(freq);
@@ -1342,7 +1347,6 @@ bool HAL::init()
     upint = pref.getInt("upint", 2 * 60);   // NTP同步间隔
     auto_sleep_mv = pref.getInt("auto_sleep_mv", 2800);
     ppc = pref.getInt("ppc", 7230);
-    lpt = pref.getInt("lpt", 25);
     fast_boot = pref.getBool("fast_boot");
     // 系统“自检”
     dis_DS3231 = pref.getBool(get_char_sha_key("停用DS3231"), false);

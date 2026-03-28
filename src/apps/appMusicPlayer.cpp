@@ -271,6 +271,23 @@ public:
     void updateVolumeUI();
     drawtime last_time;
     drawtime d_time;
+
+    
+    // 按键标志
+    volatile bool flag_btnc_click = false;
+    volatile bool flag_btnc_long = false;
+    volatile bool flag_btnr_click = false;
+    volatile bool flag_btnr_long = false;
+    volatile bool flag_btnl_click = false;
+    volatile bool flag_btnl_long = false;
+    
+    // 静态回调函数（用于 OneButton）
+    static void onBtnC_Click(void* param);
+    static void onBtnC_LongPressStart(void* param);
+    static void onBtnR_Click(void* param);
+    static void onBtnR_LongPressStart(void* param);
+    static void onBtnL_Click(void* param);
+    static void onBtnL_LongPressStart(void* param);
 };
 static AppMusicPlayer app; // 创建App对象
 
@@ -2533,121 +2550,272 @@ void AppMusicPlayer::show_display_vlbm()
  */
 void AppMusicPlayer::show_display_debug()
 {
-    display.clearScreen();
-    bool lrcupdate = false;
+    d_time.start = micros();
+    constexpr int y = 146;  // 设置进度条的Y坐标
+    constexpr int x = 61;   // 设置进度条的X起始坐标
+    constexpr int w1 = 262; // 设置进度条的宽度
+    static int lrc_max_x = SCREEN_WIDTH;
+    uint32_t play_time = (millis() - play_time_start - play_stop_time);
+    static uint32_t total_time = 0;
+    if (backup_buff_updata)
+    {
+        uint8_t current_buffer = display.current_buffer_idx;
+        display.swapBuffer(1); // 切换到缓冲区1
+        display.clearScreen();
+
+        if (lrcisload) //  && !user_stop
+        {
+            lrc_max_x = SCREEN_WIDTH;
+
+            if (!hal.pref.getBool("lrc_off_info"))
+            {
+                int16_t wchar;
+                int x = 0;
+
+                String titleStr = info.title;
+                int spaceIdx = titleStr.indexOf(' ');
+                String titleToDraw = (spaceIdx > 0) ? titleStr.substring(0, spaceIdx) : titleStr;
+                x = u8g2Fonts.getUTF8Width(titleToDraw.c_str());
+                {
+                    int startX = SCREEN_WIDTH - x - 5;
+                    // ensure start position is at least half the screen width
+                    if (startX < SCREEN_WIDTH / 2)
+                        startX = SCREEN_WIDTH / 2;
+                    u8g2Fonts.setCursor(startX, 93);
+                    if (startX < lrc_max_x)
+                        lrc_max_x = startX;
+                }
+                u8g2Fonts.print(titleToDraw);
+
+                String performerStr = info.performer;
+                spaceIdx = performerStr.indexOf(' ');
+                String performerToDraw = (spaceIdx > 0) ? performerStr.substring(0, spaceIdx) : performerStr;
+                x = u8g2Fonts.getUTF8Width(performerToDraw.c_str());
+                {
+                    int startX = SCREEN_WIDTH - x - 5;
+                    if (startX < SCREEN_WIDTH / 2)
+                        startX = SCREEN_WIDTH / 2;
+                    u8g2Fonts.setCursor(startX, 110);
+                    if (startX < lrc_max_x)
+                        lrc_max_x = startX;
+                }
+                u8g2Fonts.print(performerToDraw);
+
+                String albumStr = info.album;
+                spaceIdx = albumStr.indexOf(' ');
+                String albumToDraw = (spaceIdx > 0) ? albumStr.substring(0, spaceIdx) : albumStr;
+                x = u8g2Fonts.getUTF8Width(albumToDraw.c_str());
+                {
+                    int startX = SCREEN_WIDTH - x - 5;
+                    if (startX < SCREEN_WIDTH / 2)
+                        startX = SCREEN_WIDTH / 2;
+                    u8g2Fonts.setCursor(startX, 127);
+                    if (startX < lrc_max_x)
+                        lrc_max_x = startX;
+                }
+                u8g2Fonts.print(albumToDraw);
+            }
+        }
+        else
+        {
+            int x = 0;
+            x = u8g2Fonts.getUTF8Width(info.title.c_str());
+            u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 93);
+            u8g2Fonts.print(info.title);
+
+            x = u8g2Fonts.getUTF8Width(info.performer.c_str());
+            u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 110);
+            u8g2Fonts.print(info.performer);
+
+            x = u8g2Fonts.getUTF8Width(info.album.c_str());
+            u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 127);
+            u8g2Fonts.print(info.album);
+
+            if (_play_end || user_stop)
+                display.drawXBitmap(22, 95, pause_bits, 24, 24, TFT_BLACK);
+            else
+                display.drawXBitmap(22, 95, play_bits, 24, 24, TFT_BLACK);
+        }
+        int16_t wchar;
+        display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
+        if (titles[currentSongIndex] != nullptr)
+        {
+            // 标题栏
+            if (titles[currentSongIndex])
+            {
+                wchar = u8g2Fonts.getUTF8Width(titles[currentSongIndex]);
+                int x = (SCREEN_WIDTH - wchar) / 2;
+                if (x < 40)
+                    x = 40;
+                u8g2Fonts.setCursor(x, 12);
+                display.setDrawWindow(40, 0, 304, 13);
+                u8g2Fonts.print(titles[currentSongIndex]);
+                display.setDrawWindow();
+            }
+        }
+        else
+        {
+            wchar = u8g2Fonts.getUTF8Width("音乐播放器");
+            u8g2Fonts.setCursor((SCREEN_WIDTH - wchar) / 2, 12);
+            u8g2Fonts.print("音乐播放器");
+        }
+
+        if (info.tlen == 0 && i2s_output != nullptr)
+            i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
+        if (!loopPlay)
+            play_time_total = 0;
+        if (info.tlen != 0 && play_time_total == 0)
+            total_time = info.tlen;
+        else
+            total_time = play_time_total;
+
+        if (info.tlen != 0 && play_time > info.tlen)
+            play_time = info.tlen;
+
+        display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
+        // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
+        u8g2Fonts.setCursor(341, y);
+        u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
+
+        // 电池
+        if ((hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) || hal.bat_info.soc != 255) && hal.VCC < 4300 && !hal.isCharging)
+        {
+            display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
+            display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
+            // int soc = (hal.VCC - 3200) * 13 / 1000;
+            // for (int x = 365; x < 365 + soc; x++)
+            // {
+            //     display.drawFastVLine(x, 6, 4, TFT_BLACK);
+            // }
+        }
+        else
+            display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
+        u8g2Fonts.setCursor(2, 12);
+        u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
+
+        u8g2Fonts.setCursor(3, 165);
+        if (loopPlay)
+        {
+            u8g2Fonts.printf("单曲");
+        }
+        else if (autoPlay)
+        {
+            if (randomPlay)
+                u8g2Fonts.printf("随机");
+            else
+                u8g2Fonts.printf("顺序");
+        }
+
+        if (output != nullptr)
+        {
+            int rate = output->GetRate();
+            int khz = rate / 1000;
+            int frac = (rate % 1000) / 100; // 只取一位小数
+            if (frac > 0)
+                u8g2Fonts.printf(" %d.%dKHz|%dbit", khz, frac, output->GetBitsPerSample());
+            else
+                u8g2Fonts.printf(" %dKHz|%dbit", khz, output->GetBitsPerSample());
+        }
+
+        char gain_buf[16];
+        sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
+        u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
+        u8g2Fonts.printf(gain_buf);
+
+        display.swapBuffer(current_buffer);
+        backup_buff_updata = false;
+    }
+
+    display.copyBuffer(display.current_buffer_idx, 1); // 从缓冲区1复制显示内容到当前缓冲区
+    int w = 0;
+    if ((play_time > total_time) && (total_time != 0))
+        play_time = total_time;
+    if (total_time > 0)
+    {
+        w = (play_time * w1 + total_time / 2) / total_time;
+    }
+    if (w > w1)
+        w = w1;
+    // display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
+    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
+    u8g2Fonts.setCursor(18, y);
+    u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
+
+    d_time.fft_start = micros();
+    // ---------- 调试信息（限制更新频率为 4Hz） ----------
+    static uint32_t last_debug_update = 0;
+    static char debug_line1[256];
+    static char debug_line2[256];
+
+    uint32_t now_ms = millis();
+    if (now_ms - last_debug_update >= 250) // 4次/秒
+    {
+        last_debug_update = now_ms;
+        // 更新第一行调试信息
+        snprintf(debug_line1, sizeof(debug_line1),
+                 "Gain:%.2f vcc:%dmV bat:%.3fV soc:%d%% soh:%d%% S3:%.1f℃ %lu",
+                 gain, hal.VCC, hal.bat_info.voltage, hal.bat_info.soc, hal.bat_info.soh, hal.bat_info.s3_temp, hal.bat_info.update_time);
+        // 更新第二行调试信息
+        snprintf(debug_line2, sizeof(debug_line2),
+                 "FreeHeap：%.2fKB(内部)|%.2fKB(外部)|I:%dmA|P:%dmW|%dmAh",
+                 (float)ESP.getFreeHeap() / 1024.0,
+                 (float)heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024.0,
+                 hal.bat_info.current.avg,
+                 hal.bat_info.power,
+                 hal.bat_info.capacity.remain);
+    }
+
+    // 绘制调试信息（新坐标：y=30 和 y=45）
+    u8g2Fonts.setCursor(3, 30);
+    u8g2Fonts.print(debug_line1);
+    u8g2Fonts.setCursor(3, 45);
+    u8g2Fonts.print(debug_line2);
+
+    d_time.fft_end = micros();
+
     if (lrcisload) //  && !user_stop
     {
         unsigned long currentTime = millis() - play_time_start - _lrcoffset - play_stop_time;
         checkAndUpdateLyrics(currentTime);
 
-        // 绘制歌词（带滚动效果）
-        // 计算居中位置
-        String displayText = scrolling ? newLyrics[1] : String(currentLyric[1]);
-        int textWidth = u8g2Fonts.getUTF8Width(displayText.c_str());
-        int xPos = (296 - textWidth) / 2;
-        if (xPos < 2)
-            xPos = 2;
-
-        drawScrollingLyrics(xPos, 45); // 45是第二行的Y坐标
-
-        char buf[80];
-        snprintf(buf, 80, "%s  %s", info.title.c_str(), info.performer.c_str());
-        int x = u8g2Fonts.getUTF8Width(buf);
-        u8g2Fonts.setCursor((296 - x) / 2, 75);
-        u8g2Fonts.printf(buf);
+        drawScrollingLyrics(14, 110, lrc_max_x); // 第二行的Y坐标
     }
-    else
+
+    updateVolumeUI();
+
+    static uint32_t last_update_time = 0;
+    uint32_t now = millis();
+    if (now - last_update_time > 5000)
     {
-        if (titles[currentSongIndex] != nullptr)
-        {
-            GUI::drawWindowsWithTitle(titles[currentSongIndex]);
+        backup_buff_updata = true;
+        last_update_time = millis();
+    }
+
+    if (display_debug_mode)
+    {
+        static uint32_t last_update_time = 0;
+        uint32_t now = millis();
+        static char _buf[64];
+        static int x;
+        if (now - last_update_time > 200)
+        { // 200ms更新一次
+            last_update_time = now;
+            float all = (float)(d_time.start - last_time.start) / 1000.0;
+            fps = 1000.0 / all;
+            float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
+            float other_time = ((float)(last_time.display_start - last_time.start) / 1000.0) - fft_time;
+            float display_time = (float)(last_time.end - last_time.display_start) / 1000.0;
+            sprintf(_buf, "%.1f|%.1f|%.1f|%d fps: %.1f", fft_time, other_time, display_time, xWasDelayed, fps);
+            x = (SCREEN_WIDTH - u8g2Fonts.getUTF8Width(_buf)) / 2;
         }
-        else
-        {
-            GUI::drawWindowsWithTitle("音乐播放器");
-        }
-        int x = 0;
-        x = u8g2Fonts.getUTF8Width(info.title.c_str());
-        u8g2Fonts.setCursor((296 - x) / 2, 30);
-        u8g2Fonts.print(info.title);
-
-        x = u8g2Fonts.getUTF8Width(info.performer.c_str());
-        u8g2Fonts.setCursor((296 - x) / 2, 45);
-        u8g2Fonts.print(info.performer);
-
-        x = u8g2Fonts.getUTF8Width(info.album.c_str());
-        u8g2Fonts.setCursor((296 - x) / 2, 60);
-        u8g2Fonts.print(info.album);
-
-        u8g2Fonts.setCursor(3, 75);
-        // if (info.title.equalsIgnoreCase((String) "---"))
-        // {
-        //     u8g2Fonts.print(titles[currentSongIndex]);
-        // }
-        // else
-        // {
-        // }
+        u8g2Fonts.setCursor(x, 165);
+        u8g2Fonts.print(_buf);
     }
-    // 电池
-    if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4300 && !hal.isCharging)
-    {
-        display.drawXBitmap(274, 0, getBatteryIcon(true), 20, 16, 0);
-        display.fillRect(277, 6, getBatterysoc(), 4, TFT_BLACK);
-    }
-    else
-        display.drawXBitmap(274, 0, getBatteryIcon(), 20, 16, 0);
 
-    u8g2Fonts.setCursor(2, 12);
-    u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
-
-    // u8g2Fonts.setCursor(3, 75);
-    // u8g2Fonts.printf("%s  %s", info.title.c_str(), info.performer.c_str());
-    // u8g2Fonts.printf("专辑:%s", info.album.c_str());
-    u8g2Fonts.setCursor(3, 99);
-    if (_play_end)
-        u8g2Fonts.printf("播放结束 ");
-    else
-        u8g2Fonts.printf("播放中...");
-    u8g2Fonts.setCursor(64, 99);
-    if (hal.pref.getBool("loopPlay", false))
-    {
-        u8g2Fonts.printf("单曲循环");
-    }
-    else if (hal.pref.getBool("autoPlay", false))
-    {
-        if (hal.pref.getBool("randomPlay", false))
-            u8g2Fonts.printf("随机");
-        else
-            u8g2Fonts.printf("顺序");
-    }
-    u8g2Fonts.printf("  index:%d %d", currentSongIndex, play_count);
-    uint32_t play_time = (millis() - play_time_start - play_stop_time) / 1000;
-    uint32_t total_time = 0;
-    if (!hal.pref.getBool("loopPlay", false))
-        play_time_total = 0;
-    if (info.tlen != 0)
-        total_time = info.tlen / 1000;
-    else
-        total_time = play_time_total / 1000;
-    if (info.tlen != 0 && (millis() - play_time_start - play_stop_time) > info.tlen)
-        play_time = info.tlen / 1000;
-    float w = ((float)play_time / (float)total_time) * (float)200;
-    if (w > 200.0)
-        w = 200.0;
-    display.fillCircle(48 + (int16_t)w, 83, 3, TFT_BLACK);
-    display.drawRoundRect(48, 82, 200, 3, 1, TFT_BLACK);
-    display.drawLine(48, 83, 48 + (int16_t)w, 83, TFT_BLACK);
-
-    u8g2Fonts.setCursor(18, 87);
-    u8g2Fonts.printf("%02d:%02d", play_time / 60, play_time % 60);
-    u8g2Fonts.setCursor(253, 87);
-    u8g2Fonts.printf("%02d:%02d", total_time / 60, total_time % 60);
-
-    u8g2Fonts.setCursor(3, 112);
-    u8g2Fonts.printf("Gain:%.2f vcc:%dmV bat:%.3fV soc:%d%% soh:%d%%", gain, hal.VCC, hal.bat_info.voltage, hal.bat_info.soc, hal.bat_info.soh);
-    u8g2Fonts.setCursor(3, 125);
-    u8g2Fonts.printf("剩余堆内存：%.2fKB I:%dmA P:%dmW %dmAh", (float)ESP.getFreeHeap() / 1024.0, hal.bat_info.current.avg, hal.bat_info.power, hal.bat_info.capacity.remain);
+    d_time.display_start = micros();
     display.display();
+    d_time.end = micros();
+    last_time = d_time;
 }
 
 void AppMusicPlayer::show_display_fft()
@@ -3097,74 +3265,112 @@ void AppMusicPlayer::show_display_fft()
     last_time = d_time;
 }
 
-void AppMusicPlayer::updateVolumeUI() {
+void AppMusicPlayer::updateVolumeUI()
+{
     // 静态变量保存动画状态
-    static float lastVolume = -1;               // 上次绘制的音量
-    static unsigned long lastChangeTime = 0;  // 最后一次音量改变的时间（毫秒）
-    static int animState = 0;                 // 0=隐藏, 1=滑入, 2=显示, 3=滑出
-    static int currentX = PHYSICAL_WIDTH;     // 音量条当前左边缘 x 坐标
-    static const int targetXIn = 368;         // 滑入目标 x 坐标
-    static const int targetXOut = PHYSICAL_WIDTH; // 滑出目标 x 坐标（完全移出屏幕）
-    static const int step = 5;                // 每帧移动像素数
+    // 初始化音量相关变量为gain,避免应用启动时显示
+    static float currentDisplayVolume = gain;        // 当前显示的音量值（0~1）
+    static float targetVolume = gain;                // 目标音量值（0~1）,
+    static unsigned long lastChangeTime = 0;         // 最后一次音量改变的时间（毫秒）
+    static int animState = 0;                        // 0=隐藏, 1=滑入, 2=显示, 3=滑出
+    static int currentX = PHYSICAL_WIDTH;            // 音量条当前左边缘 x 坐标
+    static const int targetXIn = 368;                // 滑入目标 x 坐标
+    static const int targetXOut = PHYSICAL_WIDTH;    // 滑出目标 x 坐标（完全移出屏幕）
+    static const int step = 2;                       // 滑动每帧移动像素数
+    static const float volumeSmoothing = 0.1f;       // 音量加减动画平滑系数（每帧接近目标的比例）
 
     // ========== 检测音量改变 ==========
-    bool volumeChanged = (gain != lastVolume);
-    if (volumeChanged) {
-        lastVolume = gain;
+    bool volumeChanged = (gain != targetVolume);      // 实际音量与目标音量比较
+    if (volumeChanged)
+    {
+        targetVolume = gain;                         // 更新目标音量
         lastChangeTime = millis();
 
         // 若当前为隐藏或滑出状态，立即启动滑入动画
-        if (animState == 0 || animState == 3) {
-            animState = 1;          // 切换为滑入状态
-            currentX = PHYSICAL_WIDTH; // 从屏幕外开始（可选，避免跳跃）
+        if (animState == 0 || animState == 3)
+        {
+            animState = 1;
+            currentX = PHYSICAL_WIDTH;
         }
         // 若已经在显示或滑入状态，只需重置计时器，动画继续
     }
 
     // ========== 隐藏状态且无变化时直接返回 ==========
-    if (animState == 0 && !volumeChanged) {
+    if (animState == 0 && !volumeChanged)
+    {
         return;
     }
 
     // ========== 处理超时自动滑出 ==========
-    if (animState == 2 && (millis() - lastChangeTime) > 3000) {
-        animState = 3;              // 启动滑出
+    if (animState == 2 && (millis() - lastChangeTime) > 3000)
+    {
+        animState = 3; // 启动滑出
     }
 
     // ========== 更新位置 ==========
-    if (animState == 1) {           // 滑入：向左移动
-        if (currentX > targetXIn) {
+    if (animState == 1) // 滑入：向左移动
+    {
+        if (currentX > targetXIn)
+        {
             currentX -= step;
             if (currentX < targetXIn) currentX = targetXIn;
-        } else {
-            animState = 2;          // 到达目标，显示状态
         }
-    } else if (animState == 3) {    // 滑出：向右移动
-        if (currentX < targetXOut) {
+        else
+        {
+            animState = 2; // 到达目标，显示状态
+        }
+    }
+    else if (animState == 3) // 滑出：向右移动
+    {
+        if (currentX < targetXOut)
+        {
             currentX += step;
             if (currentX > targetXOut) currentX = targetXOut;
-        } else {
-            animState = 0;          // 完全移出，隐藏状态
+        }
+        else
+        {
+            animState = 0; // 完全移出，隐藏状态
         }
     }
 
+    // ========== 平滑更新当前显示音量（仅当未隐藏时） ==========
+    if (animState != 0) // 未隐藏时进行平滑过渡
+    {
+        // 使用线性插值，每帧接近目标一定比例
+        currentDisplayVolume += (targetVolume - currentDisplayVolume) * volumeSmoothing;
+        // 防止浮点误差导致无法完全到达目标
+        if (fabs(targetVolume - currentDisplayVolume) < 0.001f)
+        {
+            currentDisplayVolume = targetVolume;
+        }
+    }
+    else
+    {
+        // 隐藏状态下，直接同步目标音量，避免下次显示时突变
+        currentDisplayVolume = targetVolume;
+    }
+
     // ========== 绘制音量条 ==========
-    if (animState != 0) {           // 非隐藏状态才绘制
-        // 边框矩形参数（本地坐标）
+    if (animState != 0) // 非隐藏状态才绘制
+    {
+        // 边框矩形参数
         const int borderX = currentX;
         const int borderY = 41;
         const int borderW = 10;
         const int borderH = 100;
         const int radius = 4;
 
-        // 填充矩形高度 = 当前音量（0～100）
-        int fillH = int(lastVolume * 100.0f / 2.0f);
+        // 根据当前显示音量计算填充高度（假设音量范围为 0~1，最大填充高度对应音量1）
+        int fillH = int(currentDisplayVolume * hal.pref.getFloat("max_fillH", 100.0f)); // 如果音量范围不是0~1，请调整
+        if (fillH > 100) fillH = 100;
         int fillY = borderY + (borderH - fillH);
         int fillX = borderX;
 
-        // 绘制填充部分（音量条颜色，例如白色）
+        // 绘制背景（清空音量条区域）
+        display.fillRoundRect(borderX, borderY, borderW, borderH, radius, TFT_WHITE);
+        // 绘制填充部分（音量条颜色）
         display.fillRoundRect(fillX, fillY, borderW, fillH, radius, TFT_BLACK);
-        // 绘制边框（例如黑色）
+        // 绘制边框
         display.drawRoundRect(borderX, borderY, borderW, borderH, radius, TFT_BLACK);
     }
 }
@@ -3352,6 +3558,36 @@ void initCurveScaling()
     }
 }
 
+void AppMusicPlayer::onBtnC_Click(void* param) {
+    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+    self->flag_btnc_click = true;
+}
+
+void AppMusicPlayer::onBtnC_LongPressStart(void* param) {
+    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+    self->flag_btnc_long = true;
+}
+
+void AppMusicPlayer::onBtnR_Click(void* param) {
+    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+    self->flag_btnr_click = true;
+}
+
+void AppMusicPlayer::onBtnR_LongPressStart(void* param) {
+    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+    self->flag_btnr_long = true;
+}
+
+void AppMusicPlayer::onBtnL_Click(void* param) {
+    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+    self->flag_btnl_click = true;
+}
+
+void AppMusicPlayer::onBtnL_LongPressStart(void* param) {
+    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+    self->flag_btnl_long = true;
+}
+
 /**
  * @brief 音乐播放器主函数
  * @note 初始化播放器硬件和软件环境，启动播放任务，处理用户交互事件
@@ -3387,6 +3623,16 @@ void AppMusicPlayer::setup()
     loopPlay = hal.pref.getBool("loopPlay", false);
     autoPlay = hal.pref.getBool("autoPlay", true);
     randomPlay = hal.pref.getBool("randomPlay", false);
+
+    // 注册按钮回调
+    hal.btnc.attachClick(onBtnC_Click, this);
+    hal.btnc.attachLongPressStart(onBtnC_LongPressStart, this);
+
+    hal.btnr.attachClick(onBtnR_Click, this);
+    hal.btnr.attachLongPressStart(onBtnR_LongPressStart, this);
+
+    hal.btnl.attachClick(onBtnL_Click, this);
+    hal.btnl.attachLongPressStart(onBtnL_LongPressStart, this);
 
     exit = player_exit;
     deepsleep = player_deepsleep;
@@ -3426,110 +3672,62 @@ void AppMusicPlayer::setup()
     unsigned long wait_time = millis();
     while (!_end && !need_deep_sleep)
     {
-        if (hal.btnc.isPressing())
-        {
-            if (GUI::waitLongPress(PIN_BUTTONC))
-            {
-                player_menu();
-            }
-            else
-            {
-                if (filelist_ok)
-                {
-                    if (!music_list_menu(true))
-                    {
-                        while (hal.btnc.isPressing())
-                        {
-                            delay(1);
-                        }
-                        continue;
-                    }
+        if (app_exit)
+            return;
+        if (flag_btnc_click) {
+            flag_btnc_click = false;
+            // 短按逻辑
+            if (filelist_ok) {
+                if (!music_list_menu(true)) {
+                    // 如果列表菜单失败，跳过本次处理（原代码通过 continue）
+                    // 但此处无阻塞，直接跳过即可
+                } else {
                     delete_playtask();
                     play_time_total = 0;
                     file_in(music_file);
+                    if (player_set()) begin_player_task();
+                    else _play_end = true;
                 }
-                else
-                {
-                    delete_playtask();
-                    music_list_menu();
-                }
-                if (player_set())
-                {
-                    // sem();
-                    begin_player_task();
-                }
-                else
-                    _play_end = true;
-            }
-            while (hal.btnc.isPressing())
-            {
-                delay(1);
+            } else {
+                delete_playtask();
+                music_list_menu();
+                if (player_set()) begin_player_task();
+                else _play_end = true;
             }
             show_display();
         }
-        if (app_exit)
-            return;
-        if (hal.btnr.isPressing())
-        {
-            if (GUI::waitLongPress(hal.btnr.pin()))
-            {
-                next_song(true, true);
-                backup_buff_updata = true;
-                int a = 0;
-                while (hal.btnr.isPressing())
-                {
-                    delay(50);
-                    if (a++ > 20)
-                    {
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                backup_buff_updata = true;
-                if (gain < 0.05)
-                    gain += 0.01;
-                else
-                    gain += 0.05;
-                if (gain > 4.0)
-                {
-                    gain = 4.0;
-                }
-                if (!nodac)
-                    output->SetGain(gain);
-            }
+        if (flag_btnc_long) {
+            flag_btnc_long = false;
+            player_menu();   // 长按进入菜单
+            show_display();
         }
-        if (hal.btnl.isPressing())
-        {
-            if (GUI::waitLongPress(hal.btnl.pin()))
-            {
-                next_song(false, true);
-                backup_buff_updata = true;
-                int a = 0;
-                while (hal.btnl.isPressing())
-                {
-                    delay(50);
-                    if (a++ > 20)
-                    {
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                backup_buff_updata = true;
-                if (gain < 0.06)
-                    gain -= 0.01;
-                else
-                    gain -= 0.05;
-                if (gain < 0.0)
-                {
-                    gain = 0.0;
-                }
-                if (!nodac)
-                    output->SetGain(gain);
-            }
+        if (flag_btnr_click) {
+            flag_btnr_click = false;
+            backup_buff_updata = true;
+            float gain_step = hal.pref.getFloat("gain_step", 0.05f);
+            gain = min(gain + gain_step, 4.0f);
+            if (!nodac) output->SetGain(gain);
+            show_display();
+        }
+        if (flag_btnr_long) {
+            flag_btnr_long = false;
+            next_song(true, true);
+            backup_buff_updata = true;
+            show_display();
+        }
+        if (flag_btnl_click) {
+            flag_btnl_click = false;
+            backup_buff_updata = true;
+            float gain_step = hal.pref.getFloat("gain_step", 0.05f);
+            gain = max(gain - gain_step, 0.0f);
+            if (!nodac) output->SetGain(gain);
+            show_display();
+        }
+        if (flag_btnl_long) {
+            flag_btnl_long = false;
+            next_song(false, true);
+            backup_buff_updata = true;
+            show_display();
         }
         if ((_count > 0 && play_count > _count && _play_end) || need_deep_sleep)
         {
@@ -3549,7 +3747,15 @@ void AppMusicPlayer::setup()
         show_display();
         if ((millis() - wait_time > 30000) && _play_end)
         {
+            digitalWrite(PIN_DAC_XSMT, 0);
+            display.setPowerMode(POWER_MODE_LPM);
+            digitalWrite(PIN_DAC_EN, 0);
+
             hal.wait_input();
+
+            digitalWrite(PIN_DAC_EN, 1);
+            display.setPowerMode(POWER_MODE_HPM);
+            digitalWrite(PIN_DAC_XSMT, 1);
             wait_time = millis();
         }
         xWasDelayed = xTaskDelayUntil(&xLastWakeTime, xFrequency);
