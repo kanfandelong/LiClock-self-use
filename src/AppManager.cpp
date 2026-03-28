@@ -58,6 +58,36 @@ AppBase *AppManager::getRealClock()
     return getPtrByName(bootapp.c_str());
 }
 
+extern const uint8_t defaultAppIcon[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfe, 0xff, 0x00,
+    0x00, 0x03, 0x80, 0x01, 0x00, 0x05, 0x40, 0x01, 0x00, 0x09, 0x20, 0x01,
+    0x00, 0x11, 0x10, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
+    0x00, 0x81, 0x03, 0x01, 0x00, 0x41, 0x04, 0x01, 0x00, 0x01, 0x04, 0x01,
+    0x00, 0x01, 0x02, 0x01, 0x00, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01,
+    0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x01,
+    0x00, 0x01, 0x00, 0x01, 0x00, 0x11, 0x10, 0x01, 0x00, 0x09, 0x20, 0x01,
+    0x00, 0x05, 0x40, 0x01, 0x00, 0x03, 0x80, 0x01, 0x00, 0xfe, 0xff, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t goBackIcon[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00,
+    0x00, 0xb0, 0x00, 0x00, 0x00, 0x98, 0x00, 0x00, 0x00, 0x8c, 0x00, 0x00,
+    0x00, 0x86, 0x00, 0x00, 0x00, 0x83, 0xff, 0x07, 0x80, 0x81, 0x00, 0x08,
+    0xc0, 0x80, 0x00, 0x10, 0x60, 0x80, 0x00, 0x10, 0x30, 0x80, 0x00, 0x10,
+    0x18, 0x80, 0x00, 0x10, 0x30, 0x81, 0x00, 0x14, 0x60, 0x82, 0x00, 0x14,
+    0xc0, 0x84, 0xf8, 0x13, 0x80, 0x89, 0x00, 0x08, 0x00, 0xb3, 0xff, 0x07,
+    0x00, 0x86, 0x00, 0x00, 0x00, 0x8c, 0x00, 0x00, 0x00, 0x98, 0x00, 0x00,
+    0x00, 0xb0, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+static const uint8_t wifiIcon[] = {
+    0x00, 0x00, 0xf0, 0x0f, 0xfc, 0x3f, 0x1e, 0x78, 0x07, 0xe0, 0xe0, 0x07,
+    0xf8, 0x1f, 0x38, 0x1c, 0x00, 0x00, 0x80, 0x01, 0xc0, 0x03, 0x80, 0x01,
+    0x00, 0x00};
+
 void AppManager::gotoApp(AppBase *appPtr)
 {
     if (appPtr == NULL)
@@ -88,35 +118,6 @@ void AppManager::goBack()
     }
     method = APPMANAGER_GOBACK;
 }
-extern const uint8_t defaultAppIcon[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xfe, 0xff, 0x00,
-    0x00, 0x03, 0x80, 0x01, 0x00, 0x05, 0x40, 0x01, 0x00, 0x09, 0x20, 0x01,
-    0x00, 0x11, 0x10, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
-    0x00, 0x81, 0x03, 0x01, 0x00, 0x41, 0x04, 0x01, 0x00, 0x01, 0x04, 0x01,
-    0x00, 0x01, 0x02, 0x01, 0x00, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01,
-    0x00, 0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x00, 0x01, 0x00, 0x01,
-    0x00, 0x01, 0x00, 0x01, 0x00, 0x11, 0x10, 0x01, 0x00, 0x09, 0x20, 0x01,
-    0x00, 0x05, 0x40, 0x01, 0x00, 0x03, 0x80, 0x01, 0x00, 0xfe, 0xff, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-static const uint8_t goBackIcon[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00,
-    0x00, 0xb0, 0x00, 0x00, 0x00, 0x98, 0x00, 0x00, 0x00, 0x8c, 0x00, 0x00,
-    0x00, 0x86, 0x00, 0x00, 0x00, 0x83, 0xff, 0x07, 0x80, 0x81, 0x00, 0x08,
-    0xc0, 0x80, 0x00, 0x10, 0x60, 0x80, 0x00, 0x10, 0x30, 0x80, 0x00, 0x10,
-    0x18, 0x80, 0x00, 0x10, 0x30, 0x81, 0x00, 0x14, 0x60, 0x82, 0x00, 0x14,
-    0xc0, 0x84, 0xf8, 0x13, 0x80, 0x89, 0x00, 0x08, 0x00, 0xb3, 0xff, 0x07,
-    0x00, 0x86, 0x00, 0x00, 0x00, 0x8c, 0x00, 0x00, 0x00, 0x98, 0x00, 0x00,
-    0x00, 0xb0, 0x00, 0x00, 0x00, 0xe0, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-static const uint8_t wifiIcon[] = {
-    0x00, 0x00, 0xf0, 0x0f, 0xfc, 0x3f, 0x1e, 0x78, 0x07, 0xe0, 0xe0, 0x07,
-    0xf8, 0x1f, 0x38, 0x1c, 0x00, 0x00, 0x80, 0x01, 0xc0, 0x03, 0x80, 0x01,
-    0x00, 0x00};
 static AppBase *realAppList[MAX_APP_COUNT];
 static int realAppCount = 0;
 void buildAppList(bool showHidden)
@@ -143,15 +144,18 @@ void buildAppList(bool showHidden)
 }
 void AppManager::App_Preferences_init()
 {
-    if (hal.pref.getBool("app_pref_init", false)){
+    if (hal.pref.getBool("app_pref_init", false))
+    {
         return;
-    }else{
+    }
+    else
+    {
         log_i("初始化APP隐藏控制参数");
         for (int16_t i = 0; i < tail; i++)
         {
             appList[i]->set();
             hal.pref.putBool(hal.get_char_sha_key(appList[i]->title), appList[i]->_showInList);
-            log_i("APP %s 状态:%s", appList[i]->title,  appList[i]->_showInList ? "显示在列表" : "隐藏");
+            log_i("APP %s 状态:%s", appList[i]->title, appList[i]->_showInList ? "显示在列表" : "隐藏");
         }
         hal.pref.putBool("app_pref_init", true);
         log_i("APP隐藏控制参数初始化结束");
@@ -187,18 +191,20 @@ void AppManager::showAppList(int page)
         // 右侧状态图标
         int16_t x = MAX_X - 2;
         // 电池
-        if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"),false) && hal.VCC < 4300 && !hal.isCharging){
+        if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4300 && !hal.isCharging)
+        {
             display.drawXBitmap(x - 20, 0, getBatteryIcon(true), 20, 16, 0);
             display.fillRect(x - 17, 6, getBatterysoc(), 4, TFT_BLACK);
-        }else
+        }
+        else
             display.drawXBitmap(x - 20, 0, getBatteryIcon(), 20, 16, 0);
         x -= 20 - 2;
         // 电池电量数值
         u8g2Fonts.setCursor(x - 44, 12);
         if (hal.bat_info.voltage != 0.0)
-        u8g2Fonts.printf("%.03fV", hal.bat_info.voltage);
+            u8g2Fonts.printf("%.03fV", hal.bat_info.voltage);
         else
-        u8g2Fonts.printf("%d.%03dV", hal.VCC / 1000, hal.VCC % 1000);
+            u8g2Fonts.printf("%d.%03dV", hal.VCC / 1000, hal.VCC % 1000);
         x -= 50 - 4;
         // WiFi
         if (WiFi.isConnected())
@@ -245,6 +251,91 @@ void AppManager::showAppList(int page)
         u8g2Fonts.drawUTF8(x + x_font_offset, y + 45, realAppList[pagebase + i]->title);
     }
 }
+
+void AppManager::animateAppSelection(int appIndex, int currentPage, AppBase *selectedApp)
+{
+    const int page_app_cont = 13;
+    // 计算选中图标位置（与 showAppList 中的计算方式一致）
+    int i = appIndex;                           // 页内索引（0-based）
+    int x = ((i + 1) / 2) * 50 + menu_x_offset; // 图标绘制时的 x 偏移（用于计算矩形和图标起始点）
+    int y = ((i + 1) % 2) * 70 + menu_y_offset; // 图标绘制时的 y 偏移
+    // 起始矩形（选择框）左上角及宽高
+    int start_rect_x = x - 1;
+    int start_rect_y = y - 2;
+    int start_rect_w = 50;
+    int start_rect_h = 50;
+    // 结束矩形为全屏
+    int end_rect_x = 0;
+    int end_rect_y = 0;
+    int end_rect_w = MAX_X;
+    int end_rect_h = MAX_Y;
+    // 图标起始位置（左上角）
+    int start_icon_x = x + 8;
+    int start_icon_y = y;
+    // 图标结束位置（屏幕中心，减去图标半宽）
+    int end_icon_x = (MAX_X - 32) / 2;
+    int end_icon_y = (MAX_Y - 32) / 2;
+
+    // 步骤数
+    const int steps = 10;
+
+    display.swapBuffer(2);
+    display.clearScreen();
+    showAppList(currentPage); // 将背景保存到缓冲区2
+    display.swapBuffer(1);
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    TickType_t xFrequency = pdMS_TO_TICKS(20); // 运行周期
+    // 动画主循环
+    for (int s = 0; s <= steps; s++)
+    {
+        float t = (float)s / steps; // 插值因子 0..1
+
+        // 插值矩形参数
+        int cur_rect_x = start_rect_x + (end_rect_x - start_rect_x) * t;
+        int cur_rect_y = start_rect_y + (end_rect_y - start_rect_y) * t;
+        int cur_rect_w = start_rect_w + (end_rect_w - start_rect_w) * t;
+        int cur_rect_h = start_rect_h + (end_rect_h - start_rect_h) * t;
+
+        // 插值图标位置
+        int cur_icon_x = start_icon_x + (end_icon_x - start_icon_x) * t;
+        int cur_icon_y = start_icon_y + (end_icon_y - start_icon_y) * t;
+
+        display.copyBuffer(1, 2);
+
+        display.fillRoundRect(cur_rect_x, cur_rect_y, cur_rect_w, cur_rect_h, 5, TFT_WHITE);
+        display.drawRoundRect(cur_rect_x, cur_rect_y, cur_rect_w, cur_rect_h, 5, TFT_BLACK);
+
+        // 绘制应用图标（使用黑色，保证在白色背景上可见）
+        if (selectedApp->image != NULL)
+        {
+            display.drawXBitmap(cur_icon_x, cur_icon_y, selectedApp->image, 32, 32, TFT_BLACK);
+        }
+        else
+        {
+            display.drawXBitmap(cur_icon_x, cur_icon_y, defaultAppIcon, 32, 32, TFT_BLACK);
+        }
+
+        // 将缓冲区 2 显示出来
+        display.display();
+
+        // 帧间延时，控制动画速度
+        xTaskDelayUntil(&xLastWakeTime, xFrequency);
+    }
+
+    // 可选：动画结束后再显示全屏白色背景中央图标，为加载文字做准备
+    display.clearScreen();
+    if (selectedApp->image != NULL)
+    {
+        display.drawXBitmap(end_icon_x, end_icon_y, selectedApp->image, 32, 32, TFT_BLACK);
+    }
+    else
+    {
+        display.drawXBitmap(end_icon_x, end_icon_y, defaultAppIcon, 32, 32, TFT_BLACK);
+    }
+    display.display();
+}
+
 AppBase *AppManager::appSelector(bool showHidden)
 {
     const int page_app_cont = 13;
@@ -261,12 +352,15 @@ AppBase *AppManager::appSelector(bool showHidden)
     int last_selected = 0;
     int idleTime = 0;
     bool waitc = false;
-    display.swapBuffer(1);
+    display.setPowerMode(POWER_MODE_HPM);
+    display.swapBuffer(2);
     display.clearScreen();
     // display.display();
-    display.setPowerMode(POWER_MODE_HPM);
     showAppList(currentPage);
     display.drawRoundRect(menu_x_offset - 1, menu_y_offset - 2, 50, 50, 5, 0); // 绘制选择框
+    display.swapBuffer(1);
+    display.copyBuffer(1, 0);
+    display.slideScreenFull(SLIDE_DOWN, 250, 2);
     display.display();
     // 下面是选择
     hal.hookButton();
@@ -373,8 +467,8 @@ AppBase *AppManager::appSelector(bool showHidden)
                     // 根据移动距离动态计算动画步数，确保平滑且不太快
                     int dx = new_x - old_x;
                     int dy = new_y - old_y;
-                    int distance = std::max(abs(dx), abs(dy)); // 取最大轴向距离
-                    const int MAX_STEPS = 25; // 最大步数限制
+                    int distance = std::max(abs(dx), abs(dy));     // 取最大轴向距离
+                    const int MAX_STEPS = 25;                      // 最大步数限制
                     int steps = std::min(MAX_STEPS, distance / 4); // 步长5像素，最大步数限制
                     display.swapBuffer(2);
                     display.clearScreen();
@@ -429,17 +523,27 @@ AppBase *AppManager::appSelector(bool showHidden)
     hal.unhookButton();
     if (selected == 0)
     {
+        display.slideScreenFull(SLIDE_UP, 250, 0);
         display.swapBuffer(0);
         display.display();
     }
     else
     {
-        display.clearScreen();
-        display.setCursor(60, 72);
-        display.setFont(&FreeSans18pt7b);
-        display.print("Loading...");
-        display.display();
+        // display.clearScreen();
+        // display.setCursor(60, 72);
+        // display.setFont(&FreeSans18pt7b);
+        // display.print("Loading...");
+        // display.display();
+        if (!showHidden)
+        {
+            int appIndex = selected - 1; // 页内应用索引
+            AppBase *selectedApp = realAppList[currentPage * page_app_cont + appIndex];
+            animateAppSelection(appIndex, currentPage, selectedApp);
+            skipSwitchAnimation = true;
+            delay(500);
+        }
         display.swapBuffer(0);
+        display.clearScreen();
     }
     if (selected == 0)
         return NULL;
@@ -478,6 +582,35 @@ void AppManager::update()
                 currentApp->exit();
             }
         }
+        // 执行切换动画（除非已被选择器动画替代）
+        if (!skipSwitchAnimation)
+        {
+            display.swapBuffer(2);
+            display.clearScreen();
+            if (app_to != NULL && app_to->image != NULL)
+            {
+                display.drawXBitmap(176, 68, app_to->image, 32, 32, TFT_BLACK);
+            }
+            else
+            {
+                display.drawXBitmap(176, 68, defaultAppIcon, 32, 32, TFT_BLACK);
+            }
+            display.swapBuffer(1);
+            display.clearScreen();
+            if (currentApp != NULL && currentApp->image != NULL)
+            {
+                display.drawXBitmap(176, 68, currentApp->image, 32, 32, TFT_BLACK);
+            }
+            else
+            {
+                display.drawXBitmap(176, 68, defaultAppIcon, 32, 32, TFT_BLACK);
+            }
+            delay(50);
+            display.slideScreenFull(SLIDE_DOWN, 250, 2);
+            delay(200);
+            display.swapBuffer(0);
+        }
+        skipSwitchAnimation = false; // 重置标志
         attachLocalEvent();
         if (app_to != currentApp && currentApp != NULL)
         {
@@ -511,8 +644,39 @@ void AppManager::update()
         // 首先执行app退出
         if (currentApp->exit != NULL)
             currentApp->exit();
+
+        AppBase *last_app = currentApp;
         // 然后准备环境
         currentApp = appStack.top();
+        // 执行切换动画（除非已被选择器动画替代）
+        if (!skipSwitchAnimation)
+        {
+            display.swapBuffer(2);
+            display.clearScreen();
+            if (currentApp != NULL && currentApp->image != NULL)
+            {
+                display.drawXBitmap(176, 68, currentApp->image, 32, 32, TFT_BLACK);
+            }
+            else
+            {
+                display.drawXBitmap(176, 68, defaultAppIcon, 32, 32, TFT_BLACK);
+            }
+            display.swapBuffer(1);
+            display.clearScreen();
+            if (last_app != NULL && last_app->image != NULL)
+            {
+                display.drawXBitmap(176, 68, last_app->image, 32, 32, TFT_BLACK);
+            }
+            else
+            {
+                display.drawXBitmap(176, 68, defaultAppIcon, 32, 32, TFT_BLACK);
+            }
+            delay(50);
+            display.slideScreenFull(SLIDE_UP, 250, 2);
+            delay(200);
+            display.swapBuffer(0);
+        }
+        skipSwitchAnimation = false; // 重置标志
         appStack.pop();
         if (currentApp->_reentrant)
             strncpy(latest_appname, currentApp->name, 36);
@@ -651,19 +815,19 @@ void AppManager::clearTimer()
 void AppManager::attachLocalEvent()
 {
     hal.detachAllButtonEvents();
-    Serial0.println("正在更新按键事件");
+    uart->println("正在更新按键事件");
     hal.btnc.attachLongPressStart([](void *scope)
                                   {if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) ((AppManager *)scope)->method = APPMANAGER_SHOWAPPSELECTOR; },
                                   this);
     hal.btnl.attachLongPressStart([](void *scope)
-                                  { if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) {((AppManager *)scope)->method = APPMANAGER_GOBACK; Serial0.println("Back."); } },
+                                  { if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) {((AppManager *)scope)->method = APPMANAGER_GOBACK; uart->println("Back."); } },
                                   this);
 }
 void AppManager::loadLuaApps()
 {
     if (luaLoaded == false)
     {
-        Serial0.println("延迟加载Lua APP列表");
+        uart->println("延迟加载Lua APP列表");
         searchForLuaAPP();
         luaLoaded = true;
     }
@@ -678,8 +842,8 @@ bool AppManager::recover(AppBase *home)
 {
     if (latest_appname[0] != 0)
     {
-        Serial0.print("重新打开上个APP：");
-        Serial0.println(latest_appname);
+        uart->print("重新打开上个APP：");
+        uart->println(latest_appname);
         if (home != NULL)
             appStack.push(home);
         else
@@ -688,7 +852,7 @@ bool AppManager::recover(AppBase *home)
         {
             if (strcmp(home->name, "clockonly") == 0)
             {
-                Serial0.println("已设置离线模式，此App被替换为clockonly");
+                uart->println("已设置离线模式，此App被替换为clockonly");
                 gotoApp("clockonly");
                 return true;
             }

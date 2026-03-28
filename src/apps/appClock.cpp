@@ -206,8 +206,8 @@ void AppClock::setup()
                 ++part_refresh_count;
                 appManager.noDeepSleep = false;
                 appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
-                Serial0.println("Finished part");
-                //Serial0.printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
+                uart->println("Finished part");
+                //uart->printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
                 return;
             }
         }
@@ -241,10 +241,10 @@ void AppClock::setup()
         return;
     }
     drawLayout();
-    display.display();
+    display.display(true);
     appManager.noDeepSleep = false;
     appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
-    // Serial0.println("Finished full");
-    //Serial0.printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
+    // uart->println("Finished full");
+    //uart->printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
     return;
 }

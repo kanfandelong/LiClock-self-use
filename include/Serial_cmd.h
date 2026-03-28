@@ -2,7 +2,7 @@
 #include "A_Config.h"
 #include "esp_console.h"
 // 缓冲区大小
-#define COMMAND_BUFFER_SIZE 1024
+#define COMMAND_BUFFER_SIZE 8192 * 4
 // 命令头标识
 #define COMMAND_HEADER '#'
 // 命令结束符
@@ -38,26 +38,26 @@
 #define putnvs              "putnvs"
 #define removenvs           "removenvs"
 //串口颜色转义码
-#define RED     Serial0.print("\033[31m")
-#define GREEN   Serial0.print("\033[32m")
-#define YELLOW  Serial0.print("\033[33m")
-#define BLUE    Serial0.print("\033[34m")
-#define MAGENTA Serial0.print("\033[35m")
-#define CYAN    Serial0.print("\033[36m")
-#define WHITE   Serial0.print("\033[37m")
-#define RESET   Serial0.print("\033[0m")
+#define RED     uart->print("\033[31m")
+#define GREEN   uart->print("\033[32m")
+#define YELLOW  uart->print("\033[33m")
+#define BLUE    uart->print("\033[34m")
+#define MAGENTA uart->print("\033[35m")
+#define CYAN    uart->print("\033[36m")
+#define WHITE   uart->print("\033[37m")
+#define RESET   uart->print("\033[0m")
 
-#define ERROR_COLOR     Serial0.print("\033[91m")  // 亮红色
-#define WARNING_COLOR   Serial0.print("\033[93m")  // 亮黄色  
-#define SUCCESS_COLOR   Serial0.print("\033[92m")  // 亮绿色
-#define INFO_COLOR      Serial0.print("\033[96m")  // 亮青色
-#define HEADER_COLOR    Serial0.print("\033[95m")  // 亮紫色
-#define RESET_COLOR     Serial0.print("\033[0m")
+#define ERROR_COLOR     uart->print("\033[91m")  // 亮红色
+#define WARNING_COLOR   uart->print("\033[93m")  // 亮黄色  
+#define SUCCESS_COLOR   uart->print("\033[92m")  // 亮绿色
+#define INFO_COLOR      uart->print("\033[96m")  // 亮青色
+#define HEADER_COLOR    uart->print("\033[95m")  // 亮紫色
+#define RESET_COLOR     uart->print("\033[0m")
 
-#define PRINT_ERROR(fmt, ...)     do { ERROR_COLOR; Serial0.print("ERROR: "); Serial0.printf(fmt, ##__VA_ARGS__); Serial0.println(); RESET_COLOR; } while(0)
-#define PRINT_WARNING(fmt, ...)   do { WARNING_COLOR; Serial0.print("WARNING: "); Serial0.printf(fmt, ##__VA_ARGS__); Serial0.println(); RESET_COLOR; } while(0)
-#define PRINT_SUCCESS(fmt, ...)   do { SUCCESS_COLOR; Serial0.print("SUCCESS: "); Serial0.printf(fmt, ##__VA_ARGS__); Serial0.println(); RESET_COLOR; } while(0)
-#define PRINT_INFO(fmt, ...)      do { INFO_COLOR; Serial0.printf(fmt, ##__VA_ARGS__); Serial0.println(); RESET_COLOR; } while(0)
+#define PRINT_ERROR(fmt, ...)     do { ERROR_COLOR; uart->print("ERROR: "); uart->printf(fmt, ##__VA_ARGS__); uart->println(); RESET_COLOR; } while(0)
+#define PRINT_WARNING(fmt, ...)   do { WARNING_COLOR; uart->print("WARNING: "); uart->printf(fmt, ##__VA_ARGS__); uart->println(); RESET_COLOR; } while(0)
+#define PRINT_SUCCESS(fmt, ...)   do { SUCCESS_COLOR; uart->print("SUCCESS: "); uart->printf(fmt, ##__VA_ARGS__); uart->println(); RESET_COLOR; } while(0)
+#define PRINT_INFO(fmt, ...)      do { INFO_COLOR; uart->printf(fmt, ##__VA_ARGS__); uart->println(); RESET_COLOR; } while(0)
 
 class CMD
 {
@@ -66,7 +66,7 @@ private:
     bool is_run = false;
 
 public:
-    char cmdBuffer[COMMAND_BUFFER_SIZE];
+    char *cmdBuffer;
     void begin();
     void SetCallback();
     void run();

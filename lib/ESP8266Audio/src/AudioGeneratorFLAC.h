@@ -26,12 +26,8 @@ extern "C" {
     #include "libflac/FLAC/stream_decoder.h"
 };
 
-#define ENABLE_FLAC_DECODE_TIMING 0
 // Macro to control decode timing logging. Define ENABLE_FLAC_DECODE_TIMING to 0 to disable.
 // Users can override this definition via compiler flags or before including this header.
-#ifndef ENABLE_FLAC_DECODE_TIMING
-#define ENABLE_FLAC_DECODE_TIMING 1
-#endif
 
 class AudioGeneratorFLAC : public AudioGenerator
 {
@@ -51,7 +47,8 @@ class AudioGeneratorFLAC : public AudioGenerator
     uint32_t sampleRate;
 
     // We need to buffer some data in-RAM to avoid doing 1000s of small reads
-    const int *buff[2];
+    // 支持最多8个声道（FLAC__MAX_CHANNELS）
+    const int *buff[8];
     uint16_t buffPtr;
     uint16_t buffLen;
     FLAC__StreamDecoder *flac;
@@ -61,6 +58,24 @@ class AudioGeneratorFLAC : public AudioGenerator
     uint32_t decodeCount = 0;         // Number of decode calls measured
     uint32_t lastLogMs = 0;           // Last time average was logged (milliseconds)
   #endif
+
+    uint32_t read(void *data, uint32_t len);
+    bool seek(int32_t pos, int dir);
+    uint32_t getSize();
+    uint32_t getPos();
+    void fill();
+    static void fillTask(void *param);
+    void start_fillTask();
+    SemaphoreHandle_t mutex;
+    uint32_t buffSize;
+    uint8_t *buffer;
+    bool deallocateBuffer;
+    uint32_t writePtr;
+    uint32_t readPtr;
+    uint32_t length;
+    bool filled;
+    bool stop_task = false;
+    bool _eof = false;
 
     // FLAC callbacks, need static functions to bounce into c++ from c
     static FLAC__StreamDecoderReadStatus _read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes, void *client_data) {

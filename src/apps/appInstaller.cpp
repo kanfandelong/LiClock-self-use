@@ -61,7 +61,7 @@ int AppInstaller::getAppSize(const String path, bool fromTF)
         filenames.pop_back();
         if (!root)
         {
-            Serial0.println("[文件] 无法打开目录");
+            uart->println("[文件] 无法打开目录");
             continue;
         }
         file = root.openNextFile();
@@ -91,7 +91,7 @@ void AppInstaller::getLocalApp()
     root = LittleFS.open("/");
     if (!root)
     {
-        Serial0.println("[文件] root未打开");
+        uart->println("[文件] root未打开");
     }
     file = root.openNextFile();
     while (file)
@@ -131,7 +131,7 @@ bool AppInstaller::install(const String path)
         filenames.pop_back();
         if (!root)
         {
-            Serial0.println("[文件] 无法打开目录");
+            uart->println("[文件] 无法打开目录");
             continue;
         }
         LittleFS.mkdir(path);
@@ -152,7 +152,7 @@ bool AppInstaller::install(const String path)
                 {
                     // 打开失败
                     GUI::msgbox("安装失败", "无法写入文件，可能空间已满");
-                    Serial0.println("无法写入文件");
+                    uart->println("无法写入文件");
                     file.close();
                     root.close();
                     return false;

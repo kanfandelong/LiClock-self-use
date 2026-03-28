@@ -38,14 +38,12 @@ enum blendmode
 	XOR
 };
 
-class ST7305_DMA;
-
-struct TransactionContext
-{
-	ST7305_DMA *instance; // 指向当前对象实例
-	int8_t dc;			  // D/C 引脚状态 (0=命令, 1=数据)
-	bool is_last;		  // 是否为最后一个事务（用于释放信号量）
-	// 可以扩展其他字段，例如 transaction ID、回调函数等
+// 滑动方向枚举
+enum SlideDirection {
+    SLIDE_RIGHT,
+    SLIDE_LEFT,
+    SLIDE_DOWN,
+    SLIDE_UP
 };
 
 class ST7305_DMA : public Adafruit_GFX
@@ -76,11 +74,22 @@ public:
 			   int8_t rst_pin, int8_t te_pin = -1);
 
 	bool begin(bool reset = true);
-	void display();
+	/**
+	 * @brief 刷新显示内容
+	 * 该函数将当前缓冲区的内容发送到显示屏。它会等待 TE 信号（如果 TE 引脚有效）以同步刷新，确保显示稳定。
+	 * @param ignoreTE 是否忽略 TE 信号直接刷新，默认为 false。当设置为 true 时，函数会立即刷新显示并强制阻塞5ms以确保数据传输完成
+	 * @note 频繁使用忽略TE的刷新会因为阻塞导致性能问题
+	 */
+	void display(bool ignoreTE = false);
 	void clearDisplay(uint16_t color = 0XFF);
 	void clearScreen(uint16_t color = 0XFF) { clearDisplay(color); };
 	void setvoltage(ST7305_DMA_voltage_t fps);
 	void drawPixel(int16_t x, int16_t y, uint16_t color);
+	void slideOneBlock(SlideDirection dir, uint8_t new_buffer, uint8_t step);
+	void slideScreenFull(SlideDirection dir, uint32_t duration_ms, uint8_t new_buffer);
+	void drawbitmap(int16_t x, int16_t y, const uint8_t bitmap[], int16_t w, int16_t h, uint16_t color);
+	void drawXBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
+								 int16_t w, int16_t h, uint16_t color);
 	void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
 	void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
 
@@ -266,8 +275,23 @@ public:
 	int8_t _rst_pin;
 	int8_t _te_pin;
 	int8_t _sclk_pin, _mosi_pin, _miso_pin;
+	
 
 private:
+    // 同步对象
+    SemaphoreHandle_t _te_semaphore;     // TE 信号量（由 ISR 释放）
+    SemaphoreHandle_t _dma_mutex;        // 保护共享数据的互斥量
+    TaskHandle_t      _display_task_handle; // 后台刷新任务句柄
+
+    // TE 中断服务例程（静态）
+    static void IRAM_ATTR te_isr_handler(void* arg);
+
+    // 后台任务函数（静态）
+    static void display_task(void* pvParameters);
+
+    // 内部刷屏逻辑（由后台任务调用）
+    void displayInternal(int8_t dma_buf_idx);
+	
 	spi_host_device_t _spi_host;
 	spi_device_handle_t _spi_handle; // SPI 设备句柄
 	bool _dma_busy;
@@ -278,8 +302,10 @@ private:
 	uint16_t y_min = 0, y_max = MAX_Y;
 
 	uint8_t *buffer;
-	uint8_t *dma_buffer;
+    uint8_t *dma_buffer[2];          // 两个 DMA 安全缓冲区
 	uint8_t *_buffers[4];
+    int8_t  _active_dma_idx;            // 当前正在被 DMA 发送的缓冲区索引（-1 表示无）
+    int8_t  _pending_dma_idx;           // 已填充好等待发送的缓冲区索引（-1 表示无）
 
 	bool HPM_MODE = false;
 	bool LPM_MODE = true;

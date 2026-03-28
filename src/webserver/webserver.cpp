@@ -191,7 +191,7 @@ bool myxcopy(const String path, const String newpath)
         filenames.pop_back();
         if (!root)
         {
-            Serial0.println("[文件] 无法打开目录");
+            uart->println("[文件] 无法打开目录");
             continue;
         }
         LittleFS.mkdir(tmp);
@@ -215,7 +215,7 @@ bool myxcopy(const String path, const String newpath)
                 if (!newFile)
                 {
                     // 打开失败
-                    Serial0.println("无法写入文件");
+                    uart->println("无法写入文件");
                     file.close();
                     root.close();
                     return false;
@@ -261,7 +261,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         if (info->final && info->index == 0 && info->len == len)
         {
             // the whole message is in a single frame and we got all of it's data
-            // Serial0.printf("ws[%u]", client->id());
+            // uart->printf("ws[%u]", client->id());
             if (info->opcode == WS_TEXT)
             {
                 /*
@@ -421,9 +421,9 @@ void beginFileServer(bool for_TF)
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
-        Serial0.println("Error setting up MDNS responder!");
+        uart->println("Error setting up MDNS responder!");
 
-    Serial0.println("File Server started");
+    uart->println("File Server started");
     serverRunning = true;
     hal.can_sleep = false;
 }
@@ -570,7 +570,7 @@ void beginWebServer()
 
     server.on("/conf", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                Serial0.println(request->getParam("json", true, false)->value());
+                uart->println(request->getParam("json", true, false)->value());
                                 deserializeJson(config, request->getParam(0)->value());
                                 request->send(200, "text/plain", "OK");
                                 hal.saveConfig(); });
@@ -652,8 +652,8 @@ void beginWebServer()
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
-        Serial0.println("Error setting up MDNS responder!");
-    Serial0.println("HTTP server started");
+        uart->println("Error setting up MDNS responder!");
+    uart->println("HTTP server started");
     serverRunning = true;
     hal.can_sleep = false;
 }

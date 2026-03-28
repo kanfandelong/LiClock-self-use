@@ -1247,6 +1247,7 @@ void AppOOBE::setup()
     display.drawXBitmap(0, 0, OOBE_checkWiring_bits, 296, 128, 0);
     display.display();
     hal.pref.putInt("oobe", 1);
+    appManager.App_Preferences_init();
     peripherals.check();
 stage1:
     display.clearScreen();

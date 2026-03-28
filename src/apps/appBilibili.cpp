@@ -110,7 +110,7 @@ static bool login()
             GUI::msgbox("错误", "二维码生成失败，请联系开发者");
             return false;
         }
-        Serial0.println(Response);
+        uart->println(Response);
         ArduinoJson::deserializeJson(doc, Response);
         obj = doc.as<JsonObject>();
 
@@ -120,7 +120,7 @@ static bool login()
         QRCode qrcode;
         uint8_t qrcodeData[qrcode_getBufferSize(7)];
         qrcode_initText(&qrcode, qrcodeData, 6, 0, URL.c_str());
-        Serial0.println(qrcode.size);
+        uart->println(qrcode.size);
         for (uint8_t y = 0; y < qrcode.size; y++)
         {
             // Each horizontal module
@@ -132,11 +132,11 @@ static bool login()
         display.display();
         while (millis() - millisStart < 180000)
         {
-            Serial0.print(".");
+            uart->print(".");
             HTTPClient http;
             if (hal.btnl.isPressing())
             {
-                Serial0.println("cancel");
+                uart->println("cancel");
                 goto err;
             }
             vTaskDelay(1000);
@@ -152,8 +152,8 @@ static bool login()
                 }
                 else
                 {
-                    Serial0.println(code);//307
-                    Serial0.println(http.header("Location"));
+                    uart->println(code);//307
+                    uart->println(http.header("Location"));
                 }
             }
 
@@ -166,7 +166,7 @@ static bool login()
                 Cookies = Response.substring(Response.indexOf("?") + 1);
                 Cookies.replace("&", ";");
                 http.end();
-                Serial0.println("ok");
+                uart->println("ok");
                 goto scaned;
             }
             else
@@ -179,7 +179,7 @@ static bool login()
                 }
                 else if (obj["data"]["code"] == 86090)
                 {
-                    Serial0.print("*");
+                    uart->print("*");
                 }
             }
             http.end();
@@ -215,7 +215,7 @@ static void updateInfo()
     if (obj["code"] != 0)
     {
         // 获取消息数失败
-        Serial0.println(Response);
+        uart->println(Response);
         GUI::msgbox("错误", "获取消息数失败");
         return;
     }
@@ -227,7 +227,7 @@ static void updateInfo()
     if (obj["code"] != 0)
     {
         // 获取私信数失败
-        Serial0.println(Response);
+        uart->println(Response);
         GUI::msgbox("错误", "获取私信数失败");
         return;
     }
@@ -241,7 +241,7 @@ static void updateInfo()
     if (obj["code"] != 0)
     {
         // 获取关注数失败
-        Serial0.println(Response);
+        uart->println(Response);
         GUI::msgbox("错误", "获取粉丝数失败");
         return;
     }

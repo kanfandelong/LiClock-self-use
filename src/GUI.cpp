@@ -105,7 +105,7 @@ namespace GUI
         int16_t val2_int = val2;
         int16_t tmp = val1_int + val2_int;
         int16_t out = 0;
-        // Serial0.print("val1_int:" + String(val1_int)); Serial0.print(" val2_int:" + String(val2_int)); Serial0.println(" tmp:" + String(tmp));
+        // uart->print("val1_int:" + String(val1_int)); uart->print(" val2_int:" + String(val2_int)); uart->println(" tmp:" + String(tmp));
         if (tmp > 255)
             return 255;
         else if (tmp < 0)
@@ -224,7 +224,7 @@ namespace GUI
         u8g2Fonts.setCursor(start_x + 85 + (70 - w) / 2, start_y + 96 - 20 + 12);
         u8g2Fonts.print(yes);
         // display.displayWindow(start_x, start_y, 160, 96);
-        display.display();
+        display.display(true);
         unsigned long start = millis();
         while (1)
         {
@@ -384,11 +384,11 @@ namespace GUI
                     {
                         int item_y = start_y + 15 + item_height * i;
                         if (options[i + pageStart].icon != NULL && ico_h <= 14)
-                                                    {
+                        {
                             display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, options[i + pageStart].icon, ico_w, ico_h, 0);
                         }
                         u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
-                        
+
                         display.drawRoundRect(start_x + 3, cur_y_rect, 195 - 6, 15, 3, 0);
                     }
                     // 滚动条
@@ -418,12 +418,13 @@ namespace GUI
                 wait_time = millis();
             }
         }
+
         display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
         return selected;
     }
-#include <esp32s3/rom/sha.h>
+#include <mbedtls/sha256.h>
     static const uint8_t select_bits[] = {
         0xfe, 0x07, 0x03, 0x0c, 0x01, 0x08, 0xf1, 0x08, 0xf9, 0x09, 0xf9, 0x09,
         0xf9, 0x09, 0xf9, 0x09, 0xf1, 0x08, 0x01, 0x08, 0x03, 0x0c, 0xfe, 0x07};
@@ -431,11 +432,13 @@ namespace GUI
         0xfe, 0x07, 0x03, 0x0c, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08,
         0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x01, 0x08, 0x03, 0x0c, 0xfe, 0x07};
 
-    void sha256(const char *input, uint8_t output[32], SHA_CTX *ctx)
+    void sha256(const char *input, uint8_t output[32], mbedtls_sha256_context *ctx)
     {
-        ets_sha_init(ctx, SHA2_256);                                                        // 初始化上下文
-        ets_sha_update(ctx, (const uint8_t *)input, strlen(input) * 8, true); // 更新哈希值
-        ets_sha_finish(ctx, output);                                    // 完成哈希计算
+        mbedtls_sha256_init(ctx);
+        mbedtls_sha256_starts(ctx, 0); // 0 表示 SHA-256
+        mbedtls_sha256_update(ctx, (const unsigned char *)input, strlen(input));
+        mbedtls_sha256_finish(ctx, output); // 完成哈希计算
+        mbedtls_sha256_free(ctx);
     }
     /**
      * @brief 多项设置GUI
@@ -475,8 +478,7 @@ namespace GUI
         push_buffer();
         // 通过sha256为每一个选项生成一个key，以便存储
         int i = 0;
-        SHA_CTX ctx;
-        ets_sha_enable();
+        mbedtls_sha256_context ctx;
         while (options[i].title != NULL)
         {
             sha256(options[i].title, temp, &ctx);
@@ -490,7 +492,6 @@ namespace GUI
             sha_option_key[i][15] = '\0'; // 确保字符串以 null 结尾
             ++i;
         }
-        ets_sha_disable();
 
         // 确保默认选中在有效范围内
         selected = constrain(default_selected, 0, total - 1);
@@ -623,7 +624,7 @@ namespace GUI
                             }
                         }
                         u8g2Fonts.drawUTF8(start_x + 5 + (options[i + pageStart].select ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
-                        
+
                         display.drawRoundRect(start_x + 3, cur_y_rect, 195 - 6, 15, 3, 0);
                     }
                     // 滚动条
@@ -658,6 +659,7 @@ namespace GUI
         hal.unhookButton();
         return selected;
     }
+
     const int KEY_WIDTH = 26;
     const int KEY_HEIGHT = 17;
 
@@ -1017,7 +1019,7 @@ namespace GUI
         }
         pop_buffer();
         hal.unhookButton();
-        display.display(); // 全局刷新一次
+        display.display();       // 全局刷新一次
         display.setDrawWindow(); // 恢复绘制窗口
         return currentNumber;
     }
@@ -1163,7 +1165,7 @@ namespace GUI
 
         pop_buffer();
         hal.unhookButton();
-        display.display(); // 刷新
+        display.display();       // 刷新
         display.setDrawWindow(); // 恢复绘制窗口
         return currentNumber;
     }
@@ -1284,9 +1286,112 @@ namespace GUI
         }
         pop_buffer();
         hal.unhookButton();
-        display.display(); // 全局刷新一次
+        display.display();       // 全局刷新一次
         display.setDrawWindow(); // 恢复绘制窗口
         return current_value;
+    }
+
+    /**
+     * @brief 播放vlbm视频
+     * @param x 起始绘制x坐标
+     * @param y 起始绘制y坐标
+     * @param filename 完整文件路径
+     * @param color 绘制颜色
+     */
+    void PlayLBM_V(int16_t x, int16_t y, const char *filename, uint16_t color)
+    {
+        FILE *fp = fopen(filename, "rb");
+        if (!fp)
+        {
+            error("File %s not found!", filename);
+            return;
+        }
+        LBM_V_HEAD header;
+        fread(&header, sizeof(LBM_V_HEAD), 1, fp);
+        uint16_t w = header.w;
+        uint16_t h = header.h;
+        uint8_t gray_level = header.gray;
+        TickType_t xFrequency = pdMS_TO_TICKS(header.frametime);
+        log_i("w: %u h: %u gray: %u frametime: %u", w, h, gray_level, header.frametime);
+
+        // 根据灰度等级计算每像素位数
+        uint8_t bits_per_pixel;
+        switch (gray_level)
+        {
+        case 2:
+            bits_per_pixel = 1;
+            break;
+        default:
+            error("Invalid gray level: %u", gray_level);
+            fclose(fp);
+            return;
+        }
+        uint8_t pixels_per_byte = 8 / bits_per_pixel;
+        uint16_t bytes_per_row = (w + pixels_per_byte - 1) / pixels_per_byte;
+        size_t imgsize = bytes_per_row * h;
+
+        uint8_t *img = (uint8_t *)malloc(imgsize);
+        if (!img)
+        {
+            uart->printf("malloc failed!\n");
+            fclose(fp);
+            return;
+        }
+
+        TickType_t startTick = xTaskGetTickCount();
+        uint32_t frameCount = 0;
+        TickType_t xLastWakeTime = xTaskGetTickCount();
+
+        while (1)
+        {
+            size_t read_bytes = fread(img, 1, imgsize, fp);
+            if (read_bytes != imgsize)
+            {
+                if (feof(fp))
+                {
+                    log_i("Playback finished: reached EOF at frame %lu", frameCount);
+                    break;
+                }
+                else
+                {
+                    log_e("Incomplete frame data at frame %lu, read %u bytes", frameCount, read_bytes);
+                    break;
+                }
+            }
+
+            if (hal.btnl.isPressing())
+            {
+                delay(100);
+                if (hal.btnl.isPressing())
+                {
+                    log_i("Playback interrupted by button at frame %lu", frameCount);
+                    break;
+                }
+            }
+
+            display.clearScreen();
+            display.drawbitmap(x, y, img, w, h, color); // 传递每像素位数
+            display.display();
+            xTaskDelayUntil(&xLastWakeTime, xFrequency);
+            frameCount++;
+
+            // if (frameCount % 100 == 0)
+            // {
+            //     long pos = ftell(fp);
+            //     log_i("Played frame %lu, file pos %ld", frameCount, pos);
+            // }
+        }
+
+        TickType_t endTick = xTaskGetTickCount();
+        uint32_t elapsedMs = (endTick - startTick) * portTICK_PERIOD_MS;
+        float elapsedSec = elapsedMs / 1000.0f;
+        float avgFps = (elapsedSec > 0) ? (frameCount / elapsedSec) : 0;
+
+        log_i("Playback finished. Total frames: %lu, elapsed time: %.2f sec, average FPS: %.2f",
+              frameCount, elapsedSec, avgFps);
+
+        fclose(fp);
+        free(img);
     }
     /**
      * @brief 绘制LBM格式的灰度图像
@@ -1324,7 +1429,7 @@ namespace GUI
         uint8_t *img = (uint8_t *)malloc(imgsize);
         if (!img)
         {
-            Serial0.printf("malloc failed!\n");
+            uart->printf("malloc failed!\n");
             fclose(fp);
             return;
         }
@@ -1497,10 +1602,10 @@ namespace GUI
             uint16_t depth = read16(file);        // 每像素位数
             uint32_t format = read32(file);       // 格式
 
-            Serial0.print("width0:");
-            Serial0.println(width);
-            Serial0.print("height0:");
-            Serial0.println(height);
+            uart->print("width0:");
+            uart->println(width);
+            uart->print("height0:");
+            uart->println(height);
 
             // 检测图片大小 设置方向
             /*if (width <= display.width() && height > display.height())
@@ -1510,13 +1615,13 @@ namespace GUI
             if (width > max_row_width)
             {
                 msgbox("错误", "图片width过大，应小于等于500");
-                Serial0.print("错误：图片width过大，应小于等于500\n");
+                uart->print("错误：图片width过大，应小于等于500\n");
                 return;
             }
             else if (height > max_row_width)
             {
                 msgbox("错误", "图片height过大，应小于等于500");
-                Serial0.print("错误：图片height过大，应小于等于500\n");
+                uart->print("错误：图片height过大，应小于等于500\n");
                 return;
             }
 
@@ -1527,11 +1632,11 @@ namespace GUI
             boolean ddxhFirst = 1; // 抖动循环的首次状态
             uint16_t yrow1 = 0;    // Y轴移位
             uint16_t yrow_old = 0; // 绘制像素点时 初始Y轴存储
-            // Serial0.print("depth:"); Serial0.println(depth);
+            // uart->print("depth:"); uart->println(depth);
             if (depth >= 32)
             {
                 msgbox("错误", "不支持32位深度的图片");
-                Serial0.print("不支持32位深度的图片\n");
+                uart->print("不支持32位深度的图片\n");
                 return;
             }
             if ((planes == 1) && ((format == 0) || (format == 3))) // 处理未压缩，565同样
@@ -1562,8 +1667,8 @@ namespace GUI
                         with_color = false;
                     if (depth <= 8) // 8位颜色及以下使用调色板,如不使用有些图会翻转颜色
                     {
-                        Serial0.print("depth:");
-                        Serial0.print(depth);
+                        uart->print("depth:");
+                        uart->print(depth);
                         if (depth < 8)
                             bitmask >>= depth;
                         // file.seek(54); //调色板始终 @ 54
@@ -1674,7 +1779,7 @@ namespace GUI
                                     }
 
                                     uint16_t yrow = y + (flip ? h - row - 1 : row);
-                                    // Serial0.print("x + col:" + String(x + col)); Serial0.println(" yrow:" + String(yrow));
+                                    // uart->print("x + col:" + String(x + col)); uart->println(" yrow:" + String(yrow));
                                     if (depth == 1) // 位深为1位，直接绘制
                                     {
                                         if (whitish)
@@ -1709,7 +1814,7 @@ namespace GUI
                                                 else if (flip == 0 && yrow == (height - 1))
                                                     y_max0 = yrow1;
 
-                                                // Serial0.print("y_max0："); Serial0.println(y_max0);
+                                                // uart->print("y_max0："); uart->println(y_max0);
                                                 yrow1 = 2; // Y轴进位回到第3行，012
 
                                                 for (uint16_t y = 0; y <= y_max0; y++) // height width
@@ -1753,16 +1858,16 @@ namespace GUI
                                                     y_max1 = yrow_old + 1;
                                                 else if (flip == 0 && yrow == (height - 1))
                                                     y_max1 = height - yrow_old;
-                                                // Serial0.print("yrow:"); Serial0.println(yrow);
+                                                // uart->print("yrow:"); uart->println(yrow);
                                                 for (uint16_t y = 0; y < y_max1; y++)
                                                 {
                                                     for (uint16_t x = 0; x < w; x++) // width 修补 w
                                                     {
-                                                        /*Serial0.print("x:" + String(x));
-                                                          Serial0.print(" y:" + String(y));
-                                                          Serial0.println(" bmp8:" + String(bmp8[x][y]));*/
+                                                        /*uart->print("x:" + String(x));
+                                                          uart->print(" y:" + String(y));
+                                                          uart->println(" bmp8:" + String(bmp8[x][y]));*/
                                                         /*if (yrow_old > 110) {
-                                                          Serial0.print("yrow_old:"); Serial0.println(yrow_old);
+                                                          uart->print("yrow_old:"); uart->println(yrow_old);
                                                           }*/
                                                         display.drawPixel(x, yrow_old, bmp8[x][y]);
                                                     }
@@ -1787,7 +1892,7 @@ namespace GUI
                         } while (false);
                     display.display();
                     // display.powerOff(); // 为仅关闭电源
-                    Serial0.println("图像显示完毕");
+                    uart->println("图像显示完毕");
                 }
             }
         }
@@ -1795,7 +1900,7 @@ namespace GUI
         if (!valid)
         {
             msgbox("警告", "发生未知错误");
-            Serial0.print("发生未知错误\n");
+            uart->print("发生未知错误\n");
             return;
         }
     }
@@ -1817,10 +1922,10 @@ namespace GUI
 
         // 获取jpeg的宽度和高度（以像素为单位）
         TJpgDec.getFsJpgSize(&jpgWidth, &jpgHeight, name, fs);
-        Serial0.print("jpgWidth = ");
-        Serial0.print(jpgWidth);
-        Serial0.print(", jpgHeight = ");
-        Serial0.println(jpgHeight);
+        uart->print("jpgWidth = ");
+        uart->print(jpgWidth);
+        uart->print(", jpgHeight = ");
+        uart->println(jpgHeight);
 
         // 设置屏幕方向
         // display.setRotation(ScreenOrientation); // 用户方向
@@ -1843,8 +1948,8 @@ namespace GUI
             scale = 8; // 至多8倍缩放
         TJpgDec.setJpgScale(scale);
 
-        Serial0.print("scale:");
-        Serial0.println(scale);
+        uart->print("scale:");
+        uart->println(scale);
 
         // 重新计算缩放后的长宽
         jpgWidth = jpgWidth / scale;
@@ -1856,10 +1961,10 @@ namespace GUI
         // 自动居中
         int32_t x_center = (display.width() / 2) - (jpgWidth / 2);
         int32_t y_center = (display.height() / 2) - (jpgHeight / 2);
-        Serial0.print("x_center:");
-        Serial0.println(x_center);
-        Serial0.print("y_center:");
-        Serial0.println(y_center);
+        uart->print("x_center:");
+        uart->println(x_center);
+        uart->print("y_center:");
+        uart->println(y_center);
 
         // display.init(0, 0, 10, 1);
         // // display.setFullWindow();
@@ -1893,8 +1998,8 @@ namespace GUI
                 sprintf(buf, "文件%s\n错误原因:%s", name.c_str(), str.c_str());
                 msgbox("JPG解码库错误", buf);
             }
-            Serial0.println("error:" + String(error) + " " + str);
-            Serial0.println("");
+            uart->println("error:" + String(error) + " " + str);
+            uart->println("");
         } while (false);
 
         display.display(); // 关闭屏幕电源
@@ -1907,11 +2012,11 @@ namespace GUI
     int16_t y_start; // 绘制像素点的y轴坐标初始值记录
     bool epd_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint8_t *bitmap)
     {
-        // Serial0.print("x:"); Serial0.println(x);
-        // Serial0.print("y:"); Serial0.println(y);
-        // Serial0.print("w:"); Serial0.println(w);
-        // Serial0.print("h:"); Serial0.println(h);
-        //  Serial0.println(" ");
+        // uart->print("x:"); uart->println(x);
+        // uart->print("y:"); uart->println(y);
+        // uart->print("w:"); uart->println(w);
+        // uart->print("h:"); uart->println(h);
+        //  uart->println(" ");
 
         yield();
         // 绘制像素点的 x y从哪里开始

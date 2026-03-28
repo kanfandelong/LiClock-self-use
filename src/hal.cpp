@@ -1,6 +1,8 @@
 #include "hal.h"
 #include <LittleFS.h>
 
+// 统一的文件系统接口，支持SD卡和LittleFS，路径以"/sd/"或"/littlefs/"开头来区分
+// {
 void HAL::cheak_sd()
 {
     if ((!peripherals.isSDLoaded()) && digitalRead(PIN_SD_CARDDETECT) == LOW)
@@ -139,72 +141,74 @@ bool HAL::rmdir(const String &path)
     return rmdir(path.c_str());
 }
 
+// }
+
 void HAL::printBatteryInfo()
 {
-    Serial0.println("\n------ Battery Information ------");
+    uart->println("\n------ Battery Information ------");
 
     // 基础信息
-    Serial0.print("SOC: ");
-    Serial0.print(hal.bat_info.soc);
-    Serial0.println("%");
-    Serial0.print("SOH: ");
-    Serial0.print(hal.bat_info.soh);
-    Serial0.println("%");
-    Serial0.printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
-    Serial0.printf("S3 Temperature: %.3f ℃\n", hal.bat_info.s3_temp);
-    Serial0.printf("Voltage: %.3f V\n", hal.bat_info.voltage);
-    Serial0.print("Avg Power: ");
-    Serial0.print(hal.bat_info.power);
-    Serial0.println(" mW");
+    uart->print("SOC: ");
+    uart->print(hal.bat_info.soc);
+    uart->println("%");
+    uart->print("SOH: ");
+    uart->print(hal.bat_info.soh);
+    uart->println("%");
+    uart->printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
+    uart->printf("S3 Temperature: %.3f ℃\n", hal.bat_info.s3_temp);
+    uart->printf("Voltage: %.3f V\n", hal.bat_info.voltage);
+    uart->print("Avg Power: ");
+    uart->print(hal.bat_info.power);
+    uart->println(" mW");
 
     // 电流信息
-    Serial0.println("\n-- Current --");
-    Serial0.print("Average: ");
-    Serial0.print(hal.bat_info.current.avg);
-    Serial0.println(" mA");
-    Serial0.print("Max: ");
-    Serial0.print(hal.bat_info.current.max);
-    Serial0.println(" mA");
-    Serial0.print("Standby: ");
-    Serial0.print(hal.bat_info.current.stby);
-    Serial0.println(" mA");
+    uart->println("\n-- Current --");
+    uart->print("Average: ");
+    uart->print(hal.bat_info.current.avg);
+    uart->println(" mA");
+    uart->print("Max: ");
+    uart->print(hal.bat_info.current.max);
+    uart->println(" mA");
+    uart->print("Standby: ");
+    uart->print(hal.bat_info.current.stby);
+    uart->println(" mA");
 
     // 容量信息
-    Serial0.println("\n-- Capacity --");
-    Serial0.print("Remaining: ");
-    Serial0.print(hal.bat_info.capacity.remain);
-    Serial0.println(" mAh");
-    Serial0.print("Full: ");
-    Serial0.print(hal.bat_info.capacity.full);
-    Serial0.println(" mAh");
-    Serial0.print("Available: ");
-    Serial0.print(hal.bat_info.capacity.avail);
-    Serial0.println(" mAh");
-    Serial0.print("Available Full: ");
-    Serial0.print(hal.bat_info.capacity.avail_full);
-    Serial0.println(" mAh");
-    Serial0.print("Remaining Filtered: ");
-    Serial0.print(hal.bat_info.capacity.remain_f);
-    Serial0.println(" mAh");
-    Serial0.print("Full Filtered: ");
-    Serial0.print(hal.bat_info.capacity.full_f);
-    Serial0.println(" mAh");
-    Serial0.print("Design: ");
-    Serial0.print(hal.bat_info.capacity.design);
-    Serial0.println(" mAh");
+    uart->println("\n-- Capacity --");
+    uart->print("Remaining: ");
+    uart->print(hal.bat_info.capacity.remain);
+    uart->println(" mAh");
+    uart->print("Full: ");
+    uart->print(hal.bat_info.capacity.full);
+    uart->println(" mAh");
+    uart->print("Available: ");
+    uart->print(hal.bat_info.capacity.avail);
+    uart->println(" mAh");
+    uart->print("Available Full: ");
+    uart->print(hal.bat_info.capacity.avail_full);
+    uart->println(" mAh");
+    uart->print("Remaining Filtered: ");
+    uart->print(hal.bat_info.capacity.remain_f);
+    uart->println(" mAh");
+    uart->print("Full Filtered: ");
+    uart->print(hal.bat_info.capacity.full_f);
+    uart->println(" mAh");
+    uart->print("Design: ");
+    uart->print(hal.bat_info.capacity.design);
+    uart->println(" mAh");
 
     // 状态标志
-    Serial0.println("\n-- Flags --");
-    Serial0.print("Discharging: ");
-    Serial0.println(hal.bat_info.flag.DSG ? "Yes" : "No");
-    Serial0.print("Fully Charged: ");
-    Serial0.println(hal.bat_info.flag.FC ? "Yes" : "No");
-    Serial0.print("Charging Allowed: ");
-    Serial0.println(hal.bat_info.flag.CHG ? "Yes" : "No");
+    uart->println("\n-- Flags --");
+    uart->print("Discharging: ");
+    uart->println(hal.bat_info.flag.DSG ? "Yes" : "No");
+    uart->print("Fully Charged: ");
+    uart->println(hal.bat_info.flag.FC ? "Yes" : "No");
+    uart->print("Charging Allowed: ");
+    uart->println(hal.bat_info.flag.CHG ? "Yes" : "No");
 
-    Serial0.printf("Update Time: [%06d]\n", hal.bat_info.update_time);
+    uart->printf("Update Time: [%06d]\n", hal.bat_info.update_time);
 
-    Serial0.println("---------------------------------\n");
+    uart->println("---------------------------------\n");
 }
 
 void task_bat_info(void *)
@@ -220,7 +224,7 @@ void task_bat_info(void *)
         }
         xSemaphoreGive(peripherals.i2cMutex);
     }
-    TickType_t xDelay = 2500 / portTICK_PERIOD_MS;
+    TickType_t xDelay = 1200 / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount();
     while (1)
     {
@@ -577,7 +581,8 @@ void HAL::getTime()
         localtime_r(&now, &timeinfo);
     }
 }
-#include <esp32s3/rom/sha.h>
+#include <mbedtls/sha256.h>
+// #include <esp32s3/rom/sha.h>
 /**
  * @brief 计算字符串的SHA-256哈希值，并返回前15个字符组成的字符串
  * @param str 要计算哈希值的字符串
@@ -585,37 +590,33 @@ void HAL::getTime()
  */
 char *HAL::get_char_sha_key(const char *str, bool mode)
 {
-    SHA_CTX ctx;
-    uint8_t hash[32];  // SHA-256产生32字节哈希
-    char hex_hash[65]; // 64 字节的十六进制字符串 + 1 字节的 null 终止符
-    ets_sha_enable();
-    ets_sha_init(&ctx, SHA2_256);                                                    // 初始化上下文
-    ets_sha_update(&ctx, (const uint8_t *)str, strlen(str) * 8, true); // 更新哈希值
-    ets_sha_finish(&ctx, hash);                                  // 完成哈希计算
-    ets_sha_disable();
-    if (mode)
-    {
-        for (int i = 0; i < 15; i++)
-        {
-            // 将字节映射到可打印ASCII字符范围 (33-126)
-            key[i] = (hash[i] % 94) + 33;
+    static char key[16];  // 返回的静态缓冲区，注意多线程重入问题（当前使用场景是安全的）
+    uint8_t hash[32];
+    
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    mbedtls_sha256_starts(&ctx, 0);  // 0 表示 SHA-256
+    mbedtls_sha256_update(&ctx, (const unsigned char *)str, strlen(str));
+    mbedtls_sha256_finish(&ctx, hash);
+    mbedtls_sha256_free(&ctx);
+
+    if (mode) {
+        for (int i = 0; i < 15; i++) {
+            key[i] = (hash[i] % 94) + 33;  // 映射到可打印 ASCII
         }
-    }
-    else
-    {
-        for (int j = 0; j < 32; j++)
-        {
+    } else {
+        char hex_hash[65];
+        for (int j = 0; j < 32; j++) {
             sprintf(hex_hash + j * 2, "%02x", hash[j]);
         }
         strncpy(key, hex_hash, 15);
-    } // 截取前 15 个字符作为 key
-    key[15] = '\0'; // 确保字符串以 null 结尾
-    // log_i("%s", key);
+    }
+    key[15] = '\0';
     return key;
 }
 
 
-String HAL::get_CAcert(char* filePath)
+String HAL::get_CAcert(const char *filePath)
 {
     File CAcert = hal.open(filePath, "r");
     if (!CAcert)
@@ -626,7 +627,7 @@ String HAL::get_CAcert(char* filePath)
     size_t file_size = CAcert.size();
     char ca_cert[file_size + 1]; // +1为终止符
     size_t index = 0;
-    while (CAcert.available())// 读取证书内容并替换CRLF为LF
+    while (CAcert.available()) // 读取证书内容并替换CRLF为LF
     {
         char c = CAcert.read();
         if (c == '\r' && CAcert.peek() == '\n')
@@ -656,7 +657,7 @@ String HAL::get_yiyan(uint8_t maxlen)
     {
         HTTPClient http;
         String ca_cert = get_CAcert("/littlefs/System/GTS Root R4.crt");
-        static const char* url_yiyan = "https://v1.hitokoto.cn/?c=c&c=a&c=d&c=f&c=i&encode=text&charset=utf-8&max_length=";
+        static const char *url_yiyan = "https://v1.hitokoto.cn/?c=c&c=a&c=d&c=f&c=i&encode=text&charset=utf-8&max_length=";
         String _url = String(url_yiyan) + String(maxlen);
         http.begin((String)_url, ca_cert.c_str());
         int httpCode = http.GET();
@@ -763,7 +764,7 @@ bool HAL::cheak_firmware_update()
             // 防止缓冲区溢出
             if (index >= file_size * 2)
             {
-                Serial0.println("缓冲区溢出，证书可能被截断");
+                uart->println("缓冲区溢出，证书可能被截断");
                 break;
             }
         }
@@ -787,7 +788,7 @@ run:
         DynamicJsonDocument doc(2048);
         String http_str = http.getString();
         deserializeJson(doc, http_str);
-        Serial0.println("正在写入固件版本检查文件...");
+        uart->println("正在写入固件版本检查文件...");
         File f = LittleFS.open("/System/CFU.json", "w");
         f.print(http_str);
         f.close();
@@ -796,12 +797,12 @@ run:
     {
         for (int i = 0; i < 5; i++)
         {
-            Serial0.println("连接失败，正在重试...");
+            uart->println("连接失败，正在重试...");
             delay(1000);
             httpCode = http.GET();
             if (httpCode != HTTP_CODE_OK)
             {
-                Serial0.printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
+                uart->printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
                 delay(1000); // 等待1秒后重试
             }
             else
@@ -842,9 +843,10 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     if (freq < _freq || (setfreq && (freq != _freq)))
     {
         bool cpuset = setCpuFrequencyMhz(_freq);
-        Serial0.end();
-        Serial0.begin(pref.getUInt("uart_baud", 115200));
-        Serial0.setDebugOutput(true);
+        uart->end();
+        uart->setRxBufferSize(4096);
+        uart->begin(pref.getUInt("uart_baud", 115200));
+        uart->setDebugOutput(true);
         cmd.SetCallback();
         info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
@@ -871,11 +873,11 @@ void HAL::WiFiConfigSmartConfig()
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);
-        Serial0.print(".");
+        uart->print(".");
         ++count;
         if (count >= 240) // 120秒超时
         {
-            Serial0.println("SmartConfig超时");
+            uart->println("SmartConfig超时");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("SmartConfig超时");
@@ -891,7 +893,7 @@ void HAL::WiFiConfigSmartConfig()
     */
     if (WiFi.waitForConnectResult() == WL_CONNECTED)
     {
-        Serial0.println("WiFi connected");
+        uart->println("WiFi connected");
         config[PARAM_SSID] = WiFi.SSID();
         config[PARAM_PASS] = WiFi.psk();
         hal.saveConfig();
@@ -930,7 +932,7 @@ void HAL::WiFiConfigManual()
                 // QRCode qrcode;
                 // uint8_t qrcodeData[qrcode_getBufferSize(7)];
                 qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-                Serial0.println(qrcode.size);
+                uart->println(qrcode.size);
                 for (uint8_t y = 0; y < qrcode.size; y++)
                 {
                     // Each horizontal module
@@ -960,7 +962,7 @@ void HAL::WiFiConfigManual()
             display.fillScreen(TFT_WHITE);
             display.drawXBitmap(0, 0, wifi_manual_bits, 296, 128, TFT_BLACK);
             qrcode_initText(&qrcode, qrcodeData, 6, 0, str.c_str());
-            Serial0.println(qrcode.size);
+            uart->println(qrcode.size);
             for (uint8_t y = 0; y < qrcode.size; y++)
             {
                 // Each horizontal module
@@ -977,7 +979,7 @@ void HAL::WiFiConfigManual()
         }
         if (millis() - last_millis > 300000) // 10分钟超时
         {
-            Serial0.println("手动配置超时");
+            uart->println("手动配置超时");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("手动配置超时");
@@ -1078,7 +1080,7 @@ void HAL::ReqWiFiConfig()
     size_request = size_physical - 0x310000;// - 0x1000
     if (hal.pref.getUInt("size", 0) != size_request)
     {
-        Serial0.println("检测到分区大小不一致，正在格式化");
+        uart->println("检测到分区大小不一致，正在格式化");
         hal.pref.putUInt("size", size_request);
         LittleFS.format();
     }
@@ -1100,34 +1102,34 @@ void HAL::ReqWiFiConfig()
     size_request = size_physical - 0x310000;// - 0x1000
     esp_flash_read(esp_flash_default_chip, table, 0x8000, sizeof(table));
     memcpy(partition_size.size_byte, &table[16 * 2 * PARTITION_SPIFFS + 0x8], 4);
-    Serial0.printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
+    uart->printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
     if (partition_size.size != size_request)
     {
-        Serial0.printf("正在修改分区表\n");
+        uart->printf("正在修改分区表\n");
         partition_size.size = size_request;
         memcpy(&table[16 * 2 * PARTITION_SPIFFS + 0x8], partition_size.size_byte, 4);
-        Serial0.println("正在计算MD5\n");
+        uart->println("正在计算MD5\n");
         esp_rom_md5_update(&ctx, table, 16 * 2 * PARTITION_TOTAL);
         esp_rom_md5_final(&table[16 * (2 * PARTITION_TOTAL + 1)], &ctx);
         esp_flash_set_chip_write_protect(esp_flash_default_chip, false);
-        Serial0.println("\n正在写入");
+        uart->println("\n正在写入");
         if (esp_flash_erase_region(esp_flash_default_chip, 0x8000, 0x1000) != ESP_OK)
         {
-            Serial0.println("擦除失败");
+            uart->println("擦除失败");
             while (1)
                 vTaskDelay(1000);
         }
         if (esp_flash_write(esp_flash_default_chip, table, 0x8000, sizeof(table)) != ESP_OK)
         {
-            Serial0.println("写入失败");
+            uart->println("写入失败");
             while (1)
                 vTaskDelay(1000);
         }
-        Serial0.println("完成，正在校验结果");
+        uart->println("完成，正在校验结果");
         esp_flash_read(esp_flash_default_chip, table1, 0x8000, sizeof(table1));
         if (memcmp(table, table1, sizeof(table)) != 0)
         {
-            Serial0.println("校验失败");
+            uart->println("校验失败");
             while (1)
                 vTaskDelay(1000);
         }
@@ -1135,10 +1137,10 @@ void HAL::ReqWiFiConfig()
         {
             for (size_t i = 0; i < 16 * 12; i++)
             {
-                Serial0.printf("0x%02X ", table[i]);
+                uart->printf("0x%02X ", table[i]);
                 if ((i + 1) % 16 == 0)
                 {
-                    Serial0.println();
+                    uart->println();
                 }
             }
         }
@@ -1225,7 +1227,7 @@ void HAL::coredump_file()
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
-            GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢", 5);
+            GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
         else
             GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
     }
@@ -1243,9 +1245,18 @@ bool HAL::init()
     pref.begin("clock");
     uint32_t uart_band = pref.getUInt("uart_baud", 115200);
     log_i("change band to %lu", uart_band);
-    // Serial0.flush();
-    Serial0.begin(uart_band);
-    Serial0.setDebugOutput(true);
+#ifdef USE_CDC
+    uart = &Serial;
+#else
+#if ARDUINO_USB_CDC_ON_BOOT
+    uart = &Serial0;
+#else
+    uart = &Serial;
+#endif
+#endif
+    uart->setRxBufferSize(4096);
+    uart->begin(uart_band);
+    uart->setDebugOutput(true);
     log_i("\n\n"
           "   © 2024 - 2026 看番の龙 | LiClock   \n"
           "          Powered by 看番の龙         \n"
@@ -1278,10 +1289,10 @@ bool HAL::init()
     total_gnd += digitalRead(PIN_BUTTONC);
     // if (total_gnd != 3) // 神秘错误,错误识别了按键电平,
     // {
-        btnl._buttonPressed = 1;
-        btnr._buttonPressed = 1;
-        btnc._buttonPressed = 1;
-        btn_activelow = false;
+    btnl._buttonPressed = 1;
+    btnr._buttonPressed = 1;
+    btnc._buttonPressed = 1;
+    btn_activelow = false;
     // }
     // else
     // {
@@ -1373,7 +1384,7 @@ bool HAL::init()
         LittleFS.format();
         if (LittleFS.begin(false) == false)
         {
-            Serial0.println("LittleFS格式化失败");
+            uart->println("LittleFS格式化失败");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("LittleFS格式化失败");
@@ -1384,9 +1395,17 @@ bool HAL::init()
         }
         // test_littlefs_size(false);
     }
+    log_system_init();
     // test_littlefs_size(true);
     esp_reset_reason_t reset_reason = esp_reset_reason();
     esp_sleep_wakeup_cause_t sleep_wakeup_cause = esp_sleep_get_wakeup_cause();
+    if (reset_reason == ESP_RST_POWERON)
+    {
+        if (hal.exists("/littlefs/System/start.vlbm"))
+        {
+            GUI::PlayLBM_V(0, 0, "/littlefs/System/start.vlbm", TFT_BLACK);
+        }
+    }
     if (!fast_boot)
     {
         if (LittleFS.exists("/System") == false)
@@ -1399,7 +1418,7 @@ bool HAL::init()
         }
         if (LittleFS.exists("/System/config.json") == false)
         {
-            Serial0.println("正在写入默认配置");
+            uart->println("正在写入默认配置");
             File f = LittleFS.open("/System/config.json", "w");
             f.print(DEFAULT_CONFIG);
             f.close();
@@ -1444,7 +1463,6 @@ bool HAL::init()
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
     ttf.setFramebuffer(296, 128, 1);
-    log_system_init();
     xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
@@ -1644,8 +1662,8 @@ void printDisplayVertical()
 
         // 打印这一行
         // 注意：实际串口输出可能需要根据你的串口库调整
-        Serial0.write((const uint8_t *)lineBuffer, 169); // 输出168个字符+换行符
-        // 或者使用 Serial0.print(lineBuffer);
+        uart->write((const uint8_t *)lineBuffer, 169); // 输出168个字符+换行符
+        // 或者使用 uart->print(lineBuffer);
     }
 }
 #include "driver/ledc.h"
@@ -1656,13 +1674,13 @@ static void pre_sleep()
     while (!hal.can_sleep)
     {
         delay(100);
-        Serial0.printf("\r|");
+        uart->printf("\r|");
         delay(100);
-        Serial0.printf("\r/");
+        uart->printf("\r/");
         delay(100);
-        Serial0.printf("\r-");
+        uart->printf("\r-");
         delay(100);
-        Serial0.printf("\r\\");
+        uart->printf("\r\\");
     }
     cmd.end();
     peripherals.sleep();
@@ -1775,11 +1793,12 @@ void HAL::update(void)
     VCC = adc;
     // int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
     char buf[128];
-    if (hal.VCC < auto_sleep_mv)
+    uint16_t bat_voltage = (hal.bat_info.voltage == 0.0) ? hal.VCC : (uint16_t)(hal.bat_info.voltage * 1000);
+    if (bat_voltage < auto_sleep_mv)
     {
-        sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
-        GUI::info_msgbox("警告", buf);
-        hal.powerOff(false);
+        // sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
+        // GUI::info_msgbox("警告", buf);
+        hal.powerOff();
     }
     if (adc > 4300)
     {
@@ -1820,22 +1839,22 @@ void HAL::checkNightSleep()
 {
     if (hal.timeinfo.tm_year < (2016 - 1900))
     {
-        Serial0.println("[夜间模式] 时间错误，直接返回");
+        uart->println("[夜间模式] 时间错误，直接返回");
         return;
     }
     if (config[PARAM_SLEEPATNIGHT].as<String>() == "0")
     {
-        Serial0.println("[夜间模式] 夜间模式已禁用");
+        uart->println("[夜间模式] 夜间模式已禁用");
         return;
     }
     if (night_sleep_today == hal.timeinfo.tm_mday)
     {
-        Serial0.println("[夜间模式] 当天暂时退出夜间模式");
+        uart->println("[夜间模式] 当天暂时退出夜间模式");
         return;
     }
     if (hal.timeinfo.tm_year < (2016 - 1900))
     {
-        Serial0.println("[夜间模式] 时间错误");
+        uart->println("[夜间模式] 时间错误");
         night_sleep = 0;
         night_sleep_today = -1;
         return;
@@ -1888,7 +1907,7 @@ void HAL::checkNightSleep()
     // 判断当前屏幕显示
     if (night_sleep != night_sleep_pend)
     {
-        Serial0.println("[DEBUG] 夜间模式重绘");
+        uart->println("[DEBUG] 夜间模式重绘");
         night_sleep = night_sleep_pend;
         display.clearScreen();
         if (night_sleep == 1)

@@ -22,7 +22,7 @@ int lua_http_begin(lua_State *L)
     }
     if(url[4] == 's')
     {
-        Serial0.printf("使用https\n");
+        uart->printf("使用https\n");
         last_is_https = true;
         lua_https.begin(url);
     }
@@ -99,6 +99,40 @@ int lua_http_end(lua_State *L)
     lua_https.end();
     return 0;
 }
+
+int lua_lyrics_getLyrics(lua_State *L)
+{
+    if (lua_gettop(L) < 4)
+    {
+        lua_pushstring(L, "参数：title, performer, album, tlen");
+        lua_error(L);
+        return 0;
+    }
+    tag_info info;
+    info.title = luaL_checkstring(L, 1);
+    info.performer = luaL_checkstring(L, 2);
+    info.album = luaL_checkstring(L, 3);
+    info.tlen = (unsigned long)luaL_checkinteger(L, 4);
+    bool debug = false;
+    if (lua_gettop(L) == 5 && lua_isboolean(L, 5))
+    {
+        debug = lua_toboolean(L, 5);
+    }
+
+    char* result = lyrics.getLyrics(info, debug);
+    if(result != nullptr)
+    {
+        lua_pushstring(L, result);
+        free(result); // 别忘了释放内存
+        return 1;
+    }
+    else
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+}
+
 static const luaL_Reg _lualib[] = {
     {"begin", lua_http_begin},
     {"addHeader", lua_http_addHeader},
@@ -106,6 +140,7 @@ static const luaL_Reg _lualib[] = {
     {"text", lua_http_text},
     {"code", lua_http_code},
     {"stop", lua_http_end},             //不能用end
+    {"getLyrics", lua_lyrics_getLyrics}, // 注册 getLyrics 函数
     {NULL, NULL},
 };
 

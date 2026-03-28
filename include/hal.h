@@ -74,7 +74,7 @@ public:
     void loadConfig();
     void getTime();
     char* get_char_sha_key(const char *str, bool mode = false);
-    String get_CAcert(char* filePath);
+    String get_CAcert(const char* filePath);
     String get_yiyan(uint8_t maxlen = 17);
     IPAddress getip();
     bool cheak_firmware_update();

@@ -57,6 +57,9 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
   this->output = output;
   if (!file->isOpen())
     return false; // Error
+#ifdef USE_FILL_TASK
+  start_fillTask();
+#endif
 
   flac = FLAC__stream_decoder_new();
   if (!flac)
@@ -112,23 +115,24 @@ bool AudioGeneratorFLAC::loop()
     if (buffPtr == buffLen)
     {
       // Decode timing (optional)
-    #if ENABLE_FLAC_DECODE_TIMING
+#if ENABLE_FLAC_DECODE_TIMING
       uint64_t startUs = micros();
       ret = FLAC__stream_decoder_process_single(flac);
       uint64_t elapsedUs = micros() - startUs;
       decodeTimeSumUs += elapsedUs;
       decodeCount++;
       uint32_t nowMs = millis();
-      if (nowMs - lastLogMs >= 5000 && decodeCount > 0) {
+      if (nowMs - lastLogMs >= 5000 && decodeCount > 0)
+      {
         uint64_t avgUs = decodeTimeSumUs / decodeCount;
         log_i("Avg FLAC decode time: %llu us over %u calls", avgUs, decodeCount);
         decodeTimeSumUs = 0;
         decodeCount = 0;
         lastLogMs = nowMs;
       }
-    #else
+#else
       ret = FLAC__stream_decoder_process_single(flac);
-    #endif
+#endif
       if (!ret)
       {
         FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(flac);
@@ -172,40 +176,175 @@ bool AudioGeneratorFLAC::loop()
     else
       shift = 0;
 
-    if (channels == 2)
-    {
+    // 多声道混合处理，将多声道混合为立体声输出
+    if (channels == 1) {
+      // 单声道，复制到两个声道
+      int32_t sample = buff[0][buffPtr] << shift;
+      lastSample[AudioOutput::LEFTCHANNEL] = sample;
+      lastSample[AudioOutput::RIGHTCHANNEL] = sample;
+    } else if (channels == 2) {
+      // 立体声，直接输出
       lastSample[AudioOutput::LEFTCHANNEL] = buff[0][buffPtr] << shift;
       lastSample[AudioOutput::RIGHTCHANNEL] = buff[1][buffPtr] << shift;
-    }
-    else
-    {
-      lastSample[AudioOutput::LEFTCHANNEL] = buff[0][buffPtr] << shift;
-      lastSample[AudioOutput::RIGHTCHANNEL] = buff[0][buffPtr] << shift;
+    } else {
+      // 多声道（3个或更多），进行混合处理
+      int64_t left = 0, right = 0;
+      
+      // 简单的声道混合策略（可以根据需要调整）：
+      // 假设声道顺序为：Front Left, Front Right, Center, LFE, Back Left, Back Right, ...
+      // 这是一种简化的混合策略，实际应用中可能需要更复杂的处理
+      
+      // 将所有声道混合到立体声输出
+      for (int ch = 0; ch < channels; ch++) {
+        int32_t sample = ((const int32_t*)buff[ch])[buffPtr] << shift;
+        // 简单的混合策略：将所有声道平均分配到左右声道
+        if (ch % 2 == 0) {
+          left += sample;
+        } else {
+          right += sample;
+        }
+      }
+      
+      // 如果声道数为奇数，将最后一个声道同时添加到左右声道
+      if (channels % 2 == 1) {
+        int32_t sample = ((const int32_t*)buff[channels-1])[buffPtr] << shift;
+        left += sample / 2;
+        right += sample / 2;
+      }
+      
+      // 平均化并防止溢出
+      left /= channels;
+      right /= channels;
+      
+      lastSample[AudioOutput::LEFTCHANNEL] = (int32_t)left;
+      lastSample[AudioOutput::RIGHTCHANNEL] = (int32_t)right;
     }
 #else
     if (bitsPerSample <= 16)
     {
-      lastSample[AudioOutput::LEFTCHANNEL] = buff[0][buffPtr] & 0xffff;
-      if (channels == 2)
+      // 多声道混合处理，将多声道混合为立体声输出
+      if (channels == 1) {
+        // 单声道，复制到两个声道
+        int16_t sample = buff[0][buffPtr] & 0xffff;
+        lastSample[AudioOutput::LEFTCHANNEL] = sample;
+        lastSample[AudioOutput::RIGHTCHANNEL] = sample;
+      } else if (channels == 2) {
+        // 立体声，直接输出
+        lastSample[AudioOutput::LEFTCHANNEL] = buff[0][buffPtr] & 0xffff;
         lastSample[AudioOutput::RIGHTCHANNEL] = buff[1][buffPtr] & 0xffff;
-      else
-        lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
+      } else {
+        // 多声道（3个或更多），进行混合处理
+        int32_t left = 0, right = 0;
+        
+        // 简单的声道混合策略
+        for (int ch = 0; ch < channels; ch++) {
+          int16_t sample = ((const int16_t*)buff[ch])[buffPtr] & 0xffff;
+          // 简单的混合策略：将所有声道平均分配到左右声道
+          if (ch % 2 == 0) {
+            left += sample;
+          } else {
+            right += sample;
+          }
+        }
+        
+        // 如果声道数为奇数，将最后一个声道同时添加到左右声道
+        if (channels % 2 == 1) {
+          int16_t sample = ((const int16_t*)buff[channels-1])[buffPtr] & 0xffff;
+          left += sample / 2;
+          right += sample / 2;
+        }
+        
+        // 平均化并防止溢出
+        left /= channels;
+        right /= channels;
+        
+        lastSample[AudioOutput::LEFTCHANNEL] = (int16_t)left;
+        lastSample[AudioOutput::RIGHTCHANNEL] = (int16_t)right;
+      }
     }
     else if (bitsPerSample <= 24)
     {
-      lastSample[AudioOutput::LEFTCHANNEL] = (buff[0][buffPtr] >> 8) & 0xffff;
-      if (channels == 2)
+      // 多声道混合处理，将多声道混合为立体声输出
+      if (channels == 1) {
+        // 单声道，复制到两个声道
+        int16_t sample = (buff[0][buffPtr] >> 8) & 0xffff;
+        lastSample[AudioOutput::LEFTCHANNEL] = sample;
+        lastSample[AudioOutput::RIGHTCHANNEL] = sample;
+      } else if (channels == 2) {
+        // 立体声，直接输出
+        lastSample[AudioOutput::LEFTCHANNEL] = (buff[0][buffPtr] >> 8) & 0xffff;
         lastSample[AudioOutput::RIGHTCHANNEL] = (buff[1][buffPtr] >> 8) & 0xffff;
-      else
-        lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
+      } else {
+        // 多声道（3个或更多），进行混合处理
+        int32_t left = 0, right = 0;
+        
+        // 简单的声道混合策略
+        for (int ch = 0; ch < channels; ch++) {
+          int16_t sample = ((const int16_t*)buff[ch])[buffPtr] >> 8 & 0xffff;
+          // 简单的混合策略：将所有声道平均分配到左右声道
+          if (ch % 2 == 0) {
+            left += sample;
+          } else {
+            right += sample;
+          }
+        }
+        
+        // 如果声道数为奇数，将最后一个声道同时添加到左右声道
+        if (channels % 2 == 1) {
+          int16_t sample = ((const int16_t*)buff[channels-1])[buffPtr] >> 8 & 0xffff;
+          left += sample / 2;
+          right += sample / 2;
+        }
+        
+        // 平均化并防止溢出
+        left /= channels;
+        right /= channels;
+        
+        lastSample[AudioOutput::LEFTCHANNEL] = (int16_t)left;
+        lastSample[AudioOutput::RIGHTCHANNEL] = (int16_t)right;
+      }
     }
     else
     {
-      lastSample[AudioOutput::LEFTCHANNEL] = (buff[0][buffPtr] >> 16) & 0xffff;
-      if (channels == 2)
+      // 多声道混合处理，将多声道混合为立体声输出
+      if (channels == 1) {
+        // 单声道，复制到两个声道
+        int16_t sample = (buff[0][buffPtr] >> 16) & 0xffff;
+        lastSample[AudioOutput::LEFTCHANNEL] = sample;
+        lastSample[AudioOutput::RIGHTCHANNEL] = sample;
+      } else if (channels == 2) {
+        // 立体声，直接输出
+        lastSample[AudioOutput::LEFTCHANNEL] = (buff[0][buffPtr] >> 16) & 0xffff;
         lastSample[AudioOutput::RIGHTCHANNEL] = (buff[1][buffPtr] >> 16) & 0xffff;
-      else
-        lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
+      } else {
+        // 多声道（3个或更多），进行混合处理
+        int32_t left = 0, right = 0;
+        
+        // 简单的声道混合策略
+        for (int ch = 0; ch < channels; ch++) {
+          int16_t sample = ((const int16_t*)buff[ch])[buffPtr] >> 16 & 0xffff;
+          // 简单的混合策略：将所有声道平均分配到左右声道
+          if (ch % 2 == 0) {
+            left += sample;
+          } else {
+            right += sample;
+          }
+        }
+        
+        // 如果声道数为奇数，将最后一个声道同时添加到左右声道
+        if (channels % 2 == 1) {
+          int16_t sample = ((const int16_t*)buff[channels-1])[buffPtr] >> 16 & 0xffff;
+          left += sample / 2;
+          right += sample / 2;
+        }
+        
+        // 平均化并防止溢出
+        left /= channels;
+        right /= channels;
+        
+        lastSample[AudioOutput::LEFTCHANNEL] = (int16_t)left;
+        lastSample[AudioOutput::RIGHTCHANNEL] = (int16_t)right;
+      }
     }
 #endif
     buffPtr++;
@@ -223,6 +362,13 @@ bool AudioGeneratorFLAC::stop()
   if (flac)
     FLAC__stream_decoder_delete(flac);
   flac = NULL;
+#ifdef USE_FILL_TASK
+  stop_task = true;
+  delay(100);
+  if (deallocateBuffer)
+    free(buffer);
+  buffer = NULL;
+#endif
   running = false;
   output->stop();
   return true;
@@ -233,12 +379,183 @@ bool AudioGeneratorFLAC::isRunning()
   return running;
 }
 
+bool AudioGeneratorFLAC::seek(int32_t pos, int dir)
+{
+  if (dir == SEEK_CUR && (readPtr + pos) < length)
+  {
+    readPtr += pos;
+    return true;
+  }
+  else
+  {
+    // Invalidate
+    readPtr = 0;
+    writePtr = 0;
+    length = 0;
+    return file->seek(pos, dir);
+  }
+}
+
+uint32_t AudioGeneratorFLAC::read(void *data, uint32_t len)
+{
+  if (!buffer)
+    return file->read(data, len);
+
+  xSemaphoreTake(mutex, portMAX_DELAY);
+  uint32_t bytes = 0;
+  // if (!filled) {
+  //   length = file->read(buffer, buffSize);
+  //   writePtr = length % buffSize;
+  //   filled = true;
+  // }
+  // Pull from buffer until we've got none left or we've satisfied the request
+  uint8_t *ptr = reinterpret_cast<uint8_t *>(data);
+  uint32_t toReadFromBuffer = (len < length) ? len : length;
+  if ((toReadFromBuffer > 0) && (readPtr >= writePtr))
+  {
+    uint32_t toReadToEnd = (toReadFromBuffer < (uint32_t)(buffSize - readPtr)) ? toReadFromBuffer : (buffSize - readPtr);
+    memcpy(ptr, &buffer[readPtr], toReadToEnd);
+    readPtr = (readPtr + toReadToEnd) % buffSize;
+    len -= toReadToEnd;
+    length -= toReadToEnd;
+    ptr += toReadToEnd;
+    bytes += toReadToEnd;
+    toReadFromBuffer -= toReadToEnd;
+  }
+  if (toReadFromBuffer > 0)
+  { // We know RP < WP at this point
+    memcpy(ptr, &buffer[readPtr], toReadFromBuffer);
+    readPtr = (readPtr + toReadFromBuffer) % buffSize;
+    len -= toReadFromBuffer;
+    length -= toReadFromBuffer;
+    ptr += toReadFromBuffer;
+    bytes += toReadFromBuffer;
+    toReadFromBuffer -= toReadFromBuffer;
+  }
+
+  if (len)
+  {
+    // Still need more, try direct read from src
+    bytes += file->read(ptr, len);
+    // We're out of buffered data, need to force a complete refill.  Thanks, @armSeb
+    readPtr = 0;
+    writePtr = 0;
+    length = 0;
+    filled = false;
+  }
+  xSemaphoreGive(mutex);
+  // fill();
+
+  return bytes;
+}
+
+uint32_t AudioGeneratorFLAC::getSize()
+{
+  return file->getSize();
+}
+
+uint32_t AudioGeneratorFLAC::getPos()
+{
+  if (length != 0)
+    return file->getPos() - length;
+  return file->getPos();
+}
+
+void AudioGeneratorFLAC::fill()
+{
+  if (!buffer)
+    return;
+
+  if (length < buffSize)
+  {
+    // Now try and opportunistically fill the buffer
+    if (readPtr > writePtr)
+    {
+      if (readPtr == writePtr + 1)
+        return;
+      uint32_t bytesAvailMid = readPtr - writePtr - 1;
+      int cnt = file->read(&buffer[writePtr], bytesAvailMid);
+      length += cnt;
+      writePtr = (writePtr + cnt) % buffSize;
+      return;
+    }
+
+    if (buffSize > writePtr)
+    {
+      uint32_t bytesAvailEnd = buffSize - writePtr;
+      int cnt = file->read(&buffer[writePtr], bytesAvailEnd);
+      length += cnt;
+      writePtr = (writePtr + cnt) % buffSize;
+      if (cnt != (int)bytesAvailEnd)
+        return;
+    }
+
+    if (readPtr > 1)
+    {
+      uint32_t bytesAvailStart = readPtr - 1;
+      int cnt = file->read(&buffer[writePtr], bytesAvailStart);
+      length += cnt;
+      writePtr = (writePtr + cnt) % buffSize;
+    }
+  }
+}
+
+void AudioGeneratorFLAC::fillTask(void *param)
+{
+  AudioGeneratorFLAC *self = reinterpret_cast<AudioGeneratorFLAC *>(param);
+  while (1)
+  {
+    if (self->stop_task || self->_eof)
+      break;
+    if (xSemaphoreTake(self->mutex, portMAX_DELAY) == pdTRUE)
+    {
+      if (!self->filled)
+      {
+        self->length = self->file->read(self->buffer, self->buffSize);
+        self->writePtr = self->length % self->buffSize;
+        self->filled = true;
+      }
+      self->fill();
+      xSemaphoreGive(self->mutex);
+    }
+  }
+  log_i("后台缓冲区填充任务终止, 当前最小剩余栈:%ld", uxTaskGetStackHighWaterMark(NULL));
+  vTaskDelete(NULL);
+}
+
+void AudioGeneratorFLAC::start_fillTask()
+{
+  buffSize = 1024 * 1024; // 1024KB
+  buffer = (uint8_t *)ps_malloc(sizeof(uint8_t) * buffSize);
+  if (!buffer)
+    log_w("Unable to allocate AudioGeneratorFLAC::buffer[]");
+  deallocateBuffer = true;
+  writePtr = 0;
+  readPtr = 0;
+  length = 0;
+  filled = false;
+  mutex = xSemaphoreCreateMutex();
+  xSemaphoreGive(mutex);
+  // BaseType_t core = xPortGetCoreID();
+  // if (core == 0)
+  //   core = 1;
+  // else
+  //   core = 0;
+  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 4096, this, 4, NULL, 1);
+    // 等待缓冲区填满
+  while (!filled) vTaskDelay(pdMS_TO_TICKS(10));
+}
+
 FLAC__StreamDecoderReadStatus AudioGeneratorFLAC::read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes)
 {
   (void)decoder;
   if (*bytes == 0)
     return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
+#ifdef USE_FILL_TASK
+  *bytes = read(buffer, sizeof(FLAC__byte) * (*bytes));
+#else
   *bytes = file->read(buffer, sizeof(FLAC__byte) * (*bytes));
+#endif
   if (*bytes == 0)
     return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
   return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -246,27 +563,43 @@ FLAC__StreamDecoderReadStatus AudioGeneratorFLAC::read_cb(const FLAC__StreamDeco
 FLAC__StreamDecoderSeekStatus AudioGeneratorFLAC::seek_cb(const FLAC__StreamDecoder *decoder, FLAC__uint64 absolute_byte_offset)
 {
   (void)decoder;
+#ifdef USE_FILL_TASK
+  if (!seek((int32_t)absolute_byte_offset, 0))
+#else
   if (!file->seek((int32_t)absolute_byte_offset, 0))
+#endif
     return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
   return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
 }
 FLAC__StreamDecoderTellStatus AudioGeneratorFLAC::tell_cb(const FLAC__StreamDecoder *decoder, FLAC__uint64 *absolute_byte_offset)
 {
   (void)decoder;
+#ifdef USE_FILL_TASK
+  *absolute_byte_offset = getPos();
+#else
   *absolute_byte_offset = file->getPos();
+#endif  
   return FLAC__STREAM_DECODER_TELL_STATUS_OK;
 }
 
 FLAC__StreamDecoderLengthStatus AudioGeneratorFLAC::length_cb(const FLAC__StreamDecoder *decoder, FLAC__uint64 *stream_length)
 {
   (void)decoder;
+#ifdef USE_FILL_TASK
+  *stream_length = getSize();
+#else
   *stream_length = file->getSize();
+#endif  
   return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
 }
 FLAC__bool AudioGeneratorFLAC::eof_cb(const FLAC__StreamDecoder *decoder)
 {
   (void)decoder;
+#ifdef USE_FILL_TASK
+  if (getPos() >= getSize())
+#else
   if (file->getPos() >= file->getSize())
+#endif  
     return true;
   return false;
 }
@@ -276,11 +609,17 @@ FLAC__StreamDecoderWriteStatus AudioGeneratorFLAC::write_cb(const FLAC__StreamDe
   // Hackish warning here.  FLAC sends the buffer but doesn't free it until the next call to decode_frame, so we stash
   // the pointers here and use it in our loop() instead of memcpy()'ing into yet another buffer.
   buffLen = frame->header.blocksize;
-  buff[0] = (const int *)buffer[0];
-  if (frame->header.channels > 1)
-    buff[1] = (const int *)buffer[1];
-  else
+  
+  // 支持最多8个声道（FLAC__MAX_CHANNELS）
+  for (int i = 0; i < frame->header.channels && i < 8; i++) {
+    buff[i] = (const int *)buffer[i];
+  }
+  
+  // 如果声道数少于2个，复制第一个声道到第二个缓冲区
+  if (frame->header.channels < 2) {
     buff[1] = (const int *)buffer[0];
+  }
+  
   buffPtr = 0;
   return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }

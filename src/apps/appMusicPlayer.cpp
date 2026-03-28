@@ -58,14 +58,6 @@ static const uint8_t play_bits[] = {
 
 typedef struct
 {
-    String album = "---";     // 专辑
-    String performer = "---"; // 歌手
-    String title = "---";     // 标题
-    uint32_t tlen = 0;
-} tag_info; // 标签信息结构体
-
-typedef struct
-{
     unsigned long timeMs = 0;
     String text;
 } LyricLine; // 歌词行结构体
@@ -141,7 +133,7 @@ public:
     void bulid_music_list();
     bool music_list_menu(bool play = false);
     void select_file(bool user = false);
-    void file_in(const char *path);
+    bool file_in(const char *path);
     void next_song(bool next = true, bool btn = false);
     std::atomic<bool> stop_requested{false};
     // bool stop_requested = false;
@@ -161,8 +153,12 @@ public:
     void drawScrollingLyrics(int x, int y, int max_x = SCREEN_WIDTH);
     void checkAndUpdateLyrics(unsigned long currentTime);
 
+    String getVlbmPach(const char *musicPath);
     // ===== UI/显示相关 =====
     void show_display();
+    bool vlbm_init = false;
+    bool vlbm_deinit = false;
+    void show_display_vlbm();
     void show_display_debug();
     String truncateStringWithEllipsis(const char *input, int maxWidth);
 
@@ -224,6 +220,9 @@ public:
     int totalLyricLines = 0;           // 歌词总行数
     unsigned long lastLyricUpdate = 0; // 上次歌词更新时间
     LyricLine *lyricArray = nullptr;   // 使用动态数组存储歌词
+    TaskHandle_t netLrcTaskHandle = NULL;
+    static void netLrcTask(void *pvParameters);
+    void attemptNetworkLyrics();
 
     int lastY = 0;              // 上一次的y坐标
     bool lastScrolling = false; // 上一次的滚动状态
@@ -269,6 +268,7 @@ public:
     TickType_t xFrequency; // 运行周期
     BaseType_t xWasDelayed;
     void show_display_fft();
+    void updateVolumeUI();
     drawtime last_time;
     drawtime d_time;
 };
@@ -439,10 +439,10 @@ static bool id3_tlen_received = false;
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string)
 {
     String outputString;
-    String id3_type = type;
+    String tag_type = type;
     const char *src = static_cast<const char *>(cbData);
 
-    if (id3_type.equalsIgnoreCase("APIC"))
+    if (tag_type.equalsIgnoreCase("APIC"))
     {
         info("%s callback for: %s = '%s'", cbData, type, string);
         return;
@@ -490,23 +490,23 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     }
 
     // ----- 保存标签信息 -----
-    if (id3_type.equalsIgnoreCase("title"))
+    if (tag_type.equalsIgnoreCase("title"))
     {
         app.info.title = outputString;
     }
-    else if (id3_type.equalsIgnoreCase("album"))
+    else if (tag_type.equalsIgnoreCase("album"))
     {
         app.info.album = outputString;
     }
-    else if (id3_type.equalsIgnoreCase("performer") || id3_type.equalsIgnoreCase("artist"))
+    else if (tag_type.equalsIgnoreCase("performer") || tag_type.equalsIgnoreCase("artist"))
     {
         app.info.performer = outputString;
     }
-    else if (id3_type.equalsIgnoreCase("tlen"))
+    else if (tag_type.equalsIgnoreCase("tlen"))
     {
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
         // 当回调来源是 ID3TAG 时，始终写入并标记已收到
-        if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0)
+        if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 || strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0)
         {
             app.info.tlen = newLen;
             id3_tlen_received = true;
@@ -518,7 +518,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
         }
         // 其它来源保持原值
     }
-    else if (id3_type.equalsIgnoreCase("LYRICS") || id3_type.equalsIgnoreCase("USLT"))
+    else if (tag_type.equalsIgnoreCase("LYRICS") || tag_type.equalsIgnoreCase("USLT"))
     {
         String lyricPath = app.getLyricPath(music_file);
         if (!hal.exists(lyricPath))
@@ -536,7 +536,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
             }
             info("已写入歌词文件用做缓存: %s", lyricPath.c_str());
             // 在写入歌词文件后立即加载歌词，因为默认歌词加载位置位于解码开始之前，此时可能还没有歌词文件，导致无法加载到歌词(哪怕回调获取到了歌词)。
-            if (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
+            if (hal.pref.getBool("en_Lyrics", false))
             {
                 app.loadLyrics(music_file);
             }
@@ -1111,6 +1111,62 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
     scrolling = false;
 }
+
+void AppMusicPlayer::netLrcTask(void *pvParameters)
+{
+    AppMusicPlayer *self = (AppMusicPlayer *)pvParameters;
+    vTaskDelay(pdMS_TO_TICKS(9000));
+
+    self->attemptNetworkLyrics();
+
+    self->netLrcTaskHandle = NULL;
+    log_i("网络歌词任务结束");
+    vTaskDelete(NULL);
+}
+
+void AppMusicPlayer::attemptNetworkLyrics()
+{
+    if (lrcisload)
+    {
+        log_i("已有本地歌词，跳过网络搜索");
+        return;
+    }
+
+    // 调用之前实现的歌词获取函数（假设全局 lyrics 对象已定义）
+    char *lyricsStr = lyrics.getLyrics(info);
+    if (lyricsStr == nullptr)
+    {
+        tag_info info_copy = info; // 创建info的副本以避免修改原始数据
+        info_copy.tlen = 0;        // 将时长设置为0，尝试再次获取歌词
+        info_copy.album = "";
+        info_copy.performer = "";
+        lyricsStr = lyrics.getLyrics(info_copy);
+    }
+    if (lyricsStr != nullptr)
+    {
+        String lrcPath = getLyricPath(music_file);
+        File f = hal.open(lrcPath, "w");
+        if (f)
+        {
+            f.write((const uint8_t *)lyricsStr, strlen(lyricsStr));
+            f.close();
+            log_i("网络歌词已保存: %s", lrcPath.c_str());
+            loadLyrics(music_file);    // 重新加载歌词
+            backup_buff_updata = true; // 标记需要更新静态缓冲区
+        }
+        else
+        {
+            log_e("无法创建歌词文件: %s", lrcPath.c_str());
+        }
+        free(lyricsStr);
+    }
+    else
+    {
+        log_i("未找到网络歌词");
+        GUI::msgbox("提示", "未找到网络歌词", 3);
+    }
+}
+
 /**
  * @brief 根据当前播放时间获取对应的歌词索引
  * @param currentTime 当前播放时间（毫秒）
@@ -1480,7 +1536,7 @@ int AppMusicPlayer::findSongIndexInFileList()
     }
 
     // 遍历 title 查找匹配项
-    for (int i = 0; titles[i] != nullptr; ++i)
+    for (int i = 0; (titles[i] != nullptr) && (i < maxSong); ++i)
     {
         if (filename.equals(String(titles[i])))
         {
@@ -1488,7 +1544,7 @@ int AppMusicPlayer::findSongIndexInFileList()
         }
     }
 
-    warn("未在歌曲列表中找到“%s”的找到匹配项", filename);
+    warn("未在歌曲列表中找到“%s”的找到匹配项", filename.c_str());
     return -1; // 未找到匹配项
 }
 
@@ -1526,7 +1582,17 @@ void AppMusicPlayer::select_file(bool user)
         {
             music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nflac", NULL, currentDir);
         }
-        file_in(music_file);
+        if (strncmp(music_file, "/sd/", 4) == 0)
+        {
+            pathStr = remove_path_prefix(music_file, "/sd");
+            in_littlefs = false;
+        }
+        else if (strncmp(music_file, "/littlefs/", 10) == 0)
+        {
+            pathStr = remove_path_prefix(music_file, "/littlefs");
+            in_littlefs = true;
+        }
+        // file_in(music_file);
     }
     sprintf(buf, "%s", music_file); // 复制歌曲路径到缓冲区
     music_file = buf;               // 将歌曲路径指向缓冲器
@@ -1555,7 +1621,7 @@ void AppMusicPlayer::select_file(bool user)
  * @param path 音频文件路径
  * @note 根据路径判断文件系统类型，创建对应的AudioFileSource对象，自动处理文件系统挂载失败
  */
-void AppMusicPlayer::file_in(const char *path)
+bool AppMusicPlayer::file_in(const char *path)
 {
     need_deep_sleep = false;
     if (in != nullptr)
@@ -1563,8 +1629,14 @@ void AppMusicPlayer::file_in(const char *path)
         delete in;
         in = nullptr;
     }
+    if (!hal.exists(path))
+    {
+        GUI::msgbox("错误", "指定的文件不存在", 5);
+        error("指定的文件（%s）不存在", path);
+        return false;
+    }
     lrcisload = false;
-    if (hal.pref.getBool(hal.get_char_sha_key("lrc歌词"), false))
+    if (hal.pref.getBool("en_Lyrics", false))
     {
         loadLyrics(path);
     }
@@ -1609,8 +1681,11 @@ void AppMusicPlayer::file_in(const char *path)
                 appManager.noDeepSleep = false;
                 appManager.nextWakeup = 1;
             }
+            return false;
         }
+        return true;
     }
+    return true;
 }
 /**
  * @brief 切换上一首/下一首歌曲
@@ -1620,9 +1695,9 @@ void AppMusicPlayer::file_in(const char *path)
  */
 void AppMusicPlayer::next_song(bool next, bool btn)
 {
-    const bool loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
-    const bool autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false);
-    const bool randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
+    const bool loopPlay = hal.pref.getBool("loopPlay", false);
+    const bool autoPlay = hal.pref.getBool("autoPlay", false);
+    const bool randomPlay = hal.pref.getBool("randomPlay", false);
 
     log_i("模式状态：单曲%s 列表%s 列表%s 函数由%s", loopPlay ? "单曲循环" : "非单曲循环", autoPlay ? "自动播放" : "非自动播放", randomPlay ? "随机播放" : "非随机播放", btn ? "用户按键触发" : "函数逻辑");
 
@@ -1638,10 +1713,13 @@ void AppMusicPlayer::next_song(bool next, bool btn)
         if (player_set())
         {
             begin_player_task();
+            return;
         }
         else
-            _play_end = true;
-        return;
+        {
+            next = true;
+            goto next_song;
+        }
     }
     else if (randomPlay)
     {
@@ -1659,6 +1737,7 @@ void AppMusicPlayer::next_song(bool next, bool btn)
     }
     else
     {
+    next_song:
         // 统一处理前进/后退方向
         const int step = next ? 1 : -1;
         currentSongIndex += step;
@@ -1688,9 +1767,9 @@ void AppMusicPlayer::next_song(bool next, bool btn)
     music_file = buf;
 
     // 统一执行播放操作
-    file_in(music_file);
-    if (!need_deep_sleep)
-    { // 确认文件打开成功
+
+    if (file_in(music_file)) // 确认文件打开成功
+    {
         if (player_set())
         {
             begin_player_task();
@@ -1765,7 +1844,6 @@ void AppMusicPlayer::bulid_music_list()
     {
         bool debug = hal.pref.getBool("lrc_debug");
         uint16_t song_count = 0;
-        File root;
         uint64_t start = millis(), end;
         // 定义链表节点结构
         struct MusicNode
@@ -1855,62 +1933,95 @@ void AppMusicPlayer::bulid_music_list()
         }
 
         // 如果没有使用预生成列表或预生成列表为空，则扫描目录
+        // 如果没有使用预生成列表或预生成列表为空，则扫描目录
         if (!usePregenList || song_count == 0)
         {
+            String fullPath;
             log_i("未找到预生成列表，开始扫描目录...");
             if (is_root)
             {
-                if (!in_littlefs)
-                    root = SD_MMC.open("/");
-                else
-                    root = LittleFS.open("/");
-                log_i("创建音乐列表,从根目录");
+                fullPath = in_littlefs ? "/littlefs" : "/sd";
             }
             else
             {
-                if (!in_littlefs)
-                    root = SD_MMC.open(currentDir);
-                else
-                    root = LittleFS.open(currentDir);
-                // root = hal.open(currentDir);
-                log_i("创建音乐列表,从文件夹:%s", currentDir.c_str());
+                fullPath = (in_littlefs ? "/littlefs" : "/sd") + currentDir;
             }
-
-            File dir = root.openNextFile();
-            String name = "";
-            while (dir)
+            // 规范化路径：去掉末尾多余的斜杠（如果有）
+            if (fullPath.endsWith("/") && fullPath != "/")
             {
-                name = dir.name();
-                if (!dir.isDirectory() &&
-                    (name.endsWith(".mp3") || name.endsWith(".wav") ||
-                     name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac")))
-                {
-                    // 创建新节点
-                    MusicNode *newNode = new MusicNode;
-                    newNode->name = strdup(dir.name()); // 复制文件名
-                    newNode->next = nullptr;
-
-                    // 添加到链表尾部
-                    if (head == nullptr)
-                    {
-                        head = newNode;
-                        tail = newNode;
-                    }
-                    else
-                    {
-                        tail->next = newNode;
-                        tail = newNode;
-                    }
-
-                    song_count++;
-                    if (debug)
-                        log_d("添加: %s", dir.name());
-                }
-                dir.close();
-                dir = root.openNextFile();
+                fullPath.remove(fullPath.length() - 1);
             }
-            dir.close();
-            root.close();
+
+            DIR *dir = opendir(fullPath.c_str());
+            if (dir == NULL)
+            {
+                log_e("无法打开目录: %s", fullPath.c_str());
+                return;
+            }
+
+            log_i("创建音乐列表,从文件夹:%s", currentDir.c_str());
+
+            struct dirent *entry;
+            while ((entry = readdir(dir)) != NULL)
+            {
+                // 跳过 . 和 ..
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                {
+                    continue;
+                }
+
+                // 只处理普通文件
+                if (entry->d_type != DT_REG)
+                {
+                    continue;
+                }
+
+                const char *name = entry->d_name;
+                size_t nameLen = strlen(name);
+
+                // 检查扩展名
+                const char *dot = strrchr(name, '.');
+                if (!dot)
+                    continue; // 无扩展名，跳过
+
+                const char *ext = dot + 1;
+                // 检查是否是支持的音频格式
+                bool isAudio = false;
+                if (strcmp(ext, "mp3") == 0 || strcmp(ext, "wav") == 0 ||
+                    strcmp(ext, "aac") == 0 || strcmp(ext, "opus") == 0 ||
+                    strcmp(ext, "flac") == 0)
+                {
+                    isAudio = true;
+                }
+
+                if (!isAudio)
+                    continue;
+
+                // 创建新节点
+                MusicNode *newNode = new MusicNode;
+                newNode->name = strdup(name);
+                newNode->next = nullptr;
+
+                // 添加到链表尾部
+                if (head == nullptr)
+                {
+                    head = newNode;
+                    tail = newNode;
+                }
+                else
+                {
+                    tail->next = newNode;
+                    tail = newNode;
+                }
+
+                song_count++;
+                if (debug)
+                {
+                    log_d("添加: %s", name);
+                }
+            }
+
+            closedir(dir);
         }
         // ===== 新增代码结束 =====
 
@@ -1998,7 +2109,10 @@ bool AppMusicPlayer::music_list_menu(bool play)
         music_file = buf;
         // in = new AudioFileSourceSD(remove_path_prefix(music_file,"/sd"));
         if (!play)
-            file_in(music_file);
+        {
+            hal.can_light_sleep = true;
+            return file_in(music_file);
+        }
         break;
     }
     hal.can_light_sleep = true;
@@ -2015,11 +2129,11 @@ static const menu_select menu_player[] =
         {false, "播放列表", nullptr},
         {false, "选择文件", nullptr},
         {false, "设置音量", nullptr},
-        {true, "单曲循环", nullptr},
-        {true, "随机播放", nullptr},
-        {true, "顺序播放", nullptr},
+        {true, "单曲循环", "loopPlay"},
+        {true, "随机播放", "randomPlay"},
+        {true, "顺序播放", "autoPlay"},
         {true, "FFT频谱", "music_fft"},
-        {true, "lrc歌词", nullptr},
+        {true, "lrc歌词", "en_Lyrics"},
         {false, "其他设置", nullptr},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
@@ -2038,11 +2152,15 @@ static const menu_select menu_set_player[] =
         {false, "线性缩放增益", nullptr},
         {false, "xFrequency", nullptr},
         {false, "FFT采样点数", nullptr},
+        {false, "音频波形滚动速度", nullptr},
+        {false, "网络歌词搜索", nullptr},
         {true, "FFT对数缩放", "fft_log"},
         {true, "显示歌词时关闭歌曲信息显示", "lrc_off_info"},
+        {true, "网络歌词歌词", "netlrc"},
         {true, "显示debug界面", "display_debug"},
         {true, "显示debug信息", "music_debug"},
         {true, "打印歌词debug信息", "lrc_debug"},
+        {true, "播放视频?", "en_vlbm"},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
@@ -2124,18 +2242,10 @@ void AppMusicPlayer::player_menu()
             break;
         case 4:
             end = true;
+            select_file(true);
             delete_playtask();
             play_time_total = 0;
-            select_file(true);
-            // free(output);
-            // output= new AudioOutputI2S(0, 1);
-            // output->SetGain(gain);
-            // free(id3);
-            // id3 = new AudioFileSourceID3(in);
-            // id3->RegisterMetadataCB(MDCallback, (void*)"ID3TAG");
-            // free(generator);
-            // generator = new AudioGeneratorMP3();
-            // generator->begin(id3, output);
+            file_in(music_file);
             if (player_set())
             {
                 // sem();
@@ -2166,9 +2276,9 @@ void AppMusicPlayer::player_menu()
             break;
         }
     }
-    loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
-    autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false);
-    randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
+    loopPlay = hal.pref.getBool("loopPlay", false);
+    autoPlay = hal.pref.getBool("autoPlay", false);
+    randomPlay = hal.pref.getBool("randomPlay", false);
     hal.can_light_sleep = true;
     backup_buff_updata = true;
 }
@@ -2217,6 +2327,14 @@ void AppMusicPlayer::player_set_menu()
         case 12:
             hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 3, hal.pref.getUInt("fft_samples", 256)));
             break;
+        case 13:
+            hal.pref.putUChar("col_per_frame", GUI::msgbox_number("音频波形滚动速度", 1, hal.pref.getUChar("col_per_frame", 1)));
+            break;
+        case 14:
+            GUI::info_msgbox("提示", "正在搜索网络歌词...");
+            hal.autoConnectWiFi(false);
+            attemptNetworkLyrics();
+            break;
         default:
             GUI::info_msgbox("警告", "非法的输入值");
             break;
@@ -2247,6 +2365,39 @@ void AppMusicPlayer::begin_player_task()
     else
         xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 8, &player_loop_task_handle, 0);
 }
+
+String AppMusicPlayer::getVlbmPach(const char *musicPath)
+{
+    String basePath(musicPath);
+    int lastSlash = basePath.lastIndexOf('/');
+    String filename = basePath.substring(lastSlash + 1);
+
+    int dotIndex = filename.lastIndexOf('.');
+    if (dotIndex != -1)
+        filename = filename.substring(0, dotIndex) + ".vlbm";
+    else
+        filename += ".vlbm";
+
+    static const String sdLrcDir = "/sd/vlbm";
+    static const String littlefsLrcDir = "/littlefs/vlbm";
+    String sdLrcPath = sdLrcDir + "/" + filename;
+    String littlefsLrcPath = littlefsLrcDir + "/" + filename;
+    // 优先返回SD卡路径，如果需要可以切换为littlefs
+    if (basePath.startsWith("/sd/"))
+    {
+        return sdLrcPath;
+    }
+    else if (basePath.startsWith("/littlefs/"))
+    {
+        return littlefsLrcPath;
+    }
+    else
+    {
+        // 默认返回SD卡路径
+        return sdLrcPath;
+    }
+}
+
 /**
  * @brief 显示播放器界面
  * @note 根据显示模式调用对应的显示函数
@@ -2256,8 +2407,126 @@ void AppMusicPlayer::show_display()
     if (hal.pref.getBool("display_debug", false))
         show_display_debug();
     else
-        show_display_fft();
+    {
+        if (hal.pref.getBool("en_vlbm"))
+            show_display_vlbm();
+        else
+            show_display_fft();
+    }
 }
+
+void AppMusicPlayer::show_display_vlbm()
+{
+    static uint8_t compensation_counter = 0;
+    static TickType_t _xFrequency = 33;
+    static uint8_t *img = NULL;
+    static bool end = false;
+    static String vlbm_path;
+    static size_t imgsize;
+    static FILE *fp = NULL;
+    static uint16_t w;
+    static uint16_t h;
+    static uint8_t try_count = 0;
+    if (!vlbm_init)
+    {
+        if (vlbm_deinit)
+        {
+            if (fp != NULL)
+            {
+                fclose(fp);
+                fp = NULL;
+            }
+            if (img != NULL)
+            {
+                free(img);
+                img = NULL;
+            }
+            end = true;
+            xFrequency = _xFrequency;
+            vlbm_deinit = false;
+            try_count = 0;
+        }
+        if (try_count > 3)
+        {
+            show_display_fft();
+            return;
+        }
+        vlbm_path = getVlbmPach(music_file);
+        fp = fopen(vlbm_path.c_str(), "rb");
+        if (!fp)
+        {
+            error("File %s not found!", vlbm_path.c_str());
+            try_count++;
+            return;
+        }
+        LBM_V_HEAD header;
+        fread(&header, sizeof(LBM_V_HEAD), 1, fp);
+        w = header.w;
+        h = header.h;
+        uint8_t gray_level = header.gray;
+        log_i("w: %u h: %u gray: %u frametime: %u", w, h, gray_level, header.frametime);
+
+        // 根据灰度等级计算每像素位数
+        uint8_t bits_per_pixel;
+        switch (gray_level)
+        {
+        case 2:
+            bits_per_pixel = 1;
+            break;
+        default:
+            error("Invalid gray level: %u", gray_level);
+            fclose(fp);
+            fp = NULL;
+            return;
+        }
+        uint8_t pixels_per_byte = 8 / bits_per_pixel;
+        uint16_t bytes_per_row = (w + pixels_per_byte - 1) / pixels_per_byte;
+        imgsize = bytes_per_row * h;
+
+        img = (uint8_t *)malloc(imgsize);
+        if (!img)
+        {
+            uart->printf("malloc failed!\n");
+            fclose(fp);
+            img = NULL;
+            return;
+        }
+        _xFrequency = xFrequency;
+        vlbm_init = true;
+        end = false;
+    }
+    else
+    {
+        if (end)
+            return;
+        size_t read_bytes = fread(img, 1, imgsize, fp);
+        if (read_bytes != imgsize)
+        {
+            if (feof(fp))
+            {
+                fclose(fp);
+                fp = NULL;
+                free(img);
+                img = NULL;
+                end = true;
+                xFrequency = _xFrequency;
+                return;
+            }
+        }
+        display.clearScreen();
+        display.drawbitmap(0, 0, img, w, h, TFT_BLACK);
+        display.display();
+
+        xFrequency = 33;
+        compensation_counter++;
+        if (compensation_counter >= 3)
+        { // 每3帧多等1个tick -> 33+33+34 = 100ms，正好3帧
+            xFrequency = 34;
+            compensation_counter = 0;
+        }
+    }
+}
+
 /**
  * @brief 显示调试模式界面
  * @note 显示详细调试信息，包括内存状态、电池信息、播放状态等
@@ -2340,13 +2609,13 @@ void AppMusicPlayer::show_display_debug()
     else
         u8g2Fonts.printf("播放中...");
     u8g2Fonts.setCursor(64, 99);
-    if (hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false))
+    if (hal.pref.getBool("loopPlay", false))
     {
         u8g2Fonts.printf("单曲循环");
     }
-    else if (hal.pref.getBool(hal.get_char_sha_key("顺序播放"), false))
+    else if (hal.pref.getBool("autoPlay", false))
     {
-        if (hal.pref.getBool(hal.get_char_sha_key("随机播放"), false))
+        if (hal.pref.getBool("randomPlay", false))
             u8g2Fonts.printf("随机");
         else
             u8g2Fonts.printf("顺序");
@@ -2354,7 +2623,7 @@ void AppMusicPlayer::show_display_debug()
     u8g2Fonts.printf("  index:%d %d", currentSongIndex, play_count);
     uint32_t play_time = (millis() - play_time_start - play_stop_time) / 1000;
     uint32_t total_time = 0;
-    if (!hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false))
+    if (!hal.pref.getBool("loopPlay", false))
         play_time_total = 0;
     if (info.tlen != 0)
         total_time = info.tlen / 1000;
@@ -2465,9 +2734,9 @@ void AppMusicPlayer::show_display_fft()
             u8g2Fonts.print(info.album);
 
             if (_play_end || user_stop)
-                display.drawXBitmap(22, 97, pause_bits, 24, 24, TFT_BLACK);
+                display.drawXBitmap(22, 95, pause_bits, 24, 24, TFT_BLACK);
             else
-                display.drawXBitmap(22, 97, play_bits, 24, 24, TFT_BLACK);
+                display.drawXBitmap(22, 95, play_bits, 24, 24, TFT_BLACK);
         }
         int16_t wchar;
         display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
@@ -2493,9 +2762,11 @@ void AppMusicPlayer::show_display_fft()
             u8g2Fonts.print("音乐播放器");
         }
 
+        if (info.tlen == 0 && i2s_output != nullptr)
+            i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
         if (!loopPlay)
             play_time_total = 0;
-        if (info.tlen != 0)
+        if (info.tlen != 0 && play_time_total == 0)
             total_time = info.tlen;
         else
             total_time = play_time_total;
@@ -2507,13 +2778,59 @@ void AppMusicPlayer::show_display_fft()
         // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
         u8g2Fonts.setCursor(341, y);
         u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
+
+        // 电池
+        if ((hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) || hal.bat_info.soc != 255) && hal.VCC < 4300 && !hal.isCharging)
+        {
+            display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
+            display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
+            // int soc = (hal.VCC - 3200) * 13 / 1000;
+            // for (int x = 365; x < 365 + soc; x++)
+            // {
+            //     display.drawFastVLine(x, 6, 4, TFT_BLACK);
+            // }
+        }
+        else
+            display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
+        u8g2Fonts.setCursor(2, 12);
+        u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
+
+        u8g2Fonts.setCursor(3, 165);
+        if (loopPlay)
+        {
+            u8g2Fonts.printf("单曲");
+        }
+        else if (autoPlay)
+        {
+            if (randomPlay)
+                u8g2Fonts.printf("随机");
+            else
+                u8g2Fonts.printf("顺序");
+        }
+
+        if (output != nullptr)
+        {
+            int rate = output->GetRate();
+            int khz = rate / 1000;
+            int frac = (rate % 1000) / 100; // 只取一位小数
+            if (frac > 0)
+                u8g2Fonts.printf(" %d.%dKHz|%dbit", khz, frac, output->GetBitsPerSample());
+            else
+                u8g2Fonts.printf(" %dKHz|%dbit", khz, output->GetBitsPerSample());
+        }
+
+        char gain_buf[16];
+        sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
+        u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
+        u8g2Fonts.printf(gain_buf);
+
         display.swapBuffer(current_buffer);
         backup_buff_updata = false;
     }
 
     display.copyBuffer(display.current_buffer_idx, 1); // 从缓冲区1复制显示内容到当前缓冲区
     int w = 0;
-    if (play_time > total_time)
+    if ((play_time > total_time) && (total_time != 0))
         play_time = total_time;
     if (total_time > 0)
     {
@@ -2521,7 +2838,7 @@ void AppMusicPlayer::show_display_fft()
     }
     if (w > w1)
         w = w1;
-    display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
+    // display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
     display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
     u8g2Fonts.setCursor(18, y);
     u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
@@ -2612,17 +2929,23 @@ void AppMusicPlayer::show_display_fft()
     }
     else
     {
-        // 获取采样率（假设 output 是有效的音频解码器输出）
+        // 新增参数：每帧新增列数 (1~3)，由外部传入
+        int cols_per_frame = hal.pref.getUChar("col_per_frame", 1); // 示例值，实际应从外部获取，范围1-3
+
+        // 获取采样率
         int rate = 48000;
         if (output != nullptr)
             rate = output->GetRate();
-        const float frame_time = 1.0f / 40.0f;                 // 每帧25ms
-        int samples_per_col = (int)(rate * frame_time + 0.5f); // 每列对应的采样点数（四舍五入）
+        const float frame_time = 1.0f / 40.0f;                             // 每帧25ms
+        uint32_t samples_per_frame = (uint32_t)(rate * frame_time + 0.5f); // 一帧内的采样点数
         if (hal.pref.getInt("line_samples", 0) > 0)
-            samples_per_col = hal.pref.getInt("line_samples", 0);
+            samples_per_frame = hal.pref.getInt("line_samples", 0);
+        if (samples_per_frame == 0)
+            samples_per_frame = 1;
 
-        if (samples_per_col <= 0)
-            samples_per_col = 1; // 防御处理
+        // 根据列数计算每列采样点数分配
+        uint32_t base_spp = samples_per_frame / cols_per_frame;  // 每列基础采样点数
+        uint32_t remainder = samples_per_frame % cols_per_frame; // 余数，前 remainder 列多加1个
 
         // 静态变量：列缓冲和滚动索引（跨帧保持）
         static uint8_t min_vals[384];
@@ -2644,54 +2967,76 @@ void AppMusicPlayer::show_display_fft()
         // 原子读取当前写指针
         uint32_t current_write = write_index;
 
-        // 计算新列对应采样点的起始索引（环形缓冲区）
-        int start_sample = (current_write - samples_per_col + RING_BUFFER_SIZE) % RING_BUFFER_SIZE;
+        // 计算要读取的总采样点起始索引（最旧的采样点索引）
+        uint32_t start_read = (current_write - samples_per_frame + RING_BUFFER_SIZE) % RING_BUFFER_SIZE;
 
-        // 遍历采样点，找出该列的最小值和最大值
-        int16_t min_sample = INT16_MAX;
-        int16_t max_sample = INT16_MIN;
-        for (int i = 0; i < samples_per_col; i++)
+        // 准备更新新列的缓冲区位置（当前最左列开始，连续 cols_per_frame 列）
+        int update_pos = start_col; // 即将被覆盖的位置（也是新列将放置的位置）
+
+        // 临时变量，用于累积读取偏移
+        uint32_t read_offset = 0; // 从 start_read 开始的偏移量
+
+        // 对每一列进行处理
+        for (int col_idx = 0; col_idx < cols_per_frame; col_idx++)
         {
-            int idx = (start_sample + i) % RING_BUFFER_SIZE;
-            int16_t val = ring_buffer[idx];
-            if (val < min_sample)
-                min_sample = val;
-            if (val > max_sample)
-                max_sample = val;
+            // 确定本列应处理的采样点数
+            uint32_t spp = base_spp + (col_idx < remainder ? 1 : 0); // 前 remainder 列多1个
+            if (spp == 0)
+                spp = 1; // 防御，防止为零
+
+            // 初始化该列的最小最大值
+            int16_t min_sample = INT16_MAX;
+            int16_t max_sample = INT16_MIN;
+
+            // 遍历本列的采样点
+            for (uint32_t i = 0; i < spp; i++)
+            {
+                uint32_t idx = (start_read + read_offset + i) % RING_BUFFER_SIZE;
+                int16_t val = ring_buffer[idx];
+                if (val < min_sample)
+                    min_sample = val;
+                if (val > max_sample)
+                    max_sample = val;
+            }
+
+            // 映射到Y坐标（范围15~75）
+            int min_y = 15 + ((int32_t)(min_sample + 32768) * 60) / 65535;
+            int max_y = 15 + ((int32_t)(max_sample + 32768) * 60) / 65535;
+
+            // 限制范围
+            if (min_y < 15)
+                min_y = 15;
+            if (min_y > 75)
+                min_y = 75;
+            if (max_y < 15)
+                max_y = 15;
+            if (max_y > 75)
+                max_y = 75;
+            if (min_y > max_y)
+            {
+                int tmp = min_y;
+                min_y = max_y;
+                max_y = tmp;
+            }
+
+            // 存入列缓冲（更新 update_pos 位置）
+            min_vals[update_pos] = min_y;
+            max_vals[update_pos] = max_y;
+
+            // 移动 update_pos 到下一列（循环）
+            update_pos = (update_pos + 1) % 384;
+
+            // 更新 read_offset，跳过已处理的采样点
+            read_offset += spp;
         }
 
-        // 将采样值映射到屏幕Y坐标（0~60范围，基线偏移15）
-        // 映射公式: y = 15 + (sample + 32768) * 60 / 65535
-        int min_y = 15 + ((int32_t)(min_sample + 32768) * 60) / 65535;
-        int max_y = 15 + ((int32_t)(max_sample + 32768) * 60) / 65535;
-
-        // 限制在有效范围（15~75）
-        if (min_y < 15)
-            min_y = 15;
-        if (min_y > 75)
-            min_y = 75;
-        if (max_y < 15)
-            max_y = 15;
-        if (max_y > 75)
-            max_y = 75;
-        if (min_y > max_y)
-        {
-            int tmp = min_y;
-            min_y = max_y;
-            max_y = tmp;
-        } // 确保 min <= max
-
-        // 将新列数据存入当前最左侧的位置（该位置即将被覆盖）
-        min_vals[start_col] = min_y;
-        max_vals[start_col] = max_y;
-
-        // 更新起始列，使新列成为最右侧（滚动）
-        start_col = (start_col + 1) % 384;
+        // 更新起始列索引，使新列成为最右侧
+        start_col = (start_col + cols_per_frame) % 384;
 
         // 绘制整个波形（从左到右）
         for (int x = 0; x < 384; x++)
         {
-            int col = (start_col + x) % 384; // 当前x对应的列索引
+            int col = (start_col + x) % 384;
             uint8_t y1 = min_vals[col];
             uint8_t y2 = max_vals[col];
             if (y1 == y2)
@@ -2715,43 +3060,14 @@ void AppMusicPlayer::show_display_fft()
         drawScrollingLyrics(14, 110, lrc_max_x); // 第二行的Y坐标
     }
 
-    // 电池
-    if ((hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) || hal.bat_info.soc != 255) && hal.VCC < 4300 && !hal.isCharging)
-    {
-        display.drawXBitmap(362, 0, getBatteryIcon(true), 20, 16, 0);
-        display.fillRect(365, 6, getBatterysoc(), 4, TFT_BLACK);
-        // int soc = (hal.VCC - 3200) * 13 / 1000;
-        // for (int x = 365; x < 365 + soc; x++)
-        // {
-        //     display.drawFastVLine(x, 6, 4, TFT_BLACK);
-        // }
-    }
-    else
-        display.drawXBitmap(362, 0, getBatteryIcon(), 20, 16, 0);
-    u8g2Fonts.setCursor(2, 12);
-    u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
+    updateVolumeUI();
 
-    u8g2Fonts.setCursor(3, 165);
-    if (loopPlay)
+    static uint32_t last_update_time = 0;
+    uint32_t now = millis();
+    if (now - last_update_time > 5000)
     {
-        u8g2Fonts.printf("单曲");
-    }
-    else if (autoPlay)
-    {
-        if (randomPlay)
-            u8g2Fonts.printf("随机");
-        else
-            u8g2Fonts.printf("顺序");
-    }
-    if (output != nullptr)
-    {
-        int rate = output->GetRate();
-        int khz = rate / 1000;
-        int frac = (rate % 1000) / 100; // 只取一位小数
-        if (frac > 0)
-            u8g2Fonts.printf(" %d.%dKHz|%dbit", khz, frac, output->GetBitsPerSample());
-        else
-            u8g2Fonts.printf(" %dKHz|%dbit", khz, output->GetBitsPerSample());
+        backup_buff_updata = true;
+        last_update_time = millis();
     }
 
     if (display_debug_mode)
@@ -2775,15 +3091,82 @@ void AppMusicPlayer::show_display_fft()
         u8g2Fonts.print(_buf);
     }
 
-    char gain_buf[16];
-    sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
-    u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
-    u8g2Fonts.printf(gain_buf);
-
     d_time.display_start = micros();
     display.display();
     d_time.end = micros();
     last_time = d_time;
+}
+
+void AppMusicPlayer::updateVolumeUI() {
+    // 静态变量保存动画状态
+    static float lastVolume = -1;               // 上次绘制的音量
+    static unsigned long lastChangeTime = 0;  // 最后一次音量改变的时间（毫秒）
+    static int animState = 0;                 // 0=隐藏, 1=滑入, 2=显示, 3=滑出
+    static int currentX = PHYSICAL_WIDTH;     // 音量条当前左边缘 x 坐标
+    static const int targetXIn = 368;         // 滑入目标 x 坐标
+    static const int targetXOut = PHYSICAL_WIDTH; // 滑出目标 x 坐标（完全移出屏幕）
+    static const int step = 5;                // 每帧移动像素数
+
+    // ========== 检测音量改变 ==========
+    bool volumeChanged = (gain != lastVolume);
+    if (volumeChanged) {
+        lastVolume = gain;
+        lastChangeTime = millis();
+
+        // 若当前为隐藏或滑出状态，立即启动滑入动画
+        if (animState == 0 || animState == 3) {
+            animState = 1;          // 切换为滑入状态
+            currentX = PHYSICAL_WIDTH; // 从屏幕外开始（可选，避免跳跃）
+        }
+        // 若已经在显示或滑入状态，只需重置计时器，动画继续
+    }
+
+    // ========== 隐藏状态且无变化时直接返回 ==========
+    if (animState == 0 && !volumeChanged) {
+        return;
+    }
+
+    // ========== 处理超时自动滑出 ==========
+    if (animState == 2 && (millis() - lastChangeTime) > 3000) {
+        animState = 3;              // 启动滑出
+    }
+
+    // ========== 更新位置 ==========
+    if (animState == 1) {           // 滑入：向左移动
+        if (currentX > targetXIn) {
+            currentX -= step;
+            if (currentX < targetXIn) currentX = targetXIn;
+        } else {
+            animState = 2;          // 到达目标，显示状态
+        }
+    } else if (animState == 3) {    // 滑出：向右移动
+        if (currentX < targetXOut) {
+            currentX += step;
+            if (currentX > targetXOut) currentX = targetXOut;
+        } else {
+            animState = 0;          // 完全移出，隐藏状态
+        }
+    }
+
+    // ========== 绘制音量条 ==========
+    if (animState != 0) {           // 非隐藏状态才绘制
+        // 边框矩形参数（本地坐标）
+        const int borderX = currentX;
+        const int borderY = 41;
+        const int borderW = 10;
+        const int borderH = 100;
+        const int radius = 4;
+
+        // 填充矩形高度 = 当前音量（0～100）
+        int fillH = int(lastVolume * 100.0f / 2.0f);
+        int fillY = borderY + (borderH - fillH);
+        int fillX = borderX;
+
+        // 绘制填充部分（音量条颜色，例如白色）
+        display.fillRoundRect(fillX, fillY, borderW, fillH, radius, TFT_BLACK);
+        // 绘制边框（例如黑色）
+        display.drawRoundRect(borderX, borderY, borderW, borderH, radius, TFT_BLACK);
+    }
 }
 
 /**
@@ -2844,6 +3227,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         break;
     case AAC_Generator:
         aac_generator = new AudioGeneratorAAC();
+        aac_generator->RegisterMetadataCB(MDCallback, (void *)"AACINFO");
         generator = aac_generator;
         break;
     case WAV_Generator:
@@ -2852,6 +3236,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         break;
     case OPUS_Generator:
         opus_generator = new AudioGeneratorOpus();
+        opus_generator->RegisterMetadataCB(MDCallback, (void *)"OPUSTAG");
         generator = opus_generator;
         break;
     default:
@@ -2899,6 +3284,8 @@ bool AppMusicPlayer::player_set()
     info.performer = "---";
     info.title = "---";
     info.tlen = 0;
+    vlbm_init = false;
+    vlbm_deinit = true;
     backup_buff_updata = true;
     id3_tlen_received = false;
     app.play_time_start = millis();                           // 提前重置一次`,确保歌词正常显示
@@ -2974,8 +3361,6 @@ void AppMusicPlayer::setup()
     digitalWrite(PIN_DAC_EN, 1);
     hal.cheak_freq(240);
     display.setPowerMode(POWER_MODE_HPM);
-    display.clearScreen();
-    display.display();
     digitalWrite(PIN_DAC_XSMT, 1);
 
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
@@ -2999,9 +3384,9 @@ void AppMusicPlayer::setup()
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
     fft_gain = hal.pref.getFloat("fft_gain", 1.2f);
 
-    loopPlay = hal.pref.getBool(hal.get_char_sha_key("单曲循环"), false);
-    autoPlay = hal.pref.getBool(hal.get_char_sha_key("顺序播放"), true);
-    randomPlay = hal.pref.getBool(hal.get_char_sha_key("随机播放"), false);
+    loopPlay = hal.pref.getBool("loopPlay", false);
+    autoPlay = hal.pref.getBool("autoPlay", true);
+    randomPlay = hal.pref.getBool("randomPlay", false);
 
     exit = player_exit;
     deepsleep = player_deepsleep;
@@ -3030,7 +3415,9 @@ void AppMusicPlayer::setup()
     if (player_set())
         begin_player_task();
     else
+    {
         _play_end = true;
+    }
     show_display();
     _end = false;
     xLastWakeTime = xTaskGetTickCount();
@@ -3100,6 +3487,7 @@ void AppMusicPlayer::setup()
             }
             else
             {
+                backup_buff_updata = true;
                 if (gain < 0.05)
                     gain += 0.01;
                 else
@@ -3130,6 +3518,7 @@ void AppMusicPlayer::setup()
             }
             else
             {
+                backup_buff_updata = true;
                 if (gain < 0.06)
                     gain -= 0.01;
                 else

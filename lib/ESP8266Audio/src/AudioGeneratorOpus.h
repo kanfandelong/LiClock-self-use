@@ -50,6 +50,9 @@ class AudioGeneratorOpus : public AudioGenerator
       return static_cast<AudioGeneratorOpus*>(_stream)->close_cb();
     }
 
+    // Tag processing
+    void processTags();
+
     // Actual Opus callbacks
     int read_cb(unsigned char *_ptr, int _nbytes);
     int seek_cb(opus_int64 _offset, int _whence);
@@ -57,7 +60,7 @@ class AudioGeneratorOpus : public AudioGenerator
     int close_cb();
 
   private:
-    OpusFileCallbacks cb = {OPUS_read, OPUS_seek, OPUS_tell, OPUS_close};
+    OpusFileCallbacks _cb = {OPUS_read, OPUS_seek, OPUS_tell, OPUS_close};
     OggOpusFile *of;
     int prev_li; // To detect changes in streams
 

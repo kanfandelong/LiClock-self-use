@@ -422,7 +422,7 @@ void AppSettings::menu_network()
             File configFile = LittleFS.open(wifi_config_file);
             if (!configFile)
             {
-                Serial0.println("Failed to open file for reading");
+                uart->println("Failed to open file for reading");
             }
 
             StaticJsonDocument<1024> wifi_list;
@@ -494,7 +494,7 @@ void AppSettings::menu_network()
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00};
             WiFi.mode(WIFI_STA);
             hal.searchWiFi();
-            Serial0.printf("搜索到的个数:%d", hal.numNetworks);
+            uart->printf("搜索到的个数:%d", hal.numNetworks);
             char winfo[hal.numNetworks][64];
             int rssis[hal.numNetworks];
             char _ssid[hal.numNetworks][64];
@@ -668,7 +668,7 @@ void AppSettings::menu_network()
                 QRCode qrcode;
                 uint8_t qrcodeData[qrcode_getBufferSize(7)];
                 qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-                Serial0.println(qrcode.size);
+                uart->println(qrcode.size);
                 for (uint8_t y = 0; y < qrcode.size; y++)
                 {
                     // Each horizontal module
@@ -736,7 +736,7 @@ void AppSettings::menu_network()
             QRCode qrcode;
             uint8_t qrcodeData[qrcode_getBufferSize(7)];
             qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-            Serial0.println(qrcode.size);
+            uart->println(qrcode.size);
             for (uint8_t y = 0; y < qrcode.size; y++)
             {
                 // Each horizontal module
@@ -783,8 +783,8 @@ void AppSettings::menu_network()
             uint8_t qrcodeData[2][qrcode_getBufferSize(7)];
             qrcode_initText(&qrcode1, qrcodeData[0], 6, 2, str1.c_str());
             qrcode_initText(&qrcode2, qrcodeData[1], 6, 2, str2.c_str());
-            Serial0.println(qrcode1.size);
-            Serial0.println(qrcode2.size);
+            uart->println(qrcode1.size);
+            uart->println(qrcode2.size);
             for (uint8_t y = 0; y < qrcode1.size; y++)
             {
                 // Each horizontal module
@@ -1120,13 +1120,13 @@ void AppSettings::menu_peripherals()
             {
                 config[TFmode] = "1";
                 hal.saveConfig();
-                Serial0.printf("修改TF卡电源控制,当卸载后才断电");
+                uart->printf("修改TF卡电源控制,当卸载后才断电");
             }
             else
             {
                 config[TFmode] = "0";
                 hal.saveConfig();
-                Serial0.printf("修改TF卡电源控制,休眠后就断电");
+                uart->printf("修改TF卡电源控制,休眠后就断电");
             }
             break;
         case 5:
@@ -1261,7 +1261,7 @@ void AppSettings::menu_system()
                 AppBase *tmp = appManager.appSelector(true);
                 if (tmp)
                 {
-                    Serial0.println(tmp->name);
+                    uart->println(tmp->name);
                     if (GUI::msgbox_yn("警告", "选择不兼容的App可能会导致无法进入菜单，是否确认？") == true)
                     {
                         if (strcmp(tmp->name, "clock") == 0)
@@ -1381,16 +1381,16 @@ void AppSettings::menu_system()
             if (freq != new_freq)
             {
                 bool cpuset = setCpuFrequencyMhz(new_freq);
-                Serial0.begin(115200);
-                Serial0.printf("CpuFreq: %dMHZ -> %dMHZ ......", freq, new_freq);
+                uart->begin(115200);
+                uart->printf("CpuFreq: %dMHZ -> %dMHZ ......", freq, new_freq);
                 if (cpuset)
                 {
-                    Serial0.print("ok\n");
+                    uart->print("ok\n");
                     GUI::msgbox("提示", "频率修改成功");
                 }
                 else
                 {
-                    Serial0.print("err\n");
+                    uart->print("err\n");
                     GUI::msgbox("错误", "频率未能修改");
                     error("CPU频率修改失败,设置的值:%d", new_freq);
                 }
@@ -1431,7 +1431,7 @@ void AppSettings::menu_system()
             bool file_true = true;
             if (!cfufile)
             {
-                Serial0.println("Failed to open cfu file");
+                uart->println("Failed to open cfu file");
                 file_true = false;
             }
             deserializeJson(cfu, cfufile);
@@ -1506,7 +1506,7 @@ void AppSettings::menu_system()
                 }
                 else
                 {
-                    Serial0.printf("备份成功，大小：%d字节\n", written);
+                    uart->printf("备份成功，大小：%d字节\n", written);
                     GUI::info_msgbox("操作成功", "已创建备份文件nvs.bin");
                 }
             }
@@ -1663,15 +1663,15 @@ void AppSettings::menu_system()
 void AppSettings::about()
 {
     display.clearScreen();
-    GUI::drawWindowsWithTitle("关于本设备", 0, 0, 296, 128);
+    GUI::drawWindowsWithTitle("关于本设备");
 
     u8g2Fonts.setCursor(5, 30);
     xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-    u8g2Fonts.printf("设备名称: LiClock  版本: %s", code_version);
+    u8g2Fonts.printf("设备名称: LiClock-S3  版本: %s", code_version);
     xSemaphoreGive(peripherals.i2cMutex);
 
     u8g2Fonts.setCursor(5, 45);
-    u8g2Fonts.drawUTF8(5, 45, "CPU: Xtensa LX6 32-bit @ 240MHz x2 + ULP");
+    u8g2Fonts.drawUTF8(5, 45, "CPU: Xtensa LX7 32-bit @ 240MHz x2 + ULP");
 
     u8g2Fonts.setCursor(5, 60);
     u8g2Fonts.printf("内存: 520KB SRAM + 16KB RTC_SRAM  存储: %d MB",
@@ -1688,7 +1688,7 @@ void AppSettings::about()
                      free, total);
 
     u8g2Fonts.setCursor(5, 90);
-    u8g2Fonts.printf("屏幕: EPD 296x128 当前运行频率: %u MHz", getCpuFrequencyMhz());
+    u8g2Fonts.printf("屏幕: RLCD 168x384 当前运行频率: %u MHz", getCpuFrequencyMhz());
 
     u8g2Fonts.setCursor(5, 105);
     u8g2Fonts.printf("电池容量: %d mAh  芯片: %s", hal.bat_info.capacity.design, ESP.getChipModel());
@@ -1697,9 +1697,6 @@ void AppSettings::about()
 
     display.display();
     hal.wait_input();
-    /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
-        delay(100);
-    } */
 }
 
 void AppSettings::menu_SWQ()
@@ -1827,7 +1824,7 @@ void AppSettings::menu_DS3231()
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
             sprintf(buf, "20%d年%d月%d日 星期%d %d:%d:%d", Srtc.getYear(), Srtc.getMonth(), Srtc.getDate(), Srtc.getDoW(), Srtc.getHour(), Srtc.getMinute(), Srtc.getSecond());
             xSemaphoreGive(peripherals.i2cMutex);
-            Serial0.println(buf);
+            uart->println(buf);
             GUI::msgbox("DS3231时间", buf);
         }
         break;
@@ -1947,60 +1944,88 @@ void AppSettings::tfcard_info()
     display.clearScreen();
     GUI::drawWindowsWithTitle("TF卡信息");
 
-    if (!peripherals.isSDLoaded()) {
+    if (!peripherals.isSDLoaded())
+    {
         GUI::info_msgbox("提示", "未插入TF卡或文件系统挂载失败，无法显示信息");
         hal.wait_input();
         return;
     }
 
     sdmmc_card_t *card = SD_MMC.get();
-    if (!card) {
+    if (!card)
+    {
         GUI::info_msgbox("错误", "无法获取卡信息");
         hal.wait_input();
         return;
     }
 
     // ---------- 辅助函数：SD卡制造商名称 ----------
-    auto get_manufacturer_name = [](int mfg_id) -> const char* {
-        switch (mfg_id) {
-            case 0x01: return "Panasonic";
-            case 0x02: return "Toshiba";
-            case 0x03: return "SanDisk";
-            case 0x1B: return "Samsung";
-            case 0x1D: return "AData";
-            case 0x27: return "Phision";
-            case 0x28: return "Lexar";
-            case 0x31: return "Silicon Power";
-            case 0x41: return "Kingston";
-            case 0x74: return "Transcend";
-            case 0x82: return "Sony";
-            default:   return "Unknown";
+    auto get_manufacturer_name = [](int mfg_id) -> const char *
+    {
+        switch (mfg_id)
+        {
+        case 0x01:
+            return "Panasonic";
+        case 0x02:
+            return "Toshiba";
+        case 0x03:
+            return "SanDisk";
+        case 0x1B:
+            return "Samsung";
+        case 0x1D:
+            return "AData";
+        case 0x27:
+            return "Phision";
+        case 0x28:
+            return "Lexar";
+        case 0x31:
+            return "Silicon Power";
+        case 0x41:
+            return "Kingston";
+        case 0x74:
+            return "Transcend";
+        case 0x82:
+            return "Sony";
+        default:
+            return "Unknown";
         }
     };
 
     // ---------- 辅助函数：eMMC制造商名称 ----------
-    auto get_emmc_manufacturer_name = [](uint8_t mid) -> const char* {
-        switch (mid) {
-            case 0x02: return "Sandisk";
-            case 0x11: return "Toshiba";
-            case 0x13: return "Micron";
-            case 0x15: return "Samsung";
-            case 0x1A: return "Hynix";
-            case 0x1C: return "Intel";
-            case 0x37: return "Kingston";
-            default:   return "Unknown";
+    auto get_emmc_manufacturer_name = [](uint8_t mid) -> const char *
+    {
+        switch (mid)
+        {
+        case 0x02:
+            return "Sandisk";
+        case 0x11:
+            return "Toshiba";
+        case 0x13:
+            return "Micron";
+        case 0x15:
+            return "Samsung";
+        case 0x1A:
+            return "Hynix";
+        case 0x1C:
+            return "Intel";
+        case 0x37:
+            return "Kingston";
+        default:
+            return "Unknown";
         }
     };
 
     // ---------- 辅助函数：OEM ID（两个ASCII字符）----------
-    auto oem_id_to_str = [](int oem_id, char *out) {
+    auto oem_id_to_str = [](int oem_id, char *out)
+    {
         out[0] = (oem_id >> 8) & 0xFF;
         out[1] = oem_id & 0xFF;
         out[2] = '\0';
     };
 
     // ---------- 辅助函数：版本号（主.次）----------
-    auto revision_to_str = [](int rev, char *out) {
+    auto revision_to_str = [](int rev, char *out)
+    {
         int major = (rev >> 4) & 0xF;
         int minor = rev & 0xF;
         sprintf(out, "%d.%d", major, minor);
@@ -2027,16 +2052,24 @@ void AppSettings::tfcard_info()
 
     // ---- 第3行：卡类型、总线宽度、DDR支持 ----
     const char *card_type_str = "未知";
-    if (card->is_mmc) {
+    if (card->is_mmc)
+    {
         card_type_str = "eMMC";
-    } else if (card->is_sdio) {
+    }
+    else if (card->is_sdio)
+    {
         card_type_str = "SDIO";
-    } else if (card->is_mem) {
+    }
+    else if (card->is_mem)
+    {
         const uint32_t SD_OCR_SDHC_CAP = 1UL << 30;
-        if (card->ocr & SD_OCR_SDHC_CAP) {
+        if (card->ocr & SD_OCR_SDHC_CAP)
+        {
             uint64_t total_bytes = (uint64_t)card->csd.capacity * card->csd.sector_size;
             card_type_str = (total_bytes > 32ULL * 1024 * 1024 * 1024) ? "SDXC" : "SDHC";
-        } else {
+        }
+        else
+        {
             card_type_str = "SDSC";
         }
     }
@@ -2047,32 +2080,33 @@ void AppSettings::tfcard_info()
     y += line_height;
 
     // ==================== 根据卡类型显示CID信息 ====================
-    if (card->is_mmc) {
+    if (card->is_mmc)
+    {
         // ---------- eMMC 专用解析（基于字节数组，小端序CPU）----------
-        uint8_t *cid = (uint8_t*)card->raw_cid; // cid[0] = 响应第一个字节
+        uint8_t *cid = (uint8_t *)card->raw_cid; // cid[0] = 响应第一个字节
 
-        uint8_t mid = cid[0];                          // 制造商ID
+        uint8_t mid = cid[0]; // 制造商ID
         // 以下字段位置基于常见eMMC规范（JEDEC）及您的数据验证调整
-        uint8_t cbx = (cid[1] >> 6) & 0x03;            // 设备类型（高2位）
-        uint16_t oid = (cid[1] << 8) | cid[2];         // OEM/应用ID (16位)
-        char pnm[7] = {0};                              // 产品名 (6字节)
-        pnm[0] = cid[7];  // 根据您的数据，产品名从字节7开始
+        uint8_t cbx = (cid[1] >> 6) & 0x03;    // 设备类型（高2位）
+        uint16_t oid = (cid[1] << 8) | cid[2]; // OEM/应用ID (16位)
+        char pnm[7] = {0};                     // 产品名 (6字节)
+        pnm[0] = cid[7];                       // 根据您的数据，产品名从字节7开始
         pnm[1] = cid[8];
         pnm[2] = cid[9];
         pnm[3] = cid[10];
         pnm[4] = cid[11];
         pnm[5] = cid[12];
-        pnm[6] = '\0'; // 确保字符串结束
-        uint8_t prv = cid[13];                          // 产品版本 (8位)
+        pnm[6] = '\0';                                                               // 确保字符串结束
+        uint8_t prv = cid[13];                                                       // 产品版本 (8位)
         uint32_t psn = (cid[14] << 24) | (cid[15] << 16) | (cid[16] << 8) | cid[17]; // 序列号 (4字节，注意越界？实际cid只有16字节)
         // 修正：cid只有0-15，序列号可能占用4字节，例如cid[10]-cid[13]
         psn = (cid[10] << 24) | (cid[11] << 16) | (cid[12] << 8) | cid[13];
-        uint8_t mdt = cid[14];                          // 生产日期 (8位)
-        uint8_t crc = cid[15] >> 1;                     // CRC7 (高7位)
+        uint8_t mdt = cid[14];      // 生产日期 (8位)
+        uint8_t crc = cid[15] >> 1; // CRC7 (高7位)
 
-        int year_code = (mdt >> 4) & 0x0F;              // 高4位年份码
-        int month = mdt & 0x0F;                          // 低4位月份
-        int year = 2013 + year_code;                     // 现代eMMC基准2013
+        int year_code = (mdt >> 4) & 0x0F; // 高4位年份码
+        int month = mdt & 0x0F;            // 低4位月份
+        int year = 2013 + year_code;       // 现代eMMC基准2013
 
         int major = (prv >> 4) & 0x0F;
         int minor = prv & 0x0F;
@@ -2088,7 +2122,9 @@ void AppSettings::tfcard_info()
         u8g2Fonts.printf("版本:%d.%d 序列号:%u 生产日期:%02d/%04d",
                          major, minor, psn, month, year);
         y += line_height;
-    } else {
+    }
+    else
+    {
         // ---------- SD卡通用解析 ----------
         char oem_str[3];
         oem_id_to_str(card->cid.oem_id, oem_str);
@@ -2132,10 +2168,12 @@ void AppSettings::tfcard_info()
     // ---- 第8行（eMMC）/第9行（SD）：命令类 + 卡特定信息 ----
     u8g2Fonts.setCursor(5, y);
     u8g2Fonts.printf("命令类:0x%03X", card->csd.card_command_class);
-    if (card->is_mem && !card->is_mmc) {
+    if (card->is_mem && !card->is_mmc)
+    {
         u8g2Fonts.printf(" SD版本:%d", card->scr.sd_spec);
     }
-    if (card->is_mmc) {
+    if (card->is_mmc)
+    {
         u8g2Fonts.printf(" 功率类:%d", card->ext_csd.power_class);
     }
     y += line_height;
@@ -2154,155 +2192,224 @@ void AppSettings::bat_info()
     display.clearScreen();
     GUI::drawWindowsWithTitle("电池状态");
 
-    int lineHeight = 14;
-    int startY = 28; // 标题栏下方开始
-    int currentY = startY;
+    // 图表参数
+    const int MAX_POINTS = 105;                 // 最多存储100个历史点
+    const int LEFT_WIDTH = 150;                  // 左侧文字区域宽度
+    const int CHART_LEFT = 160;                   // 图表左边界
+    const int CHART_RIGHT = 375;                   // 图表右边界（留边距）
+    const int CHART_TOP = 28;                      // 图表上边界
+    const int CHART_BOTTOM = 158;                  // 图表下边界
+    const int POINT_SPACING = 2;                   // 点水平间距（像素）
 
-    // 基本信息行
-    // 基本信息行
-    u8g2Fonts.setCursor(3, currentY);
-    if (hal.bat_info.current.avg <= 0)
-    {
-        u8g2Fonts.printf("电量:%d%% 健康:%d%% 放电中", hal.bat_info.soc, hal.bat_info.soh);
+    // 静态历史数据（保留跨调用）
+    static int16_t hist_volt[MAX_POINTS];
+    static int16_t hist_curr[MAX_POINTS];
+    static int16_t hist_soc[MAX_POINTS];
+    static int count = 0;                           // 当前有效点数
+    static uint32_t last_update = 0;                 // 上次更新时间戳
+    static int mode = 0;                             // 0:电压 1:电流 2:SOC
+    static bool lastRight = false;                   // 右键上次状态
+
+    // 等待所有按键释放（消除残留按下）
+    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()) {
+        delay(20);
     }
-    else if (hal.bat_info.flag.FC)
-    {
-        u8g2Fonts.printf("电量:%d%% 健康:%d%% 已充满", hal.bat_info.soc, hal.bat_info.soh);
+
+    // 主循环：左键退出
+    while (true) {
+        // 左键按下退出
+        if (hal.btnl.isPressing()) {
+            break;
+        }
+
+        // 右键单击切换模式（检测上升沿）
+        bool rightPressed = hal.btnr.isPressing();
+        if (rightPressed && !lastRight) {
+            mode = (mode + 1) % 3;
+        }
+        lastRight = rightPressed;
+
+        auto& binfo = hal.bat_info;   // 电池信息引用
+
+        // 检查数据更新（update_time变化则添加新点）
+        uint32_t now = binfo.update_time;
+        if (now != last_update) {
+            int16_t volt_mv = (int16_t)(binfo.voltage * 1000 + 0.5);
+            int16_t curr_ma = binfo.current.avg;
+            int16_t soc_val = binfo.soc;
+
+            if (count < MAX_POINTS) {
+                // 未满：直接追加
+                hist_volt[count] = volt_mv;
+                hist_curr[count] = curr_ma;
+                hist_soc[count] = soc_val;
+                count++;
+            } else {
+                // 已满：整体左移，新点放最后
+                memmove(&hist_volt[0], &hist_volt[1], (MAX_POINTS-1) * sizeof(int16_t));
+                memmove(&hist_curr[0], &hist_curr[1], (MAX_POINTS-1) * sizeof(int16_t));
+                memmove(&hist_soc[0], &hist_soc[1], (MAX_POINTS-1) * sizeof(int16_t));
+                hist_volt[MAX_POINTS-1] = volt_mv;
+                hist_curr[MAX_POINTS-1] = curr_ma;
+                hist_soc[MAX_POINTS-1] = soc_val;
+            }
+            last_update = now;
+        }
+
+        // --- 清屏并重绘标题 ---
+        display.clearScreen();
+        GUI::drawWindowsWithTitle("电池状态");
+
+        // ========== 左侧文字信息 ==========
+        int leftX = 10;
+        int lineY = 30;
+        const int lineH = 14;
+
+        // 第1行：SOC + 状态
+        u8g2Fonts.setCursor(leftX, lineY);
+        if (binfo.flag.FC) {
+            u8g2Fonts.printf("SOC:%d%% 已充满", binfo.soc);
+        } else if (binfo.current.avg > 0) {
+            u8g2Fonts.printf("SOC:%d%% 充电中", binfo.soc);
+        } else {  // avg <= 0
+            u8g2Fonts.printf("SOC:%d%% 放电中", binfo.soc);
+        }
+        lineY += lineH;
+
+        // 第2行：电压、温度
+        u8g2Fonts.setCursor(leftX, lineY);
+        u8g2Fonts.printf("%.2fV %.1f℃", binfo.voltage, binfo.temp);
+        lineY += lineH;
+
+        // 第3行：电流、功率
+        u8g2Fonts.setCursor(leftX, lineY);
+        u8g2Fonts.printf("%dmA %dmW", binfo.current.avg, binfo.power);
+        lineY += lineH;
+
+        // 第4行：当前容量
+        u8g2Fonts.setCursor(leftX, lineY);
+        u8g2Fonts.printf("容量:%dmAh", binfo.capacity.remain_f);
+        lineY += lineH;
+
+        // 第5行：时间估算
+        u8g2Fonts.setCursor(leftX, lineY);
+        if (binfo.flag.FC) {
+            u8g2Fonts.print("已充满");
+        } else if (binfo.current.avg > 0) {
+            // 充电：剩余需充电量
+            int32_t need = binfo.capacity.full_f - binfo.capacity.remain_f;
+            if (need > 0 && abs(binfo.current.avg) > 0) {
+                float hours = (float)need / abs(binfo.current.avg);
+                if (hours >= 1.0)
+                    u8g2Fonts.printf("充满:%dh%dm", (int)hours, (int)((hours - (int)hours)*60));
+                else
+                    u8g2Fonts.printf("充满:%dm", (int)(hours*60));
+            } else {
+                u8g2Fonts.print("充满:--");
+            }
+        } else if (binfo.current.avg < 0) {
+            // 放电：剩余容量 / 放电电流
+            if (abs(binfo.current.avg) > 0) {
+                float hours = (float)binfo.capacity.remain_f / abs(binfo.current.avg);
+                if (hours >= 1.0)
+                    u8g2Fonts.printf("剩余:%dh%dm", (int)hours, (int)((hours - (int)hours)*60));
+                else
+                    u8g2Fonts.printf("剩余:%dm", (int)(hours*60));
+            } else {
+                u8g2Fonts.print("剩余:--");
+            }
+        } else {
+            u8g2Fonts.print("无电流");
+        }
+
+        // ========== 右侧图表 ==========
+        // 绘制图表边框
+        display.drawRect(CHART_LEFT, CHART_TOP, CHART_RIGHT - CHART_LEFT, CHART_BOTTOM - CHART_TOP, TFT_BLACK);
+
+        // 图表标题（模式名称）
+        const char* modeNames[] = {"电压趋势", "电流趋势", "SOC趋势"};
+        u8g2Fonts.setCursor(CHART_LEFT, CHART_TOP - 2);
+        u8g2Fonts.print(modeNames[mode]);
+
+        // 根据模式设定Y轴范围
+        int16_t minVal, maxVal;
+        if (mode == 0) {      // 电压：2.5V ~ 4.2V（mV）
+            minVal = 2500;
+            maxVal = 4200;
+        } else if (mode == 1) { // 电流：-200mA ~ +200mA
+            minVal = -200;
+            maxVal = 200;
+        } else {               // SOC：0% ~ 100%
+            minVal = 0;
+            maxVal = 100;
+        }
+
+        // 绘制Y轴刻度（左侧）
+        const int numTicks = 5;
+        for (int i = 0; i < numTicks; i++) {
+            int tickY = CHART_TOP + i * (CHART_BOTTOM - CHART_TOP) / (numTicks - 1);
+            // 短横线
+            display.drawLine(CHART_LEFT - 3, tickY, CHART_LEFT, tickY, TFT_BLACK);
+
+            // 计算刻度值
+            int16_t val = maxVal - i * (maxVal - minVal) / (numTicks - 1);
+            u8g2Fonts.setCursor(CHART_LEFT - 45, tickY);
+            if (mode == 0) {
+                // 电压显示两位小数，避免浮点printf
+                int intPart = val / 1000;
+                int fracPart = (val % 1000) / 10;  // 百分位
+                u8g2Fonts.printf("%d.%02dV", intPart, fracPart);
+            } else if (mode == 1) {
+                u8g2Fonts.printf("%dmA", val);
+            } else {
+                u8g2Fonts.printf("%d%%", val);
+            }
+        }
+
+        // 绘制趋势线
+        if (count > 1) {
+            int startX = CHART_RIGHT - (count - 1) * POINT_SPACING;
+            if (startX < CHART_LEFT) startX = CHART_LEFT; // 防溢出（实际MAX_POINTS已控制）
+
+            int prevX = -1, prevY = -1;
+            for (int i = 0; i < count; i++) {
+                int x = CHART_RIGHT - (count - 1 - i) * POINT_SPACING; // i=0最旧，i=count-1最新
+                int16_t val;
+                if (mode == 0) val = hist_volt[i];
+                else if (mode == 1) val = hist_curr[i];
+                else val = hist_soc[i];
+
+                // Y坐标映射（注意屏幕Y向下）
+                int y = CHART_BOTTOM - (int32_t)(val - minVal) * (CHART_BOTTOM - CHART_TOP) / (maxVal - minVal);
+                // 边界裁剪
+                if (y < CHART_TOP) y = CHART_TOP;
+                if (y > CHART_BOTTOM) y = CHART_BOTTOM;
+
+                if (i > 0 && prevX >= CHART_LEFT) {
+                    display.drawLine(prevX, prevY, x, y, TFT_BLACK);
+                }
+                prevX = x;
+                prevY = y;
+            }
+        } else if (count == 1) {
+            // 单个点：绘制一个像素点
+            int x = CHART_RIGHT;
+            int16_t val = (mode == 0) ? hist_volt[0] : (mode == 1) ? hist_curr[0] : hist_soc[0];
+            int y = CHART_BOTTOM - (int32_t)(val - minVal) * (CHART_BOTTOM - CHART_TOP) / (maxVal - minVal);
+            if (y < CHART_TOP) y = CHART_TOP;
+            if (y > CHART_BOTTOM) y = CHART_BOTTOM;
+            display.drawPixel(x, y, TFT_BLACK);
+        }
+
+        // 刷新屏幕
+        display.display();
+
+        // 短暂延时，避免占用CPU过高
+        delay(20);
     }
-    else if (hal.bat_info.current.avg > 0)
-    {
-        u8g2Fonts.printf("电量:%d%% 健康:%d%% 充电中", hal.bat_info.soc, hal.bat_info.soh);
-    }
-    currentY += lineHeight;
 
-    // 电压温度行
-    u8g2Fonts.setCursor(3, currentY);
-    u8g2Fonts.printf("电压:%.2fV 温度:%.1f℃", hal.bat_info.voltage, hal.bat_info.temp);
-    currentY += lineHeight;
-
-    // 电流功率行
-    u8g2Fonts.setCursor(3, currentY);
-    u8g2Fonts.printf("电流:%dmA 功率:%dmW", hal.bat_info.current.avg, hal.bat_info.power);
-    currentY += lineHeight;
-
-    if (hal.bat_info.current.avg <= 0)
-    {
-        // 放电状态：显示剩余容量和续航时间
-        u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("剩余容量:%dmAh", hal.bat_info.capacity.remain_f);
-        currentY += lineHeight;
-
-        // 续航（基于实际电流）- 添加零除保护
-        if (abs(hal.bat_info.current.avg) > 0)
-        {
-            float clockRuntime = (float)hal.bat_info.capacity.remain_f / (float)abs(hal.bat_info.current.avg);
-            u8g2Fonts.setCursor(3, currentY);
-            if (clockRuntime >= 1.0)
-            {
-                u8g2Fonts.printf("续航:%d小时%d分",
-                                 (int)clockRuntime, (int)((clockRuntime - (int)clockRuntime) * 60));
-            }
-            else
-            {
-                u8g2Fonts.printf("续航:%d分钟", (int)(clockRuntime * 60));
-            }
-        }
-        else
-        {
-            u8g2Fonts.setCursor(3, currentY);
-            u8g2Fonts.print("续航:计算中...");
-        }
-        currentY += lineHeight;
-
-        // 时钟模式续航（基于实际电流）- 添加零除保护
-        if (abs(hal.bat_info.current.stby) > 0)
-        {
-            // float clockRuntime = (float)hal.bat_info.capacity.remain_f / (float)abs(hal.bat_info.current.stby);
-            float clockRuntime = (float)hal.bat_info.capacity.remain_f / (float)2;
-            u8g2Fonts.setCursor(3, currentY);
-            if (clockRuntime >= 1.0)
-            {
-                u8g2Fonts.printf("时钟续航:约%d小时%d分",
-                                 (int)clockRuntime, (int)((clockRuntime - (int)clockRuntime) * 60));
-            }
-            else
-            {
-                u8g2Fonts.printf("时钟续航:约%d分钟", (int)(clockRuntime * 60));
-            }
-        }
-        else
-        {
-            u8g2Fonts.setCursor(3, currentY);
-            u8g2Fonts.print("时钟续航:计算中...");
-        }
-        currentY += lineHeight;
-
-        // 音乐模式续航（估算功耗）- 使用固定值，不会除零
-        float musicCurrent = abs(hal.pref.getInt("player_power", 65) ? hal.pref.getInt("player_power", 65) : 65); // 假设音乐播放电流80mA
-        float musicRuntime = (float)hal.bat_info.capacity.remain_f / musicCurrent;
-        u8g2Fonts.setCursor(3, currentY);
-        if (musicRuntime >= 1.0)
-        {
-            u8g2Fonts.printf("音乐续航:%d小时%d分",
-                             (int)musicRuntime, (int)((musicRuntime - (int)musicRuntime) * 60));
-        }
-        else
-        {
-            u8g2Fonts.printf("音乐续航:%d分钟", (int)(musicRuntime * 60));
-        }
-    }
-    else if (hal.bat_info.flag.FC)
-    {
-        // 已充满状态：显示容量信息
-        u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("当前容量:%dmAh", hal.bat_info.capacity.remain_f);
-        currentY += lineHeight;
-
-        u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("设计容量:%dmAh", hal.bat_info.capacity.design);
-        currentY += lineHeight;
-
-        u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("健康度:%d%%", hal.bat_info.soh);
-    }
-    else if (hal.bat_info.current.avg > 0)
-    {
-        // 充电状态：显示充电信息 - 修复除零问题
-        u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("充电电流:%dmA", hal.bat_info.current.avg);
-        currentY += lineHeight;
-
-        // 添加零除保护
-        if (abs(hal.bat_info.current.avg) > 0)
-        {
-            float chargeRuntime = (float)(hal.bat_info.capacity.full_f - hal.bat_info.capacity.remain_f) /
-                                  (float)abs(hal.bat_info.current.avg);
-            u8g2Fonts.setCursor(3, currentY);
-            if (chargeRuntime >= 1.0)
-            {
-                u8g2Fonts.printf("预计充满:%d小时%d分",
-                                 (int)chargeRuntime, (int)((chargeRuntime - (int)chargeRuntime) * 60));
-            }
-            else
-            {
-                u8g2Fonts.printf("预计充满:%d分钟", (int)(chargeRuntime * 60));
-            }
-        }
-        else
-        {
-            u8g2Fonts.setCursor(3, currentY);
-            u8g2Fonts.print("预计充满:计算中...");
-        }
-        currentY += lineHeight;
-
-        // 显示充满容量
-        u8g2Fonts.setCursor(3, currentY);
-        u8g2Fonts.printf("充满容量:%dmAh 当前容量:%dmAh", hal.bat_info.capacity.full_f, hal.bat_info.capacity.remain_f);
-    }
-    display.display();
-    hal.wait_input();
-    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
-    {
+    // 退出后等待所有按键释放
+    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()) {
         delay(20);
     }
 }

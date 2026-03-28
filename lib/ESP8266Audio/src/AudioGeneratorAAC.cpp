@@ -34,14 +34,12 @@ AudioGeneratorAAC::AudioGeneratorAAC()
   buff = (uint8_t*)malloc(buffLen);
   outSample = (int16_t*)malloc(1024 * 2 * sizeof(uint16_t));
   if (!buff || !outSample) {
-    audioLogger->printf_P(PSTR("ERROR: Out of memory in AAC\n"));
-    Serial.flush();
+    log_e("Out of memory in AAC");
   }
 
   hAACDecoder = AACInitDecoder();
   if (!hAACDecoder) {
-    audioLogger->printf_P(PSTR("Out of memory error! hAACDecoder==NULL\n"));
-    Serial.flush();
+    log_e("Out of memory error! hAACDecoder==NULL");
   }
 
   buffValid = 0;
@@ -69,13 +67,12 @@ AudioGeneratorAAC::AudioGeneratorAAC(void *preallocateData, int preallocateSz)
   int used = p - (uint8_t*)preallocateSpace;
   int availSpace = preallocateSize - used;
   if (availSpace < 0 ) {
-    audioLogger->printf_P(PSTR("ERROR: Out of memory in AAC\n"));
+    log_e("Out of memory in AAC");
   }
 
   hAACDecoder = AACInitDecoderPre(p, availSpace);
   if (!hAACDecoder) {
-    audioLogger->printf_P(PSTR("Out of memory error! hAACDecoder==NULL\n"));
-    Serial.flush();
+    log_e("Out of memory error! hAACDecoder==NULL");
   }
   buffValid = 0;
   lastFrameEnd = 0;
@@ -144,13 +141,47 @@ bool AudioGeneratorAAC::loop()
 
   // If we've got data, try and pump it out...
   while (validSamples) {
+#ifdef CONFIG_DAC_32bit
+    if (lastChannels == 1) {
+       lastSample[0] = outSample[curSample] << 16;
+       lastSample[1] = outSample[curSample] << 16;
+    } else if (lastChannels == 2) {
+      lastSample[0] = outSample[curSample*2] << 16;
+      lastSample[1] = outSample[curSample*2 + 1] << 16;
+    } else {
+      // Mix multi-channel audio to stereo
+      int32_t left = 0, right = 0;
+      for (int i = 0; i < lastChannels; i++) {
+        if (i % 2 == 0) {
+          left += outSample[curSample * lastChannels + i];
+        } else {
+          right += outSample[curSample * lastChannels + i];
+        }
+      }
+      lastSample[0] = (left / (lastChannels / 2)) << 16;
+      lastSample[1] = (right / (lastChannels / 2)) << 16;
+    }
+#else
     if (lastChannels == 1) {
        lastSample[0] = outSample[curSample];
        lastSample[1] = outSample[curSample];
-    } else {
+    } else if (lastChannels == 2) {
       lastSample[0] = outSample[curSample*2];
       lastSample[1] = outSample[curSample*2 + 1];
+    } else {
+      // Mix multi-channel audio to stereo
+      int32_t left = 0, right = 0;
+      for (int i = 0; i < lastChannels; i++) {
+        if (i % 2 == 0) {
+          left += outSample[curSample * lastChannels + i];
+        } else {
+          right += outSample[curSample * lastChannels + i];
+        }
+      }
+      lastSample[0] = left / (lastChannels / 2);
+      lastSample[1] = right / (lastChannels / 2);
     }
+#endif
     if (!output->ConsumeSample(lastSample)) goto done; // Can't send, but no error detected
     validSamples--;
     curSample++;

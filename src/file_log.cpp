@@ -62,6 +62,7 @@ bool log_system_init()
     if (log_mutex == NULL)
     {
         log_mutex = xSemaphoreCreateMutex();
+        xSemaphoreGive(log_mutex);
         if (log_mutex == NULL)
             return false;
     }
@@ -115,7 +116,7 @@ int log_printfv(const char *format, va_list arg)
     vsnprintf(buffer, len + 1, format, arg);
     
     // 输出到串口
-    Serial0.write(buffer, len);
+    uart->write(buffer, len);
     
     // 如果需要写入文件
     if (hal.pref.getBool("sys_log", true))
@@ -163,7 +164,7 @@ void log_write(const char *fmt, ...)
             char temp_buf[128];
             vsnprintf(temp_buf, sizeof(temp_buf), fmt, arg);
             va_end(arg);
-            Serial0.print(temp_buf);
+            uart->print(temp_buf);
             return;
         }
     }

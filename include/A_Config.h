@@ -20,9 +20,13 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 
+extern "C" {
+#include <dirent.h>
+}
+
 // #include <ESP32-targz.h>
 
-#define code_version "2.1.1.c" // 代码版本号（16进制格式）
+#define code_version "2.1.1.6" // 代码版本号
 
 #define DMA
 
@@ -88,13 +92,22 @@
 #define Textfile "p11"
 #define isp_file "p12"
 #define Time_Zone "p13"
-    typedef struct
+typedef struct
 {
     const uint8_t *data;
     uint16_t width;
     uint16_t height;
 } ico_desc;
 #include <ESPAsyncWebServer.h>
+
+// #define USE_CDC
+
+#ifdef USE_CDC
+extern HWCDC *uart;
+#else
+extern HardwareSerial *uart;
+#endif
+
 extern AsyncWebServer server;
 extern float rain_data_raw[];
 extern int ydata[];
@@ -145,6 +158,7 @@ uint8_t getBatterysoc();
 
 #include "hal.h"
 #include "weather.h"
+#include "lyrics.h"
 #include "myNTP.h"
 #include "AppManager.h"
 #include "GUI.h"

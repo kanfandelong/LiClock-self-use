@@ -43,30 +43,34 @@ bool AudioGeneratorOpus::begin(AudioFileSource *source, AudioOutput *output)
 {
   buff = (int16_t*)malloc(OPUS_BUFF * sizeof(int16_t));
   if (!buff) {
-    log_i("malloc failed");
+    log_e("malloc failed");
     return false;
   }
 
   if (!source) {
-    log_i("source is null");
+    log_e("source is null");
     return false;
   }
   file = source;
   if (!output) {
-    log_i("output is null");
+    log_e("output is null");
     return false;
   }
   this->output = output;
   if (!file->isOpen()) {
-    log_i("file not open");
+    log_e("file not open");
     return false; // Error
   }
 
-  of = op_open_callbacks((void*)this, &cb, nullptr, 0, nullptr);
+  int err;
+  of = op_open_callbacks((void*)this, &_cb, nullptr, 0, &err);
   if (!of) {
-    log_i("op_open_callbacks failed");
+    log_e("op_open_callbacks failed, errno: %d", err);
     return false;
   }
+
+  // Process tags immediately after opening the file
+  processTags();
 
   prev_li = -1;
   lastSample[0] = 0;
@@ -108,8 +112,8 @@ bool AudioGeneratorOpus::loop()
     }
 
     #ifdef CONFIG_DAC_32bit
-    lastSample[AudioOutput::LEFTCHANNEL] = buff[buffPtr] & 0xffff << 16; 
-    lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr+1] & 0xffff << 16; 
+    lastSample[AudioOutput::LEFTCHANNEL] = buff[buffPtr] << 16; 
+    lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr+1] << 16; 
     #else
     lastSample[AudioOutput::LEFTCHANNEL] = buff[buffPtr] & 0xffff; 
     lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr+1] & 0xffff; 
@@ -159,4 +163,75 @@ opus_int64 AudioGeneratorOpus::tell_cb() {
 int AudioGeneratorOpus::close_cb() {
   // NO OP, we close in main loop
   return 0;
+}
+
+void AudioGeneratorOpus::processTags()
+{
+  const OpusTags *tags = op_tags(of, -1); // -1 means current link
+  if (!tags) {
+    log_w("No tags found in Opus file");
+    return;
+  }
+
+  // Log vendor string
+  if (tags->vendor) {
+    log_i("Opus Vendor: %s", tags->vendor);
+  }
+
+  // Process all user comments
+  for (int i = 0; i < tags->comments; i++) {
+    if (tags->user_comments[i] && tags->comment_lengths[i] > 0) {
+      // Create a null-terminated copy for processing
+      const unsigned MAX_STATIC = 255;
+      char staticBuf[256];
+      char *buf = nullptr;
+      
+      if (tags->comment_lengths[i] > MAX_STATIC) {
+        // Try dynamic allocation
+        buf = (char *)malloc(tags->comment_lengths[i] + 1);
+        if (buf) {
+          memcpy(buf, tags->user_comments[i], tags->comment_lengths[i]);
+          buf[tags->comment_lengths[i]] = '\0';
+        } else {
+          // Allocation failed, fallback to static buffer and truncate
+          memcpy(staticBuf, tags->user_comments[i], MAX_STATIC);
+          staticBuf[MAX_STATIC] = '\0';
+          buf = staticBuf;
+        }
+      } else {
+        // Use static buffer
+        memcpy(staticBuf, tags->user_comments[i], tags->comment_lengths[i]);
+        staticBuf[tags->comment_lengths[i]] = '\0';
+        buf = staticBuf;
+      }
+      
+      // Find the first '=' separator
+      char *eq = strchr(buf, '=');
+      if (eq) {
+        *eq = '\0'; // split into key and value
+        const char *key = buf;
+        const char *value = eq + 1;
+        // log_i("Opus Tag: %s = %s", key, value);
+        cb.md(key, false, value);
+      } else {
+        // No '=', treat whole string as key with empty value
+        // log_i("Opus Tag: %s", buf);
+        cb.md(buf, false, "");
+      }
+      
+      // Free dynamic allocation if used
+      if (buf != staticBuf && buf != nullptr) {
+        free(buf);
+      }
+    }
+  }
+  
+  // Calculate and send total time if possible
+  ogg_int64_t total_samples = op_pcm_total(of, -1);
+  if (total_samples > 0) {
+    // Opus always decodes at 48000 Hz
+    uint64_t total_time = (uint64_t)total_samples * 1000 / 48000;
+    log_i("Total time: %llu ms", total_time);
+    cb.md("tlen", false, ((String)total_time).c_str());
+  }
 }

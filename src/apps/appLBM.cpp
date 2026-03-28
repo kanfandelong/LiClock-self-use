@@ -127,7 +127,7 @@ void AppLBM::setup(){
             titles[i] = (char *)malloc(strlen(dir.name()) + 1);
             strcpy(titles[i], dir.name());
             i++;
-            Serial0.printf("%s\n", dir.name());
+            uart->printf("%s\n", dir.name());
         }
         dir.close();
         dir = root.openNextFile();

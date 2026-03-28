@@ -185,7 +185,7 @@ void printFlashInfo(void)
 
 void printPartitionsInfo(void)
 {
-  chip_report_printf("Partitions Info:\n");
+  // chip_report_printf("Partitions Info:\n");
   chip_report_printf("------------------------------------------\n");
   esp_partition_iterator_t iterator = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, NULL);
   if (iterator != NULL)
@@ -355,8 +355,8 @@ void printPerimanInfo(void)
 void printBeforeSetupInfo(void)
 {
 #if ARDUINO_USB_CDC_ON_BOOT
-  Serial0.begin(0);
-  Serial0.setDebugOutput(true);
+  uart->begin(0);
+  uart->setDebugOutput(true);
   uint8_t t = 0;
   while (!Serial && (t++ < 200))
   {

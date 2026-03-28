@@ -4,8 +4,8 @@
 
 #define LOG(fmt, ...) \
   do { \
-    Serial0.printf("[%s:%d] ", __FILE__, __LINE__); \
-    Serial0.printf(fmt, ##__VA_ARGS__); \
+    uart->printf("[%s:%d] ", __FILE__, __LINE__); \
+    uart->printf(fmt, ##__VA_ARGS__); \
   } while (0)
 
 static const menu_item Bytes_menu[] =

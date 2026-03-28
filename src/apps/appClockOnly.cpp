@@ -102,7 +102,7 @@ void AppClockOnly::setup()
     else
         display.drawXBitmap(SCREEN_WIDTH - 25, SCREEN_HEIGHT - 17, getBatteryIcon(), 20, 16, 0);
 
-    display.display();
+    display.display(true);
 
     appManager.noDeepSleep = false;
     appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;

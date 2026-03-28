@@ -4,9 +4,15 @@
 U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 #ifndef DMA
 SPIClass DisplaySPI(FSPI);
-ST7305 display(SCREEN_WIDTH, SCREEN_HEIGHT, &DisplaySPI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_BUSY);
+ST7305 display(SCREEN_WIDTH, SCREEN_HEIGHT, &DisplaySPI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_TE);
 #else
-ST7305_DMA display(SCREEN_WIDTH, SCREEN_HEIGHT, SPI2_HOST, CONFIG_SPI_SCK, CONFIG_SPI_MOSI, CONFIG_SPI_MOSI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_BUSY);
+ST7305_DMA display(SCREEN_WIDTH, SCREEN_HEIGHT, SPI2_HOST, CONFIG_SPI_SCK, CONFIG_SPI_MOSI, CONFIG_SPI_MOSI, CONFIG_SPI_CS, CONFIG_PIN_DC, CONFIG_PIN_RST, CONFIG_PIN_TE);
+#endif
+
+#ifdef USE_CDC
+HWCDC *uart = NULL;
+#else
+HardwareSerial *uart = NULL;
 #endif
 
 DynamicJsonDocument config(1024);
@@ -73,8 +79,7 @@ void setup()
 
     alarms.load();
     alarms.check();
-    Serial0.print("当前CPU频率：");
-    Serial0.println(ESP.getCpuFreqMHz());
+    uart->printf("当前CPU频率：%lu\n", ESP.getCpuFreqMHz());
     log_i("启动appManager...");
     xTaskCreatePinnedToCore(task_appManager, "appManager", 8192, NULL, 4, NULL, 1);
     if (hal.pref.getInt("oobe", 0) <= 2)

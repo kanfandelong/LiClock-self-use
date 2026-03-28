@@ -21,6 +21,15 @@ typedef struct
     uint16_t h;
 } HEADGRAY;
 
+typedef struct
+{
+    uint8_t scan;
+    uint8_t gray;
+    uint16_t w;
+    uint16_t h;
+    uint16_t frametime;
+} LBM_V_HEAD;
+
 namespace GUI
 {
     extern int last_buffer_idx;
@@ -37,7 +46,8 @@ namespace GUI
     int msgbox_time(const char *title, int pre_value);
     int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8, int default_selected = 0);
     int select_menu(const char *title, const menu_select options[], int default_selected = 0);
-    void drawLBM(int16_t x, int16_t y,const char *filename, uint16_t color);
+    void PlayLBM_V(int16_t x, int16_t y, const char *filename, uint16_t color);
+    void drawLBM(int16_t x, int16_t y, const char *filename, uint16_t color);
     void drawGrayScaleImage(bool is4Bit, int x, int y, int w, int h, const uint8_t *bitmap);
     void drawbitmap(int16_t x, int16_t y, const uint8_t bitmap[],int16_t w, int16_t h, uint16_t color);
     void drawBMP(const char *filename, bool partial_update = 1, bool overwrite = 0, int16_t x = 0, int16_t y = 0, bool with_color  = 1);
@@ -53,7 +63,7 @@ namespace GUI
      * @param cwd 打开的目录，默认为根目录
      * @param file_system 文件系统，默认NULL(会提示用户选择文件系统),传入"TF"或"LittleFS"字符串以选择打开的文件系统
      * @note  传入NULL以禁用，endsWidth,gotoendsWidth,gotoendsWidth,file_system
-     * @return 返回文件名，如果返回NULL，则用户取消选择
+     * @return 用户选择的文件
      */
     const char *fileDialog(const char *title, bool isApp = false, const char *endsWidth = NULL, const char *gotoendsWidth = ".i", String cwd = "/", const char *file_system = NULL, bool cleardepth = true);
 } // namespace GUI

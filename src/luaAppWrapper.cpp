@@ -32,8 +32,8 @@ void LuaAppWrapper::init()
 {
     if (file_exist((path + "/conf.lua").c_str()))
     {
-        Serial0.print("文件存在: ");
-        Serial0.println(path);
+        uart->print("文件存在: ");
+        uart->println(path);
         closeLua();
         openLua_simple();
         lua_pushstring(L, "无标题");
@@ -126,11 +126,11 @@ static void luawrapper_deepsleep()
 void LuaAppWrapper::setup()
 {
     setPath(path.c_str());
-    Serial0.printf("pach:%s\n", path.c_str());
+    uart->printf("pach:%s\n", path.c_str());
     closeLua();
     openLua();
-    Serial0.println("正在打开Lua APP");
-    Serial0.printf("getRealPath: %s\n", getRealPath("./main.lua"));
+    uart->println("正在打开Lua APP");
+    uart->printf("getRealPath: %s\n", getRealPath("./main.lua"));
     if (file_exist(getRealPath("./main.lua")))
     {
         lua_execute("./main.lua");
@@ -192,7 +192,7 @@ void newLuaApp(const String filename, const String path)
     {
         return;
     }
-    // Serial0.printf("[文件] 新的LuaApp: %s (%s)\n", filename.c_str(), path.c_str());
+    // uart->printf("[文件] 新的LuaApp: %s (%s)\n", filename.c_str(), path.c_str());
     LuaAppWrapper *ptr = new LuaAppWrapper(filename, path);
     ptr->init();
 }

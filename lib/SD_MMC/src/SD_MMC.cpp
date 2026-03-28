@@ -163,6 +163,16 @@ void SDMMCFS::end()
     }
 }
 
+esp_err_t SDMMCFS::readRaw(void* src, size_t start_sector, size_t sector_count)
+{
+    return sdmmc_read_sectors(_card, src, start_sector, sector_count);
+}
+
+esp_err_t SDMMCFS::writeRaw(void* src, size_t start_sector, size_t sector_count)
+{
+    return sdmmc_write_sectors(_card, src, start_sector, sector_count);
+}
+
 sdcard_type_t SDMMCFS::cardType()
 {
     if(!_card) {

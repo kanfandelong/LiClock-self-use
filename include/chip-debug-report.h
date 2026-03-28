@@ -3,7 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#pragma once
+#ifndef __CHIP_DEBUG_REPORT_H__
+#define __CHIP_DEBUG_REPORT_H__
 #include "esp_heap_caps.h"
 #include "esp_chip_info.h"
 #include "esp_idf_version.h"
@@ -22,10 +23,12 @@
 #endif
 #include "esp_bit_defs.h"
 
-#include "Arduino.h"
+// #include "Arduino.h"
 // #include "esp32-hal-periman.h"
 
-#define chip_report_printf Serial0.printf
+#include "A_Config.h"
+
+#define chip_report_printf uart->printf
 #define ARDUINO_HOST_OS "Windows10 x64 22H2 19045.6466"
 
 #define printMemCapsInfo(caps) _printMemCapsInfo(MALLOC_CAP_##caps, #caps)
@@ -42,3 +45,5 @@ void printBoardInfo(void);
 void printPerimanInfo(void);
 void printBeforeSetupInfo(void);
 void printAfterSetupInfo(void);
+
+#endif /* __CHIP_DEBUG_REPORT_H__ */

@@ -63,6 +63,7 @@ private:
     void (*fTimer)() = NULL;
     uint32_t timer_interval = 0;
     time_t timer_triggertime = 0;
+    bool skipSwitchAnimation = true;
 
 public:
     AppBase *currentApp = NULL;
@@ -84,6 +85,7 @@ public:
     void goBack();
     void App_Preferences_init();
     void showAppList(int page);                    // 显示Applist
+    void animateAppSelection(int appIndex, int currentPage, AppBase *selectedApp);
     AppBase *appSelector(bool showHidden = false); // 显示Applist并等待用户输入
     void update();
     String parameter = "";                        // 传递的参数，会在goto目标app的setup执行完后自动清空

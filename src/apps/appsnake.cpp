@@ -37,7 +37,7 @@ void IRAM_ATTR changeR()
   // 检查距离上次切换的时间是否足够长，如果是则切换方向
   if (millis() - lastChangeTime > 200)
   {
-    Serial0.println("按键1按下");
+    uart->println("按键1按下");
     lastChangeTime = millis();
     if (snakeDirection == UP)
     {
@@ -63,7 +63,7 @@ void IRAM_ATTR changeL()
   // 检查距离上次切换的时间是否足够长，如果是则切换方向
   if (millis() - lastChangeTime > 200)
   {
-    Serial0.println("按键2按下");
+    uart->println("按键2按下");
     lastChangeTime = millis();
     if (snakeDirection == UP)
     {
@@ -203,7 +203,7 @@ void Appsnake::drawGame()
 
   display.drawRoundRect(4, 21, 288, 102, 2, TFT_BLACK);
 
-  // Serial0.println(score);
+  // uart->println(score);
 
   display.display();
 }
@@ -257,7 +257,7 @@ void Appsnake::moveSnake()
     if (head.x == snakeshuzu[i].x && head.y == snakeshuzu[i].y)
     {
       // 蛇头撞到自己身体
-      Serial0.println("吃自己了！！！！！！！！");
+      uart->println("吃自己了！！！！！！！！");
       chiziij();
       // 等待按键输入
       /* while (!hal.btnl.isPressing() && !hal.btnr.isPressing() && !hal.btnc.isPressing()) {
@@ -383,7 +383,7 @@ void Appsnake::setup()
   if (file)
   {
     highscore = file.parseInt();
-    Serial0.println("读取最高分");
+    uart->println("读取最高分");
     file.close();
   }
   display.fillScreen(TFT_WHITE);

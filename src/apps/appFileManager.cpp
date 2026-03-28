@@ -43,7 +43,7 @@ const char *filepath;                      // 保存文件夹
 RTC_DATA_ATTR const char *filename = NULL; // 保存从文件选择的完整文件名
 extern RTC_DATA_ATTR char buf[];
 
-class Appwenjian : public AppBase
+class AppFileManager : public AppBase
 {
 private:
     /**
@@ -322,7 +322,7 @@ private:
     }
 
 public:
-    Appwenjian()
+    AppFileManager()
     {
         name = "wenjian";
         title = "文件管理";
@@ -350,9 +350,9 @@ public:
     String toApp = "";
     bool hasToApp = false;
 };
-static Appwenjian wenjian;
+static AppFileManager wenjian;
 
-void Appwenjian::set()
+void AppFileManager::set()
 {
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
@@ -361,7 +361,7 @@ void Appwenjian::set()
  * @param filePath 文件路径
  * @return 文件大小（字节）
  */
-int Appwenjian::getFileSize(const char *filePath)
+int AppFileManager::getFileSize(const char *filePath)
 {
     File file = hal.open(filePath);
     int fileSize = 0;
@@ -393,7 +393,7 @@ void AppInstaller::loadApp(const String path) // 加载TF卡App
     appManager.gotoApp(&app_lua);
 }*/
 
-void Appwenjian::setup()
+void AppFileManager::setup()
 {
     display.setPowerMode(POWER_MODE_HPM);
     char char_buf[64];
@@ -586,13 +586,13 @@ file_info:
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
-                    // Serial0.println("[文件管理]file无法打开文件");
+                    // uart->println("[文件管理]file无法打开文件");
                     error("无法打开文件%s", filename);
                     break;
                 }
                 if (!newfile)
                 {
-                    // Serial0.println("[文件管理]newfile 无法打开文件");
+                    // uart->println("[文件管理]newfile 无法打开文件");
                     error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
@@ -629,12 +629,12 @@ file_info:
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
-                    // Serial0.println("[文件管理]file无法打开文件");
+                    // uart->println("[文件管理]file无法打开文件");
                     error("无法打开文件%s", filename);
                 }
                 if (!newfile)
                 {
-                    // Serial0.println("[文件管理]newfile 无法打开文件");
+                    // uart->println("[文件管理]newfile 无法打开文件");
                     error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                 }
                 unsigned long begin = millis();
@@ -757,7 +757,7 @@ char fullPath[300];
  * @param filePath 完整文件路径
  * @return 文件名
  */
-const char *Appwenjian::getFileName(const char *filePath)
+const char *AppFileManager::getFileName(const char *filePath)
 {
     // 找到最后一个斜杠的位置
     const char *lastSlash = strrchr(filePath, '/');
@@ -780,7 +780,7 @@ const char *Appwenjian::getFileName(const char *filePath)
  * @param fileName 文件名
  * @return 完整文件路径
  */
-const char *Appwenjian::combinePath(const char *directory, const char *fileName)
+const char *AppFileManager::combinePath(const char *directory, const char *fileName)
 {
     // 计算所需的缓冲区大小（目录长度 + 文件名长度 + 斜杠 + 结束符）
     size_t directoryLen = strlen(directory);
@@ -810,7 +810,7 @@ const char *Appwenjian::combinePath(const char *directory, const char *fileName)
  * @param prefix 特定前缀
  * @return 去除前缀后的路径
  */
-/* const char* Appwenjian::remove_path_prefix(const char* path, const char* prefix) {
+/* const char* AppFileManager::remove_path_prefix(const char* path, const char* prefix) {
     size_t prefix_len = strlen(prefix);
     size_t path_len = strlen(path);
 
@@ -827,7 +827,7 @@ const char *Appwenjian::combinePath(const char *directory, const char *fileName)
  * @param filePath 完整文件路径
  * @return 目录路径
  */
-const char *Appwenjian::getDirectoryPath(const char *filePath)
+const char *AppFileManager::getDirectoryPath(const char *filePath)
 {
     // 找到最后一个斜杠的位置
     const char *lastSlash = strrchr(filePath, '/');
@@ -852,7 +852,7 @@ const char *Appwenjian::getDirectoryPath(const char *filePath)
  * @param filename 文件名
  * @return 文件后缀
  */
-const char *Appwenjian::get_houzhui(const char *filename)
+const char *AppFileManager::get_houzhui(const char *filename)
 {
     const char *dot = strrchr(filename, '.'); // 找到最后一个 '.' 的位置
     if (!dot || dot == filename)
@@ -864,7 +864,7 @@ const char *Appwenjian::get_houzhui(const char *filename)
 /**
  * 打开文件函数，将对应文件的处理或查看方式对应至对应的app
  */
-void Appwenjian::openfile()
+void AppFileManager::openfile()
 {
     log_i("openfile,filename:%s", filename);
     const char *houzhui = get_houzhui(filename);
@@ -1033,6 +1033,11 @@ void Appwenjian::openfile()
         toApp = "musicplayer";
         appManager.gotoApp(toApp.c_str());
     }
+    else if(strcasecmp(houzhui, "vlbm") == 0 || strcasecmp(houzhui, "VLBM") == 0)
+    {
+        GUI::PlayLBM_V(0, 0, filename, TFT_BLACK);
+        // hal.wait_input();
+    }
     else
     {
         GUI::msgbox("提示", "文件格式没有支持的显示或处理方式，将使用16进制(bin)模式打开");
@@ -1044,7 +1049,7 @@ void Appwenjian::openfile()
  * @param _file 控制函数打开的文件系统
  * @note 使用全局变量 directoryname 返回选择的文件夹名称
  */
-void Appwenjian::selctwenjianjia(bool _file)
+void AppFileManager::selctwenjianjia(bool _file)
 {
 
     directorylist.clear();
@@ -1137,7 +1142,7 @@ void Appwenjian::selctwenjianjia(bool _file)
         strcpy(result, fileList[appIdx].title);
         strcat(result, "/");
         directoryname = result;
-        Serial0.print(directoryname);*/
+        uart->print(directoryname);*/
 
         /*std::string original(fileList[appIdx].title);
         std::string modified = "/" + original + "/";
@@ -1159,7 +1164,7 @@ void Appwenjian::selctwenjianjia(bool _file)
     }
 }
 
-void Appwenjian::uint8tobuf(uint8_t *input, int inputSize, char *output)
+void AppFileManager::uint8tobuf(uint8_t *input, int inputSize, char *output)
 {
     for (int i = 0; i < inputSize; i++)
     {
