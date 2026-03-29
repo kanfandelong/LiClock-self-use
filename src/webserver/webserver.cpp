@@ -315,10 +315,12 @@ void beginFileServer(bool for_TF)
         if (!peripherals.isSDLoaded())
             peripherals.load(PERIPHERALS_SD_BIT);
         spiffs_upload_handler = new SPIFFSEditor(SD_MMC);
+        spiffs_upload_handler->is_littlefs = false;
     }
     else
     {
         spiffs_upload_handler = new SPIFFSEditor(LittleFS);
+        spiffs_upload_handler->is_littlefs = true;
     }
     spiffs_upload_handler->setlittlefs(LittleFS);
     server.addHandler(spiffs_upload_handler);
@@ -386,6 +388,7 @@ void beginFileServer(bool for_TF)
                         peripherals.load(PERIPHERALS_SD_BIT);
                         if (peripherals.isSDLoaded()) {
                             spiffs_upload_handler->setFileSystem(SD_MMC);
+                            spiffs_upload_handler->is_littlefs = false;
                             request->send(200, "text/plain", "SD");
                         }
                         else {
@@ -399,10 +402,12 @@ void beginFileServer(bool for_TF)
                     }
                     else {   
                         spiffs_upload_handler->setFileSystem(SD_MMC);
+                        spiffs_upload_handler->is_littlefs = false;
                         request->send(200, "text/plain", "SD");
                     }
                 } else {
                     spiffs_upload_handler->setFileSystem(LittleFS);
+                    spiffs_upload_handler->is_littlefs = true;
                     request->send(200, "text/plain", "LittleFS");
                 } });
     server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -589,6 +594,7 @@ void beginWebServer()
                                         peripherals.load(PERIPHERALS_SD_BIT);
                                         if (peripherals.isSDLoaded()) {
                                             spiffs_upload_handler->setFileSystem(SD_MMC);
+                                            spiffs_upload_handler->is_littlefs = false;
                                             request->send(200, "text/plain", "SD");
                                         }
                                         else {
@@ -602,10 +608,12 @@ void beginWebServer()
                                     }
                                     else {   
                                         spiffs_upload_handler->setFileSystem(SD_MMC);
+                                        spiffs_upload_handler->is_littlefs = false;
                                         request->send(200, "text/plain", "SD");
                                     }
                                 } else {
                                     spiffs_upload_handler->setFileSystem(LittleFS);
+                                    spiffs_upload_handler->is_littlefs = true;
                                     request->send(200, "text/plain", "LittleFS");
                                 } });
     server.on("/fs_get", HTTP_POST, [](AsyncWebServerRequest *request)
@@ -635,10 +643,12 @@ void beginWebServer()
         if (!peripherals.isSDLoaded())
             peripherals.load(PERIPHERALS_SD_BIT);
         spiffs_upload_handler = new SPIFFSEditor(SD_MMC);
+        spiffs_upload_handler->is_littlefs = false;
     }
     else
     {
         spiffs_upload_handler = new SPIFFSEditor(LittleFS);
+        spiffs_upload_handler->is_littlefs = true;
     }
     spiffs_upload_handler->setlittlefs(LittleFS);
     server.addHandler(spiffs_upload_handler);

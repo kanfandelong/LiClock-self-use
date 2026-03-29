@@ -269,6 +269,7 @@ namespace GUI
         constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
         int total = 0;
         bool hasIcon = false;
+        bool init = false;
 
         // 计算总项目数和检查图标
         while (options[total].title != NULL)
@@ -295,9 +296,10 @@ namespace GUI
         bool waitc = false;
         unsigned long wait_time = 0;
 
-        hal.hookButton();
+        hal.hookButton(true);
         push_buffer();
         wait_time = millis();
+        goto init_draw;
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -355,6 +357,7 @@ namespace GUI
 
             if (updated)
             {
+            init_draw:
                 // 判断是否出界并更新页面起始位置
                 if (selected < pageStart)
                 {
@@ -403,6 +406,11 @@ namespace GUI
                 // 动画结束后更新 prev_selected
                 prev_selected = selected;
                 updated = false;
+                while (!init && (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()))
+                {
+                    delay(10);
+                }
+                init = true;
             }
             if (waitc == true)
             {
@@ -462,6 +470,7 @@ namespace GUI
         bool updated = true;
         bool hasIcon = true;
         bool waitc = false;
+        bool init = false;
         unsigned long wait_time = 0;
         while (options[total].title != NULL)
         {
@@ -474,7 +483,7 @@ namespace GUI
         uint8_t temp[32];
         char hex_hash[65]; // 64 字节的十六进制字符串 + 1 字节的 null 终止符
         barHeight = number_of_items * 96 / total;
-        hal.hookButton();
+        hal.hookButton(true);
         push_buffer();
         // 通过sha256为每一个选项生成一个key，以便存储
         int i = 0;
@@ -504,6 +513,7 @@ namespace GUI
         }
 
         wait_time = millis();
+        goto init_draw;
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -578,6 +588,7 @@ namespace GUI
 
             if (updated)
             {
+            init_draw:
                 // 判断是否出界并更新页面起始位置
                 if (selected < pageStart)
                 {
@@ -639,6 +650,11 @@ namespace GUI
                 // 动画结束后更新 prev_selected
                 prev_selected = selected;
                 updated = false;
+                while (!init && (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()))
+                {
+                    delay(10);
+                }
+                init = true;
             }
             if (waitc == true)
             {

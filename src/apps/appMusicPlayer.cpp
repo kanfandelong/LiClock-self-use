@@ -2672,7 +2672,7 @@ void AppMusicPlayer::show_display_debug()
         if (info.tlen != 0 && play_time > info.tlen)
             play_time = info.tlen;
 
-        display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
+        display.drawRoundRect(x, y - 8, w1, 8, 2, TFT_BLACK);
         // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
         u8g2Fonts.setCursor(341, y);
         u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
@@ -2737,7 +2737,7 @@ void AppMusicPlayer::show_display_debug()
     if (w > w1)
         w = w1;
     // display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
-    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
+    display.fillRoundRect(x, y - 8, (int16_t)w, 8, 2, TFT_BLACK);
     u8g2Fonts.setCursor(18, y);
     u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
 
@@ -2942,7 +2942,7 @@ void AppMusicPlayer::show_display_fft()
         if (info.tlen != 0 && play_time > info.tlen)
             play_time = info.tlen;
 
-        display.drawRoundRect(x, y - 6, w1, 5, 2, TFT_BLACK);
+        display.drawRoundRect(x, y - 8, w1, 8, 2, TFT_BLACK);
         // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
         u8g2Fonts.setCursor(341, y);
         u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
@@ -3007,7 +3007,7 @@ void AppMusicPlayer::show_display_fft()
     if (w > w1)
         w = w1;
     // display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
-    display.fillRoundRect(x, y - 6, (int16_t)w, 5, 2, TFT_BLACK);
+    display.fillRoundRect(x, y - 8, (int16_t)w, 8, 2, TFT_BLACK);
     u8g2Fonts.setCursor(18, y);
     u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
 
@@ -3058,10 +3058,10 @@ void AppMusicPlayer::show_display_fft()
             vReal[i] = vReal[i] * fft_gain;
 
             // 限幅处理
-            if (vReal[i] > 60)
-                vReal[i] = 60;
-            if (vReal[i] < 0)
-                vReal[i] = 0;
+            if (vReal[i] > 60.0f)
+                vReal[i] = 60.0f;
+            if (vReal[i] < 0.0f)
+                vReal[i] = 0.0f;
             // 保存数据用于显示和平滑
             previousSpectrum[i] = vReal[i];
         }
@@ -3070,8 +3070,8 @@ void AppMusicPlayer::show_display_fft()
             for (int i = 0; i < 128; i++)
             {
                 // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 2, 75 - previousSpectrum[i], previousSpectrum[i] + 1, TFT_BLACK);
+                display.drawFastVLine(i * 3 + 1, 75 - (int)previousSpectrum[i], (int)previousSpectrum[i] + 1, TFT_BLACK);
+                display.drawFastVLine(i * 3 + 2, 75 - (int)previousSpectrum[i], (int)previousSpectrum[i] + 1, TFT_BLACK);
             }
         else if (SAMPLES == 512)
         {
@@ -3079,7 +3079,7 @@ void AppMusicPlayer::show_display_fft()
             for (int i = 0; i < 128; i++)
             {
                 // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-                int value = (previousSpectrum[i * index] + previousSpectrum[(i * index) + 1]) * 0.5f;
+                int value = ((int)previousSpectrum[i * index] + (int)previousSpectrum[(i * index) + 1]) * 0.5f;
                 display.drawFastVLine(i * 3 + 1, 75 - value, value + 1, TFT_BLACK);
                 display.drawFastVLine(i * 3 + 2, 75 - value, value + 1, TFT_BLACK);
             }
@@ -3090,8 +3090,8 @@ void AppMusicPlayer::show_display_fft()
             for (int i = 0; i < 128; i++)
             {
                 // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 1, 75 - previousSpectrum[i * index], previousSpectrum[i * index] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 2, 75 - previousSpectrum[i * index], previousSpectrum[i * index] + 1, TFT_BLACK);
+                display.drawFastVLine(i * 3 + 1, 75 - (int)previousSpectrum[i * index], (int)previousSpectrum[i * index] + 1, TFT_BLACK);
+                display.drawFastVLine(i * 3 + 2, 75 - (int)previousSpectrum[i * index], (int)previousSpectrum[i * index] + 1, TFT_BLACK);
             }
         }
     }

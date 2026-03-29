@@ -1,15 +1,15 @@
 #include "SPIFFSEditor.h"
 #include <FS.h>
 
-
-typedef enum {
+typedef enum
+{
     OP_WRITE,
     OP_CLOSE
 } file_op_t;
 
 typedef struct
 {
-    file_op_t op;      // 操作类型
+    file_op_t op; // 操作类型
     File *file;
     uint8_t *data;
     size_t size;
@@ -22,10 +22,13 @@ static void process_multi_thread_queue()
 {
     multi_thread_params_t params;
     xQueueReceive(multi_thread_queue, &params, portMAX_DELAY);
-    if (params.op == OP_WRITE && params.size != 0) {
+    if (params.op == OP_WRITE && params.size != 0)
+    {
         params.file->write(params.data, params.size);
         free(params.data);
-    } else if (params.op == OP_CLOSE) {
+    }
+    else if (params.op == OP_CLOSE)
+    {
         params.file->close();
     }
 }
@@ -174,42 +177,87 @@ void SPIFFSEditor::handleRequest(AsyncWebServerRequest *request)
         if (request->hasParam("list"))
         {
             String path = request->getParam("list")->value();
+            if (path.endsWith("/"))
+            {
+                if (path.length() > 1)
+                {
+                    path.remove(path.length() - 1); // 去掉最后一个字符
+                }
+                else
+                {
+                    path = ""; // 如果根目录 "/" ，设为空字符串
+                }
+            }
 #ifdef ESP32
-            File dir = _fs.open(path);
+            String full_path = (is_littlefs ? "/littlefs" : "/sd") + path;
+            DIR *dir = nullptr;
+            dir = opendir(full_path.c_str());
+            if (dir == nullptr)
+            {
+                log_e("%s 无法打开", full_path.c_str());
+                request->send(403, "application/txt", "文件夹打开失败");
+                return;
+            }
 #else
             Dir dir = _fs.openDir(path);
 #endif
-            path = String();
+            // path = String();
             String output = "[";
 #ifdef ESP32
-            File entry = dir.openNextFile();
-            while (entry)
+            struct dirent *entry;
+            while ((entry = readdir(dir)) != nullptr)
             {
 #else
             while (dir.next())
             {
                 fs::File entry = dir.openFile("r");
 #endif
+                // 跳过当前目录和父目录
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                    continue;
+                // 构建完整路径以便获取详细信息
+                char _full_path[512];
+                snprintf(_full_path, sizeof(_full_path), "%s/%s", full_path.c_str(), entry->d_name);
+
+                struct stat st;
+                if (stat(_full_path, &st) != 0)
+                {
+                    log_e("Cannot stat: %s", _full_path);
+                    continue;
+                }
+
                 if (output != "[")
                     output += ',';
                 output += "{\"type\":\"";
-                if (entry.isDirectory())
+
+                if (S_ISDIR(st.st_mode))
+                {
+                    // log_e("\033[36m[DIR] %s\033[0m\n", entry->d_name);
                     output += "folder";
-                else
+                }
+                else if (S_ISREG(st.st_mode))
+                {
+                    // log_e("[FILE] %s (%u bytes)\n", entry->d_name, (unsigned int)st.st_size);
                     output += "file";
+                }
+                else
+                {
+                    log_e("[UNKN] %s\n", entry->d_name);
+                }
                 output += "\",\"name\":\"";
-                output += String(entry.name());
+                output += String(entry->d_name);
                 output += "\",\"size\":";
-                output += String(entry.size());
+                output += String((unsigned int)st.st_size);
                 output += "}";
 #ifdef ESP32
-                entry = dir.openNextFile();
+                // entry = dir.openNextFile();
 #else
                 entry.close();
 #endif
             }
 #ifdef ESP32
-            dir.close();
+            // dir.close();
+            closedir(dir);
 #endif
             output += "]";
             request->send(200, "application/json", output);
