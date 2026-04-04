@@ -1262,7 +1262,8 @@ bool HAL::init()
           "          Powered by 看番の龙         \n"
           "       github.com/kanfandelong       \n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
-    setenv("TZ", "CST-8", 1); // 设置时区为东八区
+    char _tz[16] = hal.pref.getString("TZ", String("CST-8")).c_str();
+    setenv("TZ", _tz, 1); // 设置时区为东八区
     tzset();
     // 读取时钟偏移
 
