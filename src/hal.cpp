@@ -1263,7 +1263,7 @@ bool HAL::init()
           "       github.com/kanfandelong       \n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
     char _tz[16];
-    sprintf(_tz, "%s", hal.pref.getString("TZ", String("CST-8")).c_str();
+    sprintf(_tz, "%s", hal.pref.getString("TZ", String("CST-8")).c_str());
     setenv("TZ", _tz, 1); // 设置时区为东八区
     tzset();
     // 读取时钟偏移
