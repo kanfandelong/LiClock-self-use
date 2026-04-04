@@ -1,110 +1,68 @@
-name: Manual Trigger Build
+name: Build and Release ESP32 Firmware
 
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag'
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
         required: true
-        default: 'v1.0.0'
-      upload:
-        description: 'Upload firmware to release'
-        required: false
-        default: 'true'
-        type: choice
-        options:
-          - 'true'
-          - 'false'
+        default: 'latest'
+      release_name:
+        description: 'Release name'
+        required: true
+        default: 'ESP32 Firmware Release'
+      build_env:
+        description: 'PlatformIO environment (from platformio.ini)'
+        required: true
+        default: 'MusicPlayer'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 允许创建 Release 并上传文件
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0  # 获取所有历史和标签
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-    - name: Install PlatformIO
-      run: |
-        python -m pip install --upgrade pip
-        pip install platformio
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
 
-    - name: Check if tag exists
-      id: check_tag
-      run: |
-        if git rev-parse "refs/tags/${{ github.event.inputs.tag }}" >/dev/null 2>&1; then
-          echo "tag_exists=true" >> $GITHUB_OUTPUT
-        else
-          echo "tag_exists=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Build firmware
+        run: pio run -e ${{ github.event.inputs.build_env }}
 
-    - name: Generate unique tag if needed
-      id: set_tag
-      run: |
-        if [ "${{ steps.check_tag.outputs.tag_exists }}" = "true" ]; then
-          echo "Tag already exists, generating unique tag"
-          new_tag="${{ github.event.inputs.tag }}-$(date +'%Y%m%d%H%M%S')"
-          echo "release_tag=$new_tag" >> $GITHUB_OUTPUT
-          echo "is_unique=true" >> $GITHUB_OUTPUT
-        else
-          echo "Tag does not exist, using original tag"
-          echo "release_tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
-          echo "is_unique=false" >> $GITHUB_OUTPUT
-        fi
+      - name: Prepare firmware files
+        id: prepare
+        run: |
+          # 查找编译生成的固件文件（常见为 firmware.bin 或类似）
+          FIRMWARE_PATH=".pio/build/${{ github.event.inputs.build_env }}/firmware.bin"
+          if [ ! -f "$FIRMWARE_PATH" ]; then
+            echo "❌ Firmware not found at $FIRMWARE_PATH"
+            exit 1
+          fi
+          # 复制一份并重命名（可选）
+          cp "$FIRMWARE_PATH" "firmware_${{ github.event.inputs.build_env }}.bin"
+          echo "firmware_name=firmware_${{ github.event.inputs.build_env }}.bin" >> $GITHUB_OUTPUT
 
-    - name: Build project
-      id: build
-      run: |
-        platformio run
-        if [ -f ".pio/build/esp32solo1/firmware.bin" ]; then
-          echo "build_success=true" >> $GITHUB_OUTPUT
-        else
-          echo "build_success=false" >> $GITHUB_OUTPUT
-          echo "Firmware file not found!"
-          exit 1
-        fi
-
-    - name: Create GitHub Release
-      id: create_release
-      if: ${{ github.event.inputs.upload == 'true' && steps.build.outputs.build_success == 'true' }}
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.set_tag.outputs.release_tag }}
-        name: Release ${{ steps.set_tag.outputs.release_tag }}
-        draft: false
-        prerelease: false
-        generate_release_notes: true
-        fail_on_unmatched_files: false
-
-    - name: Upload firmware.bin to Release
-      if: ${{ github.event.inputs.upload == 'true' && steps.build.outputs.build_success == 'true' }}
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.set_tag.outputs.release_tag }}
-        files: |
-          .pio/build/esp32solo1/firmware.bin
-          .pio/build/esp32solo1/firmware.elf
-        fail_on_unmatched_files: true
-
-    - name: Show success message
-      if: ${{ github.event.inputs.upload == 'true' && steps.build.outputs.build_success == 'true' }}
-      run: |
-        echo "✅ Release created: ${{ steps.set_tag.outputs.release_tag }}"
-        echo "📦 Firmware files uploaded to GitHub Releases"
-
-    - name: Show build-only message
-      if: ${{ github.event.inputs.upload != 'true' && steps.build.outputs.build_success == 'true' }}
-      run: |
-        echo "✅ Build completed successfully"
-        echo "📁 Firmware location: .pio/build/esp32solo1/"
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: ${{ github.event.inputs.release_name }}
+          body: |
+            Auto-generated release for PlatformIO ESP32 project.
+            Environment: ${{ github.event.inputs.build_env }}
+          draft: false
+          prerelease: false
+          files: ${{ steps.prepare.outputs.firmware_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
