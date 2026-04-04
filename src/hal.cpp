@@ -1555,7 +1555,7 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     }
     else
     {
-        WiFi.setHostname("weatherclock");
+        WiFi.setHostname(hal.pref.getString("hostname", String("LiClock-S3")).c_str());
         WiFi.mode(WIFI_STA);
         // WiFi.begin(config[PARAM_SSID].as<const char *>(), config[PARAM_PASS].as<const char *>());
         if (!wifi_config_manger())
