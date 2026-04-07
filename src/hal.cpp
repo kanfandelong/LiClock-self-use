@@ -564,17 +564,17 @@ void HAL::getTime()
         xSemaphoreGive(peripherals.i2cMutex);
 
         // 临时将系统时区改为 UTC，使 mktime 将输入解释为 UTC 时间
-        const char* oldTZ = getenv("TZ");
-        setenv("TZ", "UTC", 1);
-        tzset();
+        // const char* oldTZ = getenv("TZ");
+        // setenv("TZ", "UTC", 1);
+        // tzset();
         now = mktime(&utc_tm);
         // 恢复原时区
-        if (oldTZ) {
-            setenv("TZ", oldTZ, 1);
-        } else {
-            unsetenv("TZ");
-        }
-        tzset();
+        // if (oldTZ) {
+        //     setenv("TZ", oldTZ, 1);
+        // } else {
+        //     unsetenv("TZ");
+        // }
+        // tzset();
 
         localtime_r(&now, &timeinfo);
     }
