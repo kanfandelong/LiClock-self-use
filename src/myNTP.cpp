@@ -86,31 +86,40 @@ void NTPSync()
     settimeofday(&tv, NULL);
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !hal.dis_DS3231)
     {
-        tm t;
-        localtime_r(&timenow, &t);
-        int rtc_offset = ((peripherals.rtc.getMinute() * 60 + peripherals.rtc.getSecond()) - (t.tm_sec + t.tm_min * 60));
+        tm t_utc;
+        gmtime_r(&timenow, &t_utc);   // 分解为 UTC 时间
+
+        // 读取 RTC 当前值（假设 RTC 里存的也是 UTC）
+        int rtc_sec  = peripherals.rtc.getSecond();
+        int rtc_min  = peripherals.rtc.getMinute();
+        int rtc_hour = peripherals.rtc.getHour();
+        int rtc_offset = (rtc_hour * 3600 + rtc_min * 60 + rtc_sec)
+                     - (t_utc.tm_hour * 3600 + t_utc.tm_min * 60 + t_utc.tm_sec);
+
         log_i("rtc_offset:%d", rtc_offset);
         if (abs(rtc_offset) > 2)
         {    
             hal.pref.putLong("rtc_sync", timenow);
             hal.pref.putInt("rtc_offset", rtc_offset);
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-            //peripherals.rtc.setYear(t.tm_year + 1900 - 2000);
-            peripherals.rtc.setSecond(t.tm_sec);
-            peripherals.rtc.setMinute(t.tm_min);
-            peripherals.rtc.setHour(t.tm_hour);
-            peripherals.rtc.setDate(t.tm_mday);
-            peripherals.rtc.setMonth(t.tm_mon + 1);
-            peripherals.rtc.setYear(t.tm_year - 100);
-            if (t.tm_wday == 0)
+
+            // 将 UTC 时间写入 RTC
+            peripherals.rtc.setSecond(t_utc.tm_sec);
+            peripherals.rtc.setMinute(t_utc.tm_min);
+            peripherals.rtc.setHour(t_utc.tm_hour);
+            peripherals.rtc.setDate(t_utc.tm_mday);
+            peripherals.rtc.setMonth(t_utc.tm_mon + 1);
+            peripherals.rtc.setYear(t_utc.tm_year - 100);  // tm_year 是从 1900 起的年数
+            if (t_utc.tm_wday == 0)
                 peripherals.rtc.setDoW(7);
             else
-                peripherals.rtc.setDoW(t.tm_wday);
+                peripherals.rtc.setDoW(t_utc.tm_wday);
+
             xSemaphoreGive(peripherals.i2cMutex);
-            hal.rtc_offset();
-            info("DS3231偏移秒数:%d,更新后的偏移寄存器值:%d", hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
+            hal.rtc_offset();   // 调整 RTC 老化补偿寄存器
+            info("DS3231 已同步至 UTC，偏移秒数:%d，更新后的偏移寄存器值:%d\n", 
+                 hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
         }    
-        //uart->printf("%d.%d.%d %d %d:%d:%d\n", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_wday, t.tm_hour, t.tm_min, t.tm_sec);
     }
     // 用原数据计算误差
     {
