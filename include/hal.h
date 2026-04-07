@@ -106,6 +106,7 @@ public:
     void setWakeupIO(int io1, int io2);
     bool copy(File &newFile, File &file);
     void rm_rf(const char *path);
+    char _tz[16];
     struct tm timeinfo;
     time_t now;
     int global_hour_offset = 0;
