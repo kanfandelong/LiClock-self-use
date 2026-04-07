@@ -264,11 +264,12 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
         if (lyricsLen < 0) lyricsLen = 0;
         
         // Allocate buffer for lyrics (limit to 10KB to avoid memory exhaustion)
-        uint32_t buffer_size = lyricsLen + 1;
+        uint32_t buffer_size = lyricsLen + 5;
         if (buffer_size > 10 * 1024) {
           buffer_size = 10 * 1024;
         }
         char *lyrics = (char *)malloc(buffer_size);
+        memset(lyrics, 0, sizeof(char[buffer_size]));
         if (lyrics) {
           uint32_t i;
           for (i = 0; i < (uint32_t)lyricsLen && i < buffer_size - 1; i++) {
