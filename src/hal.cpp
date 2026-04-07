@@ -561,13 +561,7 @@ void HAL::getTime()
         utc_tm.tm_hour = peripherals.rtc.getHour();
         utc_tm.tm_min  = peripherals.rtc.getMinute();
         utc_tm.tm_sec  = peripherals.rtc.getSecond();
-        // RTC 里存的是 UTC，所以直接用 timegm 或 mktime 但设置 TZ=UTC
-        setenv("TZ", "UTC", 1);
-        tzset();
-        now = mktime(&utc_tm);        // 得到 UTC 时间戳
-        // 恢复系统时区
-        setenv("TZ", _tz, 1);  // 你需要保存当前的时区字符串
-        tzset();
+        now = timegm(&utc_tm);
         localtime_r(&now, &timeinfo); // 转换为本地时间用于显示
         xSemaphoreGive(peripherals.i2cMutex);
     }
