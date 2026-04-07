@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag (e.g., v1.0.0)'
-        required: true
-        default: 'latest'
+        description: 'Release tag (leave empty to auto-generate: YYYYMMDDHHMMSS-beta)'
+        required: false
+        default: ''
       release_name:
-        description: 'Release name'
-        required: true
-        default: 'ESP32 Firmware Release'
+        description: 'Release name (default: same as tag)'
+        required: false
+        default: ''
       build_env:
         description: 'PlatformIO environment (from platformio.ini)'
         required: true
@@ -29,7 +29,18 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.9'
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio/build
+          key: platformio-${{ hashFiles('platformio.ini') }}-${{ inputs.build_env }}-${{ github.sha }}
+          restore-keys: |
+            platformio-${{ hashFiles('platformio.ini') }}-${{ inputs.build_env }}-
+            platformio-${{ hashFiles('platformio.ini') }}-
 
       - name: Install PlatformIO
         run: |
@@ -37,32 +48,59 @@ jobs:
           pip install platformio
 
       - name: Build firmware
-        run: pio run -e ${{ github.event.inputs.build_env }}
+        run: pio run -e ${{ inputs.build_env }}
 
-      - name: Prepare firmware files
-        id: prepare
+      - name: Collect firmware files
+        id: collect
         run: |
-          # 查找编译生成的固件文件（常见为 firmware.bin 或类似）
-          FIRMWARE_PATH=".pio/build/${{ github.event.inputs.build_env }}/firmware.bin"
-          if [ ! -f "$FIRMWARE_PATH" ]; then
-            echo "❌ Firmware not found at $FIRMWARE_PATH"
+          BUILD_DIR=".pio/build/${{ inputs.build_env }}"
+          if [ ! -d "$BUILD_DIR" ]; then
+            echo "❌ Build directory not found: $BUILD_DIR"
             exit 1
           fi
-          # 复制一份并重命名（可选）
-          cp "$FIRMWARE_PATH" "firmware_${{ github.event.inputs.build_env }}.bin"
-          echo "firmware_name=firmware_${{ github.event.inputs.build_env }}.bin" >> $GITHUB_OUTPUT
 
-      - name: Create Release
-        id: create_release
+          # 查找所有 .bin 和 .elf 文件，生成以换行分隔的文件列表
+          FILE_LIST=$(find "$BUILD_DIR" -maxdepth 1 -type f \( -name "*.bin" -o -name "*.elf" \) | sed 's/^/  /')
+          if [ -z "$FILE_LIST" ]; then
+            echo "⚠️ No .bin or .elf files found in $BUILD_DIR"
+          else
+            echo "Found files:"
+            echo "$FILE_LIST"
+            # 将文件列表写入环境变量（保留换行）
+            echo "files<<EOF" >> $GITHUB_OUTPUT
+            find "$BUILD_DIR" -maxdepth 1 -type f \( -name "*.bin" -o -name "*.elf" \) >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine release tag and name
+        id: release_info
+        run: |
+          if [ -z "${{ inputs.release_tag }}" ]; then
+            TAG="$(date +'%Y%m%d%H%M%S')-beta"
+          else
+            TAG="${{ inputs.release_tag }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          if [ -z "${{ inputs.release_name }}" ]; then
+            NAME="$TAG"
+          else
+            NAME="${{ inputs.release_name }}"
+          fi
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-          name: ${{ github.event.inputs.release_name }}
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: ${{ steps.release_info.outputs.name }}
           body: |
             Auto-generated release for PlatformIO ESP32 project.
-            Environment: ${{ github.event.inputs.build_env }}
+            Environment: ${{ inputs.build_env }}
+            Build time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
           draft: false
           prerelease: false
-          files: ${{ steps.prepare.outputs.firmware_name }}
+          files: |
+            ${{ steps.collect.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
