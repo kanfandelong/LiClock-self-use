@@ -550,30 +550,40 @@ void HAL::loadConfig()
 
 void HAL::getTime()
 {
-    int64_t tmp;
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !dis_DS3231)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
         struct tm utc_tm;
-        utc_tm.tm_year = peripherals.rtc.getYear() + 100;
+        utc_tm.tm_year = peripherals.rtc.getYear() + 100;   // 假设 getYear 返回 0-99
         utc_tm.tm_mon  = peripherals.rtc.getMonth() - 1;
         utc_tm.tm_mday = peripherals.rtc.getDate();
         utc_tm.tm_hour = peripherals.rtc.getHour();
         utc_tm.tm_min  = peripherals.rtc.getMinute();
         utc_tm.tm_sec  = peripherals.rtc.getSecond();
-        now = timegm(&utc_tm);
-        localtime_r(&now, &timeinfo); // 转换为本地时间用于显示
+        utc_tm.tm_isdst = 0;   // UTC 无夏令时
         xSemaphoreGive(peripherals.i2cMutex);
+
+        // 临时将系统时区改为 UTC，使 mktime 将输入解释为 UTC 时间
+        const char* oldTZ = getenv("TZ");
+        setenv("TZ", "UTC", 1);
+        tzset();
+        now = mktime(&utc_tm);
+        // 恢复原时区
+        if (oldTZ) {
+            setenv("TZ", oldTZ, 1);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset();
+
+        localtime_r(&now, &timeinfo);
     }
     else
     {
         time(&now);
         if (delta != 0 && lastsync < now)
         {
-            // 下面修正时钟频率偏移
-            tmp = now - lastsync;
-            tmp *= delta;
-            tmp /= every;
+            int64_t tmp = (now - lastsync) * delta / every;
             now -= tmp;
         }
         localtime_r(&now, &timeinfo);
