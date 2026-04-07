@@ -554,17 +554,21 @@ void HAL::getTime()
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !dis_DS3231)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-        timeinfo.tm_year = peripherals.rtc.getYear() + 100;
-        timeinfo.tm_mon = peripherals.rtc.getMonth() - 1;
-        timeinfo.tm_mday = peripherals.rtc.getDate();
-        timeinfo.tm_hour = peripherals.rtc.getHour();
-        timeinfo.tm_min = peripherals.rtc.getMinute();
-        timeinfo.tm_sec = peripherals.rtc.getSecond();
-        if (peripherals.rtc.getDoW() == 7)
-            timeinfo.tm_wday = 0;
-        else
-            timeinfo.tm_wday = peripherals.rtc.getDoW();
-        now = mktime(&timeinfo);
+        struct tm utc_tm;
+        utc_tm.tm_year = peripherals.rtc.getYear() + 100;
+        utc_tm.tm_mon  = peripherals.rtc.getMonth() - 1;
+        utc_tm.tm_mday = peripherals.rtc.getDate();
+        utc_tm.tm_hour = peripherals.rtc.getHour();
+        utc_tm.tm_min  = peripherals.rtc.getMinute();
+        utc_tm.tm_sec  = peripherals.rtc.getSecond();
+        // RTC 里存的是 UTC，所以直接用 timegm 或 mktime 但设置 TZ=UTC
+        setenv("TZ", "UTC", 1);
+        tzset();
+        now = mktime(&utc_tm);        // 得到 UTC 时间戳
+        // 恢复系统时区
+        setenv("TZ", _tz, 1);  // 你需要保存当前的时区字符串
+        tzset();
+        localtime_r(&now, &timeinfo); // 转换为本地时间用于显示
         xSemaphoreGive(peripherals.i2cMutex);
     }
     else
@@ -1262,7 +1266,6 @@ bool HAL::init()
           "          Powered by 看番の龙         \n"
           "       github.com/kanfandelong       \n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
-    char _tz[16];
     sprintf(_tz, "%s", hal.pref.getString("TZ", String("CST-8")).c_str());
     log_i("TZ: %s", _tz);
     setenv("TZ", _tz, 1); // 设置时区为东八区
