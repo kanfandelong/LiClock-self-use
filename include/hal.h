@@ -3,6 +3,7 @@
 #include <A_Config.h>
 #include <Preferences.h>
 #include "OneButton.h"
+#include <time.h>
 
 typedef struct
 {
