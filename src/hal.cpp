@@ -548,26 +548,31 @@ void HAL::loadConfig()
     configFile.close();
 }
 
+#include "DS3231.h"
+
 void HAL::getTime()
 {
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !dis_DS3231)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
         struct tm utc_tm;
-        utc_tm.tm_year = peripherals.rtc.getYear() + 100;   // 假设 getYear 返回 0-99
+        /*utc_tm.tm_year = peripherals.rtc.getYear() + 100;   // 假设 getYear 返回 0-99
         utc_tm.tm_mon  = peripherals.rtc.getMonth() - 1;
         utc_tm.tm_mday = peripherals.rtc.getDate();
         utc_tm.tm_hour = peripherals.rtc.getHour();
         utc_tm.tm_min  = peripherals.rtc.getMinute();
         utc_tm.tm_sec  = peripherals.rtc.getSecond();
         utc_tm.tm_isdst = 0;   // UTC 无夏令时
+        */
+        DateTime time = RTClib::now();
         xSemaphoreGive(peripherals.i2cMutex);
 
         // 临时将系统时区改为 UTC，使 mktime 将输入解释为 UTC 时间
         // const char* oldTZ = getenv("TZ");
         // setenv("TZ", "UTC", 1);
         // tzset();
-        now = mktime(&utc_tm);
+        // now = mktime(&utc_tm);
+        now = time.unixtime();
         // 恢复原时区
         // if (oldTZ) {
         //     setenv("TZ", oldTZ, 1);
