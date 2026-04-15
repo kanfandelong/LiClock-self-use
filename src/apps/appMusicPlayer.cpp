@@ -267,12 +267,32 @@ public:
     TickType_t xLastWakeTime;
     TickType_t xFrequency; // 运行周期
     BaseType_t xWasDelayed;
+    float calculateAutoGain(float *spectrum, int len);
     void show_display_fft();
     void updateVolumeUI();
     drawtime last_time;
     drawtime d_time;
 
-    
+    void show_display_tag();
+
+    // 滚动文本状态
+    struct ScrollTextState
+    {
+        String text;        // 当前显示的文本（处理过的）
+        int width;          // 文本像素宽度
+        int offset;         // 当前滚动偏移（向右为正）
+        int direction;      // 滚动方向：1 向右，-1 向左
+        uint32_t lastStep;  // 上次偏移更新时刻（毫秒）
+        bool active = true; // 是否需要滚动
+        bool needRedraw;    // 是否需要重绘（偏移改变时置位）
+        int pauseCount;
+    } scrollTitle, scrollPerformer, scrollAlbum;
+
+    // 右半屏绘制区域参数
+    int RIGHT_START_X = SCREEN_WIDTH / 2;
+    int RIGHT_END_X = SCREEN_WIDTH - 5;
+    int AVAILABLE_WIDTH = RIGHT_END_X - RIGHT_START_X;
+
     // 按键标志
     volatile bool flag_btnc_click = false;
     volatile bool flag_btnc_long = false;
@@ -280,14 +300,14 @@ public:
     volatile bool flag_btnr_long = false;
     volatile bool flag_btnl_click = false;
     volatile bool flag_btnl_long = false;
-    
+
     // 静态回调函数（用于 OneButton）
-    static void onBtnC_Click(void* param);
-    static void onBtnC_LongPressStart(void* param);
-    static void onBtnR_Click(void* param);
-    static void onBtnR_LongPressStart(void* param);
-    static void onBtnL_Click(void* param);
-    static void onBtnL_LongPressStart(void* param);
+    static void onBtnC_Click(void *param);
+    static void onBtnC_LongPressStart(void *param);
+    static void onBtnR_Click(void *param);
+    static void onBtnR_LongPressStart(void *param);
+    static void onBtnL_Click(void *param);
+    static void onBtnL_LongPressStart(void *param);
 };
 static AppMusicPlayer app; // 创建App对象
 
@@ -2324,7 +2344,7 @@ void AppMusicPlayer::player_set_menu()
             hal.pref.putInt("rst_count", _count);
             break;
         case 7:
-            smoothingFactor = (float)GUI::msgbox_number("平滑控制 0-100", 3, (int)(smoothingFactor * 100.0)) / 100.0;
+            smoothingFactor = (float)GUI::msgbox_number("平滑控制 0-100", 3, (int)(smoothingFactor * 100.0f)) / 100.0f;
             hal.pref.putFloat("fft_smooth_val", smoothingFactor);
             break;
         case 8:
@@ -2334,7 +2354,7 @@ void AppMusicPlayer::player_set_menu()
             FFT_A_amplitude = (float)GUI::msgbox_number("FFT参数2", 3, (int)(FFT_A_amplitude));
             break;
         case 10:
-            fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0)) / 100.0;
+            fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0f)) / 100.0f;
             hal.pref.putFloat("fft_gain", fft_gain);
             break;
         case 11:
@@ -2818,6 +2838,231 @@ void AppMusicPlayer::show_display_debug()
     last_time = d_time;
 }
 
+void AppMusicPlayer::show_display_tag()
+{
+    // 静态文本绘制辅助函数（右对齐，无滚动）
+    auto drawStaticRightAlignedText = [&](int y, const String &text)
+    {
+        int textWidth = u8g2Fonts.getUTF8Width(text.c_str());
+        int startX = RIGHT_END_X - textWidth;
+        if (startX < RIGHT_START_X)
+            startX = RIGHT_START_X;
+        u8g2Fonts.setCursor(startX, y);
+        u8g2Fonts.print(text);
+    };
+
+    // 分支1：backup_buff_updata == true → 绘制静态文本（不滚动，不切换缓冲区）
+    if (backup_buff_updata)
+    {
+        if (lrcisload)
+        {
+            if (!hal.pref.getBool("lrc_off_info"))
+            {
+                display.fillRect(RIGHT_START_X, 127, 192, 47, TFT_WHITE);
+                drawStaticRightAlignedText(93, info.title);
+                drawStaticRightAlignedText(110, info.performer);
+                drawStaticRightAlignedText(127, info.album);
+            }
+        }
+        else
+        {
+            display.fillRect(RIGHT_START_X, 80, 192, 47, TFT_WHITE);
+            drawStaticRightAlignedText(93, info.title);
+            drawStaticRightAlignedText(110, info.performer);
+            drawStaticRightAlignedText(127, info.album);
+
+            if (_play_end || user_stop)
+                display.drawXBitmap(22, 95, pause_bits, 24, 24, TFT_BLACK);
+            else
+                display.drawXBitmap(22, 95, play_bits, 24, 24, TFT_BLACK);
+        }
+        return; // 静态绘制完成，退出函数
+    }
+
+    // ---------- 分支2：backup_buff_updata == false → 仅处理滚动文本 ----------
+
+    const uint32_t now_ms = millis();
+
+    // 检查文本内容是否变化，更新滚动状态
+    auto checkTextChange = [&](ScrollTextState &state, const String &newText)
+    {
+        if (state.text != newText)
+        {
+            state.text = newText;
+            state.width = u8g2Fonts.getUTF8Width(newText.c_str());
+            state.offset = 0;
+            state.direction = 1;
+            state.lastStep = now_ms;
+            state.active = (state.width > AVAILABLE_WIDTH);
+            return true; // 文本变化，需要重绘
+        }
+        return false;
+    };
+
+    // 更新滚动偏移（仅在 active 为真且间隔足够时更新）
+    auto updateScrollOffset = [&](ScrollTextState &state)
+    {
+        if (!state.active)
+            return false;
+        if (now_ms - state.lastStep < 30) // 30ms 移动一次
+            return false;
+        state.lastStep = now_ms;
+
+        int maxOffset = state.width - AVAILABLE_WIDTH;
+        if (maxOffset <= 0)
+        {
+            state.active = false;
+            return false;
+        }
+
+        state.offset += state.direction;
+        if (state.offset >= maxOffset)
+        {
+            state.offset = maxOffset;
+            state.direction = -1;
+        }
+        else if (state.offset <= 0)
+        {
+            state.offset = 0;
+            state.direction = 1;
+        }
+        return true; // 偏移变化，需要重绘
+    };
+
+    // 判断是否需要重绘
+    bool needRedraw = false;
+    needRedraw |= checkTextChange(scrollTitle, info.title);
+    needRedraw |= checkTextChange(scrollPerformer, info.performer);
+    needRedraw |= checkTextChange(scrollAlbum, info.album);
+    needRedraw |= updateScrollOffset(scrollTitle);
+    needRedraw |= updateScrollOffset(scrollPerformer);
+    needRedraw |= updateScrollOffset(scrollAlbum);
+
+    // 如果不需要重绘，直接返回（避免不必要的缓冲区切换和绘制）
+    if (!needRedraw)
+        return;
+
+    // 执行滚动绘制：切换到缓冲区1，绘制后切回原缓冲区
+    uint8_t current_buffer = display.current_buffer_idx;
+    display.swapBuffer(1);
+
+    // 滚动文本绘制辅助函数
+    auto drawScrollText = [&](int y, ScrollTextState &state)
+    {
+        if (!state.active)
+            return;
+
+        // 清除本行区域（背景色）
+        display.fillRect(RIGHT_START_X - 5, y - 13, AVAILABLE_WIDTH + 15, 15, TFT_WHITE);
+        // 设置裁剪窗口为右半屏（稍微扩展避免边缘裁剪）
+        display.setDrawWindow(RIGHT_START_X - 5, 0, AVAILABLE_WIDTH + 5, SCREEN_HEIGHT);
+
+        // 滚动绘制：起点 = 右半屏左边界 - 当前偏移量
+        int startX = RIGHT_START_X - state.offset;
+        u8g2Fonts.setCursor(startX, y);
+        u8g2Fonts.print(state.text);
+
+        display.setDrawWindow(); // 恢复全屏裁剪
+    };
+
+    // 绘制滚动文本（与静态分支布局一致）
+    if (lrcisload)
+    {
+        if (!hal.pref.getBool("lrc_off_info"))
+        {
+            drawScrollText(93, scrollTitle);
+            drawScrollText(110, scrollPerformer);
+            drawScrollText(127, scrollAlbum);
+        }
+    }
+    else
+    {
+        drawScrollText(93, scrollTitle);
+        drawScrollText(110, scrollPerformer);
+        drawScrollText(127, scrollAlbum);
+        // 播放/暂停图标已在静态分支绘制，滚动分支无需重复
+    }
+
+    display.swapBuffer(current_buffer);
+}
+
+/**
+ * @brief 根据当前频谱数据自动计算合适的增益系数（含防抖与平滑）
+ * @param spectrum 频谱幅度数组（通常为 vReal 前 SAMPLES/2 个元素）
+ * @param len      数组长度（SAMPLES/2）
+ * @return         调整后的 fft_gain 值（建议直接赋给 fft_gain）
+ */
+float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
+{
+    // 仅在正常播放时进行自动增益（避免静音时错误拉高增益）
+    if (_play_end || user_stop)
+        return fft_gain; // 保持当前增益不变
+
+    // 可配置参数
+    const float TARGET_SATURATION = 0.04f; // 目标饱和比例（4%）
+    const float GAIN_MIN = 0.8f;           // 最小增益
+    const float GAIN_MAX = 1.5f;           // 最大增益
+    const float GAIN_UP_STEP = 1.01f;      // 增益上调系数（1%）
+    const float GAIN_DOWN_STEP = 0.97f;    // 增益下调系数（3%）
+    const float SATURATION_THRESH = 60.0f; // 饱和判定阈值（与限幅值一致）
+    const float LOW_ENERGY_THRESH = 15.0f; // 整体偏低阈值
+
+    // 统计饱和柱子数量和最大幅值
+    int saturated = 0;
+    float max_amp = 0.0f;
+    for (int i = 0; i < len; i++) {
+        float val = spectrum[i];
+        if (val >= SATURATION_THRESH) saturated++;
+        if (val > max_amp) max_amp = val;
+    }
+    float sat_ratio = (float)saturated / len;
+
+    // 强平滑 (alpha 0.03)
+    static float smooth_sat = 0.0f;
+    static float smooth_max = 0.0f;
+    const float alpha = 0.05f;
+    smooth_sat = alpha * sat_ratio + (1.0f - alpha) * smooth_sat;
+    smooth_max = alpha * max_amp + (1.0f - alpha) * smooth_max;
+
+    // 低频调整间隔 (30帧)
+    static int adjust_counter = 0;
+    const int ADJUST_INTERVAL = 30;
+    if (++adjust_counter < ADJUST_INTERVAL)
+        return fft_gain;
+    adjust_counter = 0;
+
+    // 投票计数
+    static int up_votes = 0, down_votes = 0;
+    const int VOTE_NEEDED = 4;  // 需连续4次符合条件
+
+    if (smooth_sat > TARGET_SATURATION * 1.5f) {
+        down_votes++;
+        up_votes = 0;
+    } else if (smooth_sat < TARGET_SATURATION * 0.4f && smooth_max < LOW_ENERGY_THRESH) {
+        up_votes++;
+        down_votes = 0;
+    } else {
+        up_votes = 0;
+        down_votes = 0;
+    }
+
+    float new_gain = fft_gain;
+
+    if (down_votes >= VOTE_NEEDED) {
+        new_gain *= GAIN_DOWN_STEP;
+        down_votes = 0;
+    } else if (up_votes >= VOTE_NEEDED) {
+        new_gain *= GAIN_UP_STEP;
+        up_votes = 0;
+    }
+
+    // 范围限制
+    if (new_gain > GAIN_MAX) new_gain = GAIN_MAX;
+    if (new_gain < GAIN_MIN) new_gain = GAIN_MIN;
+
+    return new_gain;
+}
+
 void AppMusicPlayer::show_display_fft()
 {
     d_time.start = micros();
@@ -2827,85 +3072,78 @@ void AppMusicPlayer::show_display_fft()
     static int lrc_max_x = SCREEN_WIDTH;
     uint32_t play_time = (millis() - play_time_start - play_stop_time);
     static uint32_t total_time = 0;
+
     if (backup_buff_updata)
     {
         uint8_t current_buffer = display.current_buffer_idx;
         display.swapBuffer(1); // 切换到缓冲区1
         display.clearScreen();
-
-        if (lrcisload) //  && !user_stop
-        {
-            lrc_max_x = SCREEN_WIDTH;
-
-            if (!hal.pref.getBool("lrc_off_info"))
-            {
-                int16_t wchar;
-                int x = 0;
-
-                String titleStr = info.title;
-                int spaceIdx = titleStr.indexOf(' ');
-                String titleToDraw = (spaceIdx > 0) ? titleStr.substring(0, spaceIdx) : titleStr;
-                x = u8g2Fonts.getUTF8Width(titleToDraw.c_str());
+        show_display_tag();
+        /*         if (lrcisload) //  && !user_stop
                 {
-                    int startX = SCREEN_WIDTH - x - 5;
-                    // ensure start position is at least half the screen width
-                    if (startX < SCREEN_WIDTH / 2)
-                        startX = SCREEN_WIDTH / 2;
-                    u8g2Fonts.setCursor(startX, 93);
-                    if (startX < lrc_max_x)
-                        lrc_max_x = startX;
-                }
-                u8g2Fonts.print(titleToDraw);
+                    lrc_max_x = SCREEN_WIDTH;
 
-                String performerStr = info.performer;
-                spaceIdx = performerStr.indexOf(' ');
-                String performerToDraw = (spaceIdx > 0) ? performerStr.substring(0, spaceIdx) : performerStr;
-                x = u8g2Fonts.getUTF8Width(performerToDraw.c_str());
+                    if (!hal.pref.getBool("lrc_off_info"))
+                    {
+                        int16_t wchar;
+                        int x = 0;
+
+                        x = u8g2Fonts.getUTF8Width(info.title.c_str());
+                        {
+                            int startX = SCREEN_WIDTH - x - 5;
+                            // ensure start position is at least half the screen width
+                            if (startX < SCREEN_WIDTH / 2)
+                                startX = SCREEN_WIDTH / 2;
+                            u8g2Fonts.setCursor(startX, 93);
+                            if (startX < lrc_max_x)
+                                lrc_max_x = startX;
+                        }
+                        u8g2Fonts.print(info.title);
+
+                        x = u8g2Fonts.getUTF8Width(info.performer.c_str());
+                        {
+                            int startX = SCREEN_WIDTH - x - 5;
+                            if (startX < SCREEN_WIDTH / 2)
+                                startX = SCREEN_WIDTH / 2;
+                            u8g2Fonts.setCursor(startX, 110);
+                            if (startX < lrc_max_x)
+                                lrc_max_x = startX;
+                        }
+                        u8g2Fonts.print(info.performer);
+
+                        x = u8g2Fonts.getUTF8Width(info.album.c_str());
+                        {
+                            int startX = SCREEN_WIDTH - x - 5;
+                            if (startX < SCREEN_WIDTH / 2)
+                                startX = SCREEN_WIDTH / 2;
+                            u8g2Fonts.setCursor(startX, 127);
+                            if (startX < lrc_max_x)
+                                lrc_max_x = startX;
+                        }
+                        u8g2Fonts.print(info.album);
+                    }
+                }
+                else
                 {
-                    int startX = SCREEN_WIDTH - x - 5;
-                    if (startX < SCREEN_WIDTH / 2)
-                        startX = SCREEN_WIDTH / 2;
-                    u8g2Fonts.setCursor(startX, 110);
-                    if (startX < lrc_max_x)
-                        lrc_max_x = startX;
-                }
-                u8g2Fonts.print(performerToDraw);
+                    int x = 0;
+                    x = u8g2Fonts.getUTF8Width(info.title.c_str());
+                    u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 93);
+                    u8g2Fonts.print(info.title);
 
-                String albumStr = info.album;
-                spaceIdx = albumStr.indexOf(' ');
-                String albumToDraw = (spaceIdx > 0) ? albumStr.substring(0, spaceIdx) : albumStr;
-                x = u8g2Fonts.getUTF8Width(albumToDraw.c_str());
-                {
-                    int startX = SCREEN_WIDTH - x - 5;
-                    if (startX < SCREEN_WIDTH / 2)
-                        startX = SCREEN_WIDTH / 2;
-                    u8g2Fonts.setCursor(startX, 127);
-                    if (startX < lrc_max_x)
-                        lrc_max_x = startX;
-                }
-                u8g2Fonts.print(albumToDraw);
-            }
-        }
-        else
-        {
-            int x = 0;
-            x = u8g2Fonts.getUTF8Width(info.title.c_str());
-            u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 93);
-            u8g2Fonts.print(info.title);
+                    x = u8g2Fonts.getUTF8Width(info.performer.c_str());
+                    u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 110);
+                    u8g2Fonts.print(info.performer);
 
-            x = u8g2Fonts.getUTF8Width(info.performer.c_str());
-            u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 110);
-            u8g2Fonts.print(info.performer);
+                    x = u8g2Fonts.getUTF8Width(info.album.c_str());
+                    u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 127);
+                    u8g2Fonts.print(info.album);
 
-            x = u8g2Fonts.getUTF8Width(info.album.c_str());
-            u8g2Fonts.setCursor(SCREEN_WIDTH - x - 5, 127);
-            u8g2Fonts.print(info.album);
+                    if (_play_end || user_stop)
+                        display.drawXBitmap(22, 95, pause_bits, 24, 24, TFT_BLACK);
+                    else
+                        display.drawXBitmap(22, 95, play_bits, 24, 24, TFT_BLACK);
+                } */
 
-            if (_play_end || user_stop)
-                display.drawXBitmap(22, 95, pause_bits, 24, 24, TFT_BLACK);
-            else
-                display.drawXBitmap(22, 95, play_bits, 24, 24, TFT_BLACK);
-        }
         int16_t wchar;
         display.drawFastHLine(0, 14, SCREEN_WIDTH, 0);
         if (titles[currentSongIndex] != nullptr)
@@ -2988,13 +3226,15 @@ void AppMusicPlayer::show_display_fft()
         }
 
         char gain_buf[16];
-        sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
+        sprintf(gain_buf, "音量:%.0f", gain * 100.0f);
         u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
         u8g2Fonts.printf(gain_buf);
 
         display.swapBuffer(current_buffer);
         backup_buff_updata = false;
     }
+
+    show_display_tag();
 
     display.copyBuffer(display.current_buffer_idx, 1); // 从缓冲区1复制显示内容到当前缓冲区
     int w = 0;
@@ -3038,10 +3278,10 @@ void AppMusicPlayer::show_display_fft()
         {
             vReal[0] = vReal[0] * 0.4f;
             vReal[1] = vReal[1] * 0.5f;
-            vReal[2] = vReal[2] * 0.6f;
-            vReal[3] = vReal[3] * 0.7f;
-            vReal[4] = vReal[4] * 0.8f;
-            vReal[5] = vReal[5] * 0.9f;
+            /*             vReal[2] = vReal[2] * 0.6f;
+                        vReal[3] = vReal[3] * 0.7f;
+                        vReal[4] = vReal[4] * 0.8f;
+                        vReal[5] = vReal[5] * 0.9f; */
         }
         // 4. 幅度谱对数变换和归一化（可调参数）
         for (int i = 0; i < SAMPLES / 2; i++)
@@ -3056,7 +3296,13 @@ void AppMusicPlayer::show_display_fft()
             vReal[i] = smoothingFactor * previousSpectrum[i] + (1 - smoothingFactor) * vReal[i];
 
             vReal[i] = vReal[i] * fft_gain;
+        }
 
+        if (hal.pref.getBool("AutoGain", true))
+            fft_gain = calculateAutoGain(vReal, SAMPLES / 2);
+
+        for (int i = 0; i < SAMPLES / 2; i++)
+        {
             // 限幅处理
             if (vReal[i] > 60.0f)
                 vReal[i] = 60.0f;
@@ -3269,21 +3515,21 @@ void AppMusicPlayer::updateVolumeUI()
 {
     // 静态变量保存动画状态
     // 初始化音量相关变量为gain,避免应用启动时显示
-    static float currentDisplayVolume = gain;        // 当前显示的音量值（0~1）
-    static float targetVolume = gain;                // 目标音量值（0~1）,
-    static unsigned long lastChangeTime = 0;         // 最后一次音量改变的时间（毫秒）
-    static int animState = 0;                        // 0=隐藏, 1=滑入, 2=显示, 3=滑出
-    static int currentX = PHYSICAL_WIDTH;            // 音量条当前左边缘 x 坐标
-    static const int targetXIn = 368;                // 滑入目标 x 坐标
-    static const int targetXOut = PHYSICAL_WIDTH;    // 滑出目标 x 坐标（完全移出屏幕）
-    static const int step = 2;                       // 滑动每帧移动像素数
-    static const float volumeSmoothing = 0.1f;       // 音量加减动画平滑系数（每帧接近目标的比例）
+    static float currentDisplayVolume = gain;     // 当前显示的音量值（0~1）
+    static float targetVolume = gain;             // 目标音量值（0~1）,
+    static unsigned long lastChangeTime = 0;      // 最后一次音量改变的时间（毫秒）
+    static int animState = 0;                     // 0=隐藏, 1=滑入, 2=显示, 3=滑出
+    static int currentX = PHYSICAL_WIDTH;         // 音量条当前左边缘 x 坐标
+    static const int targetXIn = 368;             // 滑入目标 x 坐标
+    static const int targetXOut = PHYSICAL_WIDTH; // 滑出目标 x 坐标（完全移出屏幕）
+    static const int step = 2;                    // 滑动每帧移动像素数
+    static const float volumeSmoothing = 0.1f;    // 音量加减动画平滑系数（每帧接近目标的比例）
 
     // ========== 检测音量改变 ==========
-    bool volumeChanged = (gain != targetVolume);      // 实际音量与目标音量比较
+    bool volumeChanged = (gain != targetVolume); // 实际音量与目标音量比较
     if (volumeChanged)
     {
-        targetVolume = gain;                         // 更新目标音量
+        targetVolume = gain; // 更新目标音量
         lastChangeTime = millis();
 
         // 若当前为隐藏或滑出状态，立即启动滑入动画
@@ -3313,7 +3559,8 @@ void AppMusicPlayer::updateVolumeUI()
         if (currentX > targetXIn)
         {
             currentX -= step;
-            if (currentX < targetXIn) currentX = targetXIn;
+            if (currentX < targetXIn)
+                currentX = targetXIn;
         }
         else
         {
@@ -3325,7 +3572,8 @@ void AppMusicPlayer::updateVolumeUI()
         if (currentX < targetXOut)
         {
             currentX += step;
-            if (currentX > targetXOut) currentX = targetXOut;
+            if (currentX > targetXOut)
+                currentX = targetXOut;
         }
         else
         {
@@ -3362,7 +3610,8 @@ void AppMusicPlayer::updateVolumeUI()
 
         // 根据当前显示音量计算填充高度（假设音量范围为 0~1，最大填充高度对应音量1）
         int fillH = int(currentDisplayVolume * hal.pref.getFloat("max_fillH", 100.0f)); // 如果音量范围不是0~1，请调整
-        if (fillH > 100) fillH = 100;
+        if (fillH > 100)
+            fillH = 100;
         int fillY = borderY + (borderH - fillH);
         int fillX = borderX;
 
@@ -3532,10 +3781,10 @@ bool AppMusicPlayer::player_set()
 // 初始化曲线缩放数组（在setup或初始化函数中调用）
 void initCurveScaling()
 {
-    const int lowFreqCount = 5;     // 低频点数量
-    const int transitionCount = 70; // 过渡区数量
-    const float lowScale = 0.00011; // 低频压缩值
-    const float highScale = 0.0009; // 高频压缩值
+    const int lowFreqCount = hal.pref.getInt("low_freq_count", 5);   // 低频点数量
+    const int transitionCount = hal.pref.getInt("trans_cnt", 70);    // 过渡区数量
+    const float lowScale = hal.pref.getFloat("low_scale", 0.00011);  // 低频压缩值
+    const float highScale = hal.pref.getFloat("high_scale", 0.0009); // 高频压缩值
 
     for (int i = 0; i < app.SAMPLES / 2; i++)
     {
@@ -3558,33 +3807,39 @@ void initCurveScaling()
     }
 }
 
-void AppMusicPlayer::onBtnC_Click(void* param) {
-    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+void AppMusicPlayer::onBtnC_Click(void *param)
+{
+    AppMusicPlayer *self = static_cast<AppMusicPlayer *>(param);
     self->flag_btnc_click = true;
 }
 
-void AppMusicPlayer::onBtnC_LongPressStart(void* param) {
-    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+void AppMusicPlayer::onBtnC_LongPressStart(void *param)
+{
+    AppMusicPlayer *self = static_cast<AppMusicPlayer *>(param);
     self->flag_btnc_long = true;
 }
 
-void AppMusicPlayer::onBtnR_Click(void* param) {
-    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+void AppMusicPlayer::onBtnR_Click(void *param)
+{
+    AppMusicPlayer *self = static_cast<AppMusicPlayer *>(param);
     self->flag_btnr_click = true;
 }
 
-void AppMusicPlayer::onBtnR_LongPressStart(void* param) {
-    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+void AppMusicPlayer::onBtnR_LongPressStart(void *param)
+{
+    AppMusicPlayer *self = static_cast<AppMusicPlayer *>(param);
     self->flag_btnr_long = true;
 }
 
-void AppMusicPlayer::onBtnL_Click(void* param) {
-    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+void AppMusicPlayer::onBtnL_Click(void *param)
+{
+    AppMusicPlayer *self = static_cast<AppMusicPlayer *>(param);
     self->flag_btnl_click = true;
 }
 
-void AppMusicPlayer::onBtnL_LongPressStart(void* param) {
-    AppMusicPlayer* self = static_cast<AppMusicPlayer*>(param);
+void AppMusicPlayer::onBtnL_LongPressStart(void *param)
+{
+    AppMusicPlayer *self = static_cast<AppMusicPlayer *>(param);
     self->flag_btnl_long = true;
 }
 
@@ -3674,56 +3929,74 @@ void AppMusicPlayer::setup()
     {
         if (app_exit)
             return;
-        if (flag_btnc_click) {
+        if (flag_btnc_click)
+        {
             flag_btnc_click = false;
             // 短按逻辑
-            if (filelist_ok) {
-                if (!music_list_menu(true)) {
+            if (filelist_ok)
+            {
+                if (!music_list_menu(true))
+                {
                     // 如果列表菜单失败，跳过本次处理（原代码通过 continue）
                     // 但此处无阻塞，直接跳过即可
-                } else {
+                }
+                else
+                {
                     delete_playtask();
                     play_time_total = 0;
                     file_in(music_file);
-                    if (player_set()) begin_player_task();
-                    else _play_end = true;
+                    if (player_set())
+                        begin_player_task();
+                    else
+                        _play_end = true;
                 }
-            } else {
+            }
+            else
+            {
                 delete_playtask();
                 music_list_menu();
-                if (player_set()) begin_player_task();
-                else _play_end = true;
+                if (player_set())
+                    begin_player_task();
+                else
+                    _play_end = true;
             }
             show_display();
         }
-        if (flag_btnc_long) {
+        if (flag_btnc_long)
+        {
             flag_btnc_long = false;
-            player_menu();   // 长按进入菜单
+            player_menu(); // 长按进入菜单
             show_display();
         }
-        if (flag_btnr_click) {
+        if (flag_btnr_click)
+        {
             flag_btnr_click = false;
             backup_buff_updata = true;
             float gain_step = hal.pref.getFloat("gain_step", 0.05f);
             gain = min(gain + gain_step, 4.0f);
-            if (!nodac) output->SetGain(gain);
+            if (!nodac)
+                output->SetGain(gain);
             show_display();
         }
-        if (flag_btnr_long) {
+        if (flag_btnr_long)
+        {
             flag_btnr_long = false;
             next_song(true, true);
             backup_buff_updata = true;
             show_display();
         }
-        if (flag_btnl_click) {
+        if (flag_btnl_click)
+        {
             flag_btnl_click = false;
             backup_buff_updata = true;
             float gain_step = hal.pref.getFloat("gain_step", 0.05f);
             gain = max(gain - gain_step, 0.0f);
-            if (!nodac) output->SetGain(gain);
+            if (!nodac)
+                output->SetGain(gain);
             show_display();
         }
-        if (flag_btnl_long) {
+        if (flag_btnl_long)
+        {
             flag_btnl_long = false;
             next_song(false, true);
             backup_buff_updata = true;
