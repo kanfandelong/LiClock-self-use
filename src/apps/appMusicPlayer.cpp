@@ -2187,6 +2187,7 @@ static const menu_select menu_set_player[] =
         {false, "FFT参数1", nullptr},
         {false, "FFT参数2", nullptr},
         {false, "线性缩放增益", nullptr},
+        {true, "自动增益调节", "AutoGain"},
         {false, "xFrequency", nullptr},
         {false, "FFT采样点数", nullptr},
         {false, "音频波形滚动速度", nullptr},
@@ -2357,17 +2358,17 @@ void AppMusicPlayer::player_set_menu()
             fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0f)) / 100.0f;
             hal.pref.putFloat("fft_gain", fft_gain);
             break;
-        case 11:
+        case 12:
             xFrequency = pdMS_TO_TICKS(GUI::msgbox_number("xFrequency", 2, xFrequency));
             hal.pref.putInt("xFrequency", (int)xFrequency);
             break;
-        case 12:
+        case 13:
             hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 3, hal.pref.getUInt("fft_samples", 256)));
             break;
-        case 13:
+        case 14:
             hal.pref.putUChar("col_per_frame", GUI::msgbox_number("音频波形滚动速度", 1, hal.pref.getUChar("col_per_frame", 1)));
             break;
-        case 14:
+        case 15:
             GUI::info_msgbox("提示", "正在搜索网络歌词...");
             hal.autoConnectWiFi(false);
             attemptNetworkLyrics();
@@ -2840,50 +2841,69 @@ void AppMusicPlayer::show_display_debug()
 
 void AppMusicPlayer::show_display_tag()
 {
+    constexpr int BASE_RIGHT_START = SCREEN_WIDTH / 2;       // 默认右半屏起点
+    constexpr int RIGHT_END_X = SCREEN_WIDTH - 5;           // 右边界固定
+    constexpr int EXTEND_LEFT = 70;                         // 非歌词模式扩展量
+
+    // ===== 动态计算绘制区域左边界（根据是否显示歌词） =====
+    const int drawStartX = lrcisload ? BASE_RIGHT_START : (BASE_RIGHT_START - EXTEND_LEFT);
+    const int drawAvailableWidth = RIGHT_END_X - drawStartX;
+    const int SCROLL_THRESHOLD = drawAvailableWidth + 5;    // 滚动激活阈值
+
+    static bool clean = false;
+
     // 静态文本绘制辅助函数（右对齐，无滚动）
     auto drawStaticRightAlignedText = [&](int y, const String &text)
     {
         int textWidth = u8g2Fonts.getUTF8Width(text.c_str());
         int startX = RIGHT_END_X - textWidth;
-        if (startX < RIGHT_START_X)
-            startX = RIGHT_START_X;
+        if (startX < drawStartX)
+            startX = drawStartX;
         u8g2Fonts.setCursor(startX, y);
         u8g2Fonts.print(text);
     };
 
-    // 分支1：backup_buff_updata == true → 绘制静态文本（不滚动，不切换缓冲区）
+    // 分支1：backup_buff_updata == true → 绘制静态文本（仅当文本无需滚动时）
     if (backup_buff_updata)
     {
+        int titleW = u8g2Fonts.getUTF8Width(info.title.c_str());
+        int performerW = u8g2Fonts.getUTF8Width(info.performer.c_str());
+        int albumW = u8g2Fonts.getUTF8Width(info.album.c_str());
+
         if (lrcisload)
         {
             if (!hal.pref.getBool("lrc_off_info"))
             {
-                display.fillRect(RIGHT_START_X, 127, 192, 47, TFT_WHITE);
-                drawStaticRightAlignedText(93, info.title);
-                drawStaticRightAlignedText(110, info.performer);
-                drawStaticRightAlignedText(127, info.album);
+                if (titleW <= SCROLL_THRESHOLD)
+                    drawStaticRightAlignedText(93, info.title);
+                if (performerW <= SCROLL_THRESHOLD)
+                    drawStaticRightAlignedText(110, info.performer);
+                if (albumW <= SCROLL_THRESHOLD)
+                    drawStaticRightAlignedText(127, info.album);
             }
         }
         else
         {
-            display.fillRect(RIGHT_START_X, 80, 192, 47, TFT_WHITE);
-            drawStaticRightAlignedText(93, info.title);
-            drawStaticRightAlignedText(110, info.performer);
-            drawStaticRightAlignedText(127, info.album);
+            if (titleW <= SCROLL_THRESHOLD)
+                drawStaticRightAlignedText(93, info.title);
+            if (performerW <= SCROLL_THRESHOLD)
+                drawStaticRightAlignedText(110, info.performer);
+            if (albumW <= SCROLL_THRESHOLD)
+                drawStaticRightAlignedText(127, info.album);
 
             if (_play_end || user_stop)
                 display.drawXBitmap(22, 95, pause_bits, 24, 24, TFT_BLACK);
             else
                 display.drawXBitmap(22, 95, play_bits, 24, 24, TFT_BLACK);
         }
-        return; // 静态绘制完成，退出函数
+        clean = true;
+        return;
     }
 
     // ---------- 分支2：backup_buff_updata == false → 仅处理滚动文本 ----------
 
     const uint32_t now_ms = millis();
 
-    // 检查文本内容是否变化，更新滚动状态
     auto checkTextChange = [&](ScrollTextState &state, const String &newText)
     {
         if (state.text != newText)
@@ -2893,22 +2913,21 @@ void AppMusicPlayer::show_display_tag()
             state.offset = 0;
             state.direction = 1;
             state.lastStep = now_ms;
-            state.active = (state.width > AVAILABLE_WIDTH);
-            return true; // 文本变化，需要重绘
+            state.active = (state.width > SCROLL_THRESHOLD);
+            return true;
         }
         return false;
     };
 
-    // 更新滚动偏移（仅在 active 为真且间隔足够时更新）
     auto updateScrollOffset = [&](ScrollTextState &state)
     {
         if (!state.active)
             return false;
-        if (now_ms - state.lastStep < 30) // 30ms 移动一次
+        if (now_ms - state.lastStep < 40)
             return false;
         state.lastStep = now_ms;
 
-        int maxOffset = state.width - AVAILABLE_WIDTH;
+        int maxOffset = state.width - drawAvailableWidth;
         if (maxOffset <= 0)
         {
             state.active = false;
@@ -2926,10 +2945,9 @@ void AppMusicPlayer::show_display_tag()
             state.offset = 0;
             state.direction = 1;
         }
-        return true; // 偏移变化，需要重绘
+        return true;
     };
 
-    // 判断是否需要重绘
     bool needRedraw = false;
     needRedraw |= checkTextChange(scrollTitle, info.title);
     needRedraw |= checkTextChange(scrollPerformer, info.performer);
@@ -2938,34 +2956,34 @@ void AppMusicPlayer::show_display_tag()
     needRedraw |= updateScrollOffset(scrollPerformer);
     needRedraw |= updateScrollOffset(scrollAlbum);
 
-    // 如果不需要重绘，直接返回（避免不必要的缓冲区切换和绘制）
+    if (clean)
+    {
+        needRedraw = true;
+        clean = false;
+    }
+
     if (!needRedraw)
         return;
 
-    // 执行滚动绘制：切换到缓冲区1，绘制后切回原缓冲区
     uint8_t current_buffer = display.current_buffer_idx;
     display.swapBuffer(1);
 
-    // 滚动文本绘制辅助函数
     auto drawScrollText = [&](int y, ScrollTextState &state)
     {
         if (!state.active)
             return;
 
-        // 清除本行区域（背景色）
-        display.fillRect(RIGHT_START_X - 5, y - 13, AVAILABLE_WIDTH + 15, 15, TFT_WHITE);
-        // 设置裁剪窗口为右半屏（稍微扩展避免边缘裁剪）
-        display.setDrawWindow(RIGHT_START_X - 5, 0, AVAILABLE_WIDTH + 5, SCREEN_HEIGHT);
+        // 清除区域扩展至左侧边缘，确保滚动无残影
+        display.fillRect(drawStartX - 5, y - 13, drawAvailableWidth + 15, 15, TFT_WHITE);
+        display.setDrawWindow(drawStartX - 5, 0, drawAvailableWidth + 5, SCREEN_HEIGHT);
 
-        // 滚动绘制：起点 = 右半屏左边界 - 当前偏移量
-        int startX = RIGHT_START_X - state.offset;
+        int startX = drawStartX - state.offset;
         u8g2Fonts.setCursor(startX, y);
         u8g2Fonts.print(state.text);
 
-        display.setDrawWindow(); // 恢复全屏裁剪
+        display.setDrawWindow();
     };
 
-    // 绘制滚动文本（与静态分支布局一致）
     if (lrcisload)
     {
         if (!hal.pref.getBool("lrc_off_info"))
@@ -2980,7 +2998,6 @@ void AppMusicPlayer::show_display_tag()
         drawScrollText(93, scrollTitle);
         drawScrollText(110, scrollPerformer);
         drawScrollText(127, scrollAlbum);
-        // 播放/暂停图标已在静态分支绘制，滚动分支无需重复
     }
 
     display.swapBuffer(current_buffer);
@@ -3026,7 +3043,7 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
 
     // 低频调整间隔 (30帧)
     static int adjust_counter = 0;
-    const int ADJUST_INTERVAL = 30;
+    const int ADJUST_INTERVAL = 20;
     if (++adjust_counter < ADJUST_INTERVAL)
         return fft_gain;
     adjust_counter = 0;
@@ -3059,6 +3076,9 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
     // 范围限制
     if (new_gain > GAIN_MAX) new_gain = GAIN_MAX;
     if (new_gain < GAIN_MIN) new_gain = GAIN_MIN;
+
+    if (fft_gain != new_gain)
+        log_i("%f => %f", fft_gain, new_gain);
 
     return new_gain;
 }
@@ -3278,8 +3298,8 @@ void AppMusicPlayer::show_display_fft()
         {
             vReal[0] = vReal[0] * 0.4f;
             vReal[1] = vReal[1] * 0.5f;
-            /*             vReal[2] = vReal[2] * 0.6f;
-                        vReal[3] = vReal[3] * 0.7f;
+            vReal[2] = vReal[2] * 0.6f;
+            /*             vReal[3] = vReal[3] * 0.7f;
                         vReal[4] = vReal[4] * 0.8f;
                         vReal[5] = vReal[5] * 0.9f; */
         }
@@ -3743,6 +3763,8 @@ bool AppMusicPlayer::player_set()
     vlbm_deinit = true;
     backup_buff_updata = true;
     id3_tlen_received = false;
+    if (hal.pref.getBool("AutoGain", true))
+        fft_gain = hal.pref.getFloat("fft_gain", 1.2f);
     app.play_time_start = millis();                           // 提前重置一次`,确保歌词正常显示
     memset(ring_buffer, 0, sizeof(float) * RING_BUFFER_SIZE); // 清环形缓冲区
     if (nodac)
@@ -3867,7 +3889,7 @@ void AppMusicPlayer::setup()
 
     nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
     _count = hal.pref.getInt("rst_count", -1);
-    gain = hal.pref.getFloat("gain", 0.3);
+    gain = hal.pref.getFloat("gain", 0.3f);
     _lrcoffset = hal.pref.getInt("_lrcoffset", -50);
     apll = hal.pref.getBool(hal.get_char_sha_key("audio_pll"), true);
     bits_per_chan = hal.pref.getBool("bits_per_chan", true);
