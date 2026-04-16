@@ -892,10 +892,9 @@ static int cmd_getnvs(int argc, char **argv)
         hal.pref.getBytes(key, buffer, len + 1);
         PRINT_INFO("%s (blob): length %u bytes", key, len);
         INFO_COLOR;
-        uart->println();
         for (size_t i = 0; i < len; ++i)
         {
-            uart->printf("0x%02X ", i, (uint8_t)buffer[i]);
+            uart->printf("0x%02X ", (uint8_t)buffer[i]);
         }
         RESET_COLOR;
         break;
