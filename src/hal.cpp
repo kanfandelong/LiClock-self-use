@@ -920,8 +920,8 @@ void HAL::WiFiConfigManual()
     DNSServer dnsServer;
 #include "img_manual.h"
     String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
-    String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;";
-    WiFi.softAP("WeatherClock", passwd.c_str());
+    String str = "WIFI:T:WPA2;S:" + hal.pref.getString("hostname", String("LiClock-S3")) + ";P:" + passwd + ";;";
+    WiFi.softAP(hal.pref.getString("hostname", String("LiClock-S3")).c_str(), passwd.c_str());
     WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
     dnsServer.start(53, "*", IPAddress(192, 168, 4, 1));
     beginWebServer();
@@ -985,6 +985,8 @@ void HAL::WiFiConfigManual()
                 }
             }
             display.setFont(&FreeSans9pt7b);
+            display.setCursor(192, 109);
+            display.print(hal.pref.getString("hostname", String("LiClock-S3")));
             display.setCursor(192, 124);
             display.print(passwd);
             display.display();
@@ -1377,7 +1379,7 @@ bool HAL::init()
     // // display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     log_i("初始化屏幕...");
     display.begin(initial);
-    display.display_Inversion(true);
+    display.display_Inversion(pref.getBool("Inversion", true));
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));
     display.setTextColor(TFT_BLACK);
     u8g2Fonts.setFontMode(1);
