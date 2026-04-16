@@ -848,7 +848,7 @@ void AppSettings::menu_display()
             // {false, "屏幕线程优先级", nullptr},
             {true, "高刷模式", "high_fps"},
             {true, "屏幕deepsleep", "en_disp_sleep"},
-            {true, "UC8151C兼容模式", "UC8151C"},
+            {true, "Inversion", "Inversion"},
             {false, NULL},
         };
     while (end == false && hasToApp == false)

@@ -1,6 +1,7 @@
 #include "AppManager.h"
 #include "ESP8266Audio.h"
 #include <arduinoFFT.h>
+#include <mbedtls/sha256.h>
 #include <cstdio>
 #include <atomic>
 #pragma GCC optimize("O3")
@@ -70,6 +71,12 @@ typedef struct
     unsigned long display_start = 0;
     unsigned long end = 0;
 } drawtime; // 歌词行结构体
+
+struct SongPlayCount
+{
+    uint8_t hash[32] = {'\0'}; // 文件路径的 SHA‑256 原始值
+    uint32_t count = 0;        // 累计播放次数
+};
 
 static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator"};
 
@@ -278,20 +285,35 @@ public:
     // 滚动文本状态
     struct ScrollTextState
     {
-        String text;        // 当前显示的文本（处理过的）
-        int width;          // 文本像素宽度
-        int offset;         // 当前滚动偏移（向右为正）
-        int direction;      // 滚动方向：1 向右，-1 向左
-        uint32_t lastStep;  // 上次偏移更新时刻（毫秒）
-        bool active = true; // 是否需要滚动
-        bool needRedraw;    // 是否需要重绘（偏移改变时置位）
-        int pauseCount;
+        String text;          // 当前显示的文本（处理过的）
+        int width;            // 文本像素宽度
+        int offset;           // 当前滚动偏移（向右为正）
+        int direction;        // 滚动方向：1 向右，-1 向左
+        uint32_t lastStep;    // 上次偏移更新时刻（毫秒）
+        bool active = true;   // 是否需要滚动
+        bool needRedraw;      // 是否需要重绘（偏移改变时置位）
+        uint8_t pauseCounter; // 新增：边界暂停计数器
     } scrollTitle, scrollPerformer, scrollAlbum;
 
     // 右半屏绘制区域参数
     int RIGHT_START_X = SCREEN_WIDTH / 2;
     int RIGHT_END_X = SCREEN_WIDTH - 5;
     int AVAILABLE_WIDTH = RIGHT_END_X - RIGHT_START_X;
+
+    // 播放计数相关
+    SongPlayCount *playCountRecords = nullptr;           // PSRAM 中的记录数组
+    uint32_t playCountNum = 0;                           // 当前记录条数
+    uint32_t playCountCapacity = 0;                      // 已分配容量（用于动态扩容）
+    static const uint32_t PLAY_COUNT_CAPACITY_STEP = 10; // 扩容步长
+    const char *PLAY_COUNT_FILE = "/sd/playlist/playcount.bin";                  // 存储文件路径
+
+    // 辅助函数
+    void computePathHash(const char *path, uint8_t *hashOut);
+    SongPlayCount *findPlayCountRecord(const char *path);
+    SongPlayCount *addPlayCountRecord(const char *path);
+    void loadPlayCounts();
+    void savePlayCounts();
+    void increasePlayCount(const char *path);
 
     // 按键标志
     volatile bool flag_btnc_click = false;
@@ -660,6 +682,13 @@ static void player_exit()
     delete[] app.vImag;
     delete[] app.previousSpectrum;
     free(app.ring_buffer);
+
+    app.savePlayCounts();
+    if (app.playCountRecords) {
+        free(app.playCountRecords);
+        app.playCountRecords = nullptr;
+    }
+    app.playCountNum = app.playCountCapacity = 0;
 }
 /**
  * @brief 播放器深度睡眠前处理函数
@@ -757,6 +786,124 @@ void player_loop(void *)
     player_loop_task_handle = NULL;
     log_i("解码器任务栈的历史剩余最小值：%ld", uxTaskGetStackHighWaterMark(NULL));
     vTaskDelete(NULL);
+}
+
+void AppMusicPlayer::computePathHash(const char *path, uint8_t *hashOut)
+{
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    mbedtls_sha256_starts_ret(&ctx, 0); // 0 = SHA‑256
+    mbedtls_sha256_update_ret(&ctx, (const unsigned char *)path, strlen(path));
+    mbedtls_sha256_finish_ret(&ctx, hashOut);
+    mbedtls_sha256_free(&ctx);
+}
+
+SongPlayCount *AppMusicPlayer::findPlayCountRecord(const char *path)
+{
+    uint8_t hash[32];
+    computePathHash(path, hash);
+    for (uint32_t i = 0; i < playCountNum; ++i)
+    {
+        if (memcmp(playCountRecords[i].hash, hash, 32) == 0)
+        {
+            return &playCountRecords[i];
+        }
+    }
+    return nullptr;
+}
+
+SongPlayCount *AppMusicPlayer::addPlayCountRecord(const char *path)
+{
+    uint8_t hash[32];
+    computePathHash(path, hash);
+    // 扩容
+    if (playCountNum >= playCountCapacity)
+    {
+        uint32_t newCap = playCountCapacity + PLAY_COUNT_CAPACITY_STEP;
+        SongPlayCount *newMem = (SongPlayCount *)ps_realloc(
+            playCountRecords, newCap * sizeof(SongPlayCount));
+        if (!newMem)
+        {
+            log_e("PSRAM realloc failed for play counts");
+            return nullptr;
+        }
+        playCountRecords = newMem;
+        playCountCapacity = newCap;
+    }
+    SongPlayCount *rec = &playCountRecords[playCountNum++];
+    memcpy(rec->hash, hash, 32);
+    rec->count = 0;
+    return rec;
+}
+
+void AppMusicPlayer::loadPlayCounts()
+{
+    File f = hal.open(PLAY_COUNT_FILE, "rb");
+    if (!f)
+    {
+        log_i("No play count file, start fresh");
+        return;
+    }
+
+    uint32_t num = f.size() / sizeof(SongPlayCount);
+
+    if (num == 0)
+        num == 16;
+
+    // 分配 PSRAM
+    playCountRecords = (SongPlayCount *)ps_malloc(num * sizeof(SongPlayCount));
+    if (!playCountRecords)
+    {
+        log_e("PSRAM malloc failed for %u records", num);
+        f.close();
+        return;
+    }
+
+    size_t readSize = num * sizeof(SongPlayCount);
+    if (f.read((uint8_t *)playCountRecords, readSize) != readSize)
+    {
+        log_e("Failed to read records");
+        free(playCountRecords);
+        playCountRecords = nullptr;
+        f.close();
+        return;
+    }
+
+    playCountNum = num;
+    playCountCapacity = num;
+    f.close();
+    log_i("Loaded %u play count records", num);
+}
+
+void AppMusicPlayer::savePlayCounts()
+{
+    if (playCountNum == 0)
+        return;
+
+    File f = hal.open(PLAY_COUNT_FILE, "wb");
+    if (!f)
+    {
+        log_e("Cannot open play count file for writing");
+        return;
+    }
+
+    f.write((uint8_t *)playCountRecords, playCountNum * sizeof(SongPlayCount));
+    f.close();
+    log_i("Saved %u play count records", playCountNum);
+}
+
+void AppMusicPlayer::increasePlayCount(const char *path)
+{
+    SongPlayCount *rec = findPlayCountRecord(path);
+    if (!rec)
+    {
+        rec = addPlayCountRecord(path);
+    }
+    if (rec)
+    {
+        rec->count++;
+        log_i("Play count for %s = %u", path, rec->count);
+    }
 }
 
 /**
@@ -1720,8 +1867,8 @@ bool AppMusicPlayer::file_in(const char *path)
             }
             return false;
         }
-        return true;
     }
+    increasePlayCount(path);
     return true;
 }
 /**
@@ -2199,6 +2346,7 @@ static const menu_select menu_set_player[] =
         {true, "显示debug信息", "music_debug"},
         {true, "打印歌词debug信息", "lrc_debug"},
         {true, "播放视频?", "en_vlbm"},
+        {true, "显示音量/显示播放次数", "show_gain"},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
@@ -2841,14 +2989,14 @@ void AppMusicPlayer::show_display_debug()
 
 void AppMusicPlayer::show_display_tag()
 {
-    constexpr int BASE_RIGHT_START = SCREEN_WIDTH / 2;       // 默认右半屏起点
-    constexpr int RIGHT_END_X = SCREEN_WIDTH - 5;           // 右边界固定
-    constexpr int EXTEND_LEFT = 70;                         // 非歌词模式扩展量
+    constexpr int BASE_RIGHT_START = SCREEN_WIDTH / 2; // 默认右半屏起点
+    constexpr int RIGHT_END_X = SCREEN_WIDTH - 5;      // 右边界固定
+    constexpr int EXTEND_LEFT = 70;                    // 非歌词模式扩展量
 
     // ===== 动态计算绘制区域左边界（根据是否显示歌词） =====
     const int drawStartX = lrcisload ? BASE_RIGHT_START : (BASE_RIGHT_START - EXTEND_LEFT);
     const int drawAvailableWidth = RIGHT_END_X - drawStartX;
-    const int SCROLL_THRESHOLD = drawAvailableWidth + 5;    // 滚动激活阈值
+    const int SCROLL_THRESHOLD = drawAvailableWidth + 5; // 滚动激活阈值
 
     static bool clean = false;
 
@@ -2914,12 +3062,13 @@ void AppMusicPlayer::show_display_tag()
             state.direction = 1;
             state.lastStep = now_ms;
             state.active = (state.width > SCROLL_THRESHOLD);
+            state.pauseCounter = 0;
             return true;
         }
         return false;
     };
 
-    auto updateScrollOffset = [&](ScrollTextState &state)
+    auto updateScrollOffset = [&](ScrollTextState &state) -> bool
     {
         if (!state.active)
             return false;
@@ -2934,17 +3083,29 @@ void AppMusicPlayer::show_display_tag()
             return false;
         }
 
+        bool atBoundary = (state.offset >= maxOffset && state.direction == 1) ||
+                          (state.offset <= 0 && state.direction == -1);
+
+        if (atBoundary)
+        {
+            if (state.pauseCounter < 100)
+            { // 暂停10个周期（400ms）
+                state.pauseCounter++;
+                return false;
+            }
+            else
+            {
+                state.direction = -state.direction;
+                state.pauseCounter = 0;
+            }
+        }
+
         state.offset += state.direction;
-        if (state.offset >= maxOffset)
-        {
+        if (state.offset > maxOffset)
             state.offset = maxOffset;
-            state.direction = -1;
-        }
-        else if (state.offset <= 0)
-        {
+        if (state.offset < 0)
             state.offset = 0;
-            state.direction = 1;
-        }
+
         return true;
     };
 
@@ -3027,10 +3188,13 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
     // 统计饱和柱子数量和最大幅值
     int saturated = 0;
     float max_amp = 0.0f;
-    for (int i = 0; i < len; i++) {
+    for (int i = 0; i < len; i++)
+    {
         float val = spectrum[i];
-        if (val >= SATURATION_THRESH) saturated++;
-        if (val > max_amp) max_amp = val;
+        if (val >= SATURATION_THRESH)
+            saturated++;
+        if (val > max_amp)
+            max_amp = val;
     }
     float sat_ratio = (float)saturated / len;
 
@@ -3050,32 +3214,42 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
 
     // 投票计数
     static int up_votes = 0, down_votes = 0;
-    const int VOTE_NEEDED = 4;  // 需连续4次符合条件
+    const int VOTE_NEEDED = 4; // 需连续4次符合条件
 
-    if (smooth_sat > TARGET_SATURATION * 1.5f) {
+    if (smooth_sat > TARGET_SATURATION * 1.5f)
+    {
         down_votes++;
         up_votes = 0;
-    } else if (smooth_sat < TARGET_SATURATION * 0.4f && smooth_max < LOW_ENERGY_THRESH) {
+    }
+    else if (smooth_sat < TARGET_SATURATION * 0.4f && smooth_max < LOW_ENERGY_THRESH)
+    {
         up_votes++;
         down_votes = 0;
-    } else {
+    }
+    else
+    {
         up_votes = 0;
         down_votes = 0;
     }
 
     float new_gain = fft_gain;
 
-    if (down_votes >= VOTE_NEEDED) {
+    if (down_votes >= VOTE_NEEDED)
+    {
         new_gain *= GAIN_DOWN_STEP;
         down_votes = 0;
-    } else if (up_votes >= VOTE_NEEDED) {
+    }
+    else if (up_votes >= VOTE_NEEDED)
+    {
         new_gain *= GAIN_UP_STEP;
         up_votes = 0;
     }
 
     // 范围限制
-    if (new_gain > GAIN_MAX) new_gain = GAIN_MAX;
-    if (new_gain < GAIN_MIN) new_gain = GAIN_MIN;
+    if (new_gain > GAIN_MAX)
+        new_gain = GAIN_MAX;
+    if (new_gain < GAIN_MIN)
+        new_gain = GAIN_MIN;
 
     if (fft_gain != new_gain)
         log_i("%f => %f", fft_gain, new_gain);
@@ -3245,10 +3419,19 @@ void AppMusicPlayer::show_display_fft()
                 u8g2Fonts.printf(" %dKHz|%dbit", khz, output->GetBitsPerSample());
         }
 
-        char gain_buf[16];
-        sprintf(gain_buf, "音量:%.0f", gain * 100.0f);
-        u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
-        u8g2Fonts.printf(gain_buf);
+        char _buf[16];
+        if (hal.pref.getBool("show_gain"))
+            sprintf(_buf, "音量:%.0f", gain * 100.0f);
+        else
+        {
+            SongPlayCount *rec = findPlayCountRecord(music_file);
+            if (rec)
+            {
+                sprintf(_buf, "%lu", rec->count);
+            }
+        }
+        u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(_buf), 165);
+        u8g2Fonts.printf(_buf);
 
         display.swapBuffer(current_buffer);
         backup_buff_updata = false;
@@ -3900,6 +4083,8 @@ void AppMusicPlayer::setup()
     loopPlay = hal.pref.getBool("loopPlay", false);
     autoPlay = hal.pref.getBool("autoPlay", true);
     randomPlay = hal.pref.getBool("randomPlay", false);
+
+    loadPlayCounts();
 
     // 注册按钮回调
     hal.btnc.attachClick(onBtnC_Click, this);
