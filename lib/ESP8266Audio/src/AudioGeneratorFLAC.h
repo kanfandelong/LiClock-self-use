@@ -25,9 +25,8 @@
 extern "C"
 {
 #include "libflac/FLAC/stream_decoder.h"
-};
-
 #include <freertos/ringbuf.h>
+};
 
 #define RINGBUF_SIZE (1024 * 1024) // 1 MB
 #define TEMPBUF_SIZE (16 * 1024)
@@ -44,7 +43,7 @@ public:
   virtual bool loop() override;
   virtual bool stop() override;
   virtual bool isRunning() override;
-  typedef void (*MetadataCallback)(void *cbData, const char *type, bool isUnicode, const char *string);
+  void _en_ringbuff(bool en) { en_ringbuff = en; };
 
 protected:
   // FLAC info
@@ -72,6 +71,7 @@ protected:
   StaticRingbuffer_t StaticRingbuffer;
   uint8_t *ringBufferStorage = NULL;
   uint8_t *tempBuffer = NULL;
+  bool en_ringbuff = false;
 
   // FLAC callbacks, need static functions to bounce into c++ from c
   static FLAC__StreamDecoderReadStatus _read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes, void *client_data)

@@ -57,9 +57,10 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
   this->output = output;
   if (!file->isOpen())
     return false; // Error
-#ifdef USE_FILL_TASK
-  start_fillTask();
-#endif
+  if (en_ringbuff)
+  {
+    start_fillTask();
+  }
 
   flac = FLAC__stream_decoder_new();
   if (!flac)
@@ -402,28 +403,29 @@ bool AudioGeneratorFLAC::stop()
   if (flac)
     FLAC__stream_decoder_delete(flac);
   flac = NULL;
-#ifdef USE_FILL_TASK
-  if (filltaskhandle != NULL)
+  if (en_ringbuff)
   {
-    vTaskDelete(filltaskhandle);
-    filltaskhandle = NULL;
+    if (filltaskhandle != NULL)
+    {
+      vTaskDelete(filltaskhandle);
+      filltaskhandle = NULL;
+    }
+    if (ringBuf)
+    {
+      vRingbufferDelete(ringBuf);
+      ringBuf = NULL;
+    }
+    if (ringBufferStorage)
+    {
+      heap_caps_free(ringBufferStorage);
+      ringBufferStorage = NULL;
+    }
+    if (tempBuffer)
+    {
+      heap_caps_free(tempBuffer);
+      tempBuffer = NULL;
+    }
   }
-  if (ringBuf)
-  {
-    vRingbufferDelete(ringBuf);
-    ringBuf = NULL;
-  }
-  if (ringBufferStorage)
-  {
-    heap_caps_free(ringBufferStorage);
-    ringBufferStorage = NULL;
-  }
-  if (tempBuffer)
-  {
-    heap_caps_free(tempBuffer);
-    tempBuffer = NULL;
-  }
-#endif
   running = false;
   output->stop();
   return true;
@@ -440,12 +442,20 @@ void AudioGeneratorFLAC::fillTask(void *param)
   while (1)
   {
     // 从文件源读取一块数据
+    if (self->tempBuffer == NULL)
+    {
+      break;
+    }
     uint32_t bytesRead = self->file->read(self->tempBuffer, sizeof(uint8_t[TEMPBUF_SIZE]));
     if (bytesRead == 0)
     {
       break;
     }
 
+    if (self->ringBuf == NULL)
+    {
+      break;
+    }
     BaseType_t ret = xRingbufferSend(self->ringBuf, self->tempBuffer, bytesRead, portMAX_DELAY);
     if (ret != pdTRUE)
     {
@@ -492,22 +502,25 @@ FLAC__StreamDecoderReadStatus AudioGeneratorFLAC::read_cb(const FLAC__StreamDeco
   (void)decoder;
   if (*bytes == 0)
     return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
-#ifdef USE_FILL_TASK
-  size_t requested = *bytes;
-  size_t received = 0;
-
-  // 从 Ringbuffer 接收数据（非阻塞，有数据则返回，无数据则返回0）
-  uint8_t *data = (uint8_t *)xRingbufferReceiveUpTo(ringBuf, &received, 0, requested);
-  if (data != NULL && received > 0)
+  if (en_ringbuff)
   {
-    memcpy(buffer, data, received);
-    vRingbufferReturnItem(ringBuf, (void *)data); // 释放已读数据
-    *bytes = received;
-    return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+    size_t requested = *bytes;
+    size_t received = 0;
+
+    // 从 Ringbuffer 接收数据（非阻塞，有数据则返回，无数据则返回0）
+    uint8_t *data = (uint8_t *)xRingbufferReceiveUpTo(ringBuf, &received, 0, requested);
+    if (data != NULL && received > 0)
+    {
+      memcpy(buffer, data, received);
+      vRingbufferReturnItem(ringBuf, (void *)data); // 释放已读数据
+      *bytes = received;
+      return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+    }
   }
-#else
-  *bytes = file->read(buffer, sizeof(FLAC__byte) * (*bytes));
-#endif
+  else
+  {
+    *bytes = file->read(buffer, sizeof(FLAC__byte) * (*bytes));
+  }
   if (*bytes == 0 && (file->getPos() >= file->getSize()))
     return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
   return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -515,68 +528,70 @@ FLAC__StreamDecoderReadStatus AudioGeneratorFLAC::read_cb(const FLAC__StreamDeco
 FLAC__StreamDecoderSeekStatus AudioGeneratorFLAC::seek_cb(const FLAC__StreamDecoder *decoder, FLAC__uint64 absolute_byte_offset)
 {
   (void)decoder;
-#ifdef USE_FILL_TASK
-  size_t received;
-  uint8_t *data;
-  // 持续接收直到缓冲区为空
-  while ((data = (uint8_t *)xRingbufferReceiveUpTo(ringBuf, &received, 0, SIZE_MAX)) != NULL)
+  if (en_ringbuff)
   {
-    vRingbufferReturnItem(ringBuf, data);
+    size_t received;
+    uint8_t *data;
+    // 持续接收直到缓冲区为空
+    while ((data = (uint8_t *)xRingbufferReceiveUpTo(ringBuf, &received, 0, SIZE_MAX)) != NULL)
+    {
+      vRingbufferReturnItem(ringBuf, data);
+    }
   }
   if (!file->seek((int32_t)absolute_byte_offset, 0))
-#else
-  if (!file->seek((int32_t)absolute_byte_offset, 0))
-#endif
     return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
   return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
 }
 FLAC__StreamDecoderTellStatus AudioGeneratorFLAC::tell_cb(const FLAC__StreamDecoder *decoder, FLAC__uint64 *absolute_byte_offset)
 {
   (void)decoder;
-#ifdef USE_FILL_TASK
-  // 获取文件的实际物理位置
-  uint32_t filePos = file->getPos();
-
-  // 获取 Ringbuffer 中尚未被读取的数据量
-  size_t bufferedBytes = 0;
-  vRingbufferGetInfo(ringBuf, NULL, NULL, NULL, NULL, &bufferedBytes);
-
-  // 流当前位置 = 文件位置 - 缓冲区内未读字节数
-  if (filePos >= bufferedBytes)
+  if (en_ringbuff)
   {
-    *absolute_byte_offset = filePos - bufferedBytes;
+    // 获取文件的实际物理位置
+    uint32_t filePos = file->getPos();
+
+    // 获取 Ringbuffer 中尚未被读取的数据量
+    size_t bufferedBytes = 0;
+    vRingbufferGetInfo(ringBuf, NULL, NULL, NULL, NULL, &bufferedBytes);
+
+    // 流当前位置 = 文件位置 - 缓冲区内未读字节数
+    if (filePos >= bufferedBytes)
+    {
+      *absolute_byte_offset = filePos - bufferedBytes;
+    }
+    else
+    {
+      *absolute_byte_offset = 0; // 防御性处理
+    }
   }
   else
   {
-    *absolute_byte_offset = 0; // 防御性处理
+    *absolute_byte_offset = file->getPos();
   }
-#else
-  *absolute_byte_offset = file->getPos();
-#endif
   return FLAC__STREAM_DECODER_TELL_STATUS_OK;
 }
 
 FLAC__StreamDecoderLengthStatus AudioGeneratorFLAC::length_cb(const FLAC__StreamDecoder *decoder, FLAC__uint64 *stream_length)
 {
   (void)decoder;
-#ifdef USE_FILL_TASK
   *stream_length = file->getSize();
-#else
-  *stream_length = file->getSize();
-#endif
   return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
 }
 FLAC__bool AudioGeneratorFLAC::eof_cb(const FLAC__StreamDecoder *decoder)
 {
   (void)decoder;
-#ifdef USE_FILL_TASK
-  size_t bufferedBytes;
-  vRingbufferGetInfo(ringBuf, NULL, NULL, NULL, NULL, &bufferedBytes);
-  if ((file->getPos() >= file->getSize()) && bufferedBytes == 0)
-#else
-  if (file->getPos() >= file->getSize())
-#endif
-    return true;
+  if (en_ringbuff)
+  {
+    size_t bufferedBytes;
+    vRingbufferGetInfo(ringBuf, NULL, NULL, NULL, NULL, &bufferedBytes);
+    if ((file->getPos() >= file->getSize()) && bufferedBytes == 0)
+      return true;
+  }
+  else
+  {
+    if (file->getPos() >= file->getSize())
+      return true;
+  }
   return false;
 }
 FLAC__StreamDecoderWriteStatus AudioGeneratorFLAC::write_cb(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame, const FLAC__int32 *const buffer[])
