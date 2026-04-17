@@ -363,7 +363,7 @@ void ST7305_DMA::display(bool ignoreTE)
         {
             xSemaphoreGive(_te_semaphore);
         }
-        delay(5);
+        delay(10);
     }
 }
 
