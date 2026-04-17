@@ -745,7 +745,10 @@ void AppSettings::menu_network()
                     display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE);
                 }
             }
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            if (hal.pref.getString("system_font", "default") == "default")
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            else
+                u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
             u8g2Fonts.setCursor(120, (128 - (17 * 2)) / 2);
             char buf[50];
             sprintf(buf, "扫描二维码以连接本机分享的WiFi");
@@ -1245,6 +1248,7 @@ void AppSettings::menu_system()
             {false, "串口波特率设置", nullptr},
             {false, "启动OTA", nullptr},
             {false, "恢复出厂设置", nullptr},
+            {false, "设置系统全局字体", nullptr},
             {false, NULL, nullptr},
         };
     while (end == false && hasToApp == false)
@@ -1653,6 +1657,22 @@ void AppSettings::menu_system()
                     }
                 }
             }
+            break;
+        case 22:
+        {
+            const char *str = GUI::fileDialog("请选择系统全局字体文件", false, NULL, NULL);
+            if (str == NULL)
+            {
+                hal.pref.putString("system_font", String("default"));
+                GUI::msgbox("提示", "已恢复系统全局字体为默认字体");
+            }
+            else
+            {
+                hal.pref.putString("system_font", String(str));
+                u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+                GUI::msgbox("提示", "系统全局字体设置完成");
+            }
+        }
             break;
         default:
             break;
@@ -2193,65 +2213,73 @@ void AppSettings::bat_info()
     GUI::drawWindowsWithTitle("电池状态");
 
     // 图表参数
-    const int MAX_POINTS = 105;                 // 最多存储100个历史点
-    const int LEFT_WIDTH = 150;                  // 左侧文字区域宽度
-    const int CHART_LEFT = 160;                   // 图表左边界
-    const int CHART_RIGHT = 375;                   // 图表右边界（留边距）
-    const int CHART_TOP = 28;                      // 图表上边界
-    const int CHART_BOTTOM = 158;                  // 图表下边界
-    const int POINT_SPACING = 2;                   // 点水平间距（像素）
+    const int MAX_POINTS = 105;   // 最多存储100个历史点
+    const int LEFT_WIDTH = 150;   // 左侧文字区域宽度
+    const int CHART_LEFT = 160;   // 图表左边界
+    const int CHART_RIGHT = 375;  // 图表右边界（留边距）
+    const int CHART_TOP = 28;     // 图表上边界
+    const int CHART_BOTTOM = 158; // 图表下边界
+    const int POINT_SPACING = 2;  // 点水平间距（像素）
 
     // 静态历史数据（保留跨调用）
     static int16_t hist_volt[MAX_POINTS];
     static int16_t hist_curr[MAX_POINTS];
     static int16_t hist_soc[MAX_POINTS];
-    static int count = 0;                           // 当前有效点数
-    static uint32_t last_update = 0;                 // 上次更新时间戳
-    static int mode = 0;                             // 0:电压 1:电流 2:SOC
-    static bool lastRight = false;                   // 右键上次状态
+    static int count = 0;            // 当前有效点数
+    static uint32_t last_update = 0; // 上次更新时间戳
+    static int mode = 0;             // 0:电压 1:电流 2:SOC
+    static bool lastRight = false;   // 右键上次状态
 
     // 等待所有按键释放（消除残留按下）
-    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()) {
+    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
+    {
         delay(20);
     }
 
     // 主循环：左键退出
-    while (true) {
+    while (true)
+    {
         // 左键按下退出
-        if (hal.btnl.isPressing()) {
+        if (hal.btnl.isPressing())
+        {
             break;
         }
 
         // 右键单击切换模式（检测上升沿）
         bool rightPressed = hal.btnr.isPressing();
-        if (rightPressed && !lastRight) {
+        if (rightPressed && !lastRight)
+        {
             mode = (mode + 1) % 3;
         }
         lastRight = rightPressed;
 
-        auto& binfo = hal.bat_info;   // 电池信息引用
+        auto &binfo = hal.bat_info; // 电池信息引用
 
         // 检查数据更新（update_time变化则添加新点）
         uint32_t now = binfo.update_time;
-        if (now != last_update) {
+        if (now != last_update)
+        {
             int16_t volt_mv = (int16_t)(binfo.voltage * 1000 + 0.5);
             int16_t curr_ma = binfo.current.avg;
             int16_t soc_val = binfo.soc;
 
-            if (count < MAX_POINTS) {
+            if (count < MAX_POINTS)
+            {
                 // 未满：直接追加
                 hist_volt[count] = volt_mv;
                 hist_curr[count] = curr_ma;
                 hist_soc[count] = soc_val;
                 count++;
-            } else {
+            }
+            else
+            {
                 // 已满：整体左移，新点放最后
-                memmove(&hist_volt[0], &hist_volt[1], (MAX_POINTS-1) * sizeof(int16_t));
-                memmove(&hist_curr[0], &hist_curr[1], (MAX_POINTS-1) * sizeof(int16_t));
-                memmove(&hist_soc[0], &hist_soc[1], (MAX_POINTS-1) * sizeof(int16_t));
-                hist_volt[MAX_POINTS-1] = volt_mv;
-                hist_curr[MAX_POINTS-1] = curr_ma;
-                hist_soc[MAX_POINTS-1] = soc_val;
+                memmove(&hist_volt[0], &hist_volt[1], (MAX_POINTS - 1) * sizeof(int16_t));
+                memmove(&hist_curr[0], &hist_curr[1], (MAX_POINTS - 1) * sizeof(int16_t));
+                memmove(&hist_soc[0], &hist_soc[1], (MAX_POINTS - 1) * sizeof(int16_t));
+                hist_volt[MAX_POINTS - 1] = volt_mv;
+                hist_curr[MAX_POINTS - 1] = curr_ma;
+                hist_soc[MAX_POINTS - 1] = soc_val;
             }
             last_update = now;
         }
@@ -2267,11 +2295,16 @@ void AppSettings::bat_info()
 
         // 第1行：SOC + 状态
         u8g2Fonts.setCursor(leftX, lineY);
-        if (binfo.flag.FC) {
+        if (binfo.flag.FC)
+        {
             u8g2Fonts.printf("SOC:%d%% 已充满", binfo.soc);
-        } else if (binfo.current.avg > 0) {
+        }
+        else if (binfo.current.avg > 0)
+        {
             u8g2Fonts.printf("SOC:%d%% 充电中", binfo.soc);
-        } else {  // avg <= 0
+        }
+        else
+        { // avg <= 0
             u8g2Fonts.printf("SOC:%d%% 放电中", binfo.soc);
         }
         lineY += lineH;
@@ -2293,32 +2326,45 @@ void AppSettings::bat_info()
 
         // 第5行：时间估算
         u8g2Fonts.setCursor(leftX, lineY);
-        if (binfo.flag.FC) {
+        if (binfo.flag.FC)
+        {
             u8g2Fonts.print("已充满");
-        } else if (binfo.current.avg > 0) {
+        }
+        else if (binfo.current.avg > 0)
+        {
             // 充电：剩余需充电量
             int32_t need = binfo.capacity.full_f - binfo.capacity.remain_f;
-            if (need > 0 && abs(binfo.current.avg) > 0) {
+            if (need > 0 && abs(binfo.current.avg) > 0)
+            {
                 float hours = (float)need / abs(binfo.current.avg);
                 if (hours >= 1.0)
-                    u8g2Fonts.printf("充满:%dh%dm", (int)hours, (int)((hours - (int)hours)*60));
+                    u8g2Fonts.printf("充满:%dh%dm", (int)hours, (int)((hours - (int)hours) * 60));
                 else
-                    u8g2Fonts.printf("充满:%dm", (int)(hours*60));
-            } else {
+                    u8g2Fonts.printf("充满:%dm", (int)(hours * 60));
+            }
+            else
+            {
                 u8g2Fonts.print("充满:--");
             }
-        } else if (binfo.current.avg < 0) {
+        }
+        else if (binfo.current.avg < 0)
+        {
             // 放电：剩余容量 / 放电电流
-            if (abs(binfo.current.avg) > 0) {
+            if (abs(binfo.current.avg) > 0)
+            {
                 float hours = (float)binfo.capacity.remain_f / abs(binfo.current.avg);
                 if (hours >= 1.0)
-                    u8g2Fonts.printf("剩余:%dh%dm", (int)hours, (int)((hours - (int)hours)*60));
+                    u8g2Fonts.printf("剩余:%dh%dm", (int)hours, (int)((hours - (int)hours) * 60));
                 else
-                    u8g2Fonts.printf("剩余:%dm", (int)(hours*60));
-            } else {
+                    u8g2Fonts.printf("剩余:%dm", (int)(hours * 60));
+            }
+            else
+            {
                 u8g2Fonts.print("剩余:--");
             }
-        } else {
+        }
+        else
+        {
             u8g2Fonts.print("无电流");
         }
 
@@ -2327,26 +2373,32 @@ void AppSettings::bat_info()
         display.drawRect(CHART_LEFT, CHART_TOP, CHART_RIGHT - CHART_LEFT, CHART_BOTTOM - CHART_TOP, TFT_BLACK);
 
         // 图表标题（模式名称）
-        const char* modeNames[] = {"电压趋势", "电流趋势", "SOC趋势"};
+        const char *modeNames[] = {"电压趋势", "电流趋势", "SOC趋势"};
         u8g2Fonts.setCursor(CHART_LEFT, CHART_TOP - 2);
         u8g2Fonts.print(modeNames[mode]);
 
         // 根据模式设定Y轴范围
         int16_t minVal, maxVal;
-        if (mode == 0) {      // 电压：2.5V ~ 4.2V（mV）
+        if (mode == 0)
+        { // 电压：2.5V ~ 4.2V（mV）
             minVal = 2500;
             maxVal = 4200;
-        } else if (mode == 1) { // 电流：-200mA ~ +200mA
+        }
+        else if (mode == 1)
+        { // 电流：-200mA ~ +200mA
             minVal = -200;
             maxVal = 200;
-        } else {               // SOC：0% ~ 100%
+        }
+        else
+        { // SOC：0% ~ 100%
             minVal = 0;
             maxVal = 100;
         }
 
         // 绘制Y轴刻度（左侧）
         const int numTicks = 5;
-        for (int i = 0; i < numTicks; i++) {
+        for (int i = 0; i < numTicks; i++)
+        {
             int tickY = CHART_TOP + i * (CHART_BOTTOM - CHART_TOP) / (numTicks - 1);
             // 短横线
             display.drawLine(CHART_LEFT - 3, tickY, CHART_LEFT, tickY, TFT_BLACK);
@@ -2354,50 +2406,69 @@ void AppSettings::bat_info()
             // 计算刻度值
             int16_t val = maxVal - i * (maxVal - minVal) / (numTicks - 1);
             u8g2Fonts.setCursor(CHART_LEFT - 45, tickY);
-            if (mode == 0) {
+            if (mode == 0)
+            {
                 // 电压显示两位小数，避免浮点printf
                 int intPart = val / 1000;
-                int fracPart = (val % 1000) / 10;  // 百分位
+                int fracPart = (val % 1000) / 10; // 百分位
                 u8g2Fonts.printf("%d.%02dV", intPart, fracPart);
-            } else if (mode == 1) {
+            }
+            else if (mode == 1)
+            {
                 u8g2Fonts.printf("%dmA", val);
-            } else {
+            }
+            else
+            {
                 u8g2Fonts.printf("%d%%", val);
             }
         }
 
         // 绘制趋势线
-        if (count > 1) {
+        if (count > 1)
+        {
             int startX = CHART_RIGHT - (count - 1) * POINT_SPACING;
-            if (startX < CHART_LEFT) startX = CHART_LEFT; // 防溢出（实际MAX_POINTS已控制）
+            if (startX < CHART_LEFT)
+                startX = CHART_LEFT; // 防溢出（实际MAX_POINTS已控制）
 
             int prevX = -1, prevY = -1;
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < count; i++)
+            {
                 int x = CHART_RIGHT - (count - 1 - i) * POINT_SPACING; // i=0最旧，i=count-1最新
                 int16_t val;
-                if (mode == 0) val = hist_volt[i];
-                else if (mode == 1) val = hist_curr[i];
-                else val = hist_soc[i];
+                if (mode == 0)
+                    val = hist_volt[i];
+                else if (mode == 1)
+                    val = hist_curr[i];
+                else
+                    val = hist_soc[i];
 
                 // Y坐标映射（注意屏幕Y向下）
                 int y = CHART_BOTTOM - (int32_t)(val - minVal) * (CHART_BOTTOM - CHART_TOP) / (maxVal - minVal);
                 // 边界裁剪
-                if (y < CHART_TOP) y = CHART_TOP;
-                if (y > CHART_BOTTOM) y = CHART_BOTTOM;
+                if (y < CHART_TOP)
+                    y = CHART_TOP;
+                if (y > CHART_BOTTOM)
+                    y = CHART_BOTTOM;
 
-                if (i > 0 && prevX >= CHART_LEFT) {
+                if (i > 0 && prevX >= CHART_LEFT)
+                {
                     display.drawLine(prevX, prevY, x, y, TFT_BLACK);
                 }
                 prevX = x;
                 prevY = y;
             }
-        } else if (count == 1) {
+        }
+        else if (count == 1)
+        {
             // 单个点：绘制一个像素点
             int x = CHART_RIGHT;
-            int16_t val = (mode == 0) ? hist_volt[0] : (mode == 1) ? hist_curr[0] : hist_soc[0];
+            int16_t val = (mode == 0) ? hist_volt[0] : (mode == 1) ? hist_curr[0]
+                                                                   : hist_soc[0];
             int y = CHART_BOTTOM - (int32_t)(val - minVal) * (CHART_BOTTOM - CHART_TOP) / (maxVal - minVal);
-            if (y < CHART_TOP) y = CHART_TOP;
-            if (y > CHART_BOTTOM) y = CHART_BOTTOM;
+            if (y < CHART_TOP)
+                y = CHART_TOP;
+            if (y > CHART_BOTTOM)
+                y = CHART_BOTTOM;
             display.drawPixel(x, y, TFT_BLACK);
         }
 
@@ -2409,7 +2480,8 @@ void AppSettings::bat_info()
     }
 
     // 退出后等待所有按键释放
-    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()) {
+    while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
+    {
         delay(20);
     }
 }

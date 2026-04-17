@@ -2347,6 +2347,7 @@ static const menu_select menu_set_player[] =
         {true, "打印歌词debug信息", "lrc_debug"},
         {true, "播放视频?", "en_vlbm"},
         {true, "显示音量/显示播放次数", "show_gain"},
+        {true, "启用环形缓存区", "en_ringbuff"},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
@@ -3426,9 +3427,9 @@ void AppMusicPlayer::show_display_fft()
         {
             SongPlayCount *rec = findPlayCountRecord(music_file);
             if (rec)
-            {
                 sprintf(_buf, "%lu", rec->count);
-            }
+            else
+                sprintf(_buf, "0");
         }
         u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(_buf), 165);
         u8g2Fonts.printf(_buf);
@@ -3881,6 +3882,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
     case Flac_Generator:
         flac_generator = new AudioGeneratorFLAC();
         flac_generator->RegisterMetadataCB(MDCallback, (void *)"FLACTAG");
+        flac_generator->_en_ringbuff(hal.pref.getBool("en_ringbuff", false));
         generator = flac_generator;
         break;
     case AAC_Generator:

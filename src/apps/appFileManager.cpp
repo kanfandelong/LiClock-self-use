@@ -35,7 +35,7 @@ static const uint8_t wenjian_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 // 定义bin 文件分页参数
-#define LINES_PER_PAGE 9                                 // 每页n行
+#define LINES_PER_PAGE 12                                // 每页n行
 #define BYTES_PER_LINE 8                                 // 每行n个字节
 #define BYTES_PER_PAGE (LINES_PER_PAGE * BYTES_PER_LINE) // 每页显示n行，每行n个字节
 

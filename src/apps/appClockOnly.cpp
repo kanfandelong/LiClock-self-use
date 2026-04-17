@@ -55,7 +55,10 @@ void AppClockOnly::setup()
         File ttfFile = hal.open(hal.pref.getString("clock_font", "default"));
         if (!ttfFile || !ttf.setTtfFile(ttfFile))
         {
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            if (hal.pref.getString("system_font", "default") == "default")
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            else
+                u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
             GUI::info_msgbox("错误", "自定义字体加载失败");
             appManager.noDeepSleep = false;
             appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
@@ -71,7 +74,10 @@ void AppClockOnly::setup()
         ttf.end();
     }
 
-    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+    if (hal.pref.getString("system_font", "default") == "default")
+        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+    else
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
     display.drawFastHLine(0, SCREEN_HEIGHT - 18, SCREEN_WIDTH, 0);
     u8g2Fonts.setCursor(10, SCREEN_HEIGHT - 3);
     u8g2Fonts.printf("%02d月%02d日 星期%s  ", hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, dayOfWeek[hal.timeinfo.tm_wday]);
