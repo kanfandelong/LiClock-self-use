@@ -577,70 +577,143 @@ int16_t u8g2_DrawStr(u8g2_font_t *u8g2, int16_t x, int16_t y, const char *s)
   return sum;
 }
 
-/* 为了避免多次分配导致内存泄漏，保存上一次在 PSRAM 中分配的指针 */
+/* 避免多次分配导致内存泄漏，保存上一次在 PSRAM 中分配的指针 */
 static const uint8_t *psram_font_ptr = nullptr;
 
+/* 记录上次从文件加载的字体信息（用于跳过重复加载） */
+static char last_font_path[256] = {0};     // 最多支持127字符路径
+static const uint8_t *last_file_font_ptr = nullptr;
+
 /* --------------------------------------------------------------
-   u8g2_SetFont 的改写（位于原来的 u8g2_SetFont 实现处）
+   u8g2_SetFont 的改写（内存指针版本）
    -------------------------------------------------------------- */
 void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t *font, size_t font_size)
 {
-  /* 如果已经是同一个字体则直接返回 */
-  // 更完整的判断：
-  // 1. 当字体已被复制到 PSRAM 时，u8g2->font 指向 psram_font_ptr。
-  // 2. 当未使用 PSRAM 时，u8g2->font 指向传入的 font（即 Flash 中的原始指针）。
-  // 只有当当前使用的指针正好与对应的来源指针相同，才认为是同一字体并直接返回。
-  if ((psram_font_ptr && u8g2->font == psram_font_ptr) ||
-      (!psram_font_ptr && u8g2->font == font))
-    return;
+    /* 如果已经是同一个字体则直接返回 */
+    if ((psram_font_ptr && u8g2->font == psram_font_ptr) ||
+        (!psram_font_ptr && u8g2->font == font))
+        return;
 
-  /* 检查是否真的有 PSRAM */
-  if (psramFound())
-  {
-    /* ------------------------------------------------------
-       1) 估算字体数据的大小
-          U8g2 字体的末尾会出现两个连续的 0 字节（结束标记），
-          这里用一个安全上限（例如 64 KB）防止意外遍历过长。
-       ------------------------------------------------------ */
-    if (font_size == 0)
+    /* 检查是否真的有 PSRAM */
+    if (psramFound())
     {
-      if (psram_font_ptr)
-        heap_caps_free((void *)psram_font_ptr);
-      goto no_psram;
+        if (font_size == 0)
+        {
+            if (psram_font_ptr)
+                heap_caps_free((void *)psram_font_ptr);
+            goto no_psram;
+        }
+
+        const uint8_t *p = font;
+        size_t font_sz = font_size;
+
+        uint8_t *buf = (uint8_t *)heap_caps_malloc(font_sz, MALLOC_CAP_SPIRAM);
+        if (buf != nullptr)
+        {
+            log_i("加载字体到PSRAM...");
+            memcpy(buf, font, font_sz);
+
+            if (psram_font_ptr)
+                heap_caps_free((void *)psram_font_ptr);
+            psram_font_ptr = buf;
+
+            /* 清除上次文件加载的记录（因为现在 PSRAM 中不是来自文件） */
+            last_font_path[0] = '\0';
+            last_file_font_ptr = nullptr;
+
+            u8g2->font = buf;
+            u8g2->font_decode.is_transparent = 0;
+            u8g2_read_font_info(&(u8g2->font_info), buf);
+            return;
+        }
     }
-    const uint8_t *p = font;
-    size_t font_sz = font_size;
 
-    /* ------------------------------------------------------
-       2) 在 PSRAM 中分配内存
-       ------------------------------------------------------ */
-    uint8_t *buf = (uint8_t *)heap_caps_malloc(font_sz, MALLOC_CAP_SPIRAM);
-    if (buf != nullptr)
-    {
-      log_i("加载字体到PSRAM...");
-      /* 复制字体数据 */
-      memcpy(buf, font, font_sz);
-
-      /* 释放上一次的 PSRAM 缓冲（如果有的话） */
-      if (psram_font_ptr)
-        heap_caps_free((void *)psram_font_ptr);
-      psram_font_ptr = buf;
-
-      /* 使用 PSRAM 中的副本 */
-      u8g2->font = buf;
-      u8g2->font_decode.is_transparent = 0;
-      u8g2_read_font_info(&(u8g2->font_info), buf);
-      return; // 已完成 PSRAM 版的设置
-    }
-    /* 若分配失败则回退到普通方式 */
-  }
-  /* ------------------------------------------------------
-     没有 PSRAM 或者分配失败时的普通处理（直接使用 Flash 中的指针）
-     ------------------------------------------------------ */
 no_psram:
-  u8g2->font = font;
-  u8g2->font_decode.is_transparent = 0;
-  u8g2_read_font_info(&(u8g2->font_info), font);
+    u8g2->font = font;
+    u8g2->font_decode.is_transparent = 0;
+    u8g2_read_font_info(&(u8g2->font_info), font);
+}
+
+/* --------------------------------------------------------------
+   重载版本：从文件系统加载字体到 PSRAM（文件路径版本）
+   -------------------------------------------------------------- */
+void u8g2_SetFont(u8g2_font_t *u8g2, const char *path)
+{
+    if (!u8g2 || !path) {
+        log_e("无效参数");
+        return;
+    }
+
+    /* 必须存在 PSRAM */
+    if (!psramFound()) {
+        log_e("未检测到 PSRAM，无法从文件加载字体");
+        return;
+    }
+
+    /* 重复加载检测：如果当前字体正是上次从同一文件加载的，则跳过 */
+    if (last_font_path[0] != '\0' && strcmp(last_font_path, path) == 0 &&
+        u8g2->font == last_file_font_ptr) {
+        // log_i("字体已加载，跳过: %s", path);
+        return;
+    }
+
+    /* 打开文件 */
+    FILE *fp = fopen(path, "rb");
+    if (!fp) {
+        log_e("无法打开字体文件 %s", path);
+        return;
+    }
+
+    int fd = fileno(fp);
+    if (fd == -1) {
+        log_e("获取文件描述符失败");
+        fclose(fp);
+        return;
+    }
+
+    struct stat stbuf;
+    if (fstat(fd, &stbuf) == -1) {
+        log_e("获取文件状态失败");
+        fclose(fp);
+        return;
+    }
+
+    size_t file_size = (size_t)stbuf.st_size;
+
+    /* 在 PSRAM 中分配内存 */
+    uint8_t *buf = (uint8_t *)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM);
+    if (!buf) {
+        log_e("PSRAM 分配失败（需要 %zu 字节）", file_size);
+        fclose(fp);
+        return;
+    }
+
+    log_i("从文件 \'%s\' %zuB 加载字体到PSRAM...", path, file_size);
+    size_t bytes_read = fread(buf, 1, file_size, fp);
+    fclose(fp);
+
+    if (bytes_read != file_size) {
+        log_e("读取不完整（期望 %zu，实际 %zu）", file_size, bytes_read);
+        heap_caps_free(buf);
+        if (u8g2->font == psram_font_ptr)
+            u8g2->font = nullptr;
+        return;
+    }
+
+    /* 释放之前 PSRAM 中的字体（如果有） */
+    if (psram_font_ptr) {
+        heap_caps_free((void *)psram_font_ptr);
+    }
+
+    /* 更新静态指针和记录 */
+    psram_font_ptr = buf;
+    last_file_font_ptr = buf;
+    strncpy(last_font_path, path, sizeof(last_font_path) - 1);
+    last_font_path[sizeof(last_font_path) - 1] = '\0';
+
+    u8g2->font = buf;
+    u8g2->font_decode.is_transparent = 0;
+    u8g2_read_font_info(&(u8g2->font_info), buf);
 }
 
 void u8g2_SetForegroundColor(u8g2_font_t *u8g2, uint16_t fg)
