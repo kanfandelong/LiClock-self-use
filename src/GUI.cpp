@@ -73,7 +73,10 @@ namespace GUI
         {
             u8g2Fonts.setBackgroundColor(1);
             u8g2Fonts.setForegroundColor(0);
-            u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            if (hal.pref.getString("system_font", "default") == "default")
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            else
+                u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
             wchar = u8g2Fonts.getUTF8Width(title);
             u8g2Fonts.setCursor(x + (w - wchar) / 2, y + 12);
             u8g2Fonts.print(title);
@@ -872,7 +875,10 @@ namespace GUI
                 u8g2Fonts.setCursor(5, 15);                         // 在文本框中绘制文本
                 u8g2Fonts.setForegroundColor(TFT_BLACK);
                 u8g2Fonts.setBackgroundColor(TFT_WHITE);
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+                if (hal.pref.getString("system_font", "default") == "default")
+                    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+                else
+                    u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
                 autoIndentDraw(inputBuffer, 190, 5);
                 u8g2Fonts.drawUTF8(5, 40, name);
                 display.display(); // 更新文本框内容

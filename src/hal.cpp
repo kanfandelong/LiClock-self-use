@@ -603,23 +603,28 @@ void HAL::getTime()
  */
 char *HAL::get_char_sha_key(const char *str, bool mode)
 {
-    static char key[16];  // 返回的静态缓冲区，注意多线程重入问题（当前使用场景是安全的）
+    static char key[16]; // 返回的静态缓冲区，注意多线程重入问题（当前使用场景是安全的）
     uint8_t hash[32];
-    
+
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
-    mbedtls_sha256_starts(&ctx, 0);  // 0 表示 SHA-256
+    mbedtls_sha256_starts(&ctx, 0); // 0 表示 SHA-256
     mbedtls_sha256_update(&ctx, (const unsigned char *)str, strlen(str));
     mbedtls_sha256_finish(&ctx, hash);
     mbedtls_sha256_free(&ctx);
 
-    if (mode) {
-        for (int i = 0; i < 15; i++) {
-            key[i] = (hash[i] % 94) + 33;  // 映射到可打印 ASCII
+    if (mode)
+    {
+        for (int i = 0; i < 15; i++)
+        {
+            key[i] = (hash[i] % 94) + 33; // 映射到可打印 ASCII
         }
-    } else {
+    }
+    else
+    {
         char hex_hash[65];
-        for (int j = 0; j < 32; j++) {
+        for (int j = 0; j < 32; j++)
+        {
             sprintf(hex_hash + j * 2, "%02x", hash[j]);
         }
         strncpy(key, hex_hash, 15);
@@ -627,7 +632,6 @@ char *HAL::get_char_sha_key(const char *str, bool mode)
     key[15] = '\0';
     return key;
 }
-
 
 String HAL::get_CAcert(const char *filePath)
 {
@@ -954,7 +958,10 @@ void HAL::WiFiConfigManual()
                         display.fillRect(2 * x + 20, 2 * y + 20, 2, 2, qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE);
                     }
                 }
-                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+                if (hal.pref.getString("system_font", "default") == "default")
+                    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+                else
+                    u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
                 u8g2Fonts.setCursor(120, ((128 - (14 * 6)) / 2) + 14);
                 char buf[256];
                 sprintf(buf, "如果使用的是电脑或手机未跳转至配置界面(移动数据可能会干扰跳转),请扫描二维码打开配置界面或浏览器打开http://192.168.4.1");
@@ -1387,6 +1394,7 @@ bool HAL::init()
     u8g2Fonts.setBackgroundColor(TFT_WHITE);
 
     u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+
     u8g2Fonts.begin(display);
 
     // display.epd2.PLL_set(pref.getUInt("pllset", 0x3C)); // 配置屏幕PLL，默认为50HZ
@@ -1479,6 +1487,9 @@ bool HAL::init()
         }
     }
     loadConfig();
+    if (!(hal.pref.getString("system_font", "default") == "default"))
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
     peripherals.init();
     weather.begin();
     buzzer.init();
