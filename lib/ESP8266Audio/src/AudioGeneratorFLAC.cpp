@@ -475,18 +475,26 @@ void AudioGeneratorFLAC::start_fillTask()
   if (!ringBufferStorage)
   {
     log_e("Failed to allocate PSRAM for ring buffer");
+    en_ringbuff = false;
+    return;
   }
 
   tempBuffer = (uint8_t *)heap_caps_malloc(TEMPBUF_SIZE, MALLOC_CAP_SPIRAM);
   if (!tempBuffer)
   {
     log_e("Failed to allocate PSRAM for tempBuffer");
+    heap_caps_free(ringBufferStorage);
+    en_ringbuff = false;
+    return;
   }
 
   ringBuf = xRingbufferCreateStatic(RINGBUF_SIZE, RINGBUF_TYPE_BYTEBUF, ringBufferStorage, &StaticRingbuffer);
   if (!ringBuf)
   {
     heap_caps_free(ringBufferStorage);
+    heap_caps_free(tempBuffer);
+    en_ringbuff = false;
+    return;
   }
   // BaseType_t core = xPortGetCoreID();
   // if (core == 0)
