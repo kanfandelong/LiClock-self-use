@@ -2373,6 +2373,7 @@ void AppMusicPlayer::player_menu()
             hal.pref.putString("music_file", (String)music_file);
             delete_playtask();
             delete in;
+            in = nullptr;
             delete_output();
             if (id3 != nullptr)
                 delete id3;
@@ -4217,7 +4218,7 @@ void AppMusicPlayer::setup()
             GUI::info_msgbox("提示", "出现暂未解决的BUG,将会在重启后恢复播放");
             break;
         }
-        if (_play_end)
+        if (_play_end && !_end)
         {
             delay(10);
             next_song();
