@@ -1537,6 +1537,113 @@ static int cmd_mv(int argc, char **argv)
     }
 }
 
+// ==================== espreg 命令 ====================
+// 用法：
+//   espreg -r <address> [-bit <bit>]
+//   espreg -w <address> [-bit <bit>] <value>
+static int cmd_espreg(int argc, char **argv)
+{
+    if (argc < 3) {
+        return 1; // 参数不足
+    }
+
+    // 解析操作类型
+    bool is_read = false;
+    if (strcmp(argv[1], "-r") == 0) {
+        is_read = true;
+    } else if (strcmp(argv[1], "-w") == 0) {
+        is_read = false;
+    } else {
+        PRINT_ERROR("Invalid operation: must be -r or -w");
+        return 1;
+    }
+
+    // 解析地址
+    char *endptr;
+    uint32_t addr = strtoul(argv[2], &endptr, 0);
+    if (*endptr != '\0') {
+        PRINT_ERROR("Invalid address: %s", argv[2]);
+        return 1;
+    }
+    // 地址对齐检查（警告但继续）
+    if (addr & 0x3) {
+        PRINT_WARNING("Address 0x%08X is not 32-bit aligned, access may cause exception", addr);
+    }
+
+    // 解析可选参数 -bit
+    int bit_pos = -1;
+    int value_arg_idx = 3;
+    if (argc >= 5 && strcmp(argv[3], "-bit") == 0) {
+        bit_pos = atoi(argv[4]);
+        if (bit_pos < 0 || bit_pos > 31) {
+            PRINT_ERROR("Bit position must be between 0 and 31");
+            return 1;
+        }
+        value_arg_idx = 5;
+    }
+
+    // 读操作
+    if (is_read) {
+        if (argc != value_arg_idx) {
+            return 1; // 多余参数
+        }
+        uint32_t val = REG_READ(addr);
+        if (bit_pos >= 0) {
+            int bit_val = (val >> bit_pos) & 1;
+            PRINT_INFO("Register 0x%08X bit %d = %d", addr, bit_pos, bit_val);
+        } else {
+            PRINT_INFO("Register 0x%08X = 0x%08X (%u)", addr, val, val);
+        }
+        return 0;
+    }
+
+    // 写操作
+    if (!is_read) {
+        if (argc != value_arg_idx + 1) {
+            return 1; // 缺少 value 参数
+        }
+        uint32_t new_val = strtoul(argv[value_arg_idx], &endptr, 0);
+        if (*endptr != '\0') {
+            PRINT_ERROR("Invalid value: %s", argv[value_arg_idx]);
+            return 1;
+        }
+
+        uint32_t old_val = REG_READ(addr);
+        uint32_t write_val;
+
+        if (bit_pos >= 0) {
+            if (new_val != 0 && new_val != 1) {
+                PRINT_ERROR("Bit value must be 0 or 1 when using -bit");
+                return 1;
+            }
+            write_val = old_val;
+            if (new_val) {
+                write_val |= (1 << bit_pos);
+            } else {
+                write_val &= ~(1 << bit_pos);
+            }
+            PRINT_INFO("Modifying bit %d of register 0x%08X from %d to %d",
+                       bit_pos, addr, (old_val >> bit_pos) & 1, (int)new_val);
+        } else {
+            write_val = new_val;
+            PRINT_INFO("Writing 0x%08X to register 0x%08X (old: 0x%08X)",
+                       write_val, addr, old_val);
+        }
+
+        REG_WRITE(addr, write_val);
+        uint32_t verify_val = REG_READ(addr);
+        if (verify_val == write_val) {
+            PRINT_SUCCESS("Register updated successfully");
+        } else {
+            PRINT_ERROR("Register write verification failed! Read back 0x%08X", verify_val);
+            return 2;
+        }
+        return 0;
+    }
+
+    return 0;
+}
+
 // 命令注册表
 // Register all console commands defined in this file
 static const char *no_info = "";
@@ -1570,6 +1677,14 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "rm", .help = "删除文件或目录", .hint = "Usage: rm [-r] <path>", .func = &cmd_rm, .argtable = NULL},
     {.command = "echo", .help = "写入或追加文件", .hint = "Usage: echo <text> [>|>> <file>]", .func = &cmd_echo, .argtable = NULL},
     {.command = "mkdir", .help = "新建文件夹", .hint = "Usage: mkdir <path>", .func = &cmd_mkdir, .argtable = NULL},
+    {.command = "espreg", .help = "读取或写入寄存器（支持位操作）",
+     .hint = "Usage: espreg <-r|-w> <address> [-bit <bit>] [value]\n"
+             "  -r: read register or specific bit\n"
+             "  -w: write register or modify specific bit\n"
+             "  address: hex or decimal (e.g., 0x3FF44020)\n"
+             "  -bit: optional bit position (0-31)\n"
+             "  value: for -w: full register value, or 0/1 when -bit is used",
+     .func = &cmd_espreg, .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.
