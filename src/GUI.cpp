@@ -159,7 +159,7 @@ namespace GUI
         u8g2Fonts.setCursor(start_x + 85 + (70 - w) / 2, start_y + 96 - 20 + 12);
         u8g2Fonts.print("确定");
         // display.displayWindow(start_x, start_y, 160, 96);
-        display.display();
+        display.display(true);
         hal.wait_input(timeout);
         display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();

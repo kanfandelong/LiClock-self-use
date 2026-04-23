@@ -334,6 +334,7 @@ public:
     void set();
     std::list<String> directorylist;
     int getFileSize(const char *filepath);
+    String truncatePath(const String &path, U8G2_FOR_ADAFRUIT_GFX &u8g2);
     // void loadwenjian(const String path);
     const char *getFileName(const char *filePath);
     const char *combinePath(const char *directory, const char *fileName);
@@ -392,6 +393,84 @@ void AppInstaller::loadApp(const String path) // 加载TF卡App
     app_lua._reentrant = false;
     appManager.gotoApp(&app_lua);
 }*/
+
+String AppFileManager::truncatePath(const String &path, U8G2_FOR_ADAFRUIT_GFX &u8g2)
+{
+    const int16_t maxWidth = 200;
+
+    // 1. 根目录直接返回
+    if (path == "/")
+    {
+        return path;
+    }
+
+    // 2. 检查完整路径是否合适
+    if (u8g2.getUTF8Width(path.c_str()) <= maxWidth)
+    {
+        return path;
+    }
+
+    // 3. 分割路径
+    std::vector<String> parts;
+    int start = 0;
+    int end = path.indexOf('/');
+
+    while (end != -1)
+    {
+        if (end > start)
+        { // 忽略空的部分
+            parts.push_back(path.substring(start, end));
+        }
+        start = end + 1;
+        end = path.indexOf('/', start);
+    }
+    // 添加最后一部分
+    if (start < path.length())
+    {
+        parts.push_back(path.substring(start));
+    }
+
+    // 4. 逐步截断路径
+    // 从后向前保留更多目录
+    for (int keepParts = parts.size(); keepParts >= 1; keepParts--)
+    {
+        String resultPath;
+        if (keepParts == parts.size())
+        {
+            // 完整路径
+            resultPath = "/";
+            for (int i = 0; i < parts.size(); i++)
+            {
+                resultPath += parts[i];
+                if (i < parts.size() - 1)
+                    resultPath += "/";
+            }
+        }
+        else if (keepParts == 1)
+        {
+            // 只剩下最后一部分
+            resultPath = ".../" + parts.back();
+        }
+        else
+        {
+            // 保留最后几部分
+            resultPath = "...";
+            for (int i = parts.size() - keepParts; i < parts.size(); i++)
+            {
+                resultPath += "/" + parts[i];
+            }
+        }
+
+        // 检查宽度
+        if (u8g2.getUTF8Width(resultPath.c_str()) <= maxWidth)
+        {
+            return resultPath;
+        }
+    }
+
+    // 5. 如果连".../dir_name"都超过200，直接返回它
+    return ".../" + parts.back();
+}
 
 void AppFileManager::setup()
 {
@@ -472,7 +551,7 @@ file_info:
     };
     while (hasToApp == false)
     {
-        res = GUI::menu(filename, appMenu_main, 8, 8, res);
+        res = GUI::menu(truncatePath(filename, u8g2Fonts).c_str(), appMenu_main, 8, 8, res);
         switch (res)
         {
         case 0: // 返回

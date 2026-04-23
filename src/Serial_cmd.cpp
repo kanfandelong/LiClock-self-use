@@ -922,7 +922,7 @@ static int cmd_rmnvs(int argc, char **argv)
     if (hal.pref.getType(key) == PT_INVALID)
     {
         PRINT_ERROR("Key '%s' not found", key);
-        return 2;   // 执行失败
+        return 2; // 执行失败
     }
 
     // 执行删除
@@ -1292,29 +1292,35 @@ static int cmd_ls(int argc, char **argv)
 //   echo <text>                     - 直接打印文本
 //   echo <text> > <file>            - 覆盖写入文件
 //   echo <text> >> <file>           - 追加写入文件
-static int cmd_echo(int argc, char **argv) {
-    if (argc < 2) {
+static int cmd_echo(int argc, char **argv)
+{
+    if (argc < 2)
+    {
         return 1;
     }
 
     // 情况1：无重定向
-    if (argc == 2) {
+    if (argc == 2)
+    {
         PRINT_INFO("%s", argv[1]);
         return 0;
     }
 
     // 情况2：有重定向，必须满足 argc == 4 且 argv[2] 为 ">" 或 ">>"
-    if (argc == 4 && (strcmp(argv[2], ">") == 0 || strcmp(argv[2], ">>") == 0)) {
-        const char* mode = (strcmp(argv[2], ">") == 0) ? "w" : "a";
-        const char* file_path = argv[3];
+    if (argc == 4 && (strcmp(argv[2], ">") == 0 || strcmp(argv[2], ">>") == 0))
+    {
+        const char *mode = (strcmp(argv[2], ">") == 0) ? "w" : "a";
+        const char *file_path = argv[3];
 
-        if (!is_valid_root_path(file_path)) {
+        if (!is_valid_root_path(file_path))
+        {
             PRINT_ERROR("Invalid file path: must start with /littlefs/ or /sd/");
             return 1;
         }
 
         File f = hal.open(file_path, mode, true);
-        if (!f) {
+        if (!f)
+        {
             PRINT_ERROR("Failed to open file: %s", file_path);
             return 2;
         }
@@ -1322,7 +1328,8 @@ static int cmd_echo(int argc, char **argv) {
         size_t written = f.print(argv[1]);
         f.close();
 
-        if (written != strlen(argv[1])) {
+        if (written != strlen(argv[1]))
+        {
             PRINT_ERROR("Write error to file: %s", file_path);
             return 2;
         }
@@ -1537,23 +1544,46 @@ static int cmd_mv(int argc, char **argv)
     }
 }
 
+// 将 32 位无符号整数转换为二进制字符串（格式：每组4位用空格分隔，提高可读性）
+static void uint32_to_bin_str(uint32_t val, char *buf, size_t buf_size)
+{
+    if (buf_size < 40)
+        return; // 确保缓冲区足够（32位+7空格+结尾=40）
+    int idx = 0;
+    for (int i = 31; i >= 0; i--)
+    {
+        buf[idx++] = (val & (1 << i)) ? '1' : '0';
+        if (i % 4 == 0 && i != 0)
+        {
+            buf[idx++] = ' '; // 每4位加空格
+        }
+    }
+    buf[idx] = '\0';
+}
+
 // ==================== espreg 命令 ====================
 // 用法：
 //   espreg -r <address> [-bit <bit>]
 //   espreg -w <address> [-bit <bit>] <value>
 static int cmd_espreg(int argc, char **argv)
 {
-    if (argc < 3) {
+    if (argc < 3)
+    {
         return 1; // 参数不足
     }
 
     // 解析操作类型
     bool is_read = false;
-    if (strcmp(argv[1], "-r") == 0) {
+    if (strcmp(argv[1], "-r") == 0)
+    {
         is_read = true;
-    } else if (strcmp(argv[1], "-w") == 0) {
+    }
+    else if (strcmp(argv[1], "-w") == 0)
+    {
         is_read = false;
-    } else {
+    }
+    else
+    {
         PRINT_ERROR("Invalid operation: must be -r or -w");
         return 1;
     }
@@ -1561,21 +1591,25 @@ static int cmd_espreg(int argc, char **argv)
     // 解析地址
     char *endptr;
     uint32_t addr = strtoul(argv[2], &endptr, 0);
-    if (*endptr != '\0') {
+    if (*endptr != '\0')
+    {
         PRINT_ERROR("Invalid address: %s", argv[2]);
         return 1;
     }
     // 地址对齐检查（警告但继续）
-    if (addr & 0x3) {
+    if (addr & 0x3)
+    {
         PRINT_WARNING("Address 0x%08X is not 32-bit aligned, access may cause exception", addr);
     }
 
     // 解析可选参数 -bit
     int bit_pos = -1;
     int value_arg_idx = 3;
-    if (argc >= 5 && strcmp(argv[3], "-bit") == 0) {
+    if (argc >= 5 && strcmp(argv[3], "-bit") == 0)
+    {
         bit_pos = atoi(argv[4]);
-        if (bit_pos < 0 || bit_pos > 31) {
+        if (bit_pos < 0 || bit_pos > 31)
+        {
             PRINT_ERROR("Bit position must be between 0 and 31");
             return 1;
         }
@@ -1583,27 +1617,37 @@ static int cmd_espreg(int argc, char **argv)
     }
 
     // 读操作
-    if (is_read) {
-        if (argc != value_arg_idx) {
+    if (is_read)
+    {
+        if (argc != value_arg_idx)
+        {
             return 1; // 多余参数
         }
         uint32_t val = REG_READ(addr);
-        if (bit_pos >= 0) {
+        if (bit_pos >= 0)
+        {
             int bit_val = (val >> bit_pos) & 1;
             PRINT_INFO("Register 0x%08X bit %d = %d", addr, bit_pos, bit_val);
-        } else {
-            PRINT_INFO("Register 0x%08X = 0x%08X (%u)", addr, val, val);
+        }
+        else
+        {
+            char bin_str[64];
+            uint32_to_bin_str(val, bin_str, sizeof(bin_str));
+            PRINT_INFO("Register 0x%08X = 0x%08X (bin: %s)", addr, val, bin_str);
         }
         return 0;
     }
 
     // 写操作
-    if (!is_read) {
-        if (argc != value_arg_idx + 1) {
+    if (!is_read)
+    {
+        if (argc != value_arg_idx + 1)
+        {
             return 1; // 缺少 value 参数
         }
         uint32_t new_val = strtoul(argv[value_arg_idx], &endptr, 0);
-        if (*endptr != '\0') {
+        if (*endptr != '\0')
+        {
             PRINT_ERROR("Invalid value: %s", argv[value_arg_idx]);
             return 1;
         }
@@ -1611,20 +1655,27 @@ static int cmd_espreg(int argc, char **argv)
         uint32_t old_val = REG_READ(addr);
         uint32_t write_val;
 
-        if (bit_pos >= 0) {
-            if (new_val != 0 && new_val != 1) {
+        if (bit_pos >= 0)
+        {
+            if (new_val != 0 && new_val != 1)
+            {
                 PRINT_ERROR("Bit value must be 0 or 1 when using -bit");
                 return 1;
             }
             write_val = old_val;
-            if (new_val) {
+            if (new_val)
+            {
                 write_val |= (1 << bit_pos);
-            } else {
+            }
+            else
+            {
                 write_val &= ~(1 << bit_pos);
             }
             PRINT_INFO("Modifying bit %d of register 0x%08X from %d to %d",
                        bit_pos, addr, (old_val >> bit_pos) & 1, (int)new_val);
-        } else {
+        }
+        else
+        {
             write_val = new_val;
             PRINT_INFO("Writing 0x%08X to register 0x%08X (old: 0x%08X)",
                        write_val, addr, old_val);
@@ -1632,9 +1683,12 @@ static int cmd_espreg(int argc, char **argv)
 
         REG_WRITE(addr, write_val);
         uint32_t verify_val = REG_READ(addr);
-        if (verify_val == write_val) {
+        if (verify_val == write_val)
+        {
             PRINT_SUCCESS("Register updated successfully");
-        } else {
+        }
+        else
+        {
             PRINT_ERROR("Register write verification failed! Read back 0x%08X", verify_val);
             return 2;
         }
@@ -1677,14 +1731,14 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "rm", .help = "删除文件或目录", .hint = "Usage: rm [-r] <path>", .func = &cmd_rm, .argtable = NULL},
     {.command = "echo", .help = "写入或追加文件", .hint = "Usage: echo <text> [>|>> <file>]", .func = &cmd_echo, .argtable = NULL},
     {.command = "mkdir", .help = "新建文件夹", .hint = "Usage: mkdir <path>", .func = &cmd_mkdir, .argtable = NULL},
-    {.command = "espreg", .help = "读取或写入寄存器（支持位操作）",
-     .hint = "Usage: espreg <-r|-w> <address> [-bit <bit>] [value]\n"
-             "  -r: read register or specific bit\n"
-             "  -w: write register or modify specific bit\n"
-             "  address: hex or decimal (e.g., 0x3FF44020)\n"
-             "  -bit: optional bit position (0-31)\n"
-             "  value: for -w: full register value, or 0/1 when -bit is used",
-     .func = &cmd_espreg, .argtable = NULL},
+    {.command = "espreg", .help = "读取或写入寄存器（支持位操作）", .hint = "Usage: espreg <-r|-w> <address> [-bit <bit>] [value]\n"
+                                                                            "  -r: read register or specific bit\n"
+                                                                            "  -w: write register or modify specific bit\n"
+                                                                            "  address: hex or decimal (e.g., 0x3FF44020)\n"
+                                                                            "  -bit: optional bit position (0-31)\n"
+                                                                            "  value: for -w: full register value, or 0/1 when -bit is used",
+     .func = &cmd_espreg,
+     .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.

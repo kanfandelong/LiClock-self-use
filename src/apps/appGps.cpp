@@ -546,16 +546,7 @@ void AppGps::display_show()
     u8g2Fonts.printf("接收字节数:%d 校验通过语句:%d", gps.charsProcessed(), gps.passedChecksum());
     u8g2Fonts.setCursor(2, 112);
     u8g2Fonts.printf("电源电压:%d", hal.VCC);
-    if (part_update <= 15)
-    {
-        display.display();
-        part_update++;
-    }
-    else
-    {
-        display.display();
-        part_update = 0;
-    }
+    display.display();
 }
 void AppGps::setup()
 {

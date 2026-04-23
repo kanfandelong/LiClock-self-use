@@ -753,7 +753,7 @@ void AppSettings::menu_network()
             char buf[50];
             sprintf(buf, "扫描二维码以连接本机分享的WiFi");
             GUI::autoIndentDraw(buf, 296, 120, 13);
-            display.display();
+            display.display(true);
             hal.wait_input();
         }
         break;
@@ -1459,7 +1459,7 @@ void AppSettings::menu_system()
             u8g2Fonts.printf("%s", cfu["updateinfo"]["url"].as<const char *>());
             u8g2Fonts.setCursor(2, u8g2Fonts.getCursorY() + 14);
             u8g2Fonts.printf("%s", cfu["updateinfo"]["url1"].as<const char *>());
-            display.display();
+            display.display(true);
             hal.wait_input();
         }
         break;
@@ -1652,7 +1652,7 @@ void AppSettings::menu_system()
                         LittleFS.format();
                         display.clearScreen();
                         u8g2Fonts.drawUTF8(30, 40, "完成，正在重启");
-                        display.display();
+                        display.display(true);
                         ESP.restart();
                     }
                 }
@@ -1715,7 +1715,7 @@ void AppSettings::about()
 
     u8g2Fonts.drawUTF8(5, 120, "GitHub: github.com/kanfandelong/LiClock-self-use");
 
-    display.display();
+    display.display(true);
     hal.wait_input();
 }
 
@@ -2203,7 +2203,7 @@ void AppSettings::tfcard_info()
     u8g2Fonts.printf("最大频率:%u kHz", card->max_freq_khz);
     // 最后一行不增加y，留空
 
-    display.display();
+    display.display(true);
     hal.wait_input();
 }
 

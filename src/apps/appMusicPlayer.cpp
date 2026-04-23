@@ -101,9 +101,9 @@ AudioGeneratorFLAC *flac_generator = nullptr; // flac解码器
 AudioGeneratorAAC *aac_generator = nullptr;
 AudioGeneratorOpus *opus_generator = nullptr;
 AudioGeneratorWAV *wav_generator = nullptr;
-AudioOutput *output;
-AudioOutputI2S *i2s_output; // I2S输出
-AudioOutputI2SNoDAC *noDAC; // I2S输出
+AudioOutput *output = nullptr;
+AudioOutputI2S *i2s_output = nullptr; // I2S输出
+AudioOutputI2SNoDAC *noDAC = nullptr; // I2S输出
 // 以下变量保存至RTC内存，避免deepsleep后丢失
 RTC_DATA_ATTR int32_t currentSongIndex = 0;  // 当前播放索引（音乐列表数组位置）
 RTC_DATA_ATTR char buf[512] = "";            // 实际存储当前播放文件路径字符串
@@ -3180,12 +3180,14 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
 
     // 可配置参数
     const float TARGET_SATURATION = 0.04f; // 目标饱和比例（4%）
-    const float GAIN_MIN = 0.8f;           // 最小增益
-    const float GAIN_MAX = 1.5f;           // 最大增益
+    const float GAIN_MIN = 0.1f;           // 最小增益
+    const float GAIN_MAX = 2.0f;           // 最大增益
     const float GAIN_UP_STEP = 1.01f;      // 增益上调系数（1%）
     const float GAIN_DOWN_STEP = 0.97f;    // 增益下调系数（3%）
     const float SATURATION_THRESH = 60.0f; // 饱和判定阈值（与限幅值一致）
-    const float LOW_ENERGY_THRESH = 15.0f; // 整体偏低阈值
+    const float LOW_ENERGY_THRESH = 20.0f; // 整体偏低阈值
+    const int VOTE_NEEDED = 4;             // 需连续符合判定阈值的次数
+    const int ADJUST_INTERVAL = 20;        // 调整间隔帧数
 
     // 统计饱和柱子数量和最大幅值
     int saturated = 0;
@@ -3207,16 +3209,13 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
     smooth_sat = alpha * sat_ratio + (1.0f - alpha) * smooth_sat;
     smooth_max = alpha * max_amp + (1.0f - alpha) * smooth_max;
 
-    // 低频调整间隔 (30帧)
     static int adjust_counter = 0;
-    const int ADJUST_INTERVAL = 20;
     if (++adjust_counter < ADJUST_INTERVAL)
         return fft_gain;
     adjust_counter = 0;
 
     // 投票计数
     static int up_votes = 0, down_votes = 0;
-    const int VOTE_NEEDED = 4; // 需连续4次符合条件
 
     if (smooth_sat > TARGET_SATURATION * 1.5f)
     {
@@ -3497,10 +3496,10 @@ void AppMusicPlayer::show_display_fft()
             else
                 vReal[i] = vReal[i] * curveScaling[i];
 
+            vReal[i] = vReal[i] * fft_gain; // FFT增益控制
+
             // 平滑处理
             vReal[i] = smoothingFactor * previousSpectrum[i] + (1 - smoothingFactor) * vReal[i];
-
-            vReal[i] = vReal[i] * fft_gain;
         }
 
         if (hal.pref.getBool("AutoGain", true))

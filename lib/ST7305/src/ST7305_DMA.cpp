@@ -315,55 +315,73 @@ void ST7305_DMA::initDisplay()
 
 void ST7305_DMA::display(bool ignoreTE)
 {
-    // 获取互斥锁
-    xSemaphoreTake(_dma_mutex, portMAX_DELAY);
-
-    // 确定要写入的 DMA 缓冲区索引
-    int8_t target_idx;
-    if (_pending_dma_idx != -1)
+    if (ignoreTE)
     {
-        // 已有待发送帧，直接覆盖该缓冲区（丢弃旧帧）
-        target_idx = _pending_dma_idx;
+        // ---------- 阻塞式同步刷新 ----------
+        xSemaphoreTake(_dma_mutex, portMAX_DELAY);
+
+        // 等待上一次 DMA 传输完成（如果有）
+        if (_active_dma_idx != -1)
+        {
+            spi_transaction_t *rtrans;
+            spi_device_get_trans_result(_spi_handle, &rtrans, portMAX_DELAY);
+            _active_dma_idx = -1;
+        }
+
+        uint8_t caset[] = {0x17, 0x17 + 14 - 1};
+        uint8_t raset[] = {0x00, 0x00 + 192 - 1};
+
+        sendCommand(0x2A);
+        sendData(caset, sizeof(caset));
+
+        sendCommand(0x2B);
+        sendData(raset, sizeof(raset));
+
+        sendCommand(0x2C);
+        sendData(buffer, BYTES_PER_BUFFER);
+
+        _active_dma_idx = -1;
+        _pending_dma_idx = -1;
+
+        xSemaphoreGive(_dma_mutex);
     }
     else
     {
-        // 无待发送帧，选择一个空闲缓冲区
-        // 空闲缓冲区是当前不在发送的那个（如果 _active_dma_idx 为 -1，两个都空闲，选 0）
-        if (_active_dma_idx == 0)
+        // ---------- 非阻塞 TE 异步刷新 ----------
+        xSemaphoreTake(_dma_mutex, portMAX_DELAY);
+
+        int8_t target_idx;
+        if (_pending_dma_idx != -1)
         {
-            target_idx = 1;
-        }
-        else if (_active_dma_idx == 1)
-        {
-            target_idx = 0;
+            // 已有待发送帧，直接覆盖该缓冲区（丢弃旧帧）
+            target_idx = _pending_dma_idx;
         }
         else
         {
-            target_idx = 0; // 无活跃传输，随便选
+            // 无待发送帧，选择一个空闲缓冲区
+            // 空闲缓冲区是当前不在发送的那个（如果 _active_dma_idx 为 -1，两个都空闲，选 0）
+            if (_active_dma_idx == 0)
+            {
+                target_idx = 1;
+            }
+            else if (_active_dma_idx == 1)
+            {
+                target_idx = 0;
+            }
+            else
+            {
+                target_idx = 0; // 无活跃传输，随便选
+            }
         }
-    }
 
-    // 将当前绘制缓冲区内容复制到目标 DMA 缓冲区
-    memcpy(dma_buffer[target_idx], buffer, BYTES_PER_BUFFER);
+        // 将当前绘制缓冲区内容复制到目标 DMA 缓冲区
+        memcpy(dma_buffer[target_idx], buffer, BYTES_PER_BUFFER);
 
-    // 更新待发送索引
-    _pending_dma_idx = target_idx;
+        // 更新待发送索引
+        _pending_dma_idx = target_idx;
 
-    // 释放互斥锁
-    xSemaphoreGive(_dma_mutex);
-
-    // 立即返回，不阻塞
-    if (ignoreTE) // 如果禁用 TE 同步,则强制给TE信号量
-    {
-        if (xSemaphoreTake(_te_semaphore, pdMS_TO_TICKS(1)) == pdTRUE)
-        {
-            xSemaphoreGive(_te_semaphore);
-        }
-        else
-        {
-            xSemaphoreGive(_te_semaphore);
-        }
-        delay(10);
+        // 释放互斥锁
+        xSemaphoreGive(_dma_mutex);
     }
 }
 
@@ -475,6 +493,41 @@ void ST7305_DMA::displayInternal(int8_t dma_buf_idx)
     // 注意：这里不等待完成，由后台任务的下一次 TE 处理完成状态
 }
 
+void ST7305_DMA::displayBlocking(int8_t dma_buf_idx)
+{
+    // 1. 设置显示窗口（同 displayInternal）
+    uint8_t caset[] = {0x17, 0x17 + 14 - 1};
+    uint8_t raset[] = {0x00, 0x00 + 192 - 1};
+    sendCommand(0x2A);
+    sendData(caset, sizeof(caset));
+    sendCommand(0x2B);
+    sendData(raset, sizeof(raset));
+
+    // 2. 发送写内存命令（0x2C）
+    spi_transaction_t cmd_trans = {};
+    uint8_t cmd_2c = 0x2C;
+    cmd_trans.length = 8;
+    cmd_trans.tx_buffer = &cmd_2c;
+    cmd_trans.user = (void *)((uintptr_t)this | 0); // DC = 0
+    esp_err_t ret = spi_device_polling_transmit(_spi_handle, &cmd_trans);
+    if (ret != ESP_OK)
+    {
+        log_e("发送 0x2C 命令失败: %d", ret);
+        return;
+    }
+
+    // 3. 使用阻塞式传输发送整帧像素数据
+    spi_transaction_t data_trans = {};
+    data_trans.length = BYTES_PER_BUFFER * 8;
+    data_trans.tx_buffer = dma_buffer[dma_buf_idx];
+    data_trans.user = (void *)((uintptr_t)this | 1);     // DC = 1
+    ret = spi_device_transmit(_spi_handle, &data_trans); // 阻塞直到传输完成
+    if (ret != ESP_OK)
+    {
+        log_e("DMA 阻塞传输失败: %d", ret);
+    }
+}
+
 void ST7305_DMA::clearDisplay(uint16_t color)
 {
     memset(buffer, int(color), BYTES_PER_BUFFER);
@@ -563,51 +616,62 @@ void ST7305_DMA::slideOneBlock(SlideDirection dir, uint8_t new_buffer, uint8_t s
     if (new_buffer > 3)
         return;
     uint8_t *_new_buffer = _buffers[new_buffer];
-    const uint16_t cols = BYTES_PER_ROW;   // 水平块数（192）
-    const uint16_t rows = TOTAL_ROWS;      // 垂直块数（42）
+    const uint16_t cols = BYTES_PER_ROW; // 水平块数（192）
+    const uint16_t rows = TOTAL_ROWS;    // 垂直块数（42）
 
-    switch (dir) {
-        case SLIDE_LEFT: {
-            uint16_t new_col = cols - 1 - step;
-            for (uint16_t yb = 0; yb < rows; ++yb) {
-                for (uint16_t col = cols - 1; col > 0; --col) {
-                    buffer[col * rows + yb] = buffer[(col - 1) * rows + yb];
-                }
-                buffer[0 * rows + yb] = _new_buffer[new_col * rows + yb];
+    switch (dir)
+    {
+    case SLIDE_LEFT:
+    {
+        uint16_t new_col = cols - 1 - step;
+        for (uint16_t yb = 0; yb < rows; ++yb)
+        {
+            for (uint16_t col = cols - 1; col > 0; --col)
+            {
+                buffer[col * rows + yb] = buffer[(col - 1) * rows + yb];
             }
-            break;
+            buffer[0 * rows + yb] = _new_buffer[new_col * rows + yb];
         }
-        case SLIDE_RIGHT: {
-            uint16_t new_col = step;
-            for (uint16_t yb = 0; yb < rows; ++yb) {
-                // 原内容左移一列
-                for (uint16_t col = 0; col < cols - 1; ++col) {
-                    buffer[col * rows + yb] = buffer[(col + 1) * rows + yb];
-                }
-                buffer[(cols - 1) * rows + yb] = _new_buffer[new_col * rows + yb];
+        break;
+    }
+    case SLIDE_RIGHT:
+    {
+        uint16_t new_col = step;
+        for (uint16_t yb = 0; yb < rows; ++yb)
+        {
+            // 原内容左移一列
+            for (uint16_t col = 0; col < cols - 1; ++col)
+            {
+                buffer[col * rows + yb] = buffer[(col + 1) * rows + yb];
             }
-            break;
+            buffer[(cols - 1) * rows + yb] = _new_buffer[new_col * rows + yb];
         }
-        case SLIDE_UP: {
-            uint16_t new_row = rows - 1 - step;
-            for (uint16_t col = 0; col < cols; ++col) {
-                uint8_t* col_start = buffer + col * rows;
-                const uint8_t* new_col_start = _new_buffer + col * rows;
-                memmove(col_start + 1, col_start, rows - 1);
-                col_start[0] = new_col_start[new_row];
-            }
-            break;
+        break;
+    }
+    case SLIDE_UP:
+    {
+        uint16_t new_row = rows - 1 - step;
+        for (uint16_t col = 0; col < cols; ++col)
+        {
+            uint8_t *col_start = buffer + col * rows;
+            const uint8_t *new_col_start = _new_buffer + col * rows;
+            memmove(col_start + 1, col_start, rows - 1);
+            col_start[0] = new_col_start[new_row];
         }
-        case SLIDE_DOWN: {
-            uint16_t new_row = step;
-            for (uint16_t col = 0; col < cols; ++col) {
-                uint8_t* col_start = buffer + col * rows;
-                const uint8_t* new_col_start = _new_buffer + col * rows;
-                memmove(col_start, col_start + 1, rows - 1);
-                col_start[rows - 1] = new_col_start[new_row];
-            }
-            break;
+        break;
+    }
+    case SLIDE_DOWN:
+    {
+        uint16_t new_row = step;
+        for (uint16_t col = 0; col < cols; ++col)
+        {
+            uint8_t *col_start = buffer + col * rows;
+            const uint8_t *new_col_start = _new_buffer + col * rows;
+            memmove(col_start, col_start + 1, rows - 1);
+            col_start[rows - 1] = new_col_start[new_row];
         }
+        break;
+    }
     }
 }
 
@@ -625,11 +689,13 @@ void ST7305_DMA::slideScreenFull(SlideDirection dir, uint32_t duration_ms, uint8
     uint16_t steps = (dir == SLIDE_LEFT || dir == SLIDE_RIGHT) ? BYTES_PER_ROW : TOTAL_ROWS;
     uint32_t remaining_time = duration_ms;
 
-    for (uint16_t step = 0; step < steps; ++step) {
+    for (uint16_t step = 0; step < steps; ++step)
+    {
         uint32_t delay_ms = remaining_time / (steps - step);
-        if (delay_ms == 0) delay_ms = 1;
+        if (delay_ms == 0)
+            delay_ms = 1;
 
-        slideOneBlock(dir, new_buffer, step);   // 传入当前步数
+        slideOneBlock(dir, new_buffer, step); // 传入当前步数
         display();
         delay(delay_ms); // 请替换为实际延时函数
         remaining_time -= delay_ms;

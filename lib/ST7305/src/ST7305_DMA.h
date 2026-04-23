@@ -291,6 +291,8 @@ private:
 
     // 内部刷屏逻辑（由后台任务调用）
     void displayInternal(int8_t dma_buf_idx);
+
+	void displayBlocking(int8_t dma_buf_idx);
 	
 	spi_host_device_t _spi_host;
 	spi_device_handle_t _spi_handle; // SPI 设备句柄
