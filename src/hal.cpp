@@ -258,11 +258,11 @@ void task_bat_info(void *)
             hal.bat_info.flag.FC = lipo.fcFlag();
             hal.bat_info.update_time = esp_log_timestamp();
             xSemaphoreGive(peripherals.i2cMutex);
-            xDelay = 2500 / portTICK_PERIOD_MS;
+            xDelay = 1500 / portTICK_PERIOD_MS;
         }
         else
         {
-            xDelay = 500 / portTICK_PERIOD_MS;
+            xDelay = 3000 / portTICK_PERIOD_MS;
             warn("I2C信号量获取超时");
         }
         // delay(1000);

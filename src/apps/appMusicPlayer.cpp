@@ -3181,7 +3181,7 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
     // 可配置参数
     const float TARGET_SATURATION = 0.04f; // 目标饱和比例（4%）
     const float GAIN_MIN = 0.1f;           // 最小增益
-    const float GAIN_MAX = 2.0f;           // 最大增益
+    const float GAIN_MAX = 3.0f;           // 最大增益
     const float GAIN_UP_STEP = 1.01f;      // 增益上调系数（1%）
     const float GAIN_DOWN_STEP = 0.97f;    // 增益下调系数（3%）
     const float SATURATION_THRESH = 60.0f; // 饱和判定阈值（与限幅值一致）

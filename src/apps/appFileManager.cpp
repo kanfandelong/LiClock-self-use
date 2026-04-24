@@ -1,4 +1,6 @@
 #include "AppManager.h"
+#include <esp_app_format.h>
+#include <esp_ota_ops.h>
 
 /**
  * 去除路径特定前缀函数
@@ -197,11 +199,28 @@ private:
     void openbin()
     {
         File file = hal.open(filename);
+        if (!file)
+        {
+            log_e("Failed to open file: %s", filename);
+            return;
+        }
         int currentPage = 0;
         int totalPages = 0;
-        file.seek(0, SeekEnd);
         totalPages = (file.size() + BYTES_PER_PAGE - 1) / BYTES_PER_PAGE;
-        file.seek(0, SeekSet);
+        esp_app_desc_t file_app_desc;
+
+        size_t updateSize = file.size();
+        file.seek(0x20);
+        file.read((uint8_t *)&file_app_desc, sizeof(esp_app_desc_t));
+        file.seek(0x0);
+        if (file_app_desc.magic_word == ESP_APP_DESC_MAGIC_WORD)
+        {
+            if (GUI::msgbox_yn("提示", "检测到这是一个固件镜像，你想要更新这个固件镜像吗？", "是", "否"))
+            {
+                updataforfile(filename);
+                return;
+            }
+        }
         displayPage(file, currentPage);
         bool end = false;
         unsigned long wait_time = millis();
@@ -345,6 +364,7 @@ public:
     void openfile();
     void selctwenjianjia(bool _file = false);
     void uint8tobuf(uint8_t *input, int inputSize, char *output);
+    bool updataforfile(const char *filepath);
     // const char* combineFilePath(const char* path, const char* filename, const char* extension);
     const char *directoryname;
     time_t LastWrite_time = 0;
@@ -1112,7 +1132,7 @@ void AppFileManager::openfile()
         toApp = "musicplayer";
         appManager.gotoApp(toApp.c_str());
     }
-    else if(strcasecmp(houzhui, "vlbm") == 0 || strcasecmp(houzhui, "VLBM") == 0)
+    else if (strcasecmp(houzhui, "vlbm") == 0 || strcasecmp(houzhui, "VLBM") == 0)
     {
         GUI::PlayLBM_V(0, 0, filename, TFT_BLACK);
         // hal.wait_input();
@@ -1248,5 +1268,79 @@ void AppFileManager::uint8tobuf(uint8_t *input, int inputSize, char *output)
     for (int i = 0; i < inputSize; i++)
     {
         sprintf(output + (i * 3), "%02x ", input[i]);
+    }
+}
+
+bool AppFileManager::updataforfile(const char *filepath)
+{
+    esp_app_desc_t app_desc, file_app_desc;
+
+    File file = hal.open(filepath, "r");
+    if (!file)
+    {
+        log_e("Failed to open file: %s", filepath);
+        return false;
+    }
+    size_t updateSize = file.size();
+    file.seek(0x20);
+    file.read((uint8_t *)&file_app_desc, sizeof(esp_app_desc_t));
+    file.seek(0x0);
+
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (esp_ota_get_partition_description(running, &app_desc) != ESP_OK)
+    {
+        log_e("Failed to get running partition description");
+        file.close();
+        return false;
+    }
+
+    if (file_app_desc.magic_word != ESP_APP_DESC_MAGIC_WORD)
+    {
+        log_e("Invalid app description magic");
+        file.close();
+        return false;
+    }
+
+    if (strcmp((char *)app_desc.app_elf_sha256, (char *)file_app_desc.app_elf_sha256) == 0)
+        GUI::msgbox("提示", "文件与当前固件一致，无需更新");
+    else
+    {
+        char info[256];
+        sprintf(info, "即将更新固件\n%s->%s", app_desc.version, file_app_desc.version);
+        if (GUI::msgbox_yn("提示", info) == false)
+        {
+            file.close();
+            return false;
+        }
+        if (Update.begin(updateSize))
+        {
+            size_t written = Update.writeStream(file);
+            file.close();
+            if (written != updateSize)
+            {
+                GUI::msgbox("提示", "写入大小与文件大小不同，更新可能失败");
+            }
+            if (Update.end())
+            {
+                GUI::msgbox("提示", "固件更新完成，将会在下次启动时应用更新");
+                if (Update.isFinished())
+                {
+                    GUI::msgbox("提示", "Update successfully completed. Rebooting.");
+                }
+                else
+                {
+                    GUI::msgbox("提示", "Update not finished? Something went wrong!");
+                }
+            }
+            else
+            {
+                Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+                GUI::msgbox("提示", "固件更新失败");
+            }
+        }
+        else
+        {
+            GUI::msgbox("提示", "Not enough space to begin OTA");
+        }
     }
 }

@@ -11,7 +11,7 @@
 #define PHYSICAL_WIDTH 384
 #define PHYSICAL_HEIGHT 168
 // 预定义常量，避免重复计算
-#define TOTAL_ROWS 42							      // 总行数
+#define TOTAL_ROWS 42								  // 总行数
 #define BYTES_PER_ROW 192							  // 每行的字节数
 #define BYTES_PER_BUFFER (TOTAL_ROWS * BYTES_PER_ROW) // 每个缓冲区的字节数
 
@@ -39,11 +39,12 @@ enum blendmode
 };
 
 // 滑动方向枚举
-enum SlideDirection {
-    SLIDE_RIGHT,
-    SLIDE_LEFT,
-    SLIDE_DOWN,
-    SLIDE_UP
+enum SlideDirection
+{
+	SLIDE_RIGHT,
+	SLIDE_LEFT,
+	SLIDE_DOWN,
+	SLIDE_UP
 };
 
 class ST7305_DMA : public Adafruit_GFX
@@ -83,13 +84,14 @@ public:
 	void display(bool ignoreTE = false);
 	void clearDisplay(uint16_t color = 0XFF);
 	void clearScreen(uint16_t color = 0XFF) { clearDisplay(color); };
+	void fillScreen(uint16_t color) { clearDisplay(color); };
 	void setvoltage(ST7305_DMA_voltage_t fps);
 	void drawPixel(int16_t x, int16_t y, uint16_t color);
 	void slideOneBlock(SlideDirection dir, uint8_t new_buffer, uint8_t step);
 	void slideScreenFull(SlideDirection dir, uint32_t duration_ms, uint8_t new_buffer);
 	void drawbitmap(int16_t x, int16_t y, const uint8_t bitmap[], int16_t w, int16_t h, uint16_t color);
 	void drawXBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
-								 int16_t w, int16_t h, uint16_t color);
+					 int16_t w, int16_t h, uint16_t color);
 	void drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
 	void drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
 
@@ -99,6 +101,7 @@ public:
 	void display_on(bool enabled = true);
 	void display_sleep(bool enabled = true);
 	void display_Inversion(bool enabled);
+	void invertDisplay(bool i) { display_Inversion(i); };
 	void set(uint8_t cmd, uint8_t data);
 	void set(uint8_t cmd, uint8_t *data, size_t len);
 	void debug_log(bool debug)
@@ -275,39 +278,38 @@ public:
 	int8_t _rst_pin;
 	int8_t _te_pin;
 	int8_t _sclk_pin, _mosi_pin, _miso_pin;
-	
 
 private:
-    // 同步对象
-    SemaphoreHandle_t _te_semaphore;     // TE 信号量（由 ISR 释放）
-    SemaphoreHandle_t _dma_mutex;        // 保护共享数据的互斥量
-    TaskHandle_t      _display_task_handle; // 后台刷新任务句柄
+	// 同步对象
+	SemaphoreHandle_t _te_semaphore;   // TE 信号量（由 ISR 释放）
+	SemaphoreHandle_t _dma_mutex;	   // 保护共享数据的互斥量
+	TaskHandle_t _display_task_handle; // 后台刷新任务句柄
 
-    // TE 中断服务例程（静态）
-    static void IRAM_ATTR te_isr_handler(void* arg);
+	// TE 中断服务例程（静态）
+	static void IRAM_ATTR te_isr_handler(void *arg);
 
-    // 后台任务函数（静态）
-    static void display_task(void* pvParameters);
+	// 后台任务函数（静态）
+	static void display_task(void *pvParameters);
 
-    // 内部刷屏逻辑（由后台任务调用）
-    void displayInternal(int8_t dma_buf_idx);
+	// 内部刷屏逻辑（由后台任务调用）
+	void displayInternal(int8_t dma_buf_idx);
 
 	void displayBlocking(int8_t dma_buf_idx);
-	
+
 	spi_host_device_t _spi_host;
 	spi_device_handle_t _spi_handle; // SPI 设备句柄
 	bool _dma_busy;
-    spi_transaction_t _dma_trans;
+	spi_transaction_t _dma_trans;
 
-	uint8_t rotation;				 // 0, 1, 2, or 3 corresponding to 0, 90, 180, 270 degrees
+	uint8_t rotation; // 0, 1, 2, or 3 corresponding to 0, 90, 180, 270 degrees
 	uint16_t x_min = 0, x_max = MAX_X;
 	uint16_t y_min = 0, y_max = MAX_Y;
 
 	uint8_t *buffer;
-    uint8_t *dma_buffer[2];          // 两个 DMA 安全缓冲区
+	uint8_t *dma_buffer[2]; // 两个 DMA 安全缓冲区
 	uint8_t *_buffers[4];
-    int8_t  _active_dma_idx;            // 当前正在被 DMA 发送的缓冲区索引（-1 表示无）
-    int8_t  _pending_dma_idx;           // 已填充好等待发送的缓冲区索引（-1 表示无）
+	int8_t _active_dma_idx;	 // 当前正在被 DMA 发送的缓冲区索引（-1 表示无）
+	int8_t _pending_dma_idx; // 已填充好等待发送的缓冲区索引（-1 表示无）
 
 	bool HPM_MODE = false;
 	bool LPM_MODE = true;
@@ -320,13 +322,13 @@ private:
 	void drawFastVLineInternal(int16_t x, int16_t y, int16_t h, uint16_t color);
 	void drawFastHLineInternal(int16_t x, int16_t y, int16_t w, uint16_t color);
 	static inline uint16_t gx_uint16_min(uint16_t a, uint16_t b)
-    {
-      return (a < b ? a : b);
-    };
-    static inline uint16_t gx_uint16_max(uint16_t a, uint16_t b)
-    {
-      return (a > b ? a : b);
-    };
+	{
+		return (a < b ? a : b);
+	};
+	static inline uint16_t gx_uint16_max(uint16_t a, uint16_t b)
+	{
+		return (a > b ? a : b);
+	};
 };
 
 #endif // _ST7305_DMA_H_
