@@ -1306,12 +1306,14 @@ bool AppFileManager::updataforfile(const char *filepath)
     else
     {
         char info[256];
-        sprintf(info, "即将更新固件\n%s->%s", app_desc.version, file_app_desc.version);
+        sprintf(info, "即将更新固件\n%s->%s", app_desc.app_elf_sha256, file_app_desc.app_elf_sha256);
+        log_i("%s", info);
         if (GUI::msgbox_yn("提示", info) == false)
         {
             file.close();
             return false;
         }
+        GUI::info_msgbox("提示", "正在更新固件，请勿断电...");
         if (Update.begin(updateSize))
         {
             size_t written = Update.writeStream(file);
