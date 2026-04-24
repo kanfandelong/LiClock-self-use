@@ -388,10 +388,45 @@ static int cmd_batinfo(int argc, char **argv)
     return 0;
 }
 
-static int cmd_cpuuse(int argc, char **argv)
+// ==================== taskstats 命令（CPU 占用率） ====================
+static int cmd_taskstats(int argc, char **argv)
 {
-    PRINT_INFO("CPU usage monitoring only available in ESP-IDF environment");
+#if ( configGENERATE_RUN_TIME_STATS == 1 )
+    const size_t bufferSize = 1024;
+    char *buffer = (char *)malloc(bufferSize);
+    if (buffer == NULL) {
+        PRINT_ERROR("Failed to allocate memory for stats");
+        return 2;
+    }
+    vTaskGetRunTimeStats(buffer);
+    PRINT_INFO("Task Run Time Statistics:");
+    uart->print(buffer);      // 直接输出，其中已包含换行格式
+    free(buffer);
     return 0;
+#else
+    PRINT_ERROR("configGENERATE_RUN_TIME_STATS is not enabled in FreeRTOSConfig.h");
+    return 2;
+#endif
+}
+
+static int cmd_tasklist(int argc, char **argv)
+{
+#if ( configUSE_TRACE_FACILITY == 1 && configUSE_STATS_FORMATTING_FUNCTIONS == 1 )
+    const size_t bufferSize = 1024;
+    char *buffer = (char *)malloc(bufferSize);
+    if (buffer == NULL) {
+        PRINT_ERROR("Failed to allocate memory for task list");
+        return 2;
+    }
+    vTaskList(buffer);
+    PRINT_INFO("Task List (Name, State, Prio, Stack High Watermark, Task Num):");
+    uart->print(buffer);
+    free(buffer);
+    return 0;
+#else
+    PRINT_ERROR("vTaskList requires configUSE_TRACE_FACILITY and configUSE_STATS_FORMATTING_FUNCTIONS");
+    return 2;
+#endif
 }
 
 static int cmd_bootapp_clock(int argc, char **argv)
@@ -1713,7 +1748,8 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "rst", .help = "重启设备", .hint = no_info, .func = &cmd_rst, .argtable = NULL},
     {.command = "runtime", .help = "显示设备运行时间", .hint = no_info, .func = &cmd_runtime, .argtable = NULL},
     {.command = "batinfo", .help = "显示电池信息", .hint = no_info, .func = &cmd_batinfo, .argtable = NULL},
-    {.command = "cpuuse", .help = "CPU使用率（仅ESP-IDF环境）", .hint = no_info, .func = &cmd_cpuuse, .argtable = NULL},
+    {.command = "taskstats", .help = "打印各任务CPU占用率（需configGENERATE_RUN_TIME_STATS=1）", .hint = no_info, .func = &cmd_taskstats, .argtable = NULL},
+    {.command = "tasklist", .help = "打印任务列表及栈信息（vTaskList）", .hint = no_info, .func = &cmd_tasklist, .argtable = NULL},
     {.command = "bootapp_clock", .help = "设置默认启动应用为clock", .hint = no_info, .func = &cmd_bootapp_clock, .argtable = NULL},
     {.command = "lightsleep", .help = "进入轻睡眠模式，可选超时", .hint = "Usage: lightsleep [timeout]", .func = &cmd_lightsleep, .argtable = NULL},
     {.command = "fserverbegin", .help = "启动文件服务器", .hint = no_info, .func = &cmd_fserverbegin, .argtable = NULL},

@@ -1687,7 +1687,7 @@ void AppSettings::about()
 
     u8g2Fonts.setCursor(5, 30);
     xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-    u8g2Fonts.printf("设备名称: LiClock-S3  版本: %s %s%s", code_version, __DATE__, __TIME__);
+    u8g2Fonts.printf("设备名称: LiClock-S3  版本: %s %s %s", code_version, __DATE__, __TIME__);
     xSemaphoreGive(peripherals.i2cMutex);
 
     u8g2Fonts.setCursor(5, 45);

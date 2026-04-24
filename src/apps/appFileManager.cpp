@@ -1306,7 +1306,7 @@ bool AppFileManager::updataforfile(const char *filepath)
     else
     {
         char info[256];
-        sprintf(info, "即将更新固件\n%s->%s", app_desc.app_elf_sha256, file_app_desc.app_elf_sha256);
+        sprintf(info, "即将更新固件\n%x->%x", app_desc.app_elf_sha256, file_app_desc.app_elf_sha256);
         log_i("%s", info);
         if (GUI::msgbox_yn("提示", info) == false)
         {
