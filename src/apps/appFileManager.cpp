@@ -364,7 +364,7 @@ public:
     void openfile();
     void selctwenjianjia(bool _file = false);
     void uint8tobuf(uint8_t *input, int inputSize, char *output);
-    bool updataforfile(const char *filepath);
+    void updataforfile(const char *filepath);
     // const char* combineFilePath(const char* path, const char* filename, const char* extension);
     const char *directoryname;
     time_t LastWrite_time = 0;
@@ -1271,7 +1271,7 @@ void AppFileManager::uint8tobuf(uint8_t *input, int inputSize, char *output)
     }
 }
 
-bool AppFileManager::updataforfile(const char *filepath)
+void AppFileManager::updataforfile(const char *filepath)
 {
     esp_app_desc_t app_desc, file_app_desc;
 
@@ -1279,7 +1279,7 @@ bool AppFileManager::updataforfile(const char *filepath)
     if (!file)
     {
         log_e("Failed to open file: %s", filepath);
-        return false;
+        return;
     }
     size_t updateSize = file.size();
     file.seek(0x20);
@@ -1291,14 +1291,14 @@ bool AppFileManager::updataforfile(const char *filepath)
     {
         log_e("Failed to get running partition description");
         file.close();
-        return false;
+        return;
     }
 
     if (file_app_desc.magic_word != ESP_APP_DESC_MAGIC_WORD)
     {
         log_e("Invalid app description magic");
         file.close();
-        return false;
+        return;
     }
 
     if (strcmp((char *)app_desc.app_elf_sha256, (char *)file_app_desc.app_elf_sha256) == 0)
@@ -1311,7 +1311,7 @@ bool AppFileManager::updataforfile(const char *filepath)
         if (GUI::msgbox_yn("提示", info) == false)
         {
             file.close();
-            return false;
+            return;
         }
         GUI::info_msgbox("提示", "正在更新固件，请勿断电...");
         if (Update.begin(updateSize))

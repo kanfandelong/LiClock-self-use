@@ -23,7 +23,10 @@ void _printMemCapsInfo(uint32_t caps, const char *caps_str)
 // #define EFUSE_RD_CHIP_PACKAGE_M  (EFUSE_RD_CHIP_PACKAGE_V << EFUSE_RD_CHIP_PACKAGE_S)
 // #define EFUSE_RD_CHIP_PACKAGE_V  0x00000007U
 // #define EFUSE_RD_CHIP_PACKAGE_S  9
-// void printPkgVersion(void) {
+void printPkgVersion(void)
+{
+  chip_report_printf("  Package           : N/A\n");
+}
 //   chip_report_printf("  Package           : ");
 // #if CONFIG_IDF_TARGET_ESP32
 //   uint32_t pkg_ver = REG_GET_FIELD(EFUSE_BLK0_RDATA3_REG, EFUSE_RD_CHIP_PACKAGE);

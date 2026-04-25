@@ -762,7 +762,7 @@ bool HAL::cheak_firmware_update()
         // 计算动态缓冲区大小（考虑CRLF可能被替换为LF）
         size_t file_size = CAcert.size();
         // 假设每个CRLF可能被替换为LF，最大需要file_size * 2的空间（极端情况）
-        ca_cert = new (std::nothrow) char[file_size + 1]; // +1为终止符
+        ca_cert = new char[file_size + 1]; // +1为终止符
                                                           // 读取证书内容并替换CRLF为LF
         size_t index = 0;
         while (CAcert.available())
@@ -1178,7 +1178,7 @@ void HAL::wait_input(uint32_t sleeptime)
             esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
         else
             esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
-        uart_set_wakeup_threshold(0, 3);
+        uart_set_wakeup_threshold((uart_port_t)0, 3);
         esp_sleep_enable_uart_wakeup(0);
         if (hal.btn_activelow)
         {
@@ -1331,7 +1331,7 @@ bool HAL::init()
     //     btnc._buttonPressed = 0;
     //     btn_activelow = true;
     // }
-    esp_task_wdt_init(portMAX_DELAY, false);
+    // esp_task_wdt_init(portMAX_DELAY, false);
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SDVDD_CTRL, OUTPUT);
@@ -1612,7 +1612,7 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     info("IP:%s", WiFi.localIP().toString().c_str());
     info("MAC:%s", WiFi.macAddress().c_str());
     info("信号强度:%d", WiFi.RSSI());
-    sntp_stop();
+    esp_sntp_stop();
     return true;
 }
 
@@ -1724,7 +1724,7 @@ static void pre_sleep()
     // hal.pref.end();
     // printDisplayVertical();
     delay(10);
-    ledcDetachPin(PIN_BUZZER);
+    ledcDetach(PIN_BUZZER);
     digitalWrite(PIN_BUZZER, 0);
 }
 static void wait_display()
@@ -1765,7 +1765,7 @@ void HAL::goSleep(uint32_t sec)
         display.begin();
         LittleFS.begin(false);
         peripherals.wakeup();
-        ledcAttachPin(PIN_BUZZER, 0);
+        ledcDetach(PIN_BUZZER);
     }
     else
     {

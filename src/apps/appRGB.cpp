@@ -32,7 +32,7 @@ void AppRGB::setup()
     char buf[32];
     unsigned long t = millis();
     digitalWrite(RGB_POWER, HIGH);
-    neopixelWrite(RGB_PIN, 255, 255, 255);
+    rgbLedWrite(RGB_PIN, 255, 255, 255);
     display.fillScreen(TFT_BLACK);
     GUI::drawWindowsWithTitle("WS2812B RGB 灯珠测试");
     while (1)
@@ -41,7 +41,7 @@ void AppRGB::setup()
             color[0] = random(0, 255);
             color[1] = random(0, 255);
             color[2] = random(0, 255);
-            neopixelWrite(RGB_PIN, color[0], color[1], color[2]);
+            rgbLedWrite(RGB_PIN, color[0], color[1], color[2]);
             sprintf(buf, "R: %d,G: %d,B: %d", color[0], color[1], color[2]);
             GUI::info_msgbox("RGB",buf);
             delay(900);
@@ -57,7 +57,7 @@ void AppRGB::setup()
             color[0] = GUI::msgbox_hex("R", 2, color[0]);
             color[1] = GUI::msgbox_hex("G", 2, color[1]);
             color[2] = GUI::msgbox_hex("B", 2, color[2]);
-            neopixelWrite(RGB_PIN, color[0], color[1], color[2]);
+            rgbLedWrite(RGB_PIN, color[0], color[1], color[2]);
             sprintf(buf, "R: %d,G: %d,B: %d", color[0], color[1], color[2]);
             GUI::info_msgbox("RGB",buf);
         }

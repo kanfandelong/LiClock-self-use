@@ -792,9 +792,9 @@ void AppMusicPlayer::computePathHash(const char *path, uint8_t *hashOut)
 {
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
-    mbedtls_sha256_starts_ret(&ctx, 0); // 0 = SHA‑256
-    mbedtls_sha256_update_ret(&ctx, (const unsigned char *)path, strlen(path));
-    mbedtls_sha256_finish_ret(&ctx, hashOut);
+    mbedtls_sha256_starts(&ctx, 0); // 0 = SHA‑256
+    mbedtls_sha256_update(&ctx, (const unsigned char *)path, strlen(path));
+    mbedtls_sha256_finish(&ctx, hashOut);
     mbedtls_sha256_free(&ctx);
 }
 

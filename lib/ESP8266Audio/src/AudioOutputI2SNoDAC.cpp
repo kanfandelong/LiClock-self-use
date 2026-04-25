@@ -113,7 +113,7 @@ bool AudioOutputI2SNoDAC::ConsumeSample(int16_t sample[2])
 {
   int16_t ms[2];
   #ifdef CONFIG_DAC_32bit
-  int samp_32[2];
+  int32_t samp_32[2];
   samp_32[0] = sample[0];
   samp_32[1] = sample[1];
   MakeSampleStereo16( samp_32 );

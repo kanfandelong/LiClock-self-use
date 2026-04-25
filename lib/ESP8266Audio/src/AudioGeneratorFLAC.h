@@ -66,7 +66,7 @@ protected:
 
   static void fillTask(void *param);
   void start_fillTask();
-  TaskHandle_t *filltaskhandle = NULL;
+  TaskHandle_t filltaskhandle = NULL;
   RingbufHandle_t ringBuf = NULL;
   StaticRingbuffer_t StaticRingbuffer;
   uint8_t *ringBufferStorage = NULL;

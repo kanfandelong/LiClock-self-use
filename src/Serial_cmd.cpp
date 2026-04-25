@@ -391,16 +391,17 @@ static int cmd_batinfo(int argc, char **argv)
 // ==================== taskstats 命令（CPU 占用率） ====================
 static int cmd_taskstats(int argc, char **argv)
 {
-#if ( configGENERATE_RUN_TIME_STATS == 1 )
+#if (configGENERATE_RUN_TIME_STATS == 1)
     const size_t bufferSize = 1024;
     char *buffer = (char *)malloc(bufferSize);
-    if (buffer == NULL) {
+    if (buffer == NULL)
+    {
         PRINT_ERROR("Failed to allocate memory for stats");
         return 2;
     }
     vTaskGetRunTimeStats(buffer);
     PRINT_INFO("Task Run Time Statistics:");
-    uart->print(buffer);      // 直接输出，其中已包含换行格式
+    uart->print(buffer); // 直接输出，其中已包含换行格式
     free(buffer);
     return 0;
 #else
@@ -411,10 +412,11 @@ static int cmd_taskstats(int argc, char **argv)
 
 static int cmd_tasklist(int argc, char **argv)
 {
-#if ( configUSE_TRACE_FACILITY == 1 && configUSE_STATS_FORMATTING_FUNCTIONS == 1 )
+#if (configUSE_TRACE_FACILITY == 1 && configUSE_STATS_FORMATTING_FUNCTIONS == 1)
     const size_t bufferSize = 1024;
     char *buffer = (char *)malloc(bufferSize);
-    if (buffer == NULL) {
+    if (buffer == NULL)
+    {
         PRINT_ERROR("Failed to allocate memory for task list");
         return 2;
     }
@@ -1049,7 +1051,7 @@ static String urlEncode(const String &str)
         unsigned char c = str[i]; // 取出每个字节
 
         // 保留无需编码的字符：字母、数字、-_.~:/
-        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~' || c == ':' || c == '/')
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~' || c == ':' || c == '/' || c == '=' || c == '?')
         {
             encoded += (char)c;
         }
@@ -1067,14 +1069,24 @@ static String urlEncode(const String &str)
 
 static int cmd_download(int argc, char **argv)
 {
-    // 1. 参数检查
-    if (argc != 4)
-        return 1; // 命令参数错误
+    if (argc != 4 && argc != 5)
+        return 1;
 
-    char *ca_id = argv[1];
-    String url = argv[2];
-    String save_file = argv[3];
-    String _url = urlEncode(url); // 假设 urlEncode 已实现
+    bool encodeUrl = false;
+    int argOffset = 0;
+
+    if (argc == 5)
+    {
+        if (strcmp(argv[1], "-e") != 0)
+            return 1;
+        encodeUrl = true;
+        argOffset = 1;
+    }
+
+    char *ca_id = argv[1 + argOffset];
+    String url = argv[2 + argOffset];
+    String save_file = argv[3 + argOffset];
+    String _url = encodeUrl ? urlEncode(url) : url;
 
     // 2. 获取 CA 证书（可能为空字符串）
     String CAcert = hal.get_CAcert(ca_id);
@@ -1107,8 +1119,13 @@ static int cmd_download(int argc, char **argv)
         PRINT_INFO("WiFi connected.");
     }
 
+    WiFi.setSleep(false);
+
     // 4. 初始化 HTTP 客户端
     HTTPClient http;
+
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
     bool httpStarted = false;
 
     if (CAcert.length() == 0)
@@ -1121,6 +1138,10 @@ static int cmd_download(int argc, char **argv)
         PRINT_ERROR("HTTP begin failed!");
         return 2;
     }
+
+    http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+    http.addHeader("Accept", "*/*");
+    http.addHeader("Connection", "keep-alive");
 
     // 5. 发送 GET 请求
     int httpCode = http.GET();
@@ -1153,6 +1174,7 @@ static int cmd_download(int argc, char **argv)
     size_t totalWritten = 0;
     int lastPercent = -1;
     const int progressBarWidth = 50; // 进度条宽度（字符数）
+    long beginTime = millis();
 
     while (http.connected() && (stream->available() > 0 || totalWritten < (size_t)totalSize))
     {
@@ -1189,7 +1211,7 @@ static int cmd_download(int argc, char **argv)
         else
         {
             // 无数据但连接仍在，稍等再试（避免死循环）
-            delay(10);
+            yield();
         }
     }
 
@@ -1215,6 +1237,8 @@ static int cmd_download(int argc, char **argv)
     file.close();
     http.end();
 
+    long elapsedTime = millis() - beginTime;
+    PRINT_INFO("\nDownload completed in %.2f seconds, speed %.2f KB/s", elapsedTime / 1000.0, totalWritten / (elapsedTime / 1000.0) / 1024.0);
     // 换行，使下一个输出不覆盖进度条
     uart->printf("\n");
 

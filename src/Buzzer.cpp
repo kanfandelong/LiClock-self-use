@@ -21,7 +21,7 @@ static void _mybuzz()
         current_start = millis();
         while (millis() - current_start < current_buzz.duration)
         {
-            ledcWrite(0, now_duty);
+            ledcWrite(PIN_BUZZER, now_duty);
             if (now_duty > 200)
                 now_duty -= 20;
             else if (now_duty > 100)
@@ -37,7 +37,7 @@ static void _mybuzz()
             delay(20);
         }
     }
-    ledcWriteTone(0, 0);
+    ledcWriteTone(PIN_BUZZER, 0);
 }
 void task_buzzer(void *)
 {
@@ -83,7 +83,7 @@ void task_buzzer(void *)
             if (_forcestop)
             {
                 _forcestop = false;
-                ledcWriteTone(0, 0);
+                ledcWriteTone(PIN_BUZZER, 0);
                 while (xQueueReceive(queue_buzzer, &current_buzz, 0) == pdTRUE)
                     ;
                 continue;
@@ -105,8 +105,7 @@ void Buzzer::init()
 {
     queue_buzzer = xQueueCreate(100, sizeof(buzzer_desc)); // 我知道ESP32的tone是用队列实现的，但是觉得不方便就写了个壳
     xTaskCreate(task_buzzer, "task_buzzer", 4096, NULL, 10, NULL);
-    ledcSetup(0, 48000, 10);
-    ledcAttachPin(PIN_BUZZER, 0);
+    ledcAttach(PIN_BUZZER, 41100, 10);
 }
 
 bool Buzzer::hasNote()
