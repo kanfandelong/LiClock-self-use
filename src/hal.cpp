@@ -1334,23 +1334,28 @@ bool HAL::init()
     // esp_task_wdt_init(portMAX_DELAY, false);
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
-    pinMode(PIN_SDVDD_CTRL, OUTPUT);
     pinMode(PIN_SCL, OUTPUT | PULLUP);
     pinMode(PIN_SDA, OUTPUT | PULLUP);
 
     pinMode(PIN_DAC_FMT, OUTPUT);
     digitalWrite(PIN_DAC_FMT, 0);
+
     pinMode(PIN_DAC_EN, OUTPUT);
     digitalWrite(PIN_DAC_EN, 0);
+
     pinMode(PIN_DAC_XSMT, OUTPUT);
     digitalWrite(PIN_DAC_XSMT, 0);
+
     pinMode(PIN_I2S_MCLK, OUTPUT);
     digitalWrite(PIN_I2S_MCLK, 0);
 
+    pinMode(PIN_SDVDD_CTRL, OUTPUT);
     digitalWrite(PIN_SDVDD_CTRL, 1);
-    digitalWrite(PIN_BUZZER, 0);
+    
     pinMode(PIN_BUZZER, OUTPUT);
     digitalWrite(PIN_BUZZER, 0);
+
+    pinMode(PIN_ADC, ANALOG);
 
     const esp_partition_t *p = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
     if (pref.getUInt("size", 0) != p->size)
