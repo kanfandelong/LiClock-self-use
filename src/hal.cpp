@@ -862,7 +862,7 @@ void HAL::cheak_freq(int _freq, bool setfreq)
         bool cpuset = setCpuFrequencyMhz(_freq);
         uart->end();
         uart->setRxBufferSize(4096);
-        uart->begin(pref.getUInt("uart_baud", 115200));
+        uart->begin(pref.getUInt("uart_baud", 115200), 134217756UL, 44, 43);
         uart->setDebugOutput(true);
         cmd.SetCallback();
         info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
@@ -1277,7 +1277,7 @@ bool HAL::init()
 #endif
 #endif
     uart->setRxBufferSize(4096);
-    uart->begin(uart_band);
+    uart->begin(uart_band, 134217756UL, 44, 43);
     uart->setDebugOutput(true);
     log_i("\n\n"
           "   © 2024 - 2026 看番の龙 | LiClock   \n"
@@ -1357,11 +1357,11 @@ bool HAL::init()
 
     pinMode(PIN_ADC, ANALOG);
 
-    const esp_partition_t *p = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
-    if (pref.getUInt("size", 0) != p->size)
-    {
-        pref.putUInt("size", p->size);
-    }
+    // const esp_partition_t *p = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_LITTLEFS, "spiffs");
+    // if (p->size && pref.getUInt("size", 0) != p->size)
+    // {
+    //     pref.putUInt("size", p->size);
+    // }
     // refresh_partition_table();
     if (pref.getUInt("lastsync") == 0)
     {
