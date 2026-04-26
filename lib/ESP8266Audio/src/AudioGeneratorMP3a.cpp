@@ -98,8 +98,8 @@ bool AudioGeneratorMP3a::loop()
 
   // If we've got data, try and pump it out...
   while (validSamples) {
-    lastSample[0] = outSample[curSample*2];
-    lastSample[1] = outSample[curSample*2 + 1];
+    lastSample[0] = outSample[curSample*2] << 16;
+    lastSample[1] = outSample[curSample*2 + 1] << 16;
     if (!output->ConsumeSample(lastSample)) goto done; // Can't send, but no error detected
     validSamples--;
     curSample++;

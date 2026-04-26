@@ -81,12 +81,13 @@ struct SongPlayCount
     uint32_t count = 0;        // 累计播放次数
 };
 
-static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator"};
+static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "MP3a_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator"};
 
 typedef enum
 {
     UNKONWN_Generator,
     MP3_Generator,
+    MP3a_Generator,
     Flac_Generator,
     AAC_Generator,
     OPUS_Generator,
@@ -100,6 +101,7 @@ AudioFileSource *in = nullptr;     // 音频文件源
 AudioFileSourceID3 *id3 = nullptr; // ID3信息解码处理
 AudioGenerator *generator = nullptr;
 AudioGeneratorMP3 *mp3_generator = nullptr;   // MP3解码器
+AudioGeneratorMP3a *mp3a_generator = nullptr; // MP3解码器（另一个版本）
 AudioGeneratorFLAC *flac_generator = nullptr; // flac解码器
 AudioGeneratorAAC *aac_generator = nullptr;
 AudioGeneratorOpus *opus_generator = nullptr;
@@ -718,6 +720,7 @@ void delete_generator()
         generator = nullptr;
     }
     mp3_generator = nullptr;
+    mp3a_generator = nullptr;
     flac_generator = nullptr;
     opus_generator = nullptr;
     wav_generator = nullptr;
@@ -3868,7 +3871,10 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
     // 确定解码器
     if (play_file.endsWith(".mp3"))
     {
-        play_generator = MP3_Generator;
+        if (hal.pref.getBool("mp3_use_helix", false))
+            play_generator = MP3a_Generator;
+        else
+            play_generator = MP3_Generator;
         if (id3 != nullptr)
         {
             delete id3;
@@ -3905,6 +3911,11 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         mp3_generator->RegisterMetadataCB(MDCallback, (void *)"MP3INFO");
         generator = mp3_generator;
         break;
+    case MP3a_Generator:
+        mp3a_generator = new AudioGeneratorMP3a();
+        mp3a_generator->RegisterMetadataCB(MDCallback, (void *)"MP3INFO");
+        generator = mp3a_generator;
+        break;
     case Flac_Generator:
         flac_generator = new AudioGeneratorFLAC();
         flac_generator->RegisterMetadataCB(MDCallback, (void *)"FLACTAG");
@@ -3930,7 +3941,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
     }
     if (generator != nullptr)
     {
-        if (play_generator != MP3_Generator && play_generator != AAC_Generator)
+        if (play_generator != MP3a_Generator && play_generator != MP3_Generator && play_generator != AAC_Generator)
         {
             if (!generator->begin(source, out))
             {

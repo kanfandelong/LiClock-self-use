@@ -419,7 +419,10 @@ static int cmd_tasklist(int argc, char **argv)
         return 2;
     }
     vTaskList(buffer);
-    PRINT_INFO("Task List (Name, State, Prio, Stack High Watermark, Task Num):");
+    HEADER_COLOR;
+    uart->print("Task List\n");
+    RESET_COLOR;
+    PRINT_INFO("Task name     State    Prio    Stack Task Num  Core");
     uart->print(buffer);
     free(buffer);
     return 0;
