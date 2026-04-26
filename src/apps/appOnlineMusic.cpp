@@ -818,11 +818,9 @@ void AppOnlineMusic::playSong(int index)
     currentSongUrl = onlineSongUrls[index];
 
     log_i("Playing: [%d/%d] %s", currentSongIndex + 1, onlineSongCount, currentSongTitle.c_str());
-    log_i("Original URL: %s", currentSongUrl.c_str());
+    log_i("URL: %s", currentSongUrl.c_str());
 
-    String finalUrl = resolveRedirect(currentSongUrl);
-
-    httpStream = new AudioFileSourceHTTPStream(finalUrl.c_str());
+    httpStream = new AudioFileSourceHTTPStream(currentSongUrl.c_str());
     httpStream->RegisterMetadataCB(MDCallback, (void*)"ICY");
     mp3 = new AudioGeneratorMP3();
     mp3->RegisterStatusCB(StatusCallback, (void*)"mp3");
