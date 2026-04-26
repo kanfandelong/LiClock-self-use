@@ -1,6 +1,6 @@
 #include "Serial_cmd.h"
 #include <nvs_flash.h>
-#include "chip-debug-report.h"
+#include "src-chip-debug-report.h"
 #include <cstring>
 
 extern SPIClass SDSPI;
