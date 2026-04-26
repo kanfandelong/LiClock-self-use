@@ -12,31 +12,36 @@ static const uint8_t APP_OnlineMusic_bits[] = {
     0x00, 0xfc, 0xff, 0x03, 0x00, 0x7e, 0xfc, 0x03, 0x00, 0x3f, 0xf8, 0x03,
     0x80, 0x1f, 0xf8, 0x03, 0x80, 0x1f, 0xf8, 0x03, 0x80, 0x1f, 0xf8, 0x03,
     0x80, 0x1f, 0xf8, 0x03, 0x80, 0x1f, 0xf8, 0x03, 0x80, 0x1f, 0xf8, 0x03,
-    0x80, 0x1f, 0xf8, 0x03, 0x00, 0x3f, 0xfc, 0x03, 0x00, 0x7e, 0xfc, 0x03,
-    0x00, 0xf8, 0xff, 0x03, 0x00, 0xf0, 0xff, 0x03, 0x00, 0xc0, 0xff, 0x03,
-    0x00, 0x80, 0xff, 0x03, 0x00, 0x00, 0xfe, 0x03, 0x00, 0x00, 0xfc, 0x03,
-    0x00, 0x00, 0xf8, 0x03, 0x00, 0x00, 0xf0, 0x01, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    0x00, 0x3f, 0xfc, 0x03, 0x00, 0x7e, 0xfc, 0x03, 0x00, 0xf8, 0xff, 0x03,
+    0x00, 0xf0, 0xff, 0x03, 0x00, 0xc0, 0xff, 0x03, 0x00, 0x80, 0xff, 0x03,
+    0x00, 0x00, 0xfe, 0x03, 0x00, 0x00, 0xfc, 0x03, 0x00, 0x00, 0xf8, 0x03,
+    0x00, 0x00, 0xf0, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 static const uint8_t pause_bits[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
-    0x78, 0x00, 0x00, 0xf8, 0x01, 0x00, 0xf8, 0x07, 0x00, 0xf8, 0x1f, 0x00,
-    0xf8, 0x7f, 0x00, 0xf8, 0xff, 0x01, 0xf8, 0xff, 0x07, 0xf8, 0xff, 0x1f,
-    0xf8, 0xff, 0x1f, 0xf8, 0xff, 0x1f, 0xf8, 0xff, 0x07, 0xf8, 0xff, 0x01,
-    0xf8, 0x7f, 0x00, 0xf8, 0x1f, 0x00, 0xf8, 0x07, 0x00, 0xf8, 0x01, 0x00,
-    0xf8, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00, 0x00, 0x38, 0x00, 0x00,
+    0x00, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 static const uint8_t play_bits[] = {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x81, 0x0f, 0xf8, 0xc3, 0x1f,
-    0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f,
-    0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f,
-    0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f,
-    0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f, 0xf8, 0xc3, 0x1f,
-    0xf8, 0xc3, 0x1f, 0xf0, 0x81, 0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00,
+    0x00, 0x3c, 0x00, 0x00, 0x00, 0x3f, 0x00, 0x00, 0x00, 0x3f, 0xc0, 0x00,
+    0x00, 0x3f, 0xf0, 0x00, 0x00, 0x3f, 0xfc, 0x00, 0x00, 0x3f, 0xff, 0x00,
+    0x00, 0x3f, 0xff, 0xc0, 0x00, 0x3f, 0xff, 0xf0, 0x00, 0x3f, 0xff, 0xfc,
+    0x00, 0x3f, 0xff, 0xff, 0x00, 0x3f, 0xff, 0xfc, 0x00, 0x3f, 0xff, 0xf0,
+    0x00, 0x3f, 0xff, 0xc0, 0x00, 0x3f, 0xff, 0x00, 0x00, 0x3f, 0xfc, 0x00,
+    0x00, 0x3f, 0xf0, 0x00, 0x00, 0x3f, 0xc0, 0x00, 0x00, 0x3f, 0x00, 0x00,
+    0x00, 0x3c, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-#define MAX_ONLINE_SONGS 256
+#define MAX_ONLINE_SONGS 100
 #define MAX_PLAYLISTS 10
-#define PLAYLIST_FILE "/online_playlists.json"
 
 class AppOnlineMusic : public AppBase
 {
@@ -82,6 +87,7 @@ public:
     void openMenu();
     void playlistMenu();
     void addPlaylist();
+    void editPlaylist();
     void deletePlaylist();
     void loadPlaylists();
     bool savePlaylists();
@@ -107,20 +113,23 @@ void AppOnlineMusic::MDCallback(void *cbData, const char *type, bool isUnicode, 
     (void)cbData;
     (void)isUnicode;
     char s1[32], s2[64];
-    strncpy_P(s1, type, sizeof(s1));
-    s1[sizeof(s1)-1] = 0;
-    strncpy_P(s2, string, sizeof(s2));
-    s2[sizeof(s2)-1] = 0;
-    log_i("METADATA '%s' = '%s'", s1, s2);
+    strncpy(s1, type, 31);
+    s1[31] = 0;
+    strncpy(s2, string, 63);
+    s2[63] = 0;
+    log_i("Metadata %s: %s", s1, s2);
 }
 
 void AppOnlineMusic::StatusCallback(void *cbData, int code, const char *string)
 {
     (void)cbData;
-    char s1[64];
-    strncpy_P(s1, string, sizeof(s1));
-    s1[sizeof(s1)-1] = 0;
-    log_i("STATUS %d = '%s'", code, s1);
+    log_i("Status: %d %s", code, string);
+}
+
+void AppOnlineMusic::set()
+{
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+    log_i("APP %s, version: %s", name, "1.0.0");
 }
 
 void AppOnlineMusic::cleanup()
@@ -135,18 +144,8 @@ void AppOnlineMusic::cleanup()
     hal.can_light_sleep = true;
 }
 
-void AppOnlineMusic::set()
-{
-    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
-    log_i("APP %s, 版本: %s", name, "1.0.0");
-}
-
 void AppOnlineMusic::setup()
 {
-<<<<<<< HEAD
-
-=======
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
     display.clearScreen();
     display.display();
 
@@ -167,11 +166,11 @@ void AppOnlineMusic::setup()
     GUI::info_msgbox("提示", "正在连接 WIFI...");
     if (!hal.autoConnectWiFi(true))
     {
-        GUI::msgbox("错误", "WIFI 连接失败");
+        GUI::msgbox("错误", "WIFI连接失败");
         hal.can_light_sleep = true;
         return;
     }
-    GUI::info_msgbox("提示", "WIFI 连接成功");
+    GUI::info_msgbox("提示", "WIFI连接成功");
 
     out = new AudioOutputI2S(0, 1);
     out->SetOutputModeMono(true);
@@ -202,21 +201,12 @@ void AppOnlineMusic::setup()
 
     while (!_end)
     {
-<<<<<<< HEAD
         if (isPlaying && mp3 && mp3->isRunning())
         {
             if (!mp3->loop())
             {
                 // 播放结束，切歌
                 stopSong();
-=======
-        if (mp3 && mp3->isRunning())
-        {
-            if (!mp3->loop())
-            {
-                mp3->stop();
-                isPlaying = false;
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
                 playNext();
                 showDisplay();
             }
@@ -298,6 +288,7 @@ void AppOnlineMusic::openMenu()
             {false, "< 返回", nullptr},
             {false, "播放歌单", nullptr},
             {false, "添加歌单", nullptr},
+            {false, "编辑歌单", nullptr},
             {false, "删除歌单", nullptr},
             {false, "选择歌曲", nullptr},
             {false, "音量调节", nullptr},
@@ -320,9 +311,12 @@ void AppOnlineMusic::openMenu()
             addPlaylist();
             break;
         case 3:
-            deletePlaylist();
+            editPlaylist();
             break;
         case 4:
+            deletePlaylist();
+            break;
+        case 5:
             if (onlineSongCount > 0)
             {
                 int page = (currentSongIndex / 8) + 1;
@@ -334,7 +328,7 @@ void AppOnlineMusic::openMenu()
                 GUI::info_msgbox("提示", "请先加载歌单");
             }
             break;
-        case 5:
+        case 6:
             currentVolume = GUI::msgbox_number("音量 0-21", 2, currentVolume);
             if (currentVolume > 21)
                 currentVolume = 21;
@@ -345,11 +339,11 @@ void AppOnlineMusic::openMenu()
                 out->SetGain(currentVolume / 21.0f);
             }
             break;
-        case 6:
+        case 7:
             stopSong();
             GUI::info_msgbox("提示", "已停止播放");
             break;
-        case 7:
+        case 8:
             _end = true;
             end = true;
             break;
@@ -435,88 +429,96 @@ void AppOnlineMusic::playlistMenu()
 
 void AppOnlineMusic::addPlaylist()
 {
-    int selected = 0;
-
-    static const menu_select addOpts[] = {
-        {false, "< 返回", nullptr},
-        {false, "通过 ID 添加", nullptr},
-        {false, "通过 URL 添加", nullptr},
-        {false, NULL, nullptr}};
-
-    selected = GUI::select_menu("添加歌单", addOpts, 0);
-
-    if (selected == 0)
-        return;
-
-    String playlistUrl;
-    const char *name;
-
-    if (selected == 1)
-    {
-        static const menu_select platformOpts[] = {
-            {false, "< 返回", nullptr},
-            {false, "网易云音乐", nullptr},
-            {false, "QQ 音乐(实验性)", nullptr},
-            {false, NULL, nullptr}};
-
-        int platform = GUI::select_menu("选择平台", platformOpts, 1);
-        if (platform == 0)
-            return;
-
-        int64_t playlistId = GUI::msgbox_number64("输入歌单 ID", 12, 0);
-        if (playlistId <= 0)
-        {
-            GUI::msgbox("提示", "ID 无效");
-            return;
-        }
-
-        if (platform == 1)
-        {
-            playlistUrl = "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=";
-        }
-        else
-        {
-            playlistUrl = "https://meting.xcnahida.cn/meting/api?server=tencent&type=playlist&id=";
-        }
-        playlistUrl += String(playlistId);
-
-        name = GUI::englishInput("歌单名称");
-    }
-    else
-    {
-        name = GUI::englishInput("歌单名称");
-        const char *url = GUI::englishInput("歌单 URL");
-        if (url == NULL || strlen(url) == 0)
-        {
-            GUI::msgbox("提示", "URL 不能为空");
-            return;
-        }
-        playlistUrl = url;
-    }
-
-    if (name == NULL || strlen(name) == 0)
-    {
-        GUI::msgbox("提示", "名称不能为空");
-        return;
-    }
-
     if (playlistCount >= MAX_PLAYLISTS)
     {
-        GUI::msgbox("提示", "歌单数量已达上限");
+        GUI::msgbox("错误", "歌单已满");
         return;
     }
 
-    playlistNames[playlistCount] = name;
-    playlistUrls[playlistCount] = playlistUrl;
-    playlistCount++;
+    long playlistId = GUI::msgbox_number("输入网易云歌单ID", 12, 7031310463L);
+    if (playlistId <= 0)
+    {
+        GUI::info_msgbox("提示", "未输入ID");
+        return;
+    }
 
+    char urlBuf[256];
+    snprintf(urlBuf, sizeof(urlBuf),
+             "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%ld",
+             playlistId);
+
+    char nameBuf[64];
+    snprintf(nameBuf, sizeof(nameBuf), "歌单%ld", playlistId);
+
+    playlistNames[playlistCount] = nameBuf;
+    playlistUrls[playlistCount] = urlBuf;
+    playlistCount++;
     if (savePlaylists())
     {
-        GUI::msgbox("提示", "添加成功");
+        GUI::info_msgbox("提示", "添加成功");
     }
-    else
+}
+
+void AppOnlineMusic::editPlaylist()
+{
+    if (playlistCount == 0)
     {
-        GUI::msgbox("错误", "保存失败");
+        GUI::msgbox("提示", "暂无歌单可编辑");
+        return;
+    }
+
+    int selected = 0;
+    bool end = false;
+
+    while (!end)
+    {
+        static menu_item items[12];
+        items[0].title = "返回";
+        items[0].icon = NULL;
+
+        for (int i = 0; i < playlistCount && i < 10; i++)
+        {
+            items[i + 1].title = playlistNames[i].c_str();
+            items[i + 1].icon = NULL;
+        }
+        items[playlistCount + 1].title = NULL;
+        items[playlistCount + 1].icon = NULL;
+
+        selected = GUI::menu("编辑歌单", items, 8, 8, selected);
+
+        if (selected == 0)
+        {
+            end = true;
+        }
+        else if (selected >= 1 && selected <= playlistCount)
+        {
+            int idx = selected - 1;
+
+            long playlistId = GUI::msgbox_number("输入歌单ID", 12, 7031310463L);
+            if (playlistId <= 0)
+            {
+                GUI::info_msgbox("提示", "未输入ID");
+                end = true;
+                break;
+            }
+
+            char urlBuf[256];
+            snprintf(urlBuf, sizeof(urlBuf),
+                     "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%ld",
+                     playlistId);
+
+            playlistUrls[idx] = urlBuf;
+
+            char nameBuf[64];
+            snprintf(nameBuf, sizeof(nameBuf), "歌单%ld", playlistId);
+            playlistNames[idx] = nameBuf;
+
+            if (savePlaylists())
+            {
+                GUI::info_msgbox("提示", "修改成功");
+            }
+            end = true;
+        }
     }
 }
 
@@ -524,7 +526,7 @@ void AppOnlineMusic::deletePlaylist()
 {
     if (playlistCount == 0)
     {
-        GUI::msgbox("提示", "没有可删除的歌单");
+        GUI::msgbox("提示", "暂无歌单");
         return;
     }
 
@@ -553,22 +555,18 @@ void AppOnlineMusic::deletePlaylist()
         }
         else if (selected >= 1 && selected <= playlistCount)
         {
-            if (GUI::msgbox_yn("确认", "确定要删除这个歌单吗?"))
+            if (GUI::msgbox_yn("确认", "确定要删除该歌单吗?", "确认", "取消"))
             {
-                for (int i = selected - 1; i < playlistCount - 1; i++)
+                int idx = selected - 1;
+                for (int i = idx; i < playlistCount - 1; i++)
                 {
                     playlistNames[i] = playlistNames[i + 1];
                     playlistUrls[i] = playlistUrls[i + 1];
                 }
                 playlistCount--;
-
                 if (savePlaylists())
                 {
                     GUI::info_msgbox("提示", "删除成功");
-                }
-                else
-                {
-                    GUI::msgbox("错误", "保存失败");
                 }
             }
         }
@@ -577,68 +575,40 @@ void AppOnlineMusic::deletePlaylist()
 
 void AppOnlineMusic::loadPlaylists()
 {
-    if (!hal.exists(PLAYLIST_FILE))
-    {
-        playlistCount = 0;
+    String dataStr = hal.pref.getString(hal.get_char_sha_key("online_playlists"), "");
+    if (dataStr.length() == 0)
         return;
-    }
 
-    File file = hal.open(PLAYLIST_FILE, FILE_READ);
-    if (!file)
-    {
-        playlistCount = 0;
-        return;
-    }
-
-    String content = file.readString();
-    file.close();
-
-    DynamicJsonDocument doc(4096);
-    DeserializationError error = deserializeJson(doc, content);
-
+    size_t jsonSize = JSON_ARRAY_SIZE(MAX_PLAYLISTS * 2) + MAX_PLAYLISTS * 2 * 128;
+    DynamicJsonDocument doc(jsonSize);
+    DeserializationError error = deserializeJson(doc, dataStr);
     if (error)
-    {
-        playlistCount = 0;
         return;
-    }
 
-    playlistCount = doc["count"] | 0;
-    if (playlistCount > MAX_PLAYLISTS)
-        playlistCount = MAX_PLAYLISTS;
-
-    JsonArray playlists = doc["playlists"];
-    for (int i = 0; i < playlistCount && i < playlists.size(); i++)
+    playlistCount = 0;
+    for (int i = 0; i < MAX_PLAYLISTS; i++)
     {
-        playlistNames[i] = playlists[i]["name"].as<String>();
-        playlistUrls[i] = playlists[i]["url"].as<String>();
+        if (!doc[i].containsKey("name") || !doc[i].containsKey("url"))
+            break;
+        playlistNames[i] = doc[i]["name"].as<String>();
+        playlistUrls[i] = doc[i]["url"].as<String>();
+        playlistCount++;
     }
-
-    doc.clear();
 }
 
 bool AppOnlineMusic::savePlaylists()
 {
-    File file = hal.open(PLAYLIST_FILE, FILE_WRITE);
-    if (!file)
-    {
-        return false;
-    }
-
-    DynamicJsonDocument doc(4096);
-    doc["count"] = playlistCount;
-
-    JsonArray playlists = doc.createNestedArray("playlists");
+    size_t jsonSize = JSON_ARRAY_SIZE(playlistCount) + playlistCount * 256;
+    DynamicJsonDocument doc(jsonSize);
     for (int i = 0; i < playlistCount; i++)
     {
-        JsonObject obj = playlists.createNestedObject();
-        obj["name"] = playlistNames[i];
-        obj["url"] = playlistUrls[i];
+        doc[i]["name"] = playlistNames[i];
+        doc[i]["url"] = playlistUrls[i];
     }
 
-    serializeJson(doc, file);
-    doc.clear();
-    file.close();
-
+    String output;
+    serializeJson(doc, output);
+    hal.pref.putString(hal.get_char_sha_key("online_playlists"), output);
     return true;
 }
 
@@ -646,7 +616,7 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
 {
     if (!WiFi.isConnected())
     {
-        GUI::msgbox("错误", "WiFi未连接");
+        GUI::msgbox("错误", "WIFI未连接");
         return;
     }
 
@@ -655,16 +625,16 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     http.setTimeout(30000);
 
     int code = http.GET();
-    if (code != HTTP_CODE_OK)
+    if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT)
     {
-        log_e("HTTP请求失败: %d", code);
+        log_e("HTTP request failed: %d", code);
         GUI::msgbox("错误", "网络请求失败");
         http.end();
         return;
     }
 
     int contentLen = http.getSize();
-    log_i("歌单数据大小: %d bytes", contentLen);
+    log_i("Playlist data size: %d bytes", contentLen);
 
     size_t jsonCapacity = 131072;
     if (contentLen > 0)
@@ -674,14 +644,14 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     if (jsonCapacity > 524288)
         jsonCapacity = 524288;
 
-    WiFiClient *stream = http.getStreamPtr();
+    WiFiClient *streamPtr = http.getStreamPtr();
     DynamicJsonDocument doc(jsonCapacity);
-    DeserializationError error = deserializeJson(doc, *stream);
+    DeserializationError error = deserializeJson(doc, *streamPtr);
     http.end();
 
     if (error)
     {
-        log_e("JSON解析失败: %s (capacity: %u)", error.c_str(), jsonCapacity);
+        log_e("JSON parsing failed: %s (capacity: %u)", error.c_str(), jsonCapacity);
         GUI::msgbox("错误", "歌单解析失败");
         return;
     }
@@ -721,32 +691,7 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     }
 
     doc.clear();
-    log_i("加载了 %d 首歌曲", onlineSongCount);
-}
-
-void AppOnlineMusic::savePlaylistCache(int playlistIdx)
-{
-    char path[64];
-    snprintf(path, sizeof(path), "/online_pl_cache_%d.json", playlistIdx);
-
-    File file = hal.open(path, FILE_WRITE);
-    if (!file)
-        return;
-
-    DynamicJsonDocument doc(16384);
-    doc["count"] = onlineSongCount;
-    JsonArray songs = doc.createNestedArray("songs");
-    for (int i = 0; i < onlineSongCount; i++)
-    {
-        JsonObject obj = songs.createNestedObject();
-        obj["title"] = onlineSongTitles[i];
-        obj["author"] = onlineSongAuthors[i];
-        obj["url"] = onlineSongUrls[i];
-    }
-
-    serializeJson(doc, file);
-    doc.clear();
-    file.close();
+    log_i("Loaded %d songs", onlineSongCount);
 }
 
 bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
@@ -782,8 +727,33 @@ bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
     }
 
     doc.clear();
-    log_i("从缓存加载了 %d 首歌曲", onlineSongCount);
+    log_i("Loaded %d songs from cache", onlineSongCount);
     return onlineSongCount > 0;
+}
+
+void AppOnlineMusic::savePlaylistCache(int playlistIdx)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/online_pl_cache_%d.json", playlistIdx);
+
+    File file = hal.open(path, FILE_WRITE);
+    if (!file)
+        return;
+
+    DynamicJsonDocument doc(16384);
+    doc["count"] = onlineSongCount;
+    JsonArray songs = doc.createNestedArray("songs");
+    for (int i = 0; i < onlineSongCount; i++)
+    {
+        JsonObject obj = songs.createNestedObject();
+        obj["title"] = onlineSongTitles[i];
+        obj["author"] = onlineSongAuthors[i];
+        obj["url"] = onlineSongUrls[i];
+    }
+
+    serializeJson(doc, file);
+    doc.clear();
+    file.close();
 }
 
 String AppOnlineMusic::resolveRedirect(const String &url, int maxRedirects)
@@ -805,7 +775,7 @@ String AppOnlineMusic::resolveRedirect(const String &url, int maxRedirects)
         if (code == HTTP_CODE_OK || code == HTTP_CODE_PARTIAL_CONTENT)
         {
             http.end();
-            log_i("最终URL: %s", currentUrl.c_str());
+            log_i("Final URL: %s", currentUrl.c_str());
             return currentUrl;
         }
         else if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308)
@@ -814,10 +784,10 @@ String AppOnlineMusic::resolveRedirect(const String &url, int maxRedirects)
             http.end();
             if (location.length() == 0)
             {
-                log_e("重定向无Location头");
+                log_e("Redirect with no Location header");
                 return url;
             }
-            log_i("重定向 %d -> %s", code, location.c_str());
+            log_i("Redirect %d -> %s", code, location.c_str());
             currentUrl = location;
         }
         else
@@ -828,7 +798,7 @@ String AppOnlineMusic::resolveRedirect(const String &url, int maxRedirects)
         }
     }
 
-    log_w("超过最大重定向次数");
+    log_w("Exceeded max redirect count");
     return currentUrl;
 }
 
@@ -847,8 +817,8 @@ void AppOnlineMusic::playSong(int index)
     currentSongAuthor = onlineSongAuthors[index];
     currentSongUrl = onlineSongUrls[index];
 
-    log_i("播放: [%d/%d] %s", currentSongIndex + 1, onlineSongCount, currentSongTitle.c_str());
-    log_i("原始URL: %s", currentSongUrl.c_str());
+    log_i("Playing: [%d/%d] %s", currentSongIndex + 1, onlineSongCount, currentSongTitle.c_str());
+    log_i("Original URL: %s", currentSongUrl.c_str());
 
     String finalUrl = resolveRedirect(currentSongUrl);
 
@@ -863,11 +833,11 @@ void AppOnlineMusic::playSong(int index)
         if (success)
         {
             isPlaying = true;
-            log_i("播放成功");
+            log_i("Play started successfully");
         }
         else
         {
-            log_e("播放启动失败");
+            log_e("Failed to start playback");
             delete mp3;
             mp3 = nullptr;
             delete httpStream;
@@ -877,7 +847,7 @@ void AppOnlineMusic::playSong(int index)
     }
     else
     {
-        log_e("无法打开流");
+        log_e("Failed to open audio stream");
         delete httpStream;
         httpStream = nullptr;
         GUI::msgbox("错误", "无法打开音频流");
@@ -886,11 +856,8 @@ void AppOnlineMusic::playSong(int index)
 
 void AppOnlineMusic::stopSong()
 {
-<<<<<<< HEAD
-    isPlaying = false; // 先标记，这样主循环就不会再访问 mp3 了
+    isPlaying = false;
 
-=======
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
     if (mp3)
     {
         mp3->stop();
@@ -903,10 +870,6 @@ void AppOnlineMusic::stopSong()
         delete httpStream;
         httpStream = nullptr;
     }
-<<<<<<< HEAD
-=======
-    isPlaying = false;
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
 }
 
 void AppOnlineMusic::showPlaylist(int page)
@@ -929,7 +892,7 @@ void AppOnlineMusic::showPlaylist(int page)
         int endIdx = min(startIdx + ITEMS_PER_PAGE, onlineSongCount);
 
         static menu_item items[10];
-        for (int i = 0; i < 9; i++)
+        for (int i = 0; i < 10; i++)
         {
             items[i].icon = NULL;
         }
@@ -950,7 +913,7 @@ void AppOnlineMusic::showPlaylist(int page)
         items[itemCount].title = NULL;
         items[itemCount].icon = NULL;
 
-        char title[32];
+        char title[64];
         snprintf(title, sizeof(title), "歌单(%d/%d)", page, totalPages);
 
         selected = GUI::menu(title, items, 8, 8, selected);
@@ -1014,7 +977,7 @@ void AppOnlineMusic::showDisplay()
     u8g2Fonts.setForegroundColor(0);
 
     int16_t titleW = u8g2Fonts.getUTF8Width(currentSongTitle.c_str());
-    int16_t titleX = (296 - titleW) / 2;
+    int16_t titleX = (MAX_X - titleW) / 2;
     if (titleX < 3)
         titleX = 3;
     u8g2Fonts.setCursor(titleX, 40);
@@ -1023,7 +986,7 @@ void AppOnlineMusic::showDisplay()
     if (currentSongAuthor.length() > 0)
     {
         int16_t authorW = u8g2Fonts.getUTF8Width(currentSongAuthor.c_str());
-        int16_t authorX = (296 - authorW) / 2;
+        int16_t authorX = (MAX_X - authorW) / 2;
         if (authorX < 3)
             authorX = 3;
         u8g2Fonts.setCursor(authorX, 58);
@@ -1047,7 +1010,7 @@ void AppOnlineMusic::showDisplay()
 
     char volBuf[16];
     snprintf(volBuf, sizeof(volBuf), "音量:%d", currentVolume);
-    u8g2Fonts.setCursor(293 - u8g2Fonts.getUTF8Width(volBuf), 125);
+    u8g2Fonts.setCursor(MAX_X - 3 - u8g2Fonts.getUTF8Width(volBuf), 125);
     u8g2Fonts.printf("%s", volBuf);
 
     display.display(false);

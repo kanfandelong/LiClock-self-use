@@ -1208,13 +1208,8 @@ namespace GUI
     {
         constexpr int window_w = 180; // 加宽窗口
         constexpr int window_h = 48;
-<<<<<<< HEAD
-        constexpr int start_x = (296 - window_w) / 2;
-        constexpr int start_y = (128 - window_h) / 2;
-=======
         constexpr int start_x = (MAX_X - window_w) / 2;
         constexpr int start_y = (MAX_Y - window_h) / 2;
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
         constexpr int input_x = start_x + 5;
         constexpr int input_y = start_y + 18;
         constexpr int input_w = window_w - 10;
@@ -1350,11 +1345,7 @@ namespace GUI
                     display.print(tmp[i], DEC);
                 }
 
-<<<<<<< HEAD
                 display.display(true);
-=======
-                display.display();
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
             }
 
             delay(10);
@@ -1364,11 +1355,7 @@ namespace GUI
                 wait_time = millis();
             }
         }
-<<<<<<< HEAD
-
-=======
         display.setDrawWindow();
->>>>>>> 5a82915a2253a7847298511701912ff188c21c25
         pop_buffer();
         hal.unhookButton();
         display.display(true);
