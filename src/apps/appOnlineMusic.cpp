@@ -856,7 +856,7 @@ void AppOnlineMusic::playSong(int index)
 
 void AppOnlineMusic::stopSong()
 {
-    isPlaying = false;
+    isPlaying = false; // 先标记，这样主循环就不会再访问 mp3 了
 
     if (mp3)
     {
