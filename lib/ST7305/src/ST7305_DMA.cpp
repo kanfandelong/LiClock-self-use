@@ -43,10 +43,20 @@ bool ST7305_DMA::begin(bool reset)
 
     // 分配 4 个绘制缓冲区（仍使用 PSRAM 友好分配）
     log_i("缓冲区初始化...");
-    _buffers[0] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
-    _buffers[1] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
-    _buffers[2] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
-    _buffers[3] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+    if (!psramFound())
+    {
+        _buffers[0] = (uint8_t *)malloc(BYTES_PER_BUFFER);
+        _buffers[1] = (uint8_t *)malloc(BYTES_PER_BUFFER);
+        _buffers[2] = (uint8_t *)malloc(BYTES_PER_BUFFER);
+        _buffers[3] = (uint8_t *)malloc(BYTES_PER_BUFFER);
+    }
+    else
+    {
+        _buffers[0] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+        _buffers[1] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+        _buffers[2] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+        _buffers[3] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+    }
     buffer = _buffers[0];
     memset(_buffers[0], 0xFF, BYTES_PER_BUFFER);
     memset(_buffers[1], 0xFF, BYTES_PER_BUFFER);
@@ -87,11 +97,15 @@ bool ST7305_DMA::begin(bool reset)
     );
 
     // 配置 TE 引脚中断（如果 TE 引脚有效）
-    log_i("GPIO 初始化...");
+    log_i("TE 引脚及中断初始化...");
     if (_te_pin >= 0)
     {
         pinMode(_te_pin, INPUT_PULLUP);
         attachInterruptArg(digitalPinToInterrupt(_te_pin), te_isr_handler, this, RISING);
+    }
+    else
+    {
+        log_w("TE 引脚未配置, 请使用display(true)忽略TE信号, 以确保正常刷新");
     }
 
     pinMode(_cs_pin, OUTPUT);

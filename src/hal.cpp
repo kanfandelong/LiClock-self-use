@@ -1495,7 +1495,7 @@ bool HAL::init()
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
     ttf.setFramebuffer(296, 128, 1);
-    xTaskCreate(task_hal_update, "hal_update", 2048, NULL, 10, NULL);
+    xTaskCreate(task_hal_update, "hal_update", 3072, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
         if (hal.pref.getBool(get_char_sha_key("按键音"), false))

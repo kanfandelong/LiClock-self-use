@@ -1,10 +1,13 @@
 #include "AppManager.h"
 #include "ESP8266Audio.h"
 #include <arduinoFFT.h>
+#include "esp_dsp.h"
 #include <mbedtls/sha256.h>
 #include <cstdio>
 #include <atomic>
 #pragma GCC optimize("O3")
+
+#define SAMPLES 256
 
 // 将 FreeRTOS 任务状态枚举转换为可读字符串
 static const char *taskStateToString(eTaskState state)
@@ -109,6 +112,9 @@ RTC_DATA_ATTR int32_t currentSongIndex = 0;  // 当前播放索引（音乐列�
 RTC_DATA_ATTR char buf[512] = "";            // 实际存储当前播放文件路径字符串
 RTC_DATA_ATTR const char *music_file = NULL; // 当前播放文件的指针
 // RTC_DATA_ATTR bool is_ran = false;           // 用于判断播放器的启动状态（初次运行/已经运行过）
+
+__attribute__((aligned(16))) float wind[SAMPLES];         // 窗系数
+__attribute__((aligned(16))) float fft_data[2 * SAMPLES]; // 复数交叠数组（实部/虚部交替）
 
 /**
  * @brief 音乐播放器应用类
@@ -256,7 +262,6 @@ public:
     int newLyricIndex = 0;              // 新的歌词索引
 
     // FFT 部分
-    uint16_t SAMPLES = 512;
     float smoothingFactor = 0.7f; // 平滑控制, 0~1，越大越平滑
     float FFT_A_spectrum_smoothness = 2000.0f;
     float FFT_A_amplitude = 40.0f;
@@ -301,11 +306,11 @@ public:
     int AVAILABLE_WIDTH = RIGHT_END_X - RIGHT_START_X;
 
     // 播放计数相关
-    SongPlayCount *playCountRecords = nullptr;           // PSRAM 中的记录数组
-    uint32_t playCountNum = 0;                           // 当前记录条数
-    uint32_t playCountCapacity = 0;                      // 已分配容量（用于动态扩容）
-    static const uint32_t PLAY_COUNT_CAPACITY_STEP = 10; // 扩容步长
-    const char *PLAY_COUNT_FILE = "/sd/playlist/playcount.bin";                  // 存储文件路径
+    SongPlayCount *playCountRecords = nullptr;                  // PSRAM 中的记录数组
+    uint32_t playCountNum = 0;                                  // 当前记录条数
+    uint32_t playCountCapacity = 0;                             // 已分配容量（用于动态扩容）
+    static const uint32_t PLAY_COUNT_CAPACITY_STEP = 10;        // 扩容步长
+    const char *PLAY_COUNT_FILE = "/sd/playlist/playcount.bin"; // 存储文件路径
 
     // 辅助函数
     void computePathHash(const char *path, uint8_t *hashOut);
@@ -684,7 +689,8 @@ static void player_exit()
     free(app.ring_buffer);
 
     app.savePlayCounts();
-    if (app.playCountRecords) {
+    if (app.playCountRecords)
+    {
         free(app.playCountRecords);
         app.playCountRecords = nullptr;
     }
@@ -3466,17 +3472,37 @@ void AppMusicPlayer::show_display_fft()
         for (int i = 0; i < SAMPLES; i++)
         {
             vReal[i] = ring_buffer[(start + i) % RING_BUFFER_SIZE];
-            vImag[i] = 0.0f;
+            // vImag[i] = 0.0f;
         }
 
-        // 1. 采样数据加窗（汉明窗）
-        FFT.windowing(vReal, SAMPLES, FFT_WIN_TYP_HANN, FFT_FORWARD);
+        // // 1. 采样数据加窗（汉明窗）
+        // FFT.windowing(vReal, SAMPLES, FFT_WIN_TYP_HANN, FFT_FORWARD);
 
-        // 2. FFT计算
-        FFT.compute(vReal, vImag, SAMPLES, FFT_FORWARD);
+        // // 2. FFT计算
+        // FFT.compute(vReal, vImag, SAMPLES, FFT_FORWARD);
 
-        // 3. 复数转幅度
-        FFT.complexToMagnitude(vReal, vImag, SAMPLES);
+        // // 3. 复数转幅度
+        // FFT.complexToMagnitude(vReal, vImag, SAMPLES);
+
+        // 2. 加窗，填充复数交叠数组
+        for (int i = 0; i < SAMPLES; i++)
+        {
+            fft_data[2 * i] = vReal[i] * wind[i];
+            fft_data[2 * i + 1] = 0.0f; // 虚部置零
+        }
+
+        // 3. 执行实数 FFT
+        dsps_fft2r_fc32(fft_data, SAMPLES);    // 原位计算
+        dsps_bit_rev_fc32(fft_data, SAMPLES);  // 位反转排序
+        dsps_cplx2reC_fc32(fft_data, SAMPLES); // 分离正负频率（为取幅值做准备）
+
+        // 4. 计算幅度谱，存入 vReal 的前半段
+        for (int i = 0; i < SAMPLES / 2; i++)
+        {
+            float re = fft_data[2 * i];
+            float im = fft_data[2 * i + 1];
+            vReal[i] = sqrtf(re * re + im * im); // 与 ArduinoFFT 行为一致，无额外缩放
+        }
 
         if (!use_log)
         {
@@ -3993,7 +4019,7 @@ void initCurveScaling()
     const float lowScale = hal.pref.getFloat("low_scale", 0.00011);  // 低频压缩值
     const float highScale = hal.pref.getFloat("high_scale", 0.0009); // 高频压缩值
 
-    for (int i = 0; i < app.SAMPLES / 2; i++)
+    for (int i = 0; i < SAMPLES / 2; i++)
     {
         if (i < lowFreqCount)
         {
@@ -4012,6 +4038,13 @@ void initCurveScaling()
             app.curveScaling[i] = highScale;
         }
     }
+
+    esp_err_t ret = dsps_fft2r_init_fc32(NULL, SAMPLES);
+    if (ret != ESP_OK)
+    {
+        log_e("DSP", "FFT init failed: %d", ret);
+    }
+    dsps_wind_hann_f32(wind, SAMPLES); // 计算窗系数
 }
 
 void AppMusicPlayer::onBtnC_Click(void *param)
@@ -4061,9 +4094,8 @@ void AppMusicPlayer::setup()
     display.setPowerMode(POWER_MODE_HPM);
     digitalWrite(PIN_DAC_XSMT, 1);
 
-    SAMPLES = hal.pref.getUInt("fft_samples", 256);
     vReal = new float[SAMPLES];
-    vImag = new float[SAMPLES];
+    // vImag = new float[SAMPLES];
     curveScaling = new float[SAMPLES / 2];
     previousSpectrum = new float[SAMPLES / 2];
     memset(previousSpectrum, 0, sizeof(float[SAMPLES / 2]));

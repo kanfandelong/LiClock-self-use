@@ -429,6 +429,117 @@ static int cmd_tasklist(int argc, char **argv)
 #endif
 }
 
+static int cmd_taskload(int argc, char **argv)
+{
+#if ( configGENERATE_RUN_TIME_STATS == 1 && configUSE_TRACE_FACILITY == 1 )
+    // 可选的窗口长度参数 (秒)，默认 2
+    int window_sec = 5;
+    if (argc >= 2) {
+        window_sec = atoi(argv[1]);
+        if (window_sec <= 0 || window_sec > 60) {
+            PRINT_ERROR("Invalid window. Use 1-60 seconds.");
+            return 1;
+        }
+    }
+    PRINT_INFO("Measuring CPU load over the last %d seconds...", window_sec);
+    UBaseType_t taskCount = uxTaskGetNumberOfTasks();
+    if (taskCount == 0) {
+        PRINT_INFO("No tasks running.");
+        return 0;
+    }
+
+    // 分配两份快照
+    TaskStatus_t *snap1 = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
+    TaskStatus_t *snap2 = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
+    if (!snap1 || !snap2) {
+        free(snap1);
+        free(snap2);
+        PRINT_ERROR("Memory allocation failed.");
+        return 2;
+    }
+
+    uint32_t totalTime1, totalTime2;
+    // 第一次快照
+    UBaseType_t count1 = uxTaskGetSystemState(snap1, taskCount, &totalTime1);
+
+    // 等待窗口时间 (挂起自己，让其他任务运行)
+    vTaskDelay(pdMS_TO_TICKS(window_sec * 1000));
+
+    // 第二次快照（任务数可能变化，重新获取上限）
+    UBaseType_t maxCount2 = uxTaskGetNumberOfTasks();
+    TaskStatus_t *snap2_tmp = (TaskStatus_t *)malloc(maxCount2 * sizeof(TaskStatus_t));
+    if (!snap2_tmp) {
+        free(snap1);
+        free(snap2);
+        PRINT_ERROR("Memory allocation failed.");
+        return 2;
+    }
+    UBaseType_t count2 = uxTaskGetSystemState(snap2_tmp, maxCount2, &totalTime2);
+
+    // 计算时间窗口（微秒）
+    unsigned long elapsed = totalTime2 - totalTime1;
+    if (elapsed == 0) {
+        PRINT_WARNING("Elapsed time zero, stats unavailable.");
+        free(snap1);
+        free(snap2);
+        free(snap2_tmp);
+        return 0;
+    }
+
+    // 收集任务名最大长度（对齐）
+    size_t maxNameLen = 4;
+    for (UBaseType_t i = 0; i < count2; ++i) {
+        size_t len = strlen(snap2_tmp[i].pcTaskName);
+        if (len > maxNameLen) maxNameLen = len;
+    }
+    maxNameLen += 2;
+
+    // 打印表头
+    uart->printf("\n--- CPU Load in last %d seconds ---\n", window_sec);
+    uart->printf("%-*s %5s %10s %10s\n",
+                 (int)maxNameLen, "Name",
+                 "Core", "Time(us)", "Load%");
+    uart->printf("%-*s ----- ---------- ----------\n", (int)maxNameLen, "----");
+
+    // 遍历第二次快照，在第一次快照中查找同名且同任务号的任务
+    for (UBaseType_t j = 0; j < count2; ++j) {
+        const TaskStatus_t &t2 = snap2_tmp[j];
+        // 在快照1中查找匹配的任务句柄（保证是同一个任务）
+        unsigned long runTime1 = 0;
+        bool found = false;
+        for (UBaseType_t i = 0; i < count1; ++i) {
+            if (snap1[i].xHandle == t2.xHandle) {
+                runTime1 = snap1[i].ulRunTimeCounter;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            // 任务在窗口期间创建，运行时间从0开始
+            runTime1 = 0;
+        }
+
+        unsigned long delta = t2.ulRunTimeCounter - runTime1;
+        float percent = ((float)delta * 100.0f) / (float)elapsed;
+
+        uart->printf("%-*s %5d %10lu %9.02f%%\n",
+                     (int)maxNameLen,
+                     t2.pcTaskName,
+                     (t2.xCoreID == tskNO_AFFINITY)? -1 : (int)t2.xCoreID,
+                     delta,
+                     percent);
+    }
+
+    free(snap1);
+    free(snap2);
+    free(snap2_tmp);
+    return 0;
+#else
+    PRINT_ERROR("Requires configGENERATE_RUN_TIME_STATS and configUSE_TRACE_FACILITY");
+    return 2;
+#endif
+}
+
 static int cmd_bootapp_clock(int argc, char **argv)
 {
     hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
@@ -1750,6 +1861,7 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "batinfo", .help = "显示电池信息", .hint = no_info, .func = &cmd_batinfo, .argtable = NULL},
     {.command = "taskstats", .help = "打印各任务CPU占用率（需configGENERATE_RUN_TIME_STATS=1）", .hint = no_info, .func = &cmd_taskstats, .argtable = NULL},
     {.command = "tasklist", .help = "打印任务列表及栈信息（vTaskList）", .hint = no_info, .func = &cmd_tasklist, .argtable = NULL},
+    {.command = "taskload", .help = "显示最近N秒的CPU占用率(默认2秒)", .hint = "Usage: taskload [seconds]", .func = &cmd_taskload, .argtable = NULL},
     {.command = "bootapp_clock", .help = "设置默认启动应用为clock", .hint = no_info, .func = &cmd_bootapp_clock, .argtable = NULL},
     {.command = "lightsleep", .help = "进入轻睡眠模式，可选超时", .hint = "Usage: lightsleep [timeout]", .func = &cmd_lightsleep, .argtable = NULL},
     {.command = "fserverbegin", .help = "启动文件服务器", .hint = no_info, .func = &cmd_fserverbegin, .argtable = NULL},
