@@ -1191,6 +1191,170 @@ namespace GUI
         display.setDrawWindow(); // 恢复绘制窗口
         return currentNumber;
     }
+    /**
+     * @brief int64数字输入GUI（宽窗口）
+     * @param title 标题
+     * @param digits 输入位数
+     * @param pre_value 预设值
+     * @return int64_t 返回输入的64位数字
+     */
+    int64_t msgbox_number64(const char *title, uint16_t digits, int64_t pre_value)
+    {
+        constexpr int window_w = 180; // 加宽窗口
+        constexpr int window_h = 48;
+        constexpr int start_x = (296 - window_w) / 2;
+        constexpr int start_y = (128 - window_h) / 2;
+        constexpr int input_x = start_x + 5;
+        constexpr int input_y = start_y + 18;
+        constexpr int input_w = window_w - 10;
+        constexpr int input_h = window_h - 18 - 3;
+        unsigned long wait_time = 0;
+
+        if (digits <= 0)
+            return 0;
+        --digits;
+        if (digits > 18) // int64最大约18位
+            digits = 18;
+
+        hal.hookButton();
+        push_buffer();
+
+        int64_t currentNumber = pre_value;
+        int current_digit = digits; // 0：个位
+        int64_t current_digit_10pow = 1;
+
+        // 计算当前位置
+        if (current_digit != 0)
+        {
+            for (int i = 0; i < current_digit; ++i)
+            {
+                current_digit_10pow *= 10;
+            }
+        }
+
+        bool changed = true;
+        wait_time = millis();
+
+        while (1)
+        {
+            if (hal.btnl.isPressing())
+            {
+                // 减
+                if (waitLongPress(hal.btnl.pin()))
+                {
+                    if (current_digit == digits)
+                    {
+                        current_digit = 0;
+                    }
+                    else
+                    {
+                        current_digit++;
+                    }
+                }
+                else
+                {
+                    currentNumber -= current_digit_10pow;
+                }
+                changed = true;
+                wait_time = millis();
+            }
+            else if (hal.btnr.isPressing())
+            {
+                // 加
+                if (waitLongPress(hal.btnr.pin()))
+                {
+                    if (current_digit == 0)
+                    {
+                        current_digit = digits;
+                    }
+                    else
+                    {
+                        --current_digit;
+                    }
+                }
+                else
+                {
+                    currentNumber += current_digit_10pow;
+                }
+                changed = true;
+                wait_time = millis();
+            }
+            else if (hal.btnc.isPressing())
+            {
+                if (waitLongPress(PIN_BUTTONC))
+                {
+                    currentNumber = pre_value;
+                    changed = true;
+                }
+                else
+                {
+                    break;
+                }
+                wait_time = millis();
+            }
+
+            if (changed)
+            {
+                // 重新计算当前位置的权值
+                current_digit_10pow = 1;
+                if (current_digit != 0)
+                {
+                    for (int i = 0; i < current_digit; ++i)
+                    {
+                        current_digit_10pow *= 10;
+                    }
+                }
+                changed = false;
+
+                // 绘制界面
+                display.fillRoundRect(start_x, start_y, window_w, window_h, 3, 1);
+                GUI::drawWindowsWithTitle(title, start_x, start_y, window_w, window_h);
+                display.drawRoundRect(input_x, input_y, input_w, input_h, 3, 0);
+
+                // 显示数字
+                display.setFont(&FreeMono9pt7b); // 使用等宽字体
+                display.setTextColor(0);
+                display.setCursor(input_x + 4, input_y + (input_h - 12) / 2 + 12);
+
+                int64_t currentNumber1 = currentNumber;
+                if (currentNumber1 < 0)
+                {
+                    display.print('-');
+                    currentNumber1 = -currentNumber1;
+                }
+
+                uint8_t tmp[20]; // int64最大18位，多留空间
+                for (int i = 0; i <= digits; ++i)
+                {
+                    tmp[i] = currentNumber1 % 10;
+                    currentNumber1 /= 10;
+                }
+
+                for (int i = digits; i >= 0; --i)
+                {
+                    if (i == current_digit)
+                    {
+                        display.drawFastHLine(display.getCursorX(), display.getCursorY() + 2, 10, 0);
+                    }
+                    display.print(tmp[i], DEC);
+                }
+
+                display.displayWindow(start_x, start_y, window_w, window_h);
+            }
+
+            delay(10);
+            if (millis() - wait_time > 30000)
+            {
+                hal.wait_input();
+                wait_time = millis();
+            }
+        }
+
+        pop_buffer();
+        hal.unhookButton();
+        display.display(true);
+        return currentNumber;
+    }
     int msgbox_time(const char *title, int pre_value)
     {
         constexpr int window_w = 120;
