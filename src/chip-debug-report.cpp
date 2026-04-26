@@ -1,4 +1,4 @@
-#include "chip-debug-report.h"
+#include "src-chip-debug-report.h"
 void _printMemCapsInfo(uint32_t caps, const char *caps_str)
 {
   multi_heap_info_t info;
@@ -353,57 +353,4 @@ void printPerimanInfo(void)
   //     }
   //     chip_report_printf("\n");
   //   }
-}
-
-void printBeforeSetupInfo(void)
-{
-#if ARDUINO_USB_CDC_ON_BOOT
-  uart->begin(0);
-  uart->setDebugOutput(true);
-  uint8_t t = 0;
-  while (!Serial && (t++ < 200))
-  {
-    delay(10); // wait up to 2 seconds for the IDE to connect
-  }
-#endif
-  chip_report_printf("=========== Before Setup Start ===========\n");
-  printChipInfo();
-  chip_report_printf("------------------------------------------\n");
-  printMemCapsInfo(INTERNAL);
-  chip_report_printf("------------------------------------------\n");
-  if (psramFound())
-  {
-    printMemCapsInfo(SPIRAM);
-    chip_report_printf("  Bus Mode          : ");
-#if CONFIG_SPIRAM_MODE_OCT
-    chip_report_printf("OPI\n");
-#else
-    chip_report_printf("QSPI\n");
-#endif
-    chip_report_printf("------------------------------------------\n");
-  }
-  printFlashInfo();
-  chip_report_printf("------------------------------------------\n");
-  printPartitionsInfo();
-  chip_report_printf("------------------------------------------\n");
-  printSoftwareInfo();
-  chip_report_printf("------------------------------------------\n");
-  printBoardInfo();
-  chip_report_printf("============ Before Setup End ============\n");
-  delay(100); // allow the print to finish
-}
-
-void printAfterSetupInfo(void)
-{
-  chip_report_printf("=========== After Setup Start ============\n");
-  printMemCapsInfo(INTERNAL);
-  chip_report_printf("------------------------------------------\n");
-  if (psramFound())
-  {
-    printMemCapsInfo(SPIRAM);
-    chip_report_printf("------------------------------------------\n");
-  }
-  printPerimanInfo();
-  chip_report_printf("============ After Setup End =============\n");
-  delay(20); // allow the print to finish
 }
