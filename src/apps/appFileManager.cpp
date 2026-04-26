@@ -1345,4 +1345,5 @@ bool AppFileManager::updataforfile(const char *filepath)
             GUI::msgbox("提示", "Not enough space to begin OTA");
         }
     }
+    return true;
 }

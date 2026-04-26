@@ -1339,7 +1339,7 @@ namespace GUI
                     display.print(tmp[i], DEC);
                 }
 
-                display.displayWindow(start_x, start_y, window_w, window_h);
+                display.display(true);
             }
 
             delay(10);

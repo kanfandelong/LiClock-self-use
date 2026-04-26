@@ -143,7 +143,7 @@ void AppOnlineMusic::set()
 
 void AppOnlineMusic::setup()
 {
-    display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
+
     display.clearScreen();
     display.display();
 
@@ -199,12 +199,12 @@ void AppOnlineMusic::setup()
 
     while (!_end)
     {
-        if (mp3 && mp3->isRunning())
+        if (isPlaying && mp3 && mp3->isRunning())
         {
             if (!mp3->loop())
             {
-                mp3->stop();
-                isPlaying = false;
+                // 播放结束，切歌
+                stopSong();
                 playNext();
                 showDisplay();
             }
@@ -874,6 +874,8 @@ void AppOnlineMusic::playSong(int index)
 
 void AppOnlineMusic::stopSong()
 {
+    isPlaying = false; // 先标记，这样主循环就不会再访问 mp3 了
+
     if (mp3)
     {
         mp3->stop();
@@ -886,7 +888,6 @@ void AppOnlineMusic::stopSong()
         delete httpStream;
         httpStream = nullptr;
     }
-    isPlaying = false;
 }
 
 void AppOnlineMusic::showPlaylist(int page)
@@ -979,7 +980,7 @@ void AppOnlineMusic::showDisplay()
     if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4300 && !hal.isCharging)
     {
         display.drawXBitmap(274, 0, getBatteryIcon(true), 20, 16, 0);
-        display.fillRect(277, 6, getBatterysoc(), 4, GxEPD_BLACK);
+        display.fillRect(277, 6, getBatterysoc(), 4, TFT_BLACK);
     }
     else
     {
@@ -1012,11 +1013,11 @@ void AppOnlineMusic::showDisplay()
 
     if (mp3 && mp3->isRunning())
     {
-        display.drawXBitmap(136, 77, pause_bits, 24, 24, GxEPD_BLACK);
+        display.drawXBitmap(136, 77, pause_bits, 24, 24, TFT_BLACK);
     }
     else
     {
-        display.drawXBitmap(136, 77, play_bits, 24, 24, GxEPD_BLACK);
+        display.drawXBitmap(136, 77, play_bits, 24, 24, TFT_BLACK);
     }
 
     if (onlineSongCount > 0)
