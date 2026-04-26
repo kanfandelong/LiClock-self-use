@@ -1517,7 +1517,7 @@ bool HAL::init()
     //     hal.btnl = OneButton(PIN_BUTTONR);
     // }
     if (peripherals.peripherals_current & PERIPHERALS_BQ27441_BIT)
-        xTaskCreate(task_bat_info, "bat_info_update", 2048, NULL, 2, NULL);
+        xTaskCreate(task_bat_info, "bat_info_update", 3072, NULL, 2, NULL);
     else
         log_e("未安装BQ27441电量计，无法运行电池信息更新任务");
     getTime();

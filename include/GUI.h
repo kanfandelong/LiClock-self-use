@@ -42,6 +42,7 @@ namespace GUI
     int msgbox_number(const char *title, uint16_t digits, int pre_value); // 注意digits，1表示一位，2表示两位，程序中减一
     int64_t msgbox_number64(const char *title, uint16_t digits, int64_t pre_value); // int64数字输入，支持大ID
     uint32_t msgbox_hex(const char *title, uint16_t digits, uint32_t pre_value);
+    int64_t msgbox_number64(const char *title, uint16_t digits, int64_t pre_value);
     void drawKeyboard(int selectedRow, int selectedCol);
     const char* englishInput(const char *name = "");
     int msgbox_time(const char *title, int pre_value);

@@ -143,7 +143,10 @@ void AppOnlineMusic::set()
 
 void AppOnlineMusic::setup()
 {
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5a82915a2253a7847298511701912ff188c21c25
     display.clearScreen();
     display.display();
 
@@ -199,12 +202,21 @@ void AppOnlineMusic::setup()
 
     while (!_end)
     {
+<<<<<<< HEAD
         if (isPlaying && mp3 && mp3->isRunning())
         {
             if (!mp3->loop())
             {
                 // 播放结束，切歌
                 stopSong();
+=======
+        if (mp3 && mp3->isRunning())
+        {
+            if (!mp3->loop())
+            {
+                mp3->stop();
+                isPlaying = false;
+>>>>>>> 5a82915a2253a7847298511701912ff188c21c25
                 playNext();
                 showDisplay();
             }
@@ -874,8 +886,11 @@ void AppOnlineMusic::playSong(int index)
 
 void AppOnlineMusic::stopSong()
 {
+<<<<<<< HEAD
     isPlaying = false; // 先标记，这样主循环就不会再访问 mp3 了
 
+=======
+>>>>>>> 5a82915a2253a7847298511701912ff188c21c25
     if (mp3)
     {
         mp3->stop();
@@ -888,6 +903,10 @@ void AppOnlineMusic::stopSong()
         delete httpStream;
         httpStream = nullptr;
     }
+<<<<<<< HEAD
+=======
+    isPlaying = false;
+>>>>>>> 5a82915a2253a7847298511701912ff188c21c25
 }
 
 void AppOnlineMusic::showPlaylist(int page)

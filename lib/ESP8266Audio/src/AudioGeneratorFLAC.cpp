@@ -456,7 +456,7 @@ void AudioGeneratorFLAC::fillTask(void *param)
     {
       break;
     }
-    BaseType_t ret = xRingbufferSend(self->ringBuf, self->tempBuffer, bytesRead, portMAX_DELAY);
+    BaseType_t ret = xRingbufferSend(self->ringBuf, self->tempBuffer, bytesRead, 30000);
     if (ret != pdTRUE)
     {
       log_e("后台缓冲区填充失败");
