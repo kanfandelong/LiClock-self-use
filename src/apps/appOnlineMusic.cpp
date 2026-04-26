@@ -40,8 +40,8 @@ static const uint8_t play_bits[] = {
     0x00, 0x3f, 0xf0, 0x00, 0x00, 0x3f, 0xc0, 0x00, 0x00, 0x3f, 0x00, 0x00,
     0x00, 0x3c, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-#define MAX_ONLINE_SONGS 100
-#define MAX_PLAYLISTS 10
+#define MAX_ONLINE_SONGS 1024
+#define MAX_PLAYLISTS 20
 
 class AppOnlineMusic : public AppBase
 {
@@ -435,7 +435,7 @@ void AppOnlineMusic::addPlaylist()
         return;
     }
 
-    long playlistId = GUI::msgbox_number("输入网易云歌单ID", 12, 7031310463L);
+    int64_t playlistId = GUI::msgbox_number64("输入网易云歌单ID", 12, 7031310463LL);
     if (playlistId <= 0)
     {
         GUI::info_msgbox("提示", "未输入ID");
@@ -444,11 +444,11 @@ void AppOnlineMusic::addPlaylist()
 
     char urlBuf[256];
     snprintf(urlBuf, sizeof(urlBuf),
-             "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%ld",
+             "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%lld",
              playlistId);
 
     char nameBuf[64];
-    snprintf(nameBuf, sizeof(nameBuf), "歌单%ld", playlistId);
+    snprintf(nameBuf, sizeof(nameBuf), "歌单%lld", playlistId);
 
     playlistNames[playlistCount] = nameBuf;
     playlistUrls[playlistCount] = urlBuf;
@@ -494,7 +494,7 @@ void AppOnlineMusic::editPlaylist()
         {
             int idx = selected - 1;
 
-            long playlistId = GUI::msgbox_number("输入歌单ID", 12, 7031310463L);
+            int64_t playlistId = GUI::msgbox_number64("输入网易云歌单ID", 12, 7031310463ULL);
             if (playlistId <= 0)
             {
                 GUI::info_msgbox("提示", "未输入ID");
@@ -504,13 +504,13 @@ void AppOnlineMusic::editPlaylist()
 
             char urlBuf[256];
             snprintf(urlBuf, sizeof(urlBuf),
-                     "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%ld",
+                     "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%lld",
                      playlistId);
 
             playlistUrls[idx] = urlBuf;
 
             char nameBuf[64];
-            snprintf(nameBuf, sizeof(nameBuf), "歌单%ld", playlistId);
+            snprintf(nameBuf, sizeof(nameBuf), "歌单%lld", playlistId);
             playlistNames[idx] = nameBuf;
 
             if (savePlaylists())
