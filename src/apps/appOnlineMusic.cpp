@@ -36,7 +36,7 @@ static const uint8_t play_bits[] = {
 
 #define MAX_ONLINE_SONGS 256
 #define MAX_PLAYLISTS 10
-#define PLAYLIST_FILE "/sd/online_playlists.json"
+#define PLAYLIST_FILE "/online_playlists.json"
 
 class AppOnlineMusic : public AppBase
 {
@@ -47,18 +47,21 @@ private:
 
     String onlineSongUrls[MAX_ONLINE_SONGS];
     String onlineSongTitles[MAX_ONLINE_SONGS];
+    String onlineSongAuthors[MAX_ONLINE_SONGS];
     int onlineSongCount = 0;
     int currentSongIndex = 0;
     bool isPlaying = false;
     bool _end = false;
     int currentVolume = 15;
     unsigned long displayTime = 0;
+    int currentPlaylistIndex = -1;
 
     String playlistNames[MAX_PLAYLISTS];
     String playlistUrls[MAX_PLAYLISTS];
     int playlistCount = 0;
 
     String currentSongTitle = "---";
+    String currentSongAuthor = "";
     String currentSongUrl = "";
 
     void cleanup();
@@ -83,6 +86,9 @@ public:
     void loadPlaylists();
     bool savePlaylists();
     void loadOnlinePlaylist(const char *url);
+    bool loadPlaylistCache(int playlistIdx);
+    void savePlaylistCache(int playlistIdx);
+    String resolveRedirect(const String &url, int maxRedirects = 5);
     void playSong(int index);
     void stopSong();
     void showPlaylist(int page);
@@ -105,7 +111,7 @@ void AppOnlineMusic::MDCallback(void *cbData, const char *type, bool isUnicode, 
     s1[sizeof(s1)-1] = 0;
     strncpy_P(s2, string, sizeof(s2));
     s2[sizeof(s2)-1] = 0;
-    Serial.printf("METADATA '%s' = '%s'\n", s1, s2);
+    log_i("METADATA '%s' = '%s'", s1, s2);
 }
 
 void AppOnlineMusic::StatusCallback(void *cbData, int code, const char *string)
@@ -114,7 +120,7 @@ void AppOnlineMusic::StatusCallback(void *cbData, int code, const char *string)
     char s1[64];
     strncpy_P(s1, string, sizeof(s1));
     s1[sizeof(s1)-1] = 0;
-    Serial.printf("STATUS %d = '%s'\n", code, s1);
+    log_i("STATUS %d = '%s'", code, s1);
 }
 
 void AppOnlineMusic::cleanup()
@@ -373,12 +379,34 @@ void AppOnlineMusic::playlistMenu()
         }
         else if (selected >= 1 && selected <= playlistCount)
         {
-            GUI::info_msgbox("提示", "正在加载歌单...");
+            int plIdx = selected - 1;
+            currentPlaylistIndex = plIdx;
+            bool loaded = false;
 
-            onlineSongCount = 0;
-            loadOnlinePlaylist(playlistUrls[selected - 1].c_str());
+            if (loadPlaylistCache(plIdx))
+            {
+                if (!GUI::msgbox_yn("缓存可用", "使用缓存还是重新加载?", "使用缓存", "重新加载"))
+                {
+                    onlineSongCount = 0;
+                    GUI::info_msgbox("提示", "正在加载歌单...");
+                    loadOnlinePlaylist(playlistUrls[plIdx].c_str());
+                    if (onlineSongCount > 0)
+                        savePlaylistCache(plIdx);
+                }
+                loaded = onlineSongCount > 0;
+            }
+            else
+            {
+                GUI::info_msgbox("提示", "正在加载歌单...");
+                loadOnlinePlaylist(playlistUrls[plIdx].c_str());
+                if (onlineSongCount > 0)
+                {
+                    savePlaylistCache(plIdx);
+                    loaded = true;
+                }
+            }
 
-            if (onlineSongCount > 0)
+            if (loaded)
             {
                 currentSongIndex = 0;
                 playSong(currentSongIndex);
@@ -616,21 +644,31 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     int code = http.GET();
     if (code != HTTP_CODE_OK)
     {
-        Serial.printf("HTTP请求失败: %d\n", code);
+        log_e("HTTP请求失败: %d", code);
         GUI::msgbox("错误", "网络请求失败");
         http.end();
         return;
     }
 
-    String payload = http.getString();
-    http.end();
+    int contentLen = http.getSize();
+    log_i("歌单数据大小: %d bytes", contentLen);
 
-    DynamicJsonDocument doc(16384);
-    DeserializationError error = deserializeJson(doc, payload);
+    size_t jsonCapacity = 131072;
+    if (contentLen > 0)
+        jsonCapacity = (size_t)(contentLen * 2.5);
+    if (jsonCapacity < 16384)
+        jsonCapacity = 16384;
+    if (jsonCapacity > 524288)
+        jsonCapacity = 524288;
+
+    WiFiClient *stream = http.getStreamPtr();
+    DynamicJsonDocument doc(jsonCapacity);
+    DeserializationError error = deserializeJson(doc, *stream);
+    http.end();
 
     if (error)
     {
-        Serial.printf("JSON解析失败: %s\n", error.c_str());
+        log_e("JSON解析失败: %s (capacity: %u)", error.c_str(), jsonCapacity);
         GUI::msgbox("错误", "歌单解析失败");
         return;
     }
@@ -638,7 +676,7 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     onlineSongCount = 0;
 
     JsonArray jsonArray = doc.as<JsonArray>();
-    for (int i = 0; i < jsonArray.size() && onlineSongCount < MAX_ONLINE_SONGS; i++)
+    for (int i = 0; i < (int)jsonArray.size() && onlineSongCount < MAX_ONLINE_SONGS; i++)
     {
         JsonObject obj = jsonArray[i];
 
@@ -646,24 +684,139 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
         {
             String songUrl = obj["url"].as<String>();
             String songTitle = "";
+            String songAuthor = "";
 
             if (obj.containsKey("title"))
                 songTitle = obj["title"].as<String>();
             else
                 songTitle = obj["name"].as<String>();
 
+            if (obj.containsKey("author"))
+                songAuthor = obj["author"].as<String>();
+            else if (obj.containsKey("artist"))
+                songAuthor = obj["artist"].as<String>();
+
             if (songUrl.length() > 10)
             {
                 songUrl.replace("\\/", "/");
                 onlineSongUrls[onlineSongCount] = songUrl;
                 onlineSongTitles[onlineSongCount] = songTitle.isEmpty() ? "未知曲目" : songTitle;
+                onlineSongAuthors[onlineSongCount] = songAuthor;
                 onlineSongCount++;
             }
         }
     }
 
     doc.clear();
-    Serial.printf("加载了 %d 首歌曲\n", onlineSongCount);
+    log_i("加载了 %d 首歌曲", onlineSongCount);
+}
+
+void AppOnlineMusic::savePlaylistCache(int playlistIdx)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/online_pl_cache_%d.json", playlistIdx);
+
+    File file = hal.open(path, FILE_WRITE);
+    if (!file)
+        return;
+
+    DynamicJsonDocument doc(16384);
+    doc["count"] = onlineSongCount;
+    JsonArray songs = doc.createNestedArray("songs");
+    for (int i = 0; i < onlineSongCount; i++)
+    {
+        JsonObject obj = songs.createNestedObject();
+        obj["title"] = onlineSongTitles[i];
+        obj["author"] = onlineSongAuthors[i];
+        obj["url"] = onlineSongUrls[i];
+    }
+
+    serializeJson(doc, file);
+    doc.clear();
+    file.close();
+}
+
+bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/online_pl_cache_%d.json", playlistIdx);
+
+    if (!hal.exists(path))
+        return false;
+
+    File file = hal.open(path, FILE_READ);
+    if (!file)
+        return false;
+
+    String content = file.readString();
+    file.close();
+
+    DynamicJsonDocument doc(16384);
+    DeserializationError error = deserializeJson(doc, content);
+    if (error)
+        return false;
+
+    onlineSongCount = doc["count"] | 0;
+    if (onlineSongCount > MAX_ONLINE_SONGS)
+        onlineSongCount = MAX_ONLINE_SONGS;
+
+    JsonArray songs = doc["songs"];
+    for (int i = 0; i < onlineSongCount && i < (int)songs.size(); i++)
+    {
+        onlineSongTitles[i] = songs[i]["title"].as<String>();
+        onlineSongAuthors[i] = songs[i]["author"].as<String>();
+        onlineSongUrls[i] = songs[i]["url"].as<String>();
+    }
+
+    doc.clear();
+    log_i("从缓存加载了 %d 首歌曲", onlineSongCount);
+    return onlineSongCount > 0;
+}
+
+String AppOnlineMusic::resolveRedirect(const String &url, int maxRedirects)
+{
+    String currentUrl = url;
+    HTTPClient http;
+    WiFiClient client;
+
+    for (int i = 0; i < maxRedirects; i++)
+    {
+        http.begin(client, currentUrl);
+        http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+        http.setReuse(false);
+        const char *headerKeys[] = {"Location"};
+        http.collectHeaders(headerKeys, 1);
+
+        int code = http.GET();
+
+        if (code == HTTP_CODE_OK || code == HTTP_CODE_PARTIAL_CONTENT)
+        {
+            http.end();
+            log_i("最终URL: %s", currentUrl.c_str());
+            return currentUrl;
+        }
+        else if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308)
+        {
+            String location = http.header("Location");
+            http.end();
+            if (location.length() == 0)
+            {
+                log_e("重定向无Location头");
+                return url;
+            }
+            log_i("重定向 %d -> %s", code, location.c_str());
+            currentUrl = location;
+        }
+        else
+        {
+            log_e("resolveRedirect HTTP %d", code);
+            http.end();
+            return url;
+        }
+    }
+
+    log_w("超过最大重定向次数");
+    return currentUrl;
 }
 
 void AppOnlineMusic::playSong(int index)
@@ -678,12 +831,15 @@ void AppOnlineMusic::playSong(int index)
 
     currentSongIndex = index;
     currentSongTitle = onlineSongTitles[index];
+    currentSongAuthor = onlineSongAuthors[index];
     currentSongUrl = onlineSongUrls[index];
 
-    Serial.printf("播放: [%d/%d] %s\n", currentSongIndex + 1, onlineSongCount, currentSongTitle.c_str());
-    Serial.println(currentSongUrl);
+    log_i("播放: [%d/%d] %s", currentSongIndex + 1, onlineSongCount, currentSongTitle.c_str());
+    log_i("原始URL: %s", currentSongUrl.c_str());
 
-    httpStream = new AudioFileSourceHTTPStream(currentSongUrl.c_str());
+    String finalUrl = resolveRedirect(currentSongUrl);
+
+    httpStream = new AudioFileSourceHTTPStream(finalUrl.c_str());
     httpStream->RegisterMetadataCB(MDCallback, (void*)"ICY");
     mp3 = new AudioGeneratorMP3();
     mp3->RegisterStatusCB(StatusCallback, (void*)"mp3");
@@ -694,11 +850,11 @@ void AppOnlineMusic::playSong(int index)
         if (success)
         {
             isPlaying = true;
-            Serial.println("播放成功");
+            log_i("播放成功");
         }
         else
         {
-            Serial.println("播放启动失败");
+            log_e("播放启动失败");
             delete mp3;
             mp3 = nullptr;
             delete httpStream;
@@ -708,7 +864,7 @@ void AppOnlineMusic::playSong(int index)
     }
     else
     {
-        Serial.println("无法打开流");
+        log_e("无法打开流");
         delete httpStream;
         httpStream = nullptr;
         GUI::msgbox("错误", "无法打开音频流");
@@ -759,9 +915,14 @@ void AppOnlineMusic::showPlaylist(int page)
 
         items[0].title = "返回";
 
+        static String displayNames[9];
         for (int i = startIdx; i < endIdx; i++)
         {
-            items[i - startIdx + 1].title = onlineSongTitles[i].c_str();
+            if (onlineSongAuthors[i].length() > 0)
+                displayNames[i - startIdx] = onlineSongTitles[i] + " - " + onlineSongAuthors[i];
+            else
+                displayNames[i - startIdx] = onlineSongTitles[i];
+            items[i - startIdx + 1].title = displayNames[i - startIdx].c_str();
         }
 
         int itemCount = endIdx - startIdx + 1;
@@ -812,7 +973,7 @@ void AppOnlineMusic::showDisplay()
 {
     display.clearScreen();
 
-    GUI::drawWindowsWithTitle(currentSongTitle.length() > 20 ? "在线音乐播放器" : currentSongTitle.c_str());
+    GUI::drawWindowsWithTitle("在线音乐播放器");
 
     if (hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) && hal.VCC < 4300 && !hal.isCharging)
     {
@@ -826,6 +987,27 @@ void AppOnlineMusic::showDisplay()
 
     u8g2Fonts.setCursor(2, 12);
     u8g2Fonts.printf("%02d:%02d", hal.timeinfo.tm_hour, hal.timeinfo.tm_min);
+
+    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312);
+    u8g2Fonts.setBackgroundColor(1);
+    u8g2Fonts.setForegroundColor(0);
+
+    int16_t titleW = u8g2Fonts.getUTF8Width(currentSongTitle.c_str());
+    int16_t titleX = (296 - titleW) / 2;
+    if (titleX < 3)
+        titleX = 3;
+    u8g2Fonts.setCursor(titleX, 40);
+    u8g2Fonts.print(currentSongTitle);
+
+    if (currentSongAuthor.length() > 0)
+    {
+        int16_t authorW = u8g2Fonts.getUTF8Width(currentSongAuthor.c_str());
+        int16_t authorX = (296 - authorW) / 2;
+        if (authorX < 3)
+            authorX = 3;
+        u8g2Fonts.setCursor(authorX, 58);
+        u8g2Fonts.print(currentSongAuthor);
+    }
 
     if (mp3 && mp3->isRunning())
     {

@@ -813,6 +813,7 @@ namespace GUI
                     selectedCol = numCols - 1;
                 }
                 drawKeyboard(selectedRow, selectedCol);
+                delay(100);
                 wait_time = millis();
             }
             else if (hal.btnr.isPressing())
@@ -832,6 +833,7 @@ namespace GUI
                     selectedCol = 0;
                 }
                 drawKeyboard(selectedRow, selectedCol);
+                delay(100);
                 wait_time = millis();
             }
             else if (hal.btnc.isPressing())
@@ -882,6 +884,10 @@ namespace GUI
                 autoIndentDraw(inputBuffer, 190, 5);
                 u8g2Fonts.drawUTF8(5, 40, name);
                 display.display(); // 更新文本框内容
+                while (hal.btnc.isPressing())
+                {
+                   delay(10);
+                }
                 wait_time = millis();
             }
             // delay(200); // 适当延迟，避免重复输入
