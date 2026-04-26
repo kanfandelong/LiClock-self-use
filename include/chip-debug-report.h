@@ -43,7 +43,7 @@ void printPartitionsInfo(void);
 void printSoftwareInfo(void);
 void printBoardInfo(void);
 void printPerimanInfo(void);
-void printBeforeSetupInfo(void);
-void printAfterSetupInfo(void);
+// void printBeforeSetupInfo(void);
+// void printAfterSetupInfo(void);
 
 #endif /* __CHIP_DEBUG_REPORT_H__ */
