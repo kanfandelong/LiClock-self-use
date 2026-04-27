@@ -39,20 +39,34 @@ AudioFileSourceHTTPStream::AudioFileSourceHTTPStream(const char *url)
 bool AudioFileSourceHTTPStream::open(const char *url)
 {
   pos = 0;
-  client.setInsecure();
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(60000);
   http.setReuse(true);
-  http.begin(client, url);
+  String urlStr = String(url);
+  bool isHttps = urlStr.startsWith("https://");
+
+  if (isHttps)
+  {
+    _client.setInsecure();
+    http.begin(_client, url);
+  }
+  else
+    http.begin(client, url);
+
+  http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+  http.addHeader("Accept", "*/*");
+  http.addHeader("Connection", "keep-alive");
+  
   int code = http.GET();
-  if (code != HTTP_CODE_OK) {
+  if (code != HTTP_CODE_OK)
+  {
     http.end();
     cb.st(STATUS_HTTPFAIL, PSTR("Can't open HTTP request"));
     return false;
   }
   size = http.getSize();
   strncpy(saveURL, url, sizeof(saveURL));
-  saveURL[sizeof(saveURL)-1] = 0;
+  saveURL[sizeof(saveURL) - 1] = 0;
   return true;
 }
 
@@ -63,7 +77,8 @@ AudioFileSourceHTTPStream::~AudioFileSourceHTTPStream()
 
 uint32_t AudioFileSourceHTTPStream::read(void *data, uint32_t len)
 {
-  if (data==NULL) {
+  if (data == NULL)
+  {
     audioLogger->printf_P(PSTR("ERROR! AudioFileSourceHTTPStream::read passed NULL data\n"));
     return 0;
   }
@@ -72,7 +87,8 @@ uint32_t AudioFileSourceHTTPStream::read(void *data, uint32_t len)
 
 uint32_t AudioFileSourceHTTPStream::readNonBlock(void *data, uint32_t len)
 {
-  if (data==NULL) {
+  if (data == NULL)
+  {
     audioLogger->printf_P(PSTR("ERROR! AudioFileSourceHTTPStream::readNonBlock passed NULL data\n"));
     return 0;
   }
@@ -82,25 +98,30 @@ uint32_t AudioFileSourceHTTPStream::readNonBlock(void *data, uint32_t len)
 uint32_t AudioFileSourceHTTPStream::readInternal(void *data, uint32_t len, bool nonBlock)
 {
 retry:
-  if (!http.connected()) {
+  if (!http.connected())
+  {
     cb.st(STATUS_DISCONNECTED, PSTR("Stream disconnected"));
     http.end();
-    for (int i = 0; i < reconnectTries; i++) {
+    for (int i = 0; i < reconnectTries; i++)
+    {
       char buff[64];
       sprintf_P(buff, PSTR("Attempting to reconnect, try %d"), i);
       cb.st(STATUS_RECONNECTING, buff);
       delay(reconnectDelayMs);
-      if (open(saveURL)) {
+      if (open(saveURL))
+      {
         cb.st(STATUS_RECONNECTED, PSTR("Stream reconnected"));
         break;
       }
     }
-    if (!http.connected()) {
+    if (!http.connected())
+    {
       cb.st(STATUS_DISCONNECTED, PSTR("Unable to reconnect"));
       return 0;
     }
   }
-  if ((size > 0) && (pos >= size)) return 0;
+  if ((size > 0) && (pos >= size))
+    return 0;
 
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
   NetworkClient *stream = http.getStreamPtr();
@@ -109,23 +130,29 @@ retry:
 #endif
 
   // Can't read past EOF...
-  if ( (size > 0) && (len > (uint32_t)(pos - size)) ) len = pos - size;
+  if ((size > 0) && (len > (uint32_t)(pos - size)))
+    len = pos - size;
 
-  if (!nonBlock) {
+  if (!nonBlock)
+  {
     int start = millis();
-    while ((stream->available() < (int)len) && (millis() - start < 500)) yield();
+    while ((stream->available() < (int)len) && (millis() - start < 500))
+      yield();
   }
 
   size_t avail = stream->available();
-  if (!nonBlock && !avail) {
+  if (!nonBlock && !avail)
+  {
     cb.st(STATUS_NODATA, PSTR("No stream data available"));
     http.end();
     goto retry;
   }
-  if (avail == 0) return 0;
-  if (avail < len) len = avail;
+  if (avail == 0)
+    return 0;
+  if (avail < len)
+    len = avail;
 
-  int read = stream->read(reinterpret_cast<uint8_t*>(data), len);
+  int read = stream->read(reinterpret_cast<uint8_t *>(data), len);
   pos += read;
   return read;
 }
@@ -133,8 +160,8 @@ retry:
 bool AudioFileSourceHTTPStream::seek(int32_t pos, int dir)
 {
   audioLogger->printf_P(PSTR("ERROR! AudioFileSourceHTTPStream::seek not implemented!"));
-  (void) pos;
-  (void) dir;
+  (void)pos;
+  (void)dir;
   return false;
 }
 

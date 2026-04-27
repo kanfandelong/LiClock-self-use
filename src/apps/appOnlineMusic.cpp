@@ -226,7 +226,9 @@ void AppOnlineMusic::setup()
     {
         playlistNames[0] = "网易云音乐";
         playlistUrls[0] = "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=7031310463";
-        playlistCount = 1;
+        playlistNames[1] = "本地api测试";
+        playlistUrls[1] = hal.pref.getString("test_url", "https://meting.xcnahida.cn/meting/api?server=netease&type=url&id=2125045481");
+        playlistCount = 2;
         savePlaylists();
     }
 
@@ -665,7 +667,7 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
 
     HTTPClient http;
     http.begin(url);
-    http.setTimeout(30000);
+    http.setTimeout(60000);
 
     int code = http.GET();
     if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT)
