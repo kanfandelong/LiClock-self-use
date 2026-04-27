@@ -2334,7 +2334,7 @@ static const menu_select menu_set_player[] =
     {
         {false, "< 返回", nullptr},
         {false, "歌词显示补偿", nullptr},
-        {true, "使用25/26/0输出", nullptr},
+        {true, "使用I2S输出", "USE_I2S"},
         {true, "32bit通道宽度", "bits_per_chan"},
         {true, "使用蜂鸣器输出", nullptr},
         {true, "audio_pll", nullptr},
@@ -4001,7 +4001,7 @@ bool AppMusicPlayer::player_set()
     else
     {
         delete_output();
-        if (hal.pref.getBool(hal.get_char_sha_key("使用25/26/0输出"), true))
+        if (hal.pref.getBool("USE_I2S", true))
         {
             i2s_output = new AudioOutputI2S(0, 0, 8, apll);
             output = i2s_output;

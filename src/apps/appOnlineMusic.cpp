@@ -172,10 +172,15 @@ void AppOnlineMusic::setup()
     }
     GUI::info_msgbox("提示", "WIFI连接成功");
 
-    out = new AudioOutputI2S(0, 1);
-    out->SetOutputModeMono(true);
+    out = new AudioOutputI2S(0, 0, 8, true);
     out->SetGain(currentVolume / 21.0f);
-    out->SetRate(48000);
+    out->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
+    out->SetMclk(false);
+    out->Set_bits_per_chan(I2S_BITS_PER_CHAN_32BIT);
+    digitalWrite(PIN_DAC_EN, 1); // 使能DAC电源
+    hal.cheak_freq(240);
+    display.setPowerMode(POWER_MODE_HPM); // 屏幕切换至高性能模式
+    digitalWrite(PIN_DAC_XSMT, 1); // 解除DAC静音
 
     loadPlaylists();
 
@@ -633,9 +638,64 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
         return;
     }
 
-    int contentLen = http.getSize();
+    int contentLen = http.getSize(); // 可能为 -1（分块传输）
     log_i("Playlist data size: %d bytes", contentLen);
 
+    // --- 1. 确定原始响应数据缓冲区大小 ---
+    size_t rawBufferSize = 0;
+    if (contentLen > 0)
+    {
+        rawBufferSize = contentLen;
+    }
+    else
+    {
+        // 未知长度时，分配一个较大值（或可动态扩展，这里固定 64KB）
+        rawBufferSize = 65536;
+    }
+
+    // --- 2. 在 PSRAM 中分配缓冲区 ---
+    char *rawData = nullptr;
+    if (psramFound())
+    {
+        rawData = (char *)ps_malloc(rawBufferSize + 1024); // +1 用于结尾 '\0'
+    }
+    if (!rawData)
+    {
+        // 回退到普通 malloc
+        rawData = (char *)malloc(rawBufferSize + 1024);
+    }
+    if (!rawData)
+    {
+        log_e("Failed to allocate buffer for HTTP response");
+        GUI::msgbox("错误", "内存不足");
+        http.end();
+        return;
+    }
+
+    // --- 3. 从流中读取完整响应到缓冲区 ---
+    WiFiClient *streamPtr = http.getStreamPtr();
+    size_t readLen = 0;
+    while (streamPtr->connected() || streamPtr->available())
+    {
+        if (readLen > rawBufferSize)
+        {
+            // 缓冲区不足，可以尝试扩大（为简化代码，这里直接报错）
+            log_e("Response too large for buffer (%u bytes)", rawBufferSize);
+            free(rawData);
+            http.end();
+            GUI::msgbox("错误", "响应数据过大");
+            return;
+        }
+        size_t bytesRead = streamPtr->readBytes(rawData + readLen, rawBufferSize - readLen);
+        if (bytesRead == 0)
+            break;
+        readLen += bytesRead;
+    }
+    rawData[readLen] = '\0';
+
+    http.end(); // 关闭连接，数据已完全读入缓冲区
+
+    // --- 4. 准备 JSON 文档容量（沿用原逻辑）---
     size_t jsonCapacity = 131072;
     if (contentLen > 0)
         jsonCapacity = (size_t)(contentLen * 2.5);
@@ -644,10 +704,10 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     if (jsonCapacity > 524288)
         jsonCapacity = 524288;
 
-    WiFiClient *streamPtr = http.getStreamPtr();
     DynamicJsonDocument doc(jsonCapacity);
-    DeserializationError error = deserializeJson(doc, *streamPtr);
-    http.end();
+    DeserializationError error = deserializeJson(doc, rawData);
+
+    free(rawData); // 释放缓冲区
 
     if (error)
     {
@@ -697,7 +757,7 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
 bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
 {
     char path[64];
-    snprintf(path, sizeof(path), "/online_pl_cache_%d.json", playlistIdx);
+    snprintf(path, sizeof(path), "/sd/online_pl_cache_%d.json", playlistIdx);
 
     if (!hal.exists(path))
         return false;
@@ -821,9 +881,9 @@ void AppOnlineMusic::playSong(int index)
     log_i("URL: %s", currentSongUrl.c_str());
 
     httpStream = new AudioFileSourceHTTPStream(currentSongUrl.c_str());
-    httpStream->RegisterMetadataCB(MDCallback, (void*)"ICY");
+    httpStream->RegisterMetadataCB(MDCallback, (void *)"ICY");
     mp3 = new AudioGeneratorMP3();
-    mp3->RegisterStatusCB(StatusCallback, (void*)"mp3");
+    mp3->RegisterStatusCB(StatusCallback, (void *)"mp3");
 
     if (httpStream->isOpen())
     {

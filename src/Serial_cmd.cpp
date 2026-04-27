@@ -391,16 +391,17 @@ static int cmd_batinfo(int argc, char **argv)
 // ==================== taskstats 命令（CPU 占用率） ====================
 static int cmd_taskstats(int argc, char **argv)
 {
-#if ( configGENERATE_RUN_TIME_STATS == 1 )
+#if (configGENERATE_RUN_TIME_STATS == 1)
     const size_t bufferSize = 1024;
     char *buffer = (char *)malloc(bufferSize);
-    if (buffer == NULL) {
+    if (buffer == NULL)
+    {
         PRINT_ERROR("Failed to allocate memory for stats");
         return 2;
     }
     vTaskGetRunTimeStats(buffer);
     PRINT_INFO("Task Run Time Statistics:");
-    uart->print(buffer);      // 直接输出，其中已包含换行格式
+    uart->print(buffer); // 直接输出，其中已包含换行格式
     free(buffer);
     return 0;
 #else
@@ -411,10 +412,11 @@ static int cmd_taskstats(int argc, char **argv)
 
 static int cmd_tasklist(int argc, char **argv)
 {
-#if ( configUSE_TRACE_FACILITY == 1 && configUSE_STATS_FORMATTING_FUNCTIONS == 1 )
+#if (configUSE_TRACE_FACILITY == 1 && configUSE_STATS_FORMATTING_FUNCTIONS == 1)
     const size_t bufferSize = 1024;
     char *buffer = (char *)malloc(bufferSize);
-    if (buffer == NULL) {
+    if (buffer == NULL)
+    {
         PRINT_ERROR("Failed to allocate memory for task list");
         return 2;
     }
@@ -434,19 +436,22 @@ static int cmd_tasklist(int argc, char **argv)
 
 static int cmd_taskload(int argc, char **argv)
 {
-#if ( configGENERATE_RUN_TIME_STATS == 1 && configUSE_TRACE_FACILITY == 1 )
+#if (configGENERATE_RUN_TIME_STATS == 1 && configUSE_TRACE_FACILITY == 1)
     // 可选的窗口长度参数 (秒)，默认 2
     int window_sec = 5;
-    if (argc >= 2) {
+    if (argc >= 2)
+    {
         window_sec = atoi(argv[1]);
-        if (window_sec <= 0 || window_sec > 60) {
+        if (window_sec <= 0 || window_sec > 60)
+        {
             PRINT_ERROR("Invalid window. Use 1-60 seconds.");
             return 1;
         }
     }
     PRINT_INFO("Measuring CPU load over the last %d seconds...", window_sec);
     UBaseType_t taskCount = uxTaskGetNumberOfTasks();
-    if (taskCount == 0) {
+    if (taskCount == 0)
+    {
         PRINT_INFO("No tasks running.");
         return 0;
     }
@@ -454,7 +459,8 @@ static int cmd_taskload(int argc, char **argv)
     // 分配两份快照
     TaskStatus_t *snap1 = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
     TaskStatus_t *snap2 = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
-    if (!snap1 || !snap2) {
+    if (!snap1 || !snap2)
+    {
         free(snap1);
         free(snap2);
         PRINT_ERROR("Memory allocation failed.");
@@ -471,7 +477,8 @@ static int cmd_taskload(int argc, char **argv)
     // 第二次快照（任务数可能变化，重新获取上限）
     UBaseType_t maxCount2 = uxTaskGetNumberOfTasks();
     TaskStatus_t *snap2_tmp = (TaskStatus_t *)malloc(maxCount2 * sizeof(TaskStatus_t));
-    if (!snap2_tmp) {
+    if (!snap2_tmp)
+    {
         free(snap1);
         free(snap2);
         PRINT_ERROR("Memory allocation failed.");
@@ -481,7 +488,8 @@ static int cmd_taskload(int argc, char **argv)
 
     // 计算时间窗口（微秒）
     unsigned long elapsed = totalTime2 - totalTime1;
-    if (elapsed == 0) {
+    if (elapsed == 0)
+    {
         PRINT_WARNING("Elapsed time zero, stats unavailable.");
         free(snap1);
         free(snap2);
@@ -491,9 +499,11 @@ static int cmd_taskload(int argc, char **argv)
 
     // 收集任务名最大长度（对齐）
     size_t maxNameLen = 4;
-    for (UBaseType_t i = 0; i < count2; ++i) {
+    for (UBaseType_t i = 0; i < count2; ++i)
+    {
         size_t len = strlen(snap2_tmp[i].pcTaskName);
-        if (len > maxNameLen) maxNameLen = len;
+        if (len > maxNameLen)
+            maxNameLen = len;
     }
     maxNameLen += 2;
 
@@ -505,19 +515,23 @@ static int cmd_taskload(int argc, char **argv)
     uart->printf("%-*s ----- ---------- ----------\n", (int)maxNameLen, "----");
 
     // 遍历第二次快照，在第一次快照中查找同名且同任务号的任务
-    for (UBaseType_t j = 0; j < count2; ++j) {
+    for (UBaseType_t j = 0; j < count2; ++j)
+    {
         const TaskStatus_t &t2 = snap2_tmp[j];
         // 在快照1中查找匹配的任务句柄（保证是同一个任务）
         unsigned long runTime1 = 0;
         bool found = false;
-        for (UBaseType_t i = 0; i < count1; ++i) {
-            if (snap1[i].xHandle == t2.xHandle) {
+        for (UBaseType_t i = 0; i < count1; ++i)
+        {
+            if (snap1[i].xHandle == t2.xHandle)
+            {
                 runTime1 = snap1[i].ulRunTimeCounter;
                 found = true;
                 break;
             }
         }
-        if (!found) {
+        if (!found)
+        {
             // 任务在窗口期间创建，运行时间从0开始
             runTime1 = 0;
         }
@@ -528,7 +542,7 @@ static int cmd_taskload(int argc, char **argv)
         uart->printf("%-*s %5d %10lu %9.02f%%\n",
                      (int)maxNameLen,
                      t2.pcTaskName,
-                     (t2.xCoreID == tskNO_AFFINITY)? -1 : (int)t2.xCoreID,
+                     (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID,
                      delta,
                      percent);
     }
@@ -1235,13 +1249,17 @@ static int cmd_download(int argc, char **argv)
 
     // 4. 初始化 HTTP 客户端
     HTTPClient http;
+    WiFiClientSecure client;
 
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 
     bool httpStarted = false;
 
     if (CAcert.length() == 0)
-        httpStarted = http.begin(_url);
+    {
+        client.setInsecure();
+        httpStarted = http.begin(client, _url);
+    }
     else
         httpStarted = http.begin(_url, CAcert.c_str());
 
