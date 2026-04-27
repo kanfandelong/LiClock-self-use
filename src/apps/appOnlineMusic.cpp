@@ -172,7 +172,7 @@ void AppOnlineMusic::setup()
     }
     GUI::info_msgbox("提示", "WIFI连接成功");
 
-    out = new AudioOutputI2S(0, 0, 8, true);
+    out = new AudioOutputI2S(0, 0, 4, true);
     out->SetGain(currentVolume / 21.0f);
     out->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
     out->SetMclk(false);
@@ -180,7 +180,29 @@ void AppOnlineMusic::setup()
     digitalWrite(PIN_DAC_EN, 1); // 使能DAC电源
     hal.cheak_freq(240);
     display.setPowerMode(POWER_MODE_HPM); // 屏幕切换至高性能模式
-    digitalWrite(PIN_DAC_XSMT, 1); // 解除DAC静音
+    digitalWrite(PIN_DAC_XSMT, 1);        // 解除DAC静音
+
+    // 添加一个测试,感觉测试应该是没有问题了
+/*     char testUrl[] = "https://meting.xcnahida.cn:443/meting/api?server=netease&type=url&id=2125045481";
+    httpStream = new AudioFileSourceHTTPStream(testUrl);
+    mp3 = new AudioGeneratorMP3();
+    mp3->begin(httpStream, out);
+    while (1)
+    {
+        if (mp3->isRunning())
+        {
+            if (!mp3->loop())
+                mp3->stop();
+        }
+        else
+        {
+            log_i("MP3 done");
+            delay(1000);
+            appManager.goBack();
+            _end = true;
+            return;
+        }
+    } */
 
     loadPlaylists();
 

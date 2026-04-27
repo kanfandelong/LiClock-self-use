@@ -39,10 +39,11 @@ AudioFileSourceHTTPStream::AudioFileSourceHTTPStream(const char *url)
 bool AudioFileSourceHTTPStream::open(const char *url)
 {
   pos = 0;
-  http.begin(client, url);
+  client.setInsecure();
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(60000);
   http.setReuse(true);
-  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  http.begin(client, url);
   int code = http.GET();
   if (code != HTTP_CODE_OK) {
     http.end();

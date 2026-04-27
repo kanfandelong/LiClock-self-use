@@ -56,7 +56,8 @@ class AudioFileSourceHTTPStream : public AudioFileSource
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
     NetworkClient client;
 #else
-    WiFiClient client;
+    // WiFiClient client;
+    WiFiClientSecure client;
 #endif
     HTTPClient http;
     int pos;

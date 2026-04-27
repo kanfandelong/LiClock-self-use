@@ -15,7 +15,7 @@ struct Point
   int8_t y;
 };
 
-Point snakeshuzu[screenWidth * screenHeight]; // 蛇身数组
+Point *snakeshuzu; // 蛇身数组
 uint8_t snakeLength;
 Point food;        // 食物坐标
 int score = 0;     // 分数
@@ -372,6 +372,9 @@ void Appsnake::menu()
 
 void Appsnake::setup()
 {
+
+  snakeshuzu = (Point *)ps_malloc(sizeof(Point[screenWidth * screenHeight]));
+
   u8g2Fonts.setFontDirection(0);
   u8g2Fonts.setForegroundColor(TFT_BLACK); // 设置前景色
   u8g2Fonts.setBackgroundColor(TFT_WHITE); // 设置背景色
