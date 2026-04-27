@@ -43,6 +43,13 @@ static const uint8_t play_bits[] = {
 #define MAX_ONLINE_SONGS 1024
 #define MAX_PLAYLISTS 20
 
+typedef struct
+{
+    char *url = nullptr;
+    char *title = nullptr;
+    char *author = nullptr;
+} onlinesong; // 歌曲信息结构体
+
 class AppOnlineMusic : public AppBase
 {
 private:
@@ -50,9 +57,8 @@ private:
     AudioGeneratorMP3 *mp3 = nullptr;
     AudioOutputI2S *out = nullptr;
 
-    String onlineSongUrls[MAX_ONLINE_SONGS];
-    String onlineSongTitles[MAX_ONLINE_SONGS];
-    String onlineSongAuthors[MAX_ONLINE_SONGS];
+    onlinesong *songs = nullptr;
+    int songs_size = 0;
     int onlineSongCount = 0;
     int currentSongIndex = 0;
     bool isPlaying = false;
@@ -140,6 +146,16 @@ void AppOnlineMusic::cleanup()
         delete out;
         out = nullptr;
     }
+    if (songs)
+    {
+        for (int i = 0; i < songs_size; i++)
+        {
+            free(songs[i].title);
+            free(songs[i].author);
+            free(songs[i].url);
+        }
+        free(songs);
+    }
     WiFi.disconnect(true);
     hal.can_light_sleep = true;
 }
@@ -183,26 +199,26 @@ void AppOnlineMusic::setup()
     digitalWrite(PIN_DAC_XSMT, 1);        // 解除DAC静音
 
     // 添加一个测试,感觉测试应该是没有问题了
-/*     char testUrl[] = "https://meting.xcnahida.cn:443/meting/api?server=netease&type=url&id=2125045481";
-    httpStream = new AudioFileSourceHTTPStream(testUrl);
-    mp3 = new AudioGeneratorMP3();
-    mp3->begin(httpStream, out);
-    while (1)
-    {
-        if (mp3->isRunning())
+    /*     char testUrl[] = "https://meting.xcnahida.cn:443/meting/api?server=netease&type=url&id=2125045481";
+        httpStream = new AudioFileSourceHTTPStream(testUrl);
+        mp3 = new AudioGeneratorMP3();
+        mp3->begin(httpStream, out);
+        while (1)
         {
-            if (!mp3->loop())
-                mp3->stop();
-        }
-        else
-        {
-            log_i("MP3 done");
-            delay(1000);
-            appManager.goBack();
-            _end = true;
-            return;
-        }
-    } */
+            if (mp3->isRunning())
+            {
+                if (!mp3->loop())
+                    mp3->stop();
+            }
+            else
+            {
+                log_i("MP3 done");
+                delay(1000);
+                appManager.goBack();
+                _end = true;
+                return;
+            }
+        } */
 
     loadPlaylists();
 
@@ -741,7 +757,16 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     onlineSongCount = 0;
 
     JsonArray jsonArray = doc.as<JsonArray>();
-    for (int i = 0; i < (int)jsonArray.size() && onlineSongCount < MAX_ONLINE_SONGS; i++)
+    int totalItems = (int)jsonArray.size();
+    if (songs)
+    {
+        free(songs);
+        songs = nullptr;
+    }
+    songs = (onlinesong *)ps_malloc(sizeof(onlinesong) * totalItems);
+    songs_size = totalItems;
+
+    for (int i = 0; i < totalItems; i++)
     {
         JsonObject obj = jsonArray[i];
 
@@ -764,9 +789,10 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
             if (songUrl.length() > 10)
             {
                 songUrl.replace("\\/", "/");
-                onlineSongUrls[onlineSongCount] = songUrl;
-                onlineSongTitles[onlineSongCount] = songTitle.isEmpty() ? "未知曲目" : songTitle;
-                onlineSongAuthors[onlineSongCount] = songAuthor;
+                songs[i].url = strdup(songUrl.c_str());
+                songTitle = songTitle.isEmpty() ? "未知曲目" : songTitle;
+                songs[i].title = strdup(songTitle.c_str());
+                songs[i].author = strdup(songAuthor.c_str());
                 onlineSongCount++;
             }
         }
@@ -800,12 +826,19 @@ bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
     if (onlineSongCount > MAX_ONLINE_SONGS)
         onlineSongCount = MAX_ONLINE_SONGS;
 
-    JsonArray songs = doc["songs"];
-    for (int i = 0; i < onlineSongCount && i < (int)songs.size(); i++)
+    if (songs)
     {
-        onlineSongTitles[i] = songs[i]["title"].as<String>();
-        onlineSongAuthors[i] = songs[i]["author"].as<String>();
-        onlineSongUrls[i] = songs[i]["url"].as<String>();
+        free(songs);
+        songs = nullptr;
+    }
+    JsonArray song = doc["songs"];
+    songs = (onlinesong *)ps_malloc(sizeof(onlinesong) * onlineSongCount);
+    songs_size = onlineSongCount;
+    for (int i = 0; i < onlineSongCount && i < (int)song.size(); i++)
+    {
+        songs[i].title = strdup(song[i]["title"].as<const char *>());
+        songs[i].author = strdup(song[i]["author"].as<const char *>());
+        songs[i].url = strdup(song[i]["url"].as<const char *>());
     }
 
     doc.clear();
@@ -816,7 +849,7 @@ bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
 void AppOnlineMusic::savePlaylistCache(int playlistIdx)
 {
     char path[64];
-    snprintf(path, sizeof(path), "/online_pl_cache_%d.json", playlistIdx);
+    snprintf(path, sizeof(path), "/sd/online_pl_cache_%d.json", playlistIdx);
 
     File file = hal.open(path, FILE_WRITE);
     if (!file)
@@ -824,13 +857,13 @@ void AppOnlineMusic::savePlaylistCache(int playlistIdx)
 
     DynamicJsonDocument doc(16384);
     doc["count"] = onlineSongCount;
-    JsonArray songs = doc.createNestedArray("songs");
+    JsonArray song = doc.createNestedArray("songs");
     for (int i = 0; i < onlineSongCount; i++)
     {
-        JsonObject obj = songs.createNestedObject();
-        obj["title"] = onlineSongTitles[i];
-        obj["author"] = onlineSongAuthors[i];
-        obj["url"] = onlineSongUrls[i];
+        JsonObject obj = song.createNestedObject();
+        obj["title"] = songs[i].title;
+        obj["author"] = songs[i].author;
+        obj["url"] = songs[i].url;
     }
 
     serializeJson(doc, file);
@@ -895,9 +928,9 @@ void AppOnlineMusic::playSong(int index)
     delay(200);
 
     currentSongIndex = index;
-    currentSongTitle = onlineSongTitles[index];
-    currentSongAuthor = onlineSongAuthors[index];
-    currentSongUrl = onlineSongUrls[index];
+    currentSongTitle = songs[index].title;
+    currentSongAuthor = songs[index].author;
+    currentSongUrl = songs[index].url;
 
     log_i("Playing: [%d/%d] %s", currentSongIndex + 1, onlineSongCount, currentSongTitle.c_str());
     log_i("URL: %s", currentSongUrl.c_str());
@@ -982,10 +1015,13 @@ void AppOnlineMusic::showPlaylist(int page)
         static String displayNames[9];
         for (int i = startIdx; i < endIdx; i++)
         {
-            if (onlineSongAuthors[i].length() > 0)
-                displayNames[i - startIdx] = onlineSongTitles[i] + " - " + onlineSongAuthors[i];
+            String display;
+            if (songs[i].author && strlen(songs[i].author) > 0)
+                display = String(songs[i].title) + " - " + String(songs[i].author);
             else
-                displayNames[i - startIdx] = onlineSongTitles[i];
+                display = String(songs[i].title);
+
+            displayNames[i - startIdx] = display; // 存到静态数组中
             items[i - startIdx + 1].title = displayNames[i - startIdx].c_str();
         }
 

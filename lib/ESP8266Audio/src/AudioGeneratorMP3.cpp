@@ -424,10 +424,10 @@ bool AudioGeneratorMP3::begin(AudioFileSource *source, AudioOutput *output)
       return false;
     }
   } else {
-    buff = reinterpret_cast<unsigned char *>(malloc(buffLen));
-    stream = reinterpret_cast<struct mad_stream *>(malloc(sizeof(struct mad_stream)));
-    frame = reinterpret_cast<struct mad_frame *>(malloc(sizeof(struct mad_frame)));
-    synth = reinterpret_cast<struct mad_synth *>(malloc(sizeof(struct mad_synth)));
+    buff = reinterpret_cast<unsigned char *>(ps_malloc(buffLen));
+    stream = reinterpret_cast<struct mad_stream *>(ps_malloc(sizeof(struct mad_stream)));
+    frame = reinterpret_cast<struct mad_frame *>(ps_malloc(sizeof(struct mad_frame)));
+    synth = reinterpret_cast<struct mad_synth *>(ps_malloc(sizeof(struct mad_synth)));
     if (!buff || !stream || !frame || !synth) {
       free(buff);
       free(stream);
