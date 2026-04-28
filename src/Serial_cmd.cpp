@@ -424,7 +424,8 @@ static int cmd_tasklist(int argc, char **argv)
     HEADER_COLOR;
     uart->print("Task List\n");
     RESET_COLOR;
-    PRINT_INFO("Task name     State    Prio    Stack Task Num  Core");
+    PRINT_INFO("Task name       State   Prio    Stack   Num     Core");
+    uart->print("--------------- ------- ------- ------- ------- ----");
     uart->print(buffer);
     free(buffer);
     return 0;

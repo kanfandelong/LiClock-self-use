@@ -405,11 +405,6 @@ bool AudioGeneratorFLAC::stop()
   flac = NULL;
   if (en_ringbuff)
   {
-    if (filltaskhandle != NULL)
-    {
-      vTaskDelete(filltaskhandle);
-      filltaskhandle = NULL;
-    }
     if (ringBuf)
     {
       vRingbufferDelete(ringBuf);
@@ -424,6 +419,11 @@ bool AudioGeneratorFLAC::stop()
     {
       heap_caps_free(tempBuffer);
       tempBuffer = NULL;
+    }
+    if (filltaskhandle != NULL)
+    {
+      vTaskDelete(filltaskhandle);
+      filltaskhandle = NULL;
     }
   }
   running = false;
@@ -501,7 +501,7 @@ void AudioGeneratorFLAC::start_fillTask()
   //   core = 1;
   // else
   //   core = 0;
-  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 4096, this, 4, filltaskhandle, 1);
+  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 4096, this, 4, &filltaskhandle, 1);
   delay(100);
 }
 
