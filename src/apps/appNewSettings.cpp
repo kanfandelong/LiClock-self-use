@@ -1270,13 +1270,13 @@ void AppSettings::menu_system()
                     {
                         if (strcmp(tmp->name, "clock") == 0)
                         {
-                            config[PARAM_CLOCKONLY] = "0";
+                            hal.pref.putBool(hal.get_char_sha_key("离线模式"), false);
                             hal.saveConfig();
                             hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
                         }
                         else if (strcmp(tmp->name, "clockonly") == 0)
                         {
-                            config[PARAM_CLOCKONLY] = "0";
+                            hal.pref.putBool(hal.get_char_sha_key("离线模式"), false);
                             hal.saveConfig();
                             hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
                         }
@@ -1937,7 +1937,7 @@ void AppSettings::cheak_config(char *a)
         char pass[32];
         sprintf(pass, "%d", GUI::msgbox_number("输入密码", 8, 0));
         config[PARAM_PASS] = pass;
-        config[PARAM_CLOCKONLY] = "0";
+        hal.pref.putBool(hal.get_char_sha_key("离线模式"), false);
         hal.saveConfig();
         GUI::msgbox("提示", "已写入配置，即将重启！");
         esp_restart();

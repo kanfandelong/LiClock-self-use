@@ -457,13 +457,11 @@ static int cmd_taskload(int argc, char **argv)
         return 0;
     }
 
-    // 分配两份快照
+    // 分配快照
     TaskStatus_t *snap1 = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
-    TaskStatus_t *snap2 = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
-    if (!snap1 || !snap2)
+    if (!snap1)
     {
         free(snap1);
-        free(snap2);
         PRINT_ERROR("Memory allocation failed.");
         return 2;
     }
@@ -472,20 +470,19 @@ static int cmd_taskload(int argc, char **argv)
     // 第一次快照
     UBaseType_t count1 = uxTaskGetSystemState(snap1, taskCount, &totalTime1);
 
-    // 等待窗口时间 (挂起自己，让其他任务运行)
+    // 等待窗口时间 (阻塞自己，让其他任务运行)
     vTaskDelay(pdMS_TO_TICKS(window_sec * 1000));
 
     // 第二次快照（任务数可能变化，重新获取上限）
     UBaseType_t maxCount2 = uxTaskGetNumberOfTasks();
-    TaskStatus_t *snap2_tmp = (TaskStatus_t *)malloc(maxCount2 * sizeof(TaskStatus_t));
-    if (!snap2_tmp)
+    TaskStatus_t *snap2 = (TaskStatus_t *)malloc(maxCount2 * sizeof(TaskStatus_t));
+    if (!snap2)
     {
         free(snap1);
-        free(snap2);
         PRINT_ERROR("Memory allocation failed.");
         return 2;
     }
-    UBaseType_t count2 = uxTaskGetSystemState(snap2_tmp, maxCount2, &totalTime2);
+    UBaseType_t count2 = uxTaskGetSystemState(snap2, maxCount2, &totalTime2);
 
     // 计算时间窗口（微秒）
     unsigned long elapsed = totalTime2 - totalTime1;
@@ -494,7 +491,6 @@ static int cmd_taskload(int argc, char **argv)
         PRINT_WARNING("Elapsed time zero, stats unavailable.");
         free(snap1);
         free(snap2);
-        free(snap2_tmp);
         return 0;
     }
 
@@ -502,7 +498,7 @@ static int cmd_taskload(int argc, char **argv)
     size_t maxNameLen = 4;
     for (UBaseType_t i = 0; i < count2; ++i)
     {
-        size_t len = strlen(snap2_tmp[i].pcTaskName);
+        size_t len = strlen(snap2[i].pcTaskName);
         if (len > maxNameLen)
             maxNameLen = len;
     }
@@ -518,7 +514,7 @@ static int cmd_taskload(int argc, char **argv)
     // 遍历第二次快照，在第一次快照中查找同名且同任务号的任务
     for (UBaseType_t j = 0; j < count2; ++j)
     {
-        const TaskStatus_t &t2 = snap2_tmp[j];
+        const TaskStatus_t &t2 = snap2[j];
         // 在快照1中查找匹配的任务句柄（保证是同一个任务）
         unsigned long runTime1 = 0;
         bool found = false;
@@ -540,7 +536,24 @@ static int cmd_taskload(int argc, char **argv)
         unsigned long delta = t2.ulRunTimeCounter - runTime1;
         float percent = ((float)delta * 100.0f) / (float)elapsed;
 
-        uart->printf("%-*s %5d %10lu %9.02f%%\n",
+        const char *classColor;
+
+        if (percent <= 1.0f)
+            classColor = "\033[90m";
+        else if (percent <= 5.0f)
+            classColor = "\033[37m";
+        else if (percent <= 30.0f)
+            classColor = "\033[32m";
+        else if (percent <= 70.0f)
+            classColor = "\033[33m";
+        else
+            classColor = "\033[31m";
+
+        if (strncmp(t2.pcTaskName, "IDLE", 4) == 0)
+            classColor = "\033[36m";
+
+        uart->printf("%s%-*s %5d %10lu %9.02f%%\033[0m\n",
+                     classColor,
                      (int)maxNameLen,
                      t2.pcTaskName,
                      (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID,
@@ -550,7 +563,6 @@ static int cmd_taskload(int argc, char **argv)
 
     free(snap1);
     free(snap2);
-    free(snap2_tmp);
     return 0;
 #else
     PRINT_ERROR("Requires configGENERATE_RUN_TIME_STATS and configUSE_TRACE_FACILITY");

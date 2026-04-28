@@ -525,11 +525,6 @@ void HAL::saveConfig()
         return;
     }
     serializeJson(config, configFile);
-    if (config[PARAM_CLOCKONLY] == "1")
-        if (!hal.pref.getBool(hal.get_char_sha_key("离线模式")))
-            hal.pref.putBool(hal.get_char_sha_key("离线模式"), true);
-        else if (hal.pref.getBool(hal.get_char_sha_key("离线模式")))
-            hal.pref.putBool(hal.get_char_sha_key("离线模式"), false);
     configFile.close();
 }
 void HAL::loadConfig()
@@ -541,10 +536,6 @@ void HAL::loadConfig()
         return;
     }
     deserializeJson(config, configFile);
-    if (hal.pref.getBool(hal.get_char_sha_key("离线模式")))
-        config[PARAM_CLOCKONLY] == "1";
-    else
-        config[PARAM_CLOCKONLY] == "0";
     configFile.close();
 }
 
@@ -1054,7 +1045,7 @@ void HAL::ReqWiFiConfig()
         if (hal.btnc.isPressing())
         {
             WiFi.disconnect(true);
-            config[PARAM_CLOCKONLY] = "1";
+            hal.pref.putBool(hal.get_char_sha_key("离线模式"), true);
             hal.saveConfig();
             ESP.restart();
             break;
@@ -1078,7 +1069,7 @@ void HAL::ReqWiFiConfig()
     }
     if (WiFi.isConnected() == false)
     {
-        config[PARAM_CLOCKONLY] = "1";
+        hal.pref.putBool(hal.get_char_sha_key("离线模式"), true);
         hal.saveConfig();
         ESP.restart();
     }

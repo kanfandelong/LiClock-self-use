@@ -150,9 +150,12 @@ void AppOnlineMusic::cleanup()
     {
         for (int i = 0; i < songs_size; i++)
         {
-            free(songs[i].title);
-            free(songs[i].author);
-            free(songs[i].url);
+            if (songs[i].title != nullptr)
+                free(songs[i].title);
+            if (songs[i].author != nullptr)
+                free(songs[i].author);
+            if (songs[i].url != nullptr)
+                free(songs[i].url);
         }
         free(songs);
     }
@@ -760,7 +763,7 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
 
     JsonArray jsonArray = doc.as<JsonArray>();
     int totalItems = (int)jsonArray.size();
-    if (songs)
+    if (songs != nullptr)
     {
         free(songs);
         songs = nullptr;
@@ -828,13 +831,13 @@ bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
     if (onlineSongCount > MAX_ONLINE_SONGS)
         onlineSongCount = MAX_ONLINE_SONGS;
 
-    if (songs)
+    if (songs != nullptr)
     {
         free(songs);
         songs = nullptr;
     }
     JsonArray song = doc["songs"];
-    songs = (onlinesong *)ps_malloc(sizeof(onlinesong) * onlineSongCount);
+    songs = (onlinesong *)ps_malloc(sizeof(onlinesong) * (onlineSongCount + 1));
     songs_size = onlineSongCount;
     for (int i = 0; i < onlineSongCount && i < (int)song.size(); i++)
     {

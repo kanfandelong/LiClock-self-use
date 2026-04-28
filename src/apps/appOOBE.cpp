@@ -1276,7 +1276,7 @@ stage2:
     u8g2Fonts.drawUTF8(40, 85, "网络连接");
     display.display();
     hal.pref.putInt("oobe", 2);
-    if(config[PARAM_CLOCKONLY] == "1" && hal.pref.getInt("oobe", 0) == 2)
+    if(hal.pref.getBool(hal.get_char_sha_key("离线模式")) && hal.pref.getInt("oobe", 0) == 2)
     {
         display.clearScreen();
         u8g2Fonts.drawUTF8(95, 100, "使用离线模式，重启中...");
