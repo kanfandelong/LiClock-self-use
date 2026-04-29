@@ -1396,7 +1396,7 @@ void AppSettings::menu_system()
                 {
                     uart->print("err\n");
                     GUI::msgbox("错误", "频率未能修改");
-                    error("CPU频率修改失败,设置的值:%d", new_freq);
+                    log_e("CPU频率修改失败,设置的值:%d", new_freq);
                 }
             }
         }

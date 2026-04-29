@@ -51,7 +51,7 @@ AppBase *AppManager::getRealClock()
     }
     if (appManager.getPtrByName(bootapp.c_str()) == NULL)
     {
-        warn("严重错误 之前设置的App不存在，使用默认时钟App");
+        log_w("严重错误 之前设置的App不存在，使用默认时钟App");
         hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
         bootapp = "clockonly";
     }
@@ -566,7 +566,7 @@ void AppManager::update()
         {
             this->app_to = res;
             method = APPMANAGER_GOTOAPP;
-            info("正在跳转到APP：%d:%s", app_to->appID, app_to->name);
+            log_i("正在跳转到APP：%d:%s", app_to->appID, app_to->name);
             return;
         }
         updateAgain = true;
@@ -629,7 +629,7 @@ void AppManager::update()
         if (peripherals.load(currentApp->peripherals_requested) == false)
         {
             GUI::msgbox("错误", "外设加载失败，APP运行将不稳定");
-            warn("外设加载失败!");
+            log_w("外设加载失败!");
         }
         currentApp->setup();
         parameter = "";
@@ -691,7 +691,7 @@ void AppManager::update()
         if (peripherals.load(currentApp->peripherals_requested) == false)
         {
             GUI::msgbox("错误", "外设加载失败，APP运行将不稳定");
-            warn("外设加载失败!");
+            log_w("外设加载失败!");
         }
         currentApp->setup();
         updateAgain = true;

@@ -53,7 +53,7 @@ void task_buzzer(void *)
                     FILE *fp = fopen(getRealPath(_path), "rb");
                     if (fp == NULL)
                     {
-                        error("Buzzer: Failed to open file %s", _path);
+                        log_e("Buzzer: Failed to open file %s", _path);
                         useFile = false;
                         _path[0] = 0;
                         continue;

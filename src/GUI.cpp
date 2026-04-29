@@ -1495,7 +1495,7 @@ namespace GUI
         FILE *fp = fopen(filename, "rb");
         if (!fp)
         {
-            error("File %s not found!", filename);
+            log_e("File %s not found!", filename);
             return;
         }
         LBM_V_HEAD header;
@@ -1514,7 +1514,7 @@ namespace GUI
             bits_per_pixel = 1;
             break;
         default:
-            error("Invalid gray level: %u", gray_level);
+            log_e("Invalid gray level: %u", gray_level);
             fclose(fp);
             return;
         }
@@ -1599,7 +1599,7 @@ namespace GUI
         FILE *fp = fopen(getRealPath(filename), "rb");
         if (!fp)
         {
-            error("File %s not found!", filename);
+            log_e("File %s not found!", filename);
             return;
         }
         HEADGRAY header;
@@ -1778,7 +1778,7 @@ namespace GUI
         if (!file)
         {
             msgbox("文件不存在", filename);
-            error("文件 %s 不存在", filename);
+            log_e("文件 %s 不存在", filename);
             return;
         }
         // 解析BMP标头

@@ -49,7 +49,7 @@ void Peripherals::check()
         msg += "BQ27441电量计\n";
     }
     xSemaphoreGive(i2cMutex);
-    info("Peripherals check OK: 0x%02x", i2cbitmask);
+    log_i("Peripherals check OK: 0x%02x", i2cbitmask);
     uart->println(msg);
     GUI::msgbox("检测到的外设", msg.c_str(), 5);
     i2cbitmask |= PERIPHERALS_SD_BIT;
@@ -96,26 +96,26 @@ uint16_t Peripherals::checkAvailable(uint16_t bitmask)
 bool Peripherals::load(uint16_t bitmask)
 {
     bool staitus = true;
-    info("外设加载:0x%x -> 0x%x,当前安装,0x%x", peripherals_load, bitmask, peripherals_current);
+    log_i("外设加载:0x%x -> 0x%x,当前安装,0x%x", peripherals_load, bitmask, peripherals_current);
     if (bitmask & PERIPHERALS_SD_BIT && (peripherals_load & PERIPHERALS_SD_BIT) == 0)
     {
         // 需要加载TF卡
         // 首先测试TF卡是否存在
         if (digitalRead(PIN_SD_CARDDETECT) != 1)
         {
-            info("[外设] 加载TF卡");
+            log_i("[外设] 加载TF卡");
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             delay(50);
             SD_MMC.setPins(PIN_SD_SCLK, PIN_SD_CMD, PIN_SD_D0, PIN_SD_D1, PIN_SD_D2, PIN_SD_D3);
             uint32_t freq = (uint32_t)hal.pref.getInt("sd_clk_freq" , 3500000) / 1000;
-            info("[外设] 设置TF卡频率:%d kHZ\n", freq); 
+            log_i("[外设] 设置TF卡频率:%d kHZ\n", freq); 
             if (SD_MMC.begin("/sd", false, false, freq, 5) == false)
             {
                 SD_MMC.end();
                 delay(100);
-                info("TF卡挂载失败,尝试重新挂载");
+                log_i("TF卡挂载失败,尝试重新挂载");
                 if (SD_MMC.begin("/sd", false, false, freq, 5) == false)
                 {
                     GUI::msgbox("错误", "存在TF卡，但无法挂载", 5);
@@ -135,7 +135,7 @@ bool Peripherals::load(uint16_t bitmask)
     else if ((bitmask & PERIPHERALS_SD_BIT) == 0 && peripherals_load & PERIPHERALS_SD_BIT)
     {
         // 卸载TF卡
-        info("[外设] 卸载TF卡");
+        log_i("[外设] 卸载TF卡");
         SD_MMC.end();
         delay(50);
         gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
@@ -145,7 +145,7 @@ bool Peripherals::load(uint16_t bitmask)
     // 只有sgp和SD卡需要重新加载
     if (bitmask & PERIPHERALS_SGP30_BIT && (peripherals_current & PERIPHERALS_SGP30_BIT) && (peripherals_load & PERIPHERALS_SGP30_BIT == 0))
     {
-        info("[外设] 加载SGP30");
+        log_i("[外设] 加载SGP30");
         // 需要加载sgp
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!sgpInited)
@@ -165,12 +165,12 @@ bool Peripherals::load(uint16_t bitmask)
     //  尝试按需初始化外设
     if (bitmask & PERIPHERALS_AHT20_BIT && (peripherals_current & PERIPHERALS_AHT20_BIT) && ahtInited == false)
     {
-        info("[外设] 首次加载AHT20");
+        log_i("[外设] 首次加载AHT20");
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!aht.begin())
         {
             xSemaphoreGive(i2cMutex);
-            warn("Could not find AHT? Check wiring");
+            log_w("Could not find AHT? Check wiring");
             check();
         }
         else
@@ -179,12 +179,12 @@ bool Peripherals::load(uint16_t bitmask)
     }
     if ((bitmask & PERIPHERALS_SHT30_BIT) && (peripherals_current & PERIPHERALS_SHT30_BIT == 0))
     {
-        info("[外设] 首次加载SHT30");
+        log_i("[外设] 首次加载SHT30");
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!sht.begin())
         {
             xSemaphoreGive(i2cMutex);
-            warn("Could not find AHT? Check wiring");
+            log_w("Could not find AHT? Check wiring");
             check();
         }
         else{
@@ -195,12 +195,12 @@ bool Peripherals::load(uint16_t bitmask)
     // if (!bmp.begin(BMP280_ADDRESS_ALT, BMP280_CHIPID)) {
     if (bitmask & PERIPHERALS_BMP280_BIT && peripherals_current & PERIPHERALS_BMP280_BIT && bmpInited == false)
     {
-        info("[外设] 首次加载BMP280");
+        log_i("[外设] 首次加载BMP280");
         xSemaphoreTake(i2cMutex, portMAX_DELAY);
         if (!bmp.begin())
         {
             xSemaphoreGive(i2cMutex);
-            warn("Could not find a valid BMP280 sensor, check wiring or "
+            log_w("Could not find a valid BMP280 sensor, check wiring or "
                   "try a different address!");
             check();
         }

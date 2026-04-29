@@ -389,7 +389,7 @@ int AppFileManager::getFileSize(const char *filePath)
 
     if (!file)
     {
-        error("无法打开文件%s", filePath);
+        log_e("无法打开文件%s", filePath);
         return 0;
     }
     filepath = getDirectoryPath(filePath);
@@ -686,13 +686,13 @@ file_info:
                 if (!file)
                 {
                     // uart->println("[文件管理]file无法打开文件");
-                    error("无法打开文件%s", filename);
+                    log_e("无法打开文件%s", filename);
                     break;
                 }
                 if (!newfile)
                 {
                     // uart->println("[文件管理]newfile 无法打开文件");
-                    error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
+                    log_e("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
                 if (filesize > free)
@@ -729,12 +729,12 @@ file_info:
                 if (!file)
                 {
                     // uart->println("[文件管理]file无法打开文件");
-                    error("无法打开文件%s", filename);
+                    log_e("无法打开文件%s", filename);
                 }
                 if (!newfile)
                 {
                     // uart->println("[文件管理]newfile 无法打开文件");
-                    error("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
+                    log_e("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                 }
                 unsigned long begin = millis();
                 if (!hal.copy(newfile, file))
@@ -783,7 +783,7 @@ file_info:
                 if (!ok)
                 {
                     GUI::msgbox("文件管理器", "无法创建文件夹");
-                    error("无法创建文件夹");
+                    log_e("无法创建文件夹");
                 }
             }
             else

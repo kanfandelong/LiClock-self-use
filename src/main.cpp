@@ -118,7 +118,7 @@ void setup()
         File temp_file = LittleFS.open("/System/temp.log", "a");
         if (!temp_file)
         {
-            error("/System/temp.log打开失败");
+            log_e("/System/temp.log打开失败");
             return;
         }
         if (temp_file.size() > 1024 * 512)

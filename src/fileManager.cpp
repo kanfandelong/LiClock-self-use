@@ -335,7 +335,7 @@ namespace GUI
             dir = opendir(dir_name.c_str());
             if (!dir)
             {
-                error("[文件] dir未打开");
+                log_e("[文件] dir未打开");
                 cwd = "/";
                 try_open++;
                 if (try_open > 10)

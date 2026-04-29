@@ -401,7 +401,7 @@ static int cmd_taskstats(int argc, char **argv)
     }
     vTaskGetRunTimeStats(buffer);
     PRINT_INFO("Task Run Time Statistics:");
-    uart->print(buffer); // 直接输出，其中已包含换行格式
+    log_printf(buffer); // 直接输出，其中已包含换行格式
     free(buffer);
     return 0;
 #else
@@ -422,11 +422,11 @@ static int cmd_tasklist(int argc, char **argv)
     }
     vTaskList(buffer);
     HEADER_COLOR;
-    uart->print("Task List\n");
+    log_printf("Task List\n");
     RESET_COLOR;
     PRINT_INFO("Task name       State   Prio    Stack   Num     Core");
-    uart->print("--------------- ------- ------- ------- ------- ----");
-    uart->print(buffer);
+    log_printf("--------------- ------- ------- ------- ------- ----\n");
+    log_printf(buffer);
     free(buffer);
     return 0;
 #else
@@ -505,11 +505,11 @@ static int cmd_taskload(int argc, char **argv)
     maxNameLen += 2;
 
     // 打印表头
-    uart->printf("\n--- CPU Load in last %d seconds ---\n", window_sec);
-    uart->printf("%-*s %5s %10s %10s\n",
-                 (int)maxNameLen, "Name",
-                 "Core", "Time(us)", "Load%");
-    uart->printf("%-*s ----- ---------- ----------\n", (int)maxNameLen, "----");
+    log_printf("\n--- CPU Load in last %d seconds ---\n", window_sec);
+    log_printf("%-*s %5s %10s %10s\n",
+               (int)maxNameLen, "Name",
+               "Core", "Time(us)", "Load%");
+    log_printf("%-*s ----- ---------- ----------\n", (int)maxNameLen, "----");
 
     // 遍历第二次快照，在第一次快照中查找同名且同任务号的任务
     for (UBaseType_t j = 0; j < count2; ++j)
@@ -538,27 +538,28 @@ static int cmd_taskload(int argc, char **argv)
 
         const char *classColor;
 
-        if (percent <= 1.0f)
-            classColor = "\033[90m";
-        else if (percent <= 5.0f)
-            classColor = "\033[37m";
-        else if (percent <= 30.0f)
-            classColor = "\033[32m";
-        else if (percent <= 70.0f)
-            classColor = "\033[33m";
-        else
-            classColor = "\033[31m";
-
         if (strncmp(t2.pcTaskName, "IDLE", 4) == 0)
-            classColor = "\033[36m";
+            classColor = "\033[36m"; // 青色
+        else if (percent >= 90.0f)
+            classColor = "\033[91m"; // 亮红色
+        else if (percent >= 70.0f)
+            classColor = "\033[31m"; // 红色
+        else if (percent >= 30.0f)
+            classColor = "\033[33m"; // 黄色
+        else if (percent >= 5.0f)
+            classColor = "\033[32m"; // 绿色
+        else if (percent >= 1.0f)
+            classColor = "\033[37m"; // 白色
+        else
+            classColor = "\033[90m"; // 灰色（<1%）
 
-        uart->printf("%s%-*s %5d %10lu %9.02f%%\033[0m\n",
-                     classColor,
-                     (int)maxNameLen,
-                     t2.pcTaskName,
-                     (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID,
-                     delta,
-                     percent);
+        log_printf("%s%-*s %5d %10lu %9.02f%%\033[0m\n",
+                   classColor,
+                   (int)maxNameLen,
+                   t2.pcTaskName,
+                   (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID,
+                   delta,
+                   percent);
     }
 
     free(snap1);
@@ -1070,7 +1071,7 @@ static int cmd_getnvs(int argc, char **argv)
         INFO_COLOR;
         for (size_t i = 0; i < len; ++i)
         {
-            uart->printf("0x%02X ", (uint8_t)buffer[i]);
+            log_printf("0x%02X ", (uint8_t)buffer[i]);
         }
         RESET_COLOR;
         break;
@@ -1240,13 +1241,13 @@ static int cmd_download(int argc, char **argv)
         while (!WiFi.isConnected() && (millis() - start) < timeout)
         {
             delay(100);
-            uart->printf("\r|");
+            log_printf("\r|");
             delay(100);
-            uart->printf("\r/");
+            log_printf("\r/");
             delay(100);
-            uart->printf("\r-");
+            log_printf("\r-");
             delay(100);
-            uart->printf("\r\\");
+            log_printf("\r\\");
         }
 
         if (!WiFi.isConnected())
@@ -1254,7 +1255,7 @@ static int cmd_download(int argc, char **argv)
             PRINT_ERROR("WiFi connection timeout!");
             return 2;
         }
-        uart->printf("\r\n"); // 清除旋转动画
+        log_printf("\r\n"); // 清除旋转动画
         PRINT_INFO("WiFi connected.");
     }
 
@@ -1342,12 +1343,12 @@ static int cmd_download(int argc, char **argv)
                 {
                     lastPercent = percent;
                     int fill = (percent * progressBarWidth) / 100;
-                    uart->printf("\r["); // 开始打印进度条
+                    log_printf("\r["); // 开始打印进度条
                     for (int i = 0; i < fill; i++)
-                        uart->printf("█"); // 打印已下载部分
+                        log_printf("█"); // 打印已下载部分
                     for (int i = fill; i < progressBarWidth; i++)
-                        uart->printf("░");            // 打印未下载部分
-                    uart->printf("] %3d%%", percent); // 完成百分比
+                        log_printf("░");            // 打印未下载部分
+                    log_printf("] %3d%%", percent); // 完成百分比
                 }
             }
         }
@@ -1383,7 +1384,7 @@ static int cmd_download(int argc, char **argv)
     long elapsedTime = millis() - beginTime;
     PRINT_INFO("\nDownload completed in %.2f seconds, speed %.2f KB/s", elapsedTime / 1000.0, totalWritten / (elapsedTime / 1000.0) / 1024.0);
     // 换行，使下一个输出不覆盖进度条
-    uart->printf("\n");
+    log_printf("\n");
 
     // 10. 输出结果
     if (totalSize > 0 && totalWritten == (size_t)totalSize)
@@ -1415,7 +1416,7 @@ static void list_dir(const char *path)
         return;
     }
 
-    uart->printf("Directory: %s\n", path);
+    log_printf("Directory: %s\n", path);
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != nullptr)
@@ -1437,15 +1438,15 @@ static void list_dir(const char *path)
 
         if (S_ISDIR(st.st_mode))
         {
-            uart->printf("\033[36m[DIR] %s\033[0m\n", entry->d_name);
+            log_printf("\033[36m[DIR] %s\033[0m\n", entry->d_name);
         }
         else if (S_ISREG(st.st_mode))
         {
-            uart->printf("[FILE] %s (%u bytes)\n", entry->d_name, (unsigned int)st.st_size);
+            log_printf("[FILE] %s (%u bytes)\n", entry->d_name, (unsigned int)st.st_size);
         }
         else
         {
-            uart->printf("[UNKN] %s\n", entry->d_name);
+            log_printf("[UNKN] %s\n", entry->d_name);
         }
     }
 
@@ -1574,7 +1575,7 @@ static int cmd_cat(int argc, char **argv)
         size_t len = f.read(buffer, buf_size);
         if (len > 0)
         {
-            uart->write(buffer, len);
+            log_printf("%.*s", len, buffer);
             total += len;
         }
     }

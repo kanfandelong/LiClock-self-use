@@ -173,11 +173,6 @@ extern const char *getRealPath(const char *fpath);
 extern void setPath(const char *path);
 extern bool log_system_init();
 extern void log_system_deinit();
-// extern void log_write(const char *file, int line, const char *fmt, ...);
-extern void log_write(const char *fmt, ...);
+extern void reinstall_putc2();
 
 extern const uint8_t u8g2_font_wqy12_t_gb2312_self[] U8G2_FONT_SECTION("u8g2_font_wqy12_t_gb2312_self");
-// #define F_LOG(fmt, ...) log_write(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
-#define info(fmt, ...) log_write(ARDUHAL_LOG_FORMAT(I, fmt), ##__VA_ARGS__)
-#define warn(fmt, ...) log_write(ARDUHAL_LOG_FORMAT(W, fmt), ##__VA_ARGS__)
-#define error(fmt, ...) log_write(ARDUHAL_LOG_FORMAT(E, fmt), ##__VA_ARGS__)

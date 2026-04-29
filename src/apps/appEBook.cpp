@@ -1144,8 +1144,8 @@ bool AppEBook::indexcode_3()
     uint32_t indexes_size = indexesFile.size();
     // uart->print("yswz_count：");
     // uart->println(yswz_count);
-    info("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 2));
-    info("索引文件大小：%lu", indexes_size);
+    log_i("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 2));
+    log_i("索引文件大小：%lu", indexes_size);
 
     // 校验索引是否正确建立
     // 算法：一页为4个字节（从第二页开始记录所以要总页数-1），加上文件大小位4个字节
@@ -1170,7 +1170,7 @@ bool AppEBook::indexcode_3()
     else
     {
         indexesFile.close();
-        warn("校验失败，索引文件大小与预期大小不符");
+        log_w("校验失败，索引文件大小与预期大小不符");
         // if (strncmp(currentFilename, "/littlefs/", 10) == 0)
         //     LittleFS.remove(indexesName);
         // else if (strncmp(currentFilename, "/sd/", 4) == 0)
@@ -1492,8 +1492,8 @@ bool AppEBook::indexcode_ttf()
     uint32_t indexes_size = indexesFile.size();
     // uart->print("yswz_count：");
     // uart->println(yswz_count);
-    info("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 1));
-    info("索引文件大小：%lu", indexes_size);
+    log_i("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 1));
+    log_i("索引文件大小：%lu", indexes_size);
 
     // 校验索引是否正确建立
     // 算法：一页为4个字节（从第二页开始记录所以要总页数-1），加上文件大小位4个字节
@@ -1518,7 +1518,7 @@ bool AppEBook::indexcode_ttf()
     else
     {
         indexesFile.close();
-        warn("校验失败，索引文件大小与预期大小不符");
+        log_w("校验失败，索引文件大小与预期大小不符");
         // if (strncmp(currentFilename, "/littlefs/", 10) == 0)
         //     LittleFS.remove(indexesName);
         // else if (strncmp(currentFilename, "/sd/", 4) == 0)
@@ -1622,7 +1622,7 @@ bool AppEBook::openFile(const char *filename)
         indexesFile.readBytes((char *)&lasttxtsize, 4);
         indexesFile.readBytes((char *)&info, 4);
         indexesFile.seek(0, SeekSet);
-        info("lasttxtsize: %lu nowtxtsize: %lu", lasttxtsize, nowtxtsize);
+        log_i("lasttxtsize: %lu nowtxtsize: %lu", lasttxtsize, nowtxtsize);
         if (lasttxtsize != nowtxtsize)
         {
             if (GUI::msgbox_yn("提示", "txt文件大小与创建索引时不同，是否重建索引", "重建", "忽略"))
@@ -1645,7 +1645,7 @@ bool AppEBook::openFile(const char *filename)
         }
         else
         {
-            info("索引时的屏幕方向与当前一致");
+            log_i("索引时的屏幕方向与当前一致");
         }
     }
     else
@@ -1680,7 +1680,7 @@ bool AppEBook::gotoPage(uint32_t page)
         {
             indexesFile = hal.open(indexesName);
             if (!indexesFile)
-                error("indexesFile not open");
+                log_e("indexesFile not open");
         }
         if (page == 0)
         {
@@ -1716,8 +1716,8 @@ bool AppEBook::gotoPage(uint32_t page)
             // log_i("%ld", gbwz_uint32);
             // if (currentFileOffset > txtFile.size())
             //     return false;
-            info("go to page %lu", page);
-            info("seekset ==> %lu", currentFileOffset);
+            log_i("go to page %lu", page);
+            log_i("seekset ==> %lu", currentFileOffset);
             txtFile.seek(currentFileOffset, SeekSet);
             currentPage = page;
             return true;
@@ -1738,8 +1738,8 @@ bool AppEBook::gotoPage(uint32_t page)
             if (fread(&currentFileOffset, sizeof(currentFileOffset), 1, indexFileHandle) == 1)
             {
                 currentPage = page;
-                info("go to page %lu", page);
-                info("seekset %lu", currentFileOffset);
+                log_i("go to page %lu", page);
+                log_i("seekset %lu", currentFileOffset);
                 fseek(currentFileHandle, currentFileOffset, SEEK_SET);
                 return true;
             }
@@ -1826,7 +1826,7 @@ bool AppEBook::draw_page1()
             else
             {
                 GUI::info_msgbox("错误", "绘制文本时索引错误，可能文件非UTF-8编码");
-                warn("绘制文本时索引错误，可能文件非UTF-8编码");
+                log_w("绘制文本时索引错误，可能文件非UTF-8编码");
                 return false;
                 break;
             }
@@ -1968,7 +1968,7 @@ bool AppEBook::draw_page2()
             else
             {
                 uart->println("非预期的UTF8编码");
-                warn("绘制文本时索引错误，可能文件非UTF-8编码");
+                log_w("绘制文本时索引错误，可能文件非UTF-8编码");
                 return false;
                 break;
             }
@@ -2060,7 +2060,7 @@ bool AppEBook::draw_page3()
         txtFile = hal.open(currentFilename);
 
         if (!txtFile)
-            error("%s 打开失败", currentFilename);
+            log_e("%s 打开失败", currentFilename);
         if (!gotoPage(currentPage))
             return false;
     }
@@ -2213,12 +2213,12 @@ bool AppEBook::draw_page3()
     {
         if (hal.pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3)
         {
-            info("设置方向 ==> 2");
+            log_i("设置方向 ==> 2");
             display.setRotation(2);
         }
         if (hal.pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 1)
         {
-            info("设置方向 ==> 0");
+            log_i("设置方向 ==> 0");
             display.setRotation(0);
         }
         display.setDrawWindow(0, 0, 168, 384);
@@ -2689,7 +2689,7 @@ void AppEBook::openMenu()
             if (gotoPage(page - 1) == false)
             {
                 GUI::msgbox("跳转失败", "页码超出范围");
-                error("跳转失败，%d超出范围", page - 1);
+                log_e("跳转失败，%d超出范围", page - 1);
                 gotoPage(currentPage);
             }
             delay(250);
@@ -2718,7 +2718,7 @@ void AppEBook::openMenu()
         if (openFile() == false)
         {
             GUI::msgbox("打开文件失败", currentFilename);
-            error("文件%s打开失败", currentFilename);
+            log_e("文件%s打开失败", currentFilename);
         }
         currentPage = ebook_nvs.getUInt(hal.get_char_sha_key(app.currentFilename, true), 0);
         gotoPage(currentPage);
@@ -2800,14 +2800,14 @@ void AppEBook::ebooksettings()
                 {
                     indexesFile = hal.open(indexesName, "r");
                     if (!indexesFile)
-                        error("indexesFile not open");
+                        log_e("indexesFile not open");
                 }
                 indexesFile.seek((currentPage - 1) * 4, SeekSet);
                 uint32_t gbwz_uint32;
                 uint32_t indexeOffset = 0;
                 if (indexesFile.read((uint8_t *)&gbwz_uint32, 4) != 0)
                     indexeOffset = gbwz_uint32;
-                info("%lu", indexeOffset);
+                log_i("%lu", indexeOffset);
                 String savname;
                 savname = "/userdat/";
                 savname += txtFile.name();
@@ -2820,7 +2820,7 @@ void AppEBook::ebooksettings()
                 }
                 else
                 {
-                    error("%s not open", savname.c_str());
+                    log_e("%s not open", savname.c_str());
                 }
             }
             else
@@ -2830,7 +2830,7 @@ void AppEBook::ebooksettings()
                 {
                     indexesFile = hal.open(indexesName, "r");
                     if (!indexesFile)
-                        error("indexesFile not open");
+                        log_e("indexesFile not open");
                 }
                 // indexesFile.seek((currentPage - 1) * 4, SeekSet);
                 uint32_t indexeOffset = 0;
@@ -2843,7 +2843,7 @@ void AppEBook::ebooksettings()
                 File sav = LittleFS.open(savname, "r");
                 if (!sav)
                 {
-                    error("not open %s", savname.c_str());
+                    log_e("not open %s", savname.c_str());
                 }
                 sav.read((uint8_t *)&gbwz_uint32, 4);
                 sav.close();
@@ -2886,7 +2886,7 @@ void AppEBook::ebooksettings()
                 {
                     page = 1;
                 }
-                info("page %d", page - 1);
+                log_i("page %d", page - 1);
                 // 如果没有精确匹配，返回找到的页数
                 // 如果targetOffset小于第一个索引，foundPage保持为1
                 if (page > 0)
@@ -2897,7 +2897,7 @@ void AppEBook::ebooksettings()
                         info += page;
                         info += "超出范围";
                         GUI::msgbox("跳转失败", info.c_str());
-                        error("跳转失败，%d超出范围", page - 1);
+                        log_e("跳转失败，%d超出范围", page - 1);
                         gotoPage(currentPage);
                     }
                     drawCurrentPage();

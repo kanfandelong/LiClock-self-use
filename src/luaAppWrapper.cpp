@@ -204,7 +204,7 @@ void searchForLuaAPP()
     root = LittleFS.open("/");
     if (!root)
     {
-        error("LittleFS根目录无法打开");
+        log_e("LittleFS根目录无法打开");
     }
     file = root.openNextFile();
     while (file)

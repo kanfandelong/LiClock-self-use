@@ -510,7 +510,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
 
     if (tag_type.equalsIgnoreCase("APIC"))
     {
-        info("%s callback for: %s = '%s'", cbData, type, string);
+        log_i("%s callback for: %s = '%s'", cbData, type, string);
         return;
     }
 
@@ -592,7 +592,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
             File f = hal.open(lyricPath, "w");
             if (f)
             {
-                info("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
+                log_i("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
                 f.write((const uint8_t *)outputString.c_str(), strlen(outputString.c_str()));
                 f.close();
             }
@@ -600,7 +600,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
             {
                 log_e("无法创建歌词文件: %s", lyricPath.c_str());
             }
-            info("已写入歌词文件用做缓存: %s", lyricPath.c_str());
+            log_i("已写入歌词文件用做缓存: %s", lyricPath.c_str());
             // 在写入歌词文件后立即加载歌词，因为默认歌词加载位置位于解码开始之前，此时可能还没有歌词文件，导致无法加载到歌词(哪怕回调获取到了歌词)。
             if (hal.pref.getBool("en_Lyrics", false))
             {
@@ -610,11 +610,11 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
             return;
         }
         else
-            info("歌词文件已存在: %s", lyricPath.c_str());
+            log_i("歌词文件已存在: %s", lyricPath.c_str());
     }
 
-    info("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
-    // info("%s callback for: %s 的原始值 = '%s'", cbData, type, string);
+    log_i("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
+    // log_i("%s callback for: %s 的原始值 = '%s'", cbData, type, string);
     app.backup_buff_updata = true;
 }
 #ifdef CONFIG_DAC_32bit
@@ -778,11 +778,11 @@ void player_loop(void *)
         }
         else
         {
-            warn("信号量获取失败");
+            log_w("信号量获取失败");
             if (!app.user_stop)
             {
                 xSemaphoreGive(audio_control_sem); // 确保释放信号量
-                warn("释放信号量");
+                log_w("释放信号量");
             }
             delay(5);
         }
@@ -1165,12 +1165,12 @@ void AppMusicPlayer::loadLyrics(const char *path)
     totalLyricLines = countLyricLines(lrcPath.c_str());
     if (totalLyricLines == -1)
     {
-        warn("歌词文件 \"%s\" 不存在,中止加载操作", lrcPath.c_str());
+        log_w("歌词文件 \"%s\" 不存在,中止加载操作", lrcPath.c_str());
         return;
     }
     else if (totalLyricLines == 0)
     {
-        warn("未在歌词文件 \"%s\" 中识别到有效的歌词,中止加载操作", lrcPath.c_str());
+        log_w("未在歌词文件 \"%s\" 中识别到有效的歌词,中止加载操作", lrcPath.c_str());
         return;
     }
 
@@ -1179,7 +1179,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
     if (lyricArray == nullptr)
     {
-        error("内存分配失败,中止加载操作");
+        log_e("内存分配失败,中止加载操作");
         return;
     }
 
@@ -1187,7 +1187,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
     if (!file)
     {
-        error("歌词文件打开发生意外错误,中止加载操作");
+        log_e("歌词文件打开发生意外错误,中止加载操作");
         return;
     }
     log_i("开始加载歌词，歌词行数：%d", totalLyricLines);
@@ -1225,7 +1225,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
         // 检查超时
         if (millis() - startTime > timeout)
         {
-            warn("歌词加载超时");
+            log_w("歌词加载超时");
             GUI::msgbox("错误", "歌词加载超时", 5);
             file.close();
             lrcisload = false;
@@ -1737,7 +1737,7 @@ int AppMusicPlayer::findSongIndexInFileList()
         }
     }
 
-    warn("未在歌曲列表中找到“%s”的找到匹配项", filename.c_str());
+    log_w("未在歌曲列表中找到“%s”的找到匹配项", filename.c_str());
     return -1; // 未找到匹配项
 }
 
@@ -1825,7 +1825,7 @@ bool AppMusicPlayer::file_in(const char *path)
     if (!hal.exists(path))
     {
         GUI::msgbox("错误", "指定的文件不存在", 5);
-        error("指定的文件（%s）不存在", path);
+        log_e("指定的文件（%s）不存在", path);
         return false;
     }
     lrcisload = false;
@@ -1854,14 +1854,14 @@ bool AppMusicPlayer::file_in(const char *path)
     pathStr = _path;
     if (!in->isOpen())
     {
-        error("无法打开指定的文件（%s）以供播放,正在重试", path);
+        log_e("无法打开指定的文件（%s）以供播放,正在重试", path);
         if (file_sd)
             in = new AudioFileSourceSD(_path);
         else
             in = new AudioFileSourceLittleFS(_path);
         if (!in->isOpen() && file_sd)
         {
-            error("无法打开指定的文件（%s）以供播放，尝试重新挂载文件系统后播放", path);
+            log_e("无法打开指定的文件（%s）以供播放，尝试重新挂载文件系统后播放", path);
             peripherals.tf_unload();
             GUI::info_msgbox("提示", "SD卡重新挂载中...");
             delay(50);
@@ -1869,7 +1869,7 @@ bool AppMusicPlayer::file_in(const char *path)
             in = new AudioFileSourceSD(_path);
             if (!in->isOpen())
             {
-                error("无法打开指定的文件（%s）以供播放", path);
+                log_e("无法打开指定的文件（%s）以供播放", path);
                 need_deep_sleep = true;
                 appManager.noDeepSleep = false;
                 appManager.nextWakeup = 1;
@@ -2011,7 +2011,7 @@ void AppMusicPlayer::delete_playtask()
     // 如果任务仍未退出，再考虑强制手段（极少发生）
     if (player_loop_task_handle != NULL)
     {
-        warn("任务未响应，强制删除");
+        log_w("任务未响应，强制删除");
         vTaskDelete(player_loop_task_handle);
         player_loop_task_handle = NULL;
         if (xSemaphoreTake(audio_control_sem, 1000 / portTICK_PERIOD_MS) != pdTRUE)
@@ -2652,7 +2652,7 @@ void AppMusicPlayer::show_display_vlbm()
         fp = fopen(vlbm_path.c_str(), "rb");
         if (!fp)
         {
-            error("File %s not found!", vlbm_path.c_str());
+            log_e("File %s not found!", vlbm_path.c_str());
             try_count++;
             return;
         }
@@ -2671,7 +2671,7 @@ void AppMusicPlayer::show_display_vlbm()
             bits_per_pixel = 1;
             break;
         default:
-            error("Invalid gray level: %u", gray_level);
+            log_e("Invalid gray level: %u", gray_level);
             fclose(fp);
             fp = NULL;
             return;
@@ -3191,8 +3191,8 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
     const float TARGET_SATURATION = 0.04f; // 目标饱和比例（4%）
     const float GAIN_MIN = 0.1f;           // 最小增益
     const float GAIN_MAX = 3.0f;           // 最大增益
-    const float GAIN_UP_STEP = 1.01f;      // 增益上调系数（1%）
-    const float GAIN_DOWN_STEP = 0.97f;    // 增益下调系数（3%）
+    const float GAIN_UP_STEP = 1.03f;      // 增益上调系数（3%）
+    const float GAIN_DOWN_STEP = 0.94f;    // 增益下调系数（6%）
     const float SATURATION_THRESH = 60.0f; // 饱和判定阈值（与限幅值一致）
     const float LOW_ENERGY_THRESH = 20.0f; // 整体偏低阈值
     const int VOTE_NEEDED = 4;             // 需连续符合判定阈值的次数
@@ -3945,7 +3945,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         {
             if (!generator->begin(source, out))
             {
-                error("未能初始化音频解码器！");
+                log_e("未能初始化音频解码器！");
                 GUI::msgbox("错误", "未能初始化音频解码器！", 5);
                 return false;
             }
@@ -3954,7 +3954,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         {
             if (!generator->begin(id3, out))
             {
-                error("未能初始化音频解码器！");
+                log_e("未能初始化音频解码器！");
                 GUI::msgbox("错误", "未能初始化音频解码器！", 5);
                 return false;
             }

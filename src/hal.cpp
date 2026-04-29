@@ -217,9 +217,9 @@ void task_bat_info(void *)
     {
         if (!lipo.begin())
         {
-            error("电量计初始化失败");
+            log_e("电量计初始化失败");
             xSemaphoreGive(peripherals.i2cMutex);
-            warn("正在终止电量计更新任务");
+            log_w("正在终止电量计更新任务");
             vTaskDelete(NULL);
         }
         xSemaphoreGive(peripherals.i2cMutex);
@@ -232,9 +232,9 @@ void task_bat_info(void *)
         {
             if (!lipo.begin())
             {
-                error("电量计初始化失败");
+                log_e("电量计初始化失败");
                 xSemaphoreGive(peripherals.i2cMutex);
-                warn("正在终止电量计更新任务");
+                log_w("正在终止电量计更新任务");
                 vTaskDelete(NULL);
             }
             hal.bat_info.voltage = (float)lipo.voltage() / 1000.0;
@@ -263,7 +263,7 @@ void task_bat_info(void *)
         else
         {
             xDelay = 3000 / portTICK_PERIOD_MS;
-            warn("I2C信号量获取超时");
+            log_w("I2C信号量获取超时");
         }
         // delay(1000);
         xTaskDelayUntil(&xLastWakeTime, xDelay);
@@ -362,7 +362,7 @@ void task_btn_buzzer(void *)
 bool HAL::connected_wifi(const char *ssid, const char *pass)
 {
     WiFi.begin(ssid, pass);
-    info("Connecting to %s", ssid);
+    log_i("Connecting to %s", ssid);
     unsigned long startAttemptTime = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < 10000)
     {
@@ -370,13 +370,13 @@ bool HAL::connected_wifi(const char *ssid, const char *pass)
     }
     if (WiFi.status() == WL_CONNECTED)
     {
-        info("Connected to %s", ssid);
+        log_i("Connected to %s", ssid);
         return true;
     }
     else
     {
-        warn("Connection failed");
-        warn("failed reason: %d", WiFi.status());
+        log_w("Connection failed");
+        log_w("failed reason: %d", WiFi.status());
         WiFi.disconnect();
         return false;
     }
@@ -397,7 +397,7 @@ bool HAL::wifi_config_manger()
         File file = LittleFS.open(wifi_config_file, "w");
         if (!file)
         {
-            error("Failed to open file for w");
+            log_e("Failed to open file for w");
             return false;
         }
         file.print(DEFAULT_WIFI_CONFIG);
@@ -407,7 +407,7 @@ bool HAL::wifi_config_manger()
     File configFile = LittleFS.open(wifi_config_file);
     if (!configFile)
     {
-        error("Failed to open file for reading");
+        log_e("Failed to open file for reading");
         return false;
     }
 
@@ -427,7 +427,7 @@ bool HAL::wifi_config_manger()
         if (n == 0)
         {
             WiFi.scanDelete();
-            warn("没有找到可用的WiFi网络");
+            log_w("没有找到可用的WiFi网络");
             GUI::info_msgbox("错误", "没有找到可用的WiFi网络");
             delay(1500);
             return false;
@@ -509,7 +509,7 @@ void HAL::savewifiConfig(StaticJsonDocument<2048> &wifi_config)
     File configFile = LittleFS.open(wifi_config_file, "w");
     if (!configFile)
     {
-        error("Failed to open wifi config file for writing");
+        log_e("Failed to open wifi config file for writing");
         return;
     }
     serializeJson(wifi_config, configFile);
@@ -521,7 +521,7 @@ void HAL::saveConfig()
     File configFile = LittleFS.open("/System/config.json", "w");
     if (!configFile)
     {
-        error("Failed to open config file for writing");
+        log_e("Failed to open config file for writing");
         return;
     }
     serializeJson(config, configFile);
@@ -532,7 +532,7 @@ void HAL::loadConfig()
     File configFile = LittleFS.open("/System/config.json", "r");
     if (!configFile)
     {
-        error("Failed to open config file");
+        log_e("Failed to open config file");
         return;
     }
     deserializeJson(config, configFile);
@@ -629,7 +629,7 @@ String HAL::get_CAcert(const char *filePath)
     File CAcert = hal.open(filePath, "r");
     if (!CAcert)
     {
-        error("Failed to open CAcert file");
+        log_e("Failed to open CAcert file");
         return String();
     }
     size_t file_size = CAcert.size();
@@ -651,7 +651,7 @@ String HAL::get_CAcert(const char *filePath)
         // 防止缓冲区溢出
         if (index >= file_size + 1)
         {
-            error("缓冲区溢出，证书可能被截断");
+            log_e("缓冲区溢出，证书可能被截断");
             break;
         }
     }
@@ -677,7 +677,7 @@ String HAL::get_yiyan(uint8_t maxlen)
         }
         else
         {
-            error("一言获取失败: %s", http.errorToString(httpCode).c_str());
+            log_e("一言获取失败: %s", http.errorToString(httpCode).c_str());
             http.end();
             return String("一言获取失败");
         }
@@ -855,15 +855,16 @@ void HAL::cheak_freq(int _freq, bool setfreq)
         uart->setRxBufferSize(4096);
         uart->begin(pref.getUInt("uart_baud", 115200));
         uart->setDebugOutput(true);
+        reinstall_putc2();
         cmd.SetCallback();
-        info("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
+        log_i("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
         {
-            info("已调节CPU频率至目标频率");
+            log_i("已调节CPU频率至目标频率");
         }
         else
         {
-            error("CPU频率调节失败");
+            log_e("CPU频率调节失败");
         }
     }
 }
@@ -1053,10 +1054,10 @@ void HAL::ReqWiFiConfig()
         delay(5);
         if (millis() - last_millis > 60000) // 1分钟超时
         {
-            warn("WiFi配置方式选择超时");
+            log_w("WiFi配置方式选择超时");
             if (a < 4)
             {
-                info("尝试重连WiFi");
+                log_i("尝试重连WiFi");
                 autoConnectWiFi();
                 a++;
                 last_millis = millis();
@@ -1206,19 +1207,19 @@ void HAL::coredump_file()
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, "coredump");
     if (!coredump_partition)
     {
-        error("找不到coredump分区");
+        log_e("找不到coredump分区");
     }
     uint8_t *buffer;
     File file;
     buffer = (uint8_t *)malloc(coredump_partition->size);
     if (!buffer)
     {
-        error("内存分配失败");
+        log_e("内存分配失败");
     }
     // 读取Flash数据
     if (esp_partition_read(coredump_partition, 0, buffer, coredump_partition->size) != ESP_OK)
     {
-        error("读取coredump失败");
+        log_e("读取coredump失败");
         free(buffer);
     }
     // 写入文件
@@ -1415,6 +1416,19 @@ bool HAL::init()
         }
         // test_littlefs_size(false);
     }
+    else
+        log_i("LittleFS已成功挂载");
+    if (!fast_boot)
+        if (LittleFS.exists("/System/log.txt"))
+        {
+            File log_file = LittleFS.open("/System/log.txt", "r");
+            if (log_file.size() > 1024 * 100)
+            {
+                log_file.close();
+                LittleFS.remove("/System/log.txt");
+            }
+            log_file.close();
+        }
     log_system_init();
     // test_littlefs_size(true);
     esp_reset_reason_t reset_reason = esp_reset_reason();
@@ -1443,29 +1457,10 @@ bool HAL::init()
             f.print(DEFAULT_CONFIG);
             f.close();
         }
-        if (LittleFS.exists("/System/log.txt"))
-        {
-            File log_file = LittleFS.open("/System/log.txt", "r");
-            if (log_file.size() > 1024 * 50)
-            {
-                log_file.close();
-                LittleFS.remove("/System/log.txt");
-            }
-            log_file.close();
-        }
-        else
-        {
-            File log_file = LittleFS.open("/System/log.txt", "a");
-            // 添加 BOM 头
-            log_file.write(0xEF);
-            log_file.write(0xBB);
-            log_file.write(0xBF);
-            log_file.close();
-        }
-        info("ESP32复位,原因:ESP_RST_%s", esp_rst_str[reset_reason]);
+        log_i("ESP32复位,原因:ESP_RST_%s", esp_rst_str[reset_reason]);
         if (reset_reason == ESP_RST_DEEPSLEEP)
         {
-            info("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
+            log_i("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
         }
         if (reset_reason == ESP_RST_PANIC)
         {
@@ -1585,9 +1580,9 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
                 return false;
         }
         if (esp_wifi_set_max_tx_power(hal.pref.getUChar("wifitxpower", 78)) != ESP_OK)
-            error("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+            log_e("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
         else
-            info("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+            log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
     }
     // if (!WiFi.isConnected())
     // {
@@ -1599,10 +1594,10 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     //             return false;
     //     }
     // }
-    info("成功连接:%s", WiFi.SSID().c_str());
-    info("IP:%s", WiFi.localIP().toString().c_str());
-    info("MAC:%s", WiFi.macAddress().c_str());
-    info("信号强度:%d", WiFi.RSSI());
+    log_i("成功连接:%s", WiFi.SSID().c_str());
+    log_i("IP:%s", WiFi.localIP().toString().c_str());
+    log_i("MAC:%s", WiFi.macAddress().c_str());
+    log_i("信号强度:%d", WiFi.RSSI());
     sntp_stop();
     return true;
 }
@@ -1618,7 +1613,7 @@ void HAL::searchWiFi()
         hal.numNetworks = WiFi.scanNetworks(false, false, false, 500);
         if (hal.numNetworks == 0)
         {
-            warn("没有搜索到WIFI");
+            log_w("没有搜索到WIFI");
         }
     }
 }
@@ -1976,7 +1971,7 @@ bool HAL::copy(File &newFile, File &file)
     char *buf = (char *)malloc(bufferSize);
     if (!buf)
     {
-        error("内存分配失败");
+        log_e("内存分配失败");
         return false;
     }
 
