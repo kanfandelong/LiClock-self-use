@@ -423,7 +423,7 @@ void AudioOutputI2S::flush()
 {
   #ifdef ESP32
     // makes sure that all stored DMA samples are consumed / played
-    int buffersize = 128 * this->dma_buf_count;
+    int buffersize = 512 * this->dma_buf_count;
     #ifdef CONFIG_DAC_32bit
     int32_t samples[2] = {0x0, 0x0};
     #else

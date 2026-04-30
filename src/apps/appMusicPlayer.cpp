@@ -3372,8 +3372,8 @@ void AppMusicPlayer::show_display_fft()
             u8g2Fonts.print("音乐播放器");
         }
 
-        if (info.tlen == 0 && i2s_output != nullptr)
-            i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
+        // if (info.tlen == 0 && i2s_output != nullptr)
+        //     i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
         if (!loopPlay)
             play_time_total = 0;
         if (info.tlen != 0 && play_time_total == 0)

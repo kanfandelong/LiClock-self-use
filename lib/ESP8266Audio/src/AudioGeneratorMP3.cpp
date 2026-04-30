@@ -308,7 +308,10 @@ bool AudioGeneratorMP3::loop()
     } 
   }
   // First, try and push in the stored sample.  If we can't, then punt and try later
-  if (!output->ConsumeSample(lastSample)) goto done; // Can't send, but no error detected
+  if (!output->ConsumeSample(lastSample)) {
+    delay(20);
+    goto done;
+  } // Can't send, but no error detected
 
   // Try and stuff the buffer one sample at a time
   do
