@@ -41,7 +41,7 @@ bool AudioFileSourceHTTPStream::open(const char *url)
   pos = 0;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(60000);
-  http.setReuse(true);
+  http.setReuse(false);
   String urlStr = String(url);
   bool isHttps = urlStr.startsWith("https://");
 
@@ -79,7 +79,7 @@ uint32_t AudioFileSourceHTTPStream::read(void *data, uint32_t len)
 {
   if (data == NULL)
   {
-    audioLogger->printf_P(PSTR("ERROR! AudioFileSourceHTTPStream::read passed NULL data\n"));
+    log_printf("ERROR! read passed NULL data\n");
     return 0;
   }
   return readInternal(data, len, false);
@@ -89,7 +89,7 @@ uint32_t AudioFileSourceHTTPStream::readNonBlock(void *data, uint32_t len)
 {
   if (data == NULL)
   {
-    audioLogger->printf_P(PSTR("ERROR! AudioFileSourceHTTPStream::readNonBlock passed NULL data\n"));
+    log_printf("ERROR! readNonBlock passed NULL data\n");
     return 0;
   }
   return readInternal(data, len, true);
@@ -159,7 +159,7 @@ retry:
 
 bool AudioFileSourceHTTPStream::seek(int32_t pos, int dir)
 {
-  audioLogger->printf_P(PSTR("ERROR! AudioFileSourceHTTPStream::seek not implemented!"));
+  log_printf("ERROR! seek not implemented!\n");
   (void)pos;
   (void)dir;
   return false;

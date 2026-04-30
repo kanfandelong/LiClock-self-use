@@ -30,7 +30,7 @@ AudioGeneratorMP3a::AudioGeneratorMP3a()
   output = NULL;
   hMP3Decoder = MP3InitDecoder();
   if (!hMP3Decoder) {
-    audioLogger->printf_P(PSTR("Out of memory error! hMP3Decoder==NULL\n"));
+    log_printf("Out of memory error!\n");
     Serial.flush();
   }
   // For sanity's sake...
@@ -92,30 +92,70 @@ bool AudioGeneratorMP3a::FillBufferWithValidFrame()
   return true;
 }
 
+// #define ENABLE_MP3_TIMING
+
 bool AudioGeneratorMP3a::loop()
 {
   if (!running) goto done; // Nothing to do here!
+
+#ifdef ENABLE_MP3_TIMING
+  static unsigned long lastPrintMillis = 0;
+  static bool firstPrint = true;
+  static unsigned long totalFindMicros = 0;
+  static unsigned long totalDecodeMicros = 0;
+  static unsigned long totalConsumeSampleMicros = 0;
+  static unsigned int frameCount = 0;          // 新增：帧数
+  unsigned long tStart, tEnd;
+
+  if (firstPrint) {
+    lastPrintMillis = millis();
+    firstPrint = false;
+  }
+
+  tStart = micros();
+#endif
 
   // If we've got data, try and pump it out...
   while (validSamples) {
     lastSample[0] = outSample[curSample*2] << 16;
     lastSample[1] = outSample[curSample*2 + 1] << 16;
-    if (!output->ConsumeSample(lastSample)) goto done; // Can't send, but no error detected
+    if (!output->ConsumeSample(lastSample)) {// Can't send, but no error detected
+      delay(2); // Avoid busy loop if output is blocked
+      goto done;
+    } 
     validSamples--;
     curSample++;
   }
+  
+#ifdef ENABLE_MP3_TIMING
+    tEnd = micros();
+    totalConsumeSampleMicros += (tEnd - tStart);
+    tStart = micros();
+#endif
 
   // No samples available, need to decode a new frame
   if (FillBufferWithValidFrame()) {
+
+#ifdef ENABLE_MP3_TIMING
+    tEnd = micros();
+    totalFindMicros += (tEnd - tStart);
+    tStart = micros();
+#endif
+
     // buff[0] start of frame, decode it...
     unsigned char *inBuff = reinterpret_cast<unsigned char *>(buff);
     int bytesLeft = buffValid;
     int ret = MP3Decode(hMP3Decoder, &inBuff, &bytesLeft, outSample, 0);
-   if (ret) {
+
+#ifdef ENABLE_MP3_TIMING
+    tEnd = micros();
+    totalDecodeMicros += (tEnd - tStart);
+    frameCount++;   // 成功解码一帧
+#endif
+
+    if (ret) {
       // Error, skip the frame...
-      char buff[48];
-      sprintf(buff, "MP3 decode error %d", ret);
-      cb.st(ret, buff);
+      log_i("MP3 decode error %d", ret);
     } else {
       lastFrameEnd = buffValid - bytesLeft;
       MP3FrameInfo fi;
@@ -134,6 +174,18 @@ bool AudioGeneratorMP3a::loop()
   } else {
     running = false; // No more data, we're done here...
   }
+
+#ifdef ENABLE_MP3_TIMING
+  if (millis() - lastPrintMillis >= 10000) {
+    log_printf("MP3 timing: find=%lu us, decode=%lu us, consume=%lu us, frames=%u\n"),
+                          totalFindMicros, totalDecodeMicros, totalConsumeSampleMicros, frameCount);
+    lastPrintMillis = millis();
+    totalFindMicros = 0;
+    totalDecodeMicros = 0;
+    totalConsumeSampleMicros = 0;
+    frameCount = 0;
+  }
+#endif
 
 done:
   file->loop();

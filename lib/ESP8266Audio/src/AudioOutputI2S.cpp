@@ -327,7 +327,7 @@ bool AudioOutputI2S::begin(bool txDAC)
         return false;
       }
       if (!txDAC) {
-        audioLogger->printf_P(PSTR("I2SNoDAC: esp8266 arduino core should be upgraded to avoid conflicts with SPI\n"));
+        log_printf("I2SNoDAC: esp8266 arduino core should be upgraded to avoid conflicts with SPI\n");
       }
     #endif
     }

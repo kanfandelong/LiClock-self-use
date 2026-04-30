@@ -235,7 +235,7 @@ bool AudioOutputULP::ConsumeSample(int16_t sample[2])
 
 bool AudioOutputULP::stop()
 {
-  audioLogger->printf_P(PSTR("\n\n\nstop\n\n\n"));
+  log_printf("\n\n\nstop\n\n\n");
   const ulp_insn_t stopulp[] = {
     //stop the timer
     I_END(),

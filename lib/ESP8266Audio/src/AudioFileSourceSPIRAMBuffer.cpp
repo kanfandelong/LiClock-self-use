@@ -37,7 +37,7 @@ AudioFileSourceSPIRAMBuffer::AudioFileSourceSPIRAMBuffer(AudioFileSource *source
     readPtr = 0;
     filled = false;
     src = source;
-    audioLogger->printf_P(PSTR("SPI RAM buffer size: %u Bytes\n"), ramSize);
+    log_printf("SPI RAM buffer size: %u Bytes\n", ramSize);
 }
 
 AudioFileSourceSPIRAMBuffer::~AudioFileSourceSPIRAMBuffer()

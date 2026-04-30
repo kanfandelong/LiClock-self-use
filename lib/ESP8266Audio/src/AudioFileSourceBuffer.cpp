@@ -27,7 +27,7 @@ AudioFileSourceBuffer::AudioFileSourceBuffer(AudioFileSource *source, uint32_t b
 {
   buffSize = buffSizeBytes;
   buffer = (uint8_t*)malloc(sizeof(uint8_t) * buffSize);
-  if (!buffer) audioLogger->printf_P(PSTR("Unable to allocate AudioFileSourceBuffer::buffer[]\n"));
+  if (!buffer) log_printf("Unable to allocate buffer[]\n");
   deallocateBuffer = true;
   writePtr = 0;
   readPtr = 0;

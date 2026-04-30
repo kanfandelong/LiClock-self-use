@@ -199,7 +199,7 @@ bool AudioOutputSPDIF::SetRate(int hz)
   } 
 #elif defined(ESP8266)
   I2SDriver.setRate(adjustedHz);
-  audioLogger->printf_P(PSTR("S/PDIF rate set: %.3f\n"), I2SDriver.getActualRate()/4);
+  log_printf("S/PDIF rate set: %.3f\n"), I2SDriver.getActualRate()/4);
 #endif
   return true;
 }

@@ -1,109 +1,191 @@
 #include "AsyncFileBuffer.h"
 #include <esp_heap_caps.h>
 
-AsyncFileBuffer::AsyncFileBuffer(size_t bufSize, size_t chunkSize)
-    : bufferSize(bufSize), chunkSize(chunkSize), buffer(nullptr), readPtr(0), writePtr(0), filePos(0), fileSize(0), taskHandle(nullptr), running(false), eof(false) {
-    mutex = xSemaphoreCreateMutex();
+AsyncFileBuffer::AsyncFileBuffer(size_t bufSize)
+    : bufferSize(bufSize)
+{
 }
 
-AsyncFileBuffer::~AsyncFileBuffer() {
-    end();
-    if (buffer) {
-        heap_caps_free(buffer);
-        buffer = nullptr;
-    }
-    if (mutex) {
-        vSemaphoreDelete(mutex);
-        mutex = nullptr;
-    }
+AsyncFileBuffer::~AsyncFileBuffer()
+{
+    close();
 }
 
-bool AsyncFileBuffer::begin(AudioFileSource file) {
-    _file = file;
-    fileSize = file.getSize();
-    filePos = 0;
-    readPtr = 0;
-    writePtr = 0;
-    eof = false;
+bool AsyncFileBuffer::begin(AudioFileSource *source)
+{
+    if (!source || !source->isOpen())
+        return false;
+
+    _source = source;
+
+    // 从 PSRAM 分配环形缓冲区存储
+    ringStorage = (uint8_t *)heap_caps_malloc(bufferSize, MALLOC_CAP_SPIRAM);
+    if (!ringStorage) {
+        _source = nullptr;
+        return false;
+    }
+
+    ringBuf = xRingbufferCreateStatic(bufferSize, RINGBUF_TYPE_BYTEBUF,
+                                      ringStorage, &ringBufStruct);
+    if (!ringBuf) {
+        heap_caps_free(ringStorage);
+        ringStorage = nullptr;
+        _source = nullptr;
+        return false;
+    }
+
     running = true;
-    buffer = (uint8_t*)heap_caps_malloc(bufferSize, MALLOC_CAP_SPIRAM);
-    if (!buffer) return false;
-    xTaskCreatePinnedToCore(fileReadTask, "FileReadTask", 4096, this, 1, &taskHandle, 1);
+    // 将填充任务固定在核心 1，优先级 1，栈 4096
+    xTaskCreatePinnedToCore(fillTask, "AsyncFill", 4096,
+                            this, 1, &taskHandle, 1);
     return true;
 }
 
-void AsyncFileBuffer::end() {
+void AsyncFileBuffer::end()
+{
     running = false;
+    delay(150); // 等待填充任务退出
     if (taskHandle) {
         vTaskDelete(taskHandle);
         taskHandle = nullptr;
     }
-}
-
-size_t AsyncFileBuffer::read(uint8_t* dst, size_t len) {
-    size_t bytesRead = 0;
-    xSemaphoreTake(mutex, portMAX_DELAY);
-    while (bytesRead < len && readPtr != writePtr) {
-        dst[bytesRead++] = buffer[readPtr];
-        readPtr = (readPtr + 1) % bufferSize;
+    if (ringBuf) {
+        vRingbufferDelete(ringBuf);
+        ringBuf = nullptr;
     }
-    xSemaphoreGive(mutex);
-    return bytesRead;
+    if (ringStorage) {
+        heap_caps_free(ringStorage);
+        ringStorage = nullptr;
+    }
+    if (_source) {
+        _source->close();
+        _source = nullptr;
+    }
 }
 
-bool AsyncFileBuffer::seek(size_t pos) {
-    xSemaphoreTake(mutex, portMAX_DELAY);
-    _file.seek(pos, SEEK_SET);
-    filePos = pos;
-    readPtr = 0;
-    writePtr = 0;
-    eof = false;
-    xSemaphoreGive(mutex);
+uint32_t AsyncFileBuffer::read(void *data, uint32_t len)
+{
+    if (!ringBuf || !running)
+        return 0;
+
+    size_t received = 0;
+    unsigned char *buf = (unsigned char *)xRingbufferReceiveUpTo(ringBuf,
+                                                                 &received,
+                                                                 0,    // 非阻塞
+                                                                 len);
+    if (buf) {
+        memcpy(data, buf, received);
+        vRingbufferReturnItem(ringBuf, (void *)buf);
+        return (uint32_t)received;
+    }
+
+    // 无数据时检查底层源是否已读完，且缓冲区空，则返回 0 表示 EOF
+    if (_source && _source->getPos() >= _source->getSize())
+        return 0;   // EOF
+
+    return 0;       // 暂时无数据，稍后重试
+}
+
+bool AsyncFileBuffer::seek(int32_t pos, int dir)
+{
+    if (!_source)
+        return false;
+
+    // 清空环形缓冲区：非阻塞取回所有数据并归还
+    if (ringBuf) {
+        size_t received;
+        while (true) {
+            unsigned char *buf = (unsigned char *)xRingbufferReceiveUpTo(
+                ringBuf, &received, 0, SIZE_MAX);
+            if (buf) {
+                vRingbufferReturnItem(ringBuf, (void *)buf);
+            } else {
+                break;
+            }
+        }
+    }
+
+    // 底层源定位
+    return _source->seek(pos, dir);
+}
+
+bool AsyncFileBuffer::close()
+{
+    end();
     return true;
 }
 
-size_t AsyncFileBuffer::getSize() const {
-    return fileSize;
+bool AsyncFileBuffer::isOpen()
+{
+    return running && _source && _source->isOpen();
 }
 
-size_t AsyncFileBuffer::getPos() const {
-    return filePos;
+uint32_t AsyncFileBuffer::getSize()
+{
+    if (!_source)
+        return 0;
+    return _source->getSize();
 }
 
-bool AsyncFileBuffer::isOpen() const {
+uint32_t AsyncFileBuffer::getPos()
+{
+    if (!_source)
+        return 0;
+
+    uint32_t sourcePos = _source->getPos();
+    size_t bufferedBytes = 0;
+    if (ringBuf) {
+        // 获取环形缓冲区中未读字节数
+        vRingbufferGetInfo(ringBuf, NULL, NULL, NULL, NULL, &bufferedBytes);
+    }
+
+    // 逻辑位置 = 物理文件位置 - 缓冲区中尚未消费的字节数
+    return (sourcePos >= bufferedBytes) ? (sourcePos - bufferedBytes) : 0;
+}
+
+bool AsyncFileBuffer::loop()
+{
+    // 填充任务独立运行，无需在主循环中处理
     return true;
 }
 
-void AsyncFileBuffer::loop() {
-    // Optionally trigger buffer fill or status update
+// 静态转接函数
+void AsyncFileBuffer::fillTask(void *param)
+{
+    AsyncFileBuffer *self = static_cast<AsyncFileBuffer *>(param);
+    self->fillBufferTask();
 }
 
-void AsyncFileBuffer::fileReadTask(void* arg) {
-    AsyncFileBuffer* self = static_cast<AsyncFileBuffer*>(arg);
-    while (self->running && !self->eof) {
-        self->fillBuffer();
-        vTaskDelay(1);
+// 后台填充任务
+void AsyncFileBuffer::fillBufferTask()
+{
+    const size_t chunkSize = 16 * 1024; // 每次读取 16KB
+    uint8_t *tempBuf = (uint8_t *)heap_caps_malloc(chunkSize, MALLOC_CAP_SPIRAM);
+    if (!tempBuf) {
+        running = false;
+        vTaskDelete(NULL);
+        return;
     }
-    vTaskDelete(nullptr);
-}
 
-void AsyncFileBuffer::fillBuffer() {
-    xSemaphoreTake(mutex, portMAX_DELAY);
-    while (((writePtr + 1) % bufferSize) != readPtr && !eof) {
-        uint8_t buf;
-        if (_file.read(&buf, 1) != 1){
-            eof = true;
+    while (running && _source && _source->isOpen()) {
+        uint32_t bytesRead = _source->read(tempBuf, chunkSize);
+        if (bytesRead == 0) {
+            // 检查是否真的 EOF
+            if (_source->getPos() >= _source->getSize())
+                break;
+            // 可能只是暂时无数据（如网络流），等待
+            vTaskDelay(1);
+            continue;
         }
-        size_t space = (readPtr > writePtr) ? (readPtr - writePtr - 1) : (bufferSize - writePtr + readPtr - 1);
-        size_t toRead = (space > chunkSize) ? chunkSize : space;
-        if (toRead == 0) break;
-        size_t n = _file.read(buffer + writePtr, toRead);
-        if (n == 0) {
-            eof = true;
-            break;
+
+        // 发送到环形缓冲区，超时 100ms
+        BaseType_t ret = xRingbufferSend(ringBuf, tempBuf, bytesRead, pdMS_TO_TICKS(10));
+        if (ret != pdTRUE) {
+            // 缓冲区满，稍作延迟再尝试
+            vTaskDelay(1);
         }
-        writePtr = (writePtr + n) % bufferSize;
-        filePos += n;
     }
-    xSemaphoreGive(mutex);
+
+    heap_caps_free(tempBuf);
+    vTaskDelete(NULL);
 }

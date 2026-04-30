@@ -7,6 +7,7 @@
 // #include "AudioFileSourceFATFS.h"
 #include "AudioFileSourceVorbis.h"
 
+#include "AsyncFileBuffer.h"
 #include "AudioFileSourceFS.h"
 #include "AudioFileSource.h"
 #include "AudioFileSourceHTTPStream.h"
