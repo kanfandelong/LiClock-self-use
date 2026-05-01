@@ -50,6 +50,7 @@ AudioOutputI2S::AudioOutputI2S(int port, int output_mode, int dma_buf_count, int
   wclkPin = 25;
   doutPin = 21;
   mclkPin = 0;
+  playedSampleFrames = 0;
   SetGain(1.0);
 }
 
@@ -390,6 +391,8 @@ bool AudioOutputI2S::ConsumeSample(int16_t sample[2])
     size_t i2s_bytes_written;
     // 设置超时100ms，当前架构允许阻塞
     i2s_write((i2s_port_t)portNo, &samples_data, sizeof(int) * 2, &i2s_bytes_written, timeout);
+    if (i2s_bytes_written == sizeof(int) * 2)
+      playedSampleFrames++;
     return i2s_bytes_written;
     #else
     uint32_t s32;

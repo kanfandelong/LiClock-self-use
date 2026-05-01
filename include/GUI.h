@@ -1,5 +1,24 @@
 #pragma once
 
+enum MenuItemType
+{
+    MENU_ITEM_ACTION = 0, // 普通菜单项，点击返回索引
+    MENU_ITEM_CHECKBOX,   // 多选框，切换 bool 值
+    MENU_ITEM_RADIO,      // 单选框，同一 group 互斥
+    MENU_ITEM_VALUE       // 数值项，点击进入数字输入
+};
+
+typedef struct
+{
+    const uint8_t *icon; // 图标数据，必须是单色位图，宽高由ico_w和ico_h指定
+    const char *title;
+    const char *key;       // Preferences 存储键
+    int *value;            // 仅 MENU_ITEM_VALUE 有效
+    int min, max;            // 仅 MENU_ITEM_VALUE 有效
+    uint8_t group;               // 仅 MENU_ITEM_RADIO 有效（同组互斥）
+    uint8_t type; // MenuItemType 枚举值
+} menu_item_mix;
+
 typedef struct
 {
     const uint8_t *icon; // 12*12图标,XBM格式
@@ -47,6 +66,7 @@ namespace GUI
     const char* englishInput(const char *name = "");
     int msgbox_time(const char *title, int pre_value);
     int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8, int default_selected = 0);
+    int menu(const char *title, const menu_item_mix options[], int16_t ico_w, int16_t ico_h, int default_selected);
     int select_menu(const char *title, const menu_select options[], int default_selected = 0);
     void PlayLBM_V(int16_t x, int16_t y, const char *filename, uint16_t color);
     void drawLBM(int16_t x, int16_t y, const char *filename, uint16_t color);

@@ -610,7 +610,6 @@ void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t *font, size_t font_size)
         uint8_t *buf = (uint8_t *)heap_caps_malloc(font_sz, MALLOC_CAP_SPIRAM);
         if (buf != nullptr)
         {
-            log_i("加载字体到PSRAM...");
             memcpy(buf, font, font_sz);
 
             if (psram_font_ptr)
@@ -624,6 +623,7 @@ void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t *font, size_t font_size)
             u8g2->font = buf;
             u8g2->font_decode.is_transparent = 0;
             u8g2_read_font_info(&(u8g2->font_info), buf);
+            log_i("加载字体到PSRAM +\'0x%08x ==> 0x%08x\'", font, buf);
             return;
         }
     }
@@ -688,7 +688,6 @@ void u8g2_SetFont(u8g2_font_t *u8g2, const char *path)
         return;
     }
 
-    log_i("从文件 \'%s\' %zuB 加载字体到PSRAM...", path, file_size);
     size_t bytes_read = fread(buf, 1, file_size, fp);
     fclose(fp);
 
@@ -714,6 +713,7 @@ void u8g2_SetFont(u8g2_font_t *u8g2, const char *path)
     u8g2->font = buf;
     u8g2->font_decode.is_transparent = 0;
     u8g2_read_font_info(&(u8g2->font_info), buf);
+    log_i("从文件 \'%s\'加载 %zu B 字体到PSRAM +\'0x%08x\'", path, file_size, buf);
 }
 
 void u8g2_SetForegroundColor(u8g2_font_t *u8g2, uint16_t fg)

@@ -506,11 +506,14 @@ static int cmd_taskload(int argc, char **argv)
 
     // 打印表头
     log_printf("\n--- CPU Load in last %d seconds ---\n", window_sec);
-    log_printf("%-*s %5s %10s %10s\n",
+    log_printf("%-*s %5s %5s %5s %10s %10s %9s\n",
                (int)maxNameLen, "Name",
-               "Core", "Time(us)", "Load%");
-    log_printf("%-*s ----- ---------- ----------\n", (int)maxNameLen, "----");
+               "Core", "State", "Prio", "Stack", "Time(us)", "Load%");
+    log_printf("%-*s ----- ----- ----- ---------- ---------- ---------\n",
+               (int)maxNameLen, "----");
 
+    const char state[6][2] = {"X", "R", "B", "S", "D", "?"};
+    const int state_count = sizeof(state) / sizeof(state[0]);
     // 遍历第二次快照，在第一次快照中查找同名且同任务号的任务
     for (UBaseType_t j = 0; j < count2; ++j)
     {
@@ -553,11 +556,16 @@ static int cmd_taskload(int argc, char **argv)
         else
             classColor = "\033[90m"; // 灰色（<1%）
 
-        log_printf("%s%-*s %5d %10lu %9.02f%%\033[0m\n",
+        const char *state_str = (t2.eCurrentState < state_count) ? state[t2.eCurrentState] : "?";
+        int core = (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID;
+
+        log_printf("%s%-*s %5d %5s %5u %10lu %10lu %8.02f%%\033[0m\n",
                    classColor,
-                   (int)maxNameLen,
-                   t2.pcTaskName,
-                   (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID,
+                   (int)maxNameLen, t2.pcTaskName,
+                   core,
+                   state_str,
+                   t2.uxBasePriority,
+                   (unsigned long)t2.usStackHighWaterMark,
                    delta,
                    percent);
     }

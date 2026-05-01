@@ -2314,6 +2314,26 @@ bool AppMusicPlayer::music_list_menu(bool play)
     else
         return true;
 }
+
+/*
+static const menu_item menu_player[] =
+    {
+        {nullptr, "< 返回", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, "退出", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, "播放/暂停", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, "播放列表", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, "选择文件", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, "设置音量", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, "单曲循环", "loopPlay", nullptr, 0, 0, 1, MENU_ITEM_RADIO},
+        {nullptr, "随机播放", "randomPlay", nullptr, 0, 0, 1, MENU_ITEM_RADIO},
+        {nullptr, "顺序播放", "autoPlay", nullptr, 0, 0, 1, MENU_ITEM_RADIO},
+        {nullptr, "FFT频谱", "music_fft", nullptr, 0, 0, 0, MENU_ITEM_CHECKBOX},
+        {nullptr, "lrc歌词", "en_Lyrics", nullptr, 0, 0, 0, MENU_ITEM_CHECKBOX},
+        {nullptr, "其他设置", nullptr, nullptr, 0, 0, 0, 0},
+        {nullptr, nullptr, nullptr, nullptr, 0, 0, 0, 0},
+};
+*/
+
 static const menu_select menu_player[] =
     {
         {false, "< 返回", nullptr},

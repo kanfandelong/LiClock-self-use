@@ -164,8 +164,9 @@ bool ST7305_DMA::begin(bool reset)
     // 初始化屏幕寄存器
     log_i("初始化屏幕...");
     initDisplay();
-
     clearDisplay();
+    if (reset)
+        display();
     return true;
 }
 

@@ -88,7 +88,7 @@ class AudioOutputI2S : public AudioOutput
     // We can restore the old values and free up these pins when in NoDAC mode
     uint32_t orig_bck;
     uint32_t orig_ws;
-    
+
     uint8_t bclkPin;
     uint8_t wclkPin;
     uint8_t doutPin;

@@ -435,6 +435,261 @@ namespace GUI
         hal.unhookButton();
         return selected;
     }
+
+    int menu(const char *title, const menu_item_mix options[], int16_t ico_w, int16_t ico_h, int default_selected)
+    {
+        // 动态窗口尺寸：留边距 20px
+        const int MNU_WIN_W = min(384, MAX_X - 20);
+        const int MNU_WIN_H = min(168, MAX_Y - 20);
+        const int start_x = (MAX_X - MNU_WIN_W) / 2;
+        const int start_y = (MAX_Y - MNU_WIN_H) / 2;
+
+        constexpr int number_of_items = 6;                          // 一屏最多显示 6 项
+        const int item_height = (MNU_WIN_H - 15) / number_of_items; // 标题占 15px
+        const int item_width = MNU_WIN_W - 10 - 5 - 5;              // 留出右侧滚动条宽度
+
+        // 统计菜单项数量，检查图标
+        int total = 0;
+        bool hasIcon = false;
+        while (options[total].title != nullptr)
+        {
+            if (options[total].icon != nullptr)
+                hasIcon = true;
+            ++total;
+        }
+
+        int selected = constrain(default_selected, 0, total - 1);
+        int prev_selected = selected;
+        int pageStart = 0;
+        if (total > number_of_items)
+            pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
+
+        int barHeight = number_of_items * (MNU_WIN_H - 15) / total;
+        bool updated = true;
+        bool waitc = false;
+        unsigned long wait_time = 0;
+
+        hal.hookButton(true);
+        push_buffer();
+        wait_time = millis();
+
+        // 辅助函数：根据类型绘制行尾状态
+        auto drawItemStatus = [&](int itemIdx, int x, int y)
+        {
+            const menu_item_mix &item = options[itemIdx];
+            switch (item.type)
+            {
+            case MENU_ITEM_CHECKBOX:
+            {
+                // 方框 + 对勾
+                int boxX = x + item_width - 15;
+                int boxY = y + 2;
+                bool val = hal.pref.getBool(item.key, false);
+                display.drawRect(boxX, boxY, 11, 11, 0);
+                if (val)
+                {
+                    display.drawLine(boxX + 2, boxY + 5, boxX + 5, boxY + 8, 0);
+                    display.drawLine(boxX + 5, boxY + 8, boxX + 9, boxY + 2, 0);
+                }
+                break;
+            }
+            case MENU_ITEM_RADIO:
+            {
+                // 圆圈 + 圆点
+                int cx = x + item_width - 9;
+                int cy = y + 7;
+                int selectedIdx = hal.pref.getInt(item.key, -1); // 存储本组选中索引
+                display.drawCircle(cx, cy, 5, 0);
+                if (selectedIdx == itemIdx)
+                {
+                    display.fillCircle(cx, cy, 3, 0);
+                }
+                break;
+            }
+            case MENU_ITEM_VALUE:
+            {
+                // 右对齐数值
+                int val = hal.pref.getInt(item.key, item.min);
+                char buf[12];
+                snprintf(buf, sizeof(buf), "%d", val);
+                int16_t txt_w = u8g2Fonts.getUTF8Width(buf);
+                u8g2Fonts.drawUTF8(x + item_width - txt_w - 2, y + 13, buf);
+                break;
+            }
+            default:
+                break;
+            }
+        };
+
+        goto init_draw; // 第一次直接绘图
+        while (1)
+        {
+            // 旋钮 / 按键处理（btnl、btnr 上下移动选项）
+            if (hal.btnl.isPressing())
+            {
+                delay(10);
+                if (hal.btnl.isPressing())
+                {
+                    if (selected > 0)
+                        --selected;
+                    else if (total > 0)
+                        selected = total - 1;
+                    updated = true;
+                }
+                wait_time = millis();
+            }
+            if (hal.btnr.isPressing())
+            {
+                delay(10);
+                if (hal.btnr.isPressing())
+                {
+                    if (selected < total - 1)
+                        ++selected;
+                    else
+                        selected = 0;
+                    updated = true;
+                }
+                wait_time = millis();
+            }
+            // 中心键处理
+            if (hal.btnc.isPressing())
+            {
+                delay(50);
+                if (hal.btnc.isPressing())
+                {
+                    if (waitLongPress(PIN_BUTTONC))
+                    {
+                        // 长按：退出菜单，返回 -1
+                        selected = -1;
+                        break;
+                    }
+                    else
+                    {
+                        // 短按：根据类型执行动作
+                        const menu_item_mix &it = options[selected];
+                        switch (it.type)
+                        {
+                        case MENU_ITEM_ACTION:
+                            break; // 跳出循环，返回 selected
+                        case MENU_ITEM_CHECKBOX:
+                        {
+                            bool cur = hal.pref.getBool(it.key, false);
+                            hal.pref.putBool(it.key, !cur);
+                            updated = true;
+                            break;
+                        }
+                        case MENU_ITEM_RADIO:
+                        {
+                            hal.pref.putInt(it.key, selected);
+                            updated = true;
+                            break;
+                        }
+                        case MENU_ITEM_VALUE:
+                        {
+                            // 调用数字输入框
+                            int cur = hal.pref.getInt(it.key, it.min);
+                            int digits = snprintf(nullptr, 0, "%d", it.max);
+                            int newVal = msgbox_number(it.title, digits, cur);
+                            newVal = constrain(newVal, it.min, it.max);
+                            hal.pref.putInt(it.key, newVal);
+                            updated = true;
+                            break;
+                        }
+                        }
+                        if (it.type == MENU_ITEM_ACTION)
+                            break; // 退出 while
+                    }
+                }
+                wait_time = millis();
+            }
+
+            if (updated)
+            {
+            init_draw:
+                // 翻页
+                if (selected < pageStart)
+                    pageStart = selected;
+                else if (selected >= pageStart + number_of_items)
+                    pageStart = selected - number_of_items + 1;
+
+                TickType_t xLastWakeTime = xTaskGetTickCount();
+                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency);
+
+                // 动画移动选择框
+                const int steps = 6;
+                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
+                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
+                for (int step = 0; step <= steps; ++step)
+                {
+                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
+
+                    drawWindowsWithTitle(title, start_x, start_y, MNU_WIN_W, MNU_WIN_H);
+                    display.setDrawWindow(start_x, start_y + 14, MNU_WIN_W - 2, MNU_WIN_H - 16);
+
+                    int max_items = min(number_of_items, total);
+                    for (int i = 0; i < max_items; ++i)
+                    {
+                        int item_y = start_y + 15 + item_height * i;
+                        const menu_item_mix &it = options[i + pageStart];
+
+                        // 图标
+                        if (it.icon != NULL && ico_h <= 14)
+                        {
+                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2,
+                                                it.icon, ico_w, ico_h, 0);
+                        }
+                        // 文字
+                        int textX = start_x + 5 + (hasIcon ? ico_w + 2 : 0);
+                        u8g2Fonts.drawUTF8(textX, item_y + 13, it.title);
+                        // 行尾状态
+                        drawItemStatus(i + pageStart, start_x, item_y);
+
+                        // 选择框
+                        if (i == selected - pageStart)
+                        {
+                            display.drawRoundRect(start_x + 3, cur_y_rect, MNU_WIN_W - 10, 15, 3, 0);
+                        }
+                    }
+
+                    // 滚动条
+                    if (total > number_of_items)
+                    {
+                        int barPos = selected * (MNU_WIN_H - 15 - barHeight) / total;
+                        display.fillRoundRect(start_x + MNU_WIN_W - 8, start_y + 15 + barPos,
+                                              3, barHeight, 2, 0);
+                    }
+
+                    display.display();
+                    xTaskDelayUntil(&xLastWakeTime, xFrequency);
+                }
+
+                prev_selected = selected;
+                updated = false;
+                while (!waitc && (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()))
+                    delay(10);
+            }
+
+            if (waitc)
+            {
+                waitc = false;
+                while (hal.btnc.isPressing())
+                    delay(10);
+                delay(10);
+            }
+            delay(10);
+            if (millis() - wait_time > 30000)
+            {
+                hal.wait_input();
+                wait_time = millis();
+            }
+        }
+
+        display.setDrawWindow();
+        pop_buffer();
+        hal.unhookButton();
+        return selected;
+    }
+
 #include <mbedtls/sha256.h>
     static const uint8_t select_bits[] = {
         0xfe, 0x07, 0x03, 0x0c, 0x01, 0x08, 0xf1, 0x08, 0xf9, 0x09, 0xf9, 0x09,
