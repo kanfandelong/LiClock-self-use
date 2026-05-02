@@ -1377,6 +1377,7 @@ bool HAL::init()
 #endif
     // // display.epd2.T5D_mode(!pref.getBool("UC8151C"));
     log_i("初始化屏幕...");
+    display.set_te_interrupt_mode(pref.getInt("te_int_mode", RISING));
     display.begin(initial);
     display.display_Inversion(pref.getBool("Inversion", true));
     display.setRotation(pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3));

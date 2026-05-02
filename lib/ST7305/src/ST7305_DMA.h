@@ -102,6 +102,7 @@ public:
 	void display_sleep(bool enabled = true);
 	void display_Inversion(bool enabled);
 	void invertDisplay(bool i) { display_Inversion(i); };
+	void set_te_interrupt_mode(int mode) { te_interrupt_mode = mode; }
 	void set(uint8_t cmd, uint8_t data);
 	void set(uint8_t cmd, uint8_t *data, size_t len);
 	void debug_log(bool debug)
@@ -273,6 +274,7 @@ private:
 		};
 	// SPIClass *_spi;
 public:
+	int te_interrupt_mode;
 	int8_t _cs_pin;
 	int8_t _dc_pin;
 	int8_t _rst_pin;

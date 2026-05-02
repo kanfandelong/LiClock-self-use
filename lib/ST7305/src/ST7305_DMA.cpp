@@ -17,6 +17,7 @@ ST7305_DMA::ST7305_DMA(int16_t w, int16_t h,
 { // Initialize rotation to
 
     memset(&_dma_trans, 0, sizeof(_dma_trans));
+    te_interrupt_mode = RISING;
     // 像素数据结构为：
     // P1 P3 P5 P7
     // P2 P5 P6 P8
@@ -101,7 +102,7 @@ bool ST7305_DMA::begin(bool reset)
     if (_te_pin >= 0)
     {
         pinMode(_te_pin, INPUT_PULLUP);
-        attachInterruptArg(digitalPinToInterrupt(_te_pin), te_isr_handler, this, RISING);
+        attachInterruptArg(digitalPinToInterrupt(_te_pin), te_isr_handler, this, te_interrupt_mode);
     }
     else
     {
