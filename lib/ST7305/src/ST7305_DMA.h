@@ -74,6 +74,11 @@ public:
 			   int8_t cs_pin, int8_t dc_pin,
 			   int8_t rst_pin, int8_t te_pin = -1);
 
+	void sendCommand(uint8_t command);
+	void sendData(uint8_t data);
+	void sendData(uint8_t *data, size_t len);
+	void receiveData(uint8_t *buffer, size_t len);
+
 	bool begin(bool reset = true);
 	/**
 	 * @brief 刷新显示内容
@@ -103,8 +108,6 @@ public:
 	void display_Inversion(bool enabled);
 	void invertDisplay(bool i) { display_Inversion(i); };
 	void set_te_interrupt_mode(int mode) { te_interrupt_mode = mode; }
-	void set(uint8_t cmd, uint8_t data);
-	void set(uint8_t cmd, uint8_t *data, size_t len);
 	void debug_log(bool debug)
 	{
 		log_out = debug;
@@ -317,9 +320,6 @@ private:
 	bool LPM_MODE = true;
 	bool log_out = false;
 
-	void sendCommand(uint8_t command);
-	void sendData(uint8_t data);
-	void sendData(uint8_t *data, size_t len);
 	void initDisplay();
 	void drawFastVLineInternal(int16_t x, int16_t y, int16_t h, uint16_t color);
 	void drawFastHLineInternal(int16_t x, int16_t y, int16_t w, uint16_t color);

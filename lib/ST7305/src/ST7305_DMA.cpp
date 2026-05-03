@@ -148,11 +148,11 @@ bool ST7305_DMA::begin(bool reset)
     // 添加设备
     spi_device_interface_config_t devcfg = {};
     devcfg.mode = 0;                          // SPI 模式 0
-    devcfg.clock_speed_hz = 33 * 1000 * 1000; // 33 MHz
+    devcfg.clock_speed_hz = SPI_MASTER_FREQ_26M;
     devcfg.spics_io_num = _cs_pin;
     devcfg.queue_size = 7;
     devcfg.pre_cb = st7305_pre_transfer_cb; // 设置 DC 的回调
-    devcfg.flags = 0;
+    devcfg.flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_3WIRE;
 
     ret = spi_bus_add_device(_spi_host, &devcfg, &_spi_handle);
     if (ret != ESP_OK)
@@ -173,9 +173,10 @@ bool ST7305_DMA::begin(bool reset)
 
 void ST7305_DMA::sendCommand(uint8_t cmd)
 {
-    spi_transaction_t t = {};
+    spi_transaction_t t = {0};
     t.length = 8;
     t.tx_buffer = &cmd;
+    t.rx_buffer = NULL; 
     t.user = (void *)((uintptr_t)this | 0); // DC = 0
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
     if (ret != ESP_OK)
@@ -186,9 +187,10 @@ void ST7305_DMA::sendCommand(uint8_t cmd)
 
 void ST7305_DMA::sendData(uint8_t data)
 {
-    spi_transaction_t t = {};
+    spi_transaction_t t = {0};
     t.length = 8;
     t.tx_buffer = &data;
+    t.rx_buffer = NULL; 
     t.user = (void *)((uintptr_t)this | 1); // DC = 1
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
     if (ret != ESP_OK)
@@ -201,9 +203,10 @@ void ST7305_DMA::sendData(uint8_t *data, size_t len)
 {
     if (len == 0)
         return;
-    spi_transaction_t t = {};
+    spi_transaction_t t = {0};
     t.length = len * 8;
     t.tx_buffer = data;
+    t.rx_buffer = NULL; 
     t.user = (void *)((uintptr_t)this | 1); // DC = 1
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
     if (ret != ESP_OK)
@@ -212,16 +215,20 @@ void ST7305_DMA::sendData(uint8_t *data, size_t len)
     }
 }
 
-void ST7305_DMA::set(uint8_t cmd, uint8_t data)
+void ST7305_DMA::receiveData(uint8_t *buffer, size_t len)
 {
-    sendCommand(cmd);
-    sendData(data);
-}
-
-void ST7305_DMA::set(uint8_t cmd, uint8_t *data, size_t len)
-{
-    sendCommand(cmd);
-    sendData(data, len);
+    if (len == 0)
+        return;
+    spi_transaction_t t = {0};
+    t.length = len * 8;
+    t.rx_buffer = buffer;
+    t.tx_buffer = NULL; 
+    t.user = (void *)((uintptr_t)this | 1); // DC = 1
+    esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
+    if (ret != ESP_OK)
+    {
+        log_e("receiveData 失败: %d", ret);
+    }
 }
 
 void ST7305_DMA::initDisplay()
@@ -324,9 +331,7 @@ void ST7305_DMA::initDisplay()
     sendCommand(0xD0); // Auto power down
     sendData(0xFF);
     sendCommand(0x39); // 低功耗模式
-    sendCommand(0x29); // Display on
-    // setvoltage(fps_5100);
-    delay(100);
+    sendCommand(0x29); // Display onS
 }
 
 void ST7305_DMA::display(bool ignoreTE)
