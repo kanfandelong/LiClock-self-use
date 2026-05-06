@@ -7,8 +7,6 @@
 #include <atomic>
 #pragma GCC optimize("O3")
 
-#define SAMPLES 256
-
 // 将 FreeRTOS 任务状态枚举转换为可读字符串
 static const char *taskStateToString(eTaskState state)
 {
@@ -114,9 +112,6 @@ RTC_DATA_ATTR int32_t currentSongIndex = 0;  // 当前播放索引（音乐列�
 RTC_DATA_ATTR char buf[512] = "";            // 实际存储当前播放文件路径字符串
 RTC_DATA_ATTR const char *music_file = NULL; // 当前播放文件的指针
 // RTC_DATA_ATTR bool is_ran = false;           // 用于判断播放器的启动状态（初次运行/已经运行过）
-
-__attribute__((aligned(16))) float wind[SAMPLES];         // 窗系数
-__attribute__((aligned(16))) float fft_data[2 * SAMPLES]; // 复数交叠数组（实部/虚部交替）
 
 /**
  * @brief 音乐播放器应用类
@@ -264,6 +259,7 @@ public:
     int newLyricIndex = 0;              // 新的歌词索引
 
     // FFT 部分
+    uint16_t SAMPLES = 256;
     float smoothingFactor = 0.7f; // 平滑控制, 0~1，越大越平滑
     float FFT_A_spectrum_smoothness = 2000.0f;
     float FFT_A_amplitude = 40.0f;
@@ -276,6 +272,8 @@ public:
     float *vReal;
     float *vImag;
     float *previousSpectrum;
+    float *wind;     // 窗系数
+    float *fft_data; // 复数交叠数组（实部/虚部交替）
     float fps = 0, max_fps = 50.0;
     bool use_log = false;
     TickType_t xLastWakeTime;
@@ -689,6 +687,8 @@ static void player_exit()
     delete[] app.vImag;
     delete[] app.previousSpectrum;
     free(app.ring_buffer);
+    free(app.fft_data);
+    free(app.wind);
 
     app.savePlayCounts();
     if (app.playCountRecords)
@@ -2542,7 +2542,7 @@ void AppMusicPlayer::player_set_menu()
             hal.pref.putInt("xFrequency", (int)xFrequency);
             break;
         case 13:
-            hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 3, hal.pref.getUInt("fft_samples", 256)));
+            hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 4, hal.pref.getUInt("fft_samples", 256)));
             break;
         case 14:
             hal.pref.putUChar("col_per_frame", GUI::msgbox_number("音频波形滚动速度", 1, hal.pref.getUChar("col_per_frame", 1)));
@@ -3565,32 +3565,68 @@ void AppMusicPlayer::show_display_fft()
             previousSpectrum[i] = vReal[i];
         }
 
-        if (SAMPLES == 256)
-            for (int i = 0; i < 128; i++)
-            {
-                // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 1, 75 - (int)previousSpectrum[i], (int)previousSpectrum[i] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 2, 75 - (int)previousSpectrum[i], (int)previousSpectrum[i] + 1, TFT_BLACK);
-            }
-        else if (SAMPLES == 512)
+        if (hal.pref.getBool("bar_mode", false))
         {
-            uint8_t index = SAMPLES / 256;
-            for (int i = 0; i < 128; i++)
+            // 柱子模式：将 previousSpectrum 线性插值到 128 个柱子
+            const int NUM_BARS = 128;
+            int8_t barSpectrum[NUM_BARS];
+            const int srcLen = SAMPLES / 2;
+            for (int i = 0; i < NUM_BARS; i++)
             {
-                // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-                int value = ((int)previousSpectrum[i * index] + (int)previousSpectrum[(i * index) + 1]) * 0.5f;
-                display.drawFastVLine(i * 3 + 1, 75 - value, value + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 2, 75 - value, value + 1, TFT_BLACK);
+                float srcIndex = (float)i * (srcLen - 1) / (NUM_BARS - 1);
+                int idx = (int)srcIndex;
+                float frac = srcIndex - idx;
+                if (idx < srcLen - 1)
+                {
+                    barSpectrum[i] = (int8_t)(previousSpectrum[idx] * (1.0f - frac) + previousSpectrum[idx + 1] * frac);
+                }
+                else
+                {
+                    barSpectrum[i] = (int8_t)previousSpectrum[srcLen - 1];
+                }
+            }
+            for (int i = 0; i < NUM_BARS; i++)
+            {
+                int barHeight = (int)(barSpectrum[i]);
+                if (barHeight > 75)
+                    barHeight = 75;
+                if (barHeight < 0)
+                    barHeight = 0;
+                display.drawFastVLine(i * 3 + 1, 75 - barHeight, barHeight + 1, TFT_BLACK);
+                display.drawFastVLine(i * 3 + 2, 75 - barHeight, barHeight + 1, TFT_BLACK);
             }
         }
         else
         {
-            uint8_t index = SAMPLES / 256;
-            for (int i = 0; i < 128; i++)
+            const int DISPLAY_WIDTH = 384; // 频谱区域宽度（像素）
+            const int SAMPLES_HALF = SAMPLES / 2;
+            for (int x = 0; x < DISPLAY_WIDTH; x++)
             {
-                // display.fillRect(i * 3, 75 - previousSpectrum[i], 2, previousSpectrum[i] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 1, 75 - (int)previousSpectrum[i * index], (int)previousSpectrum[i * index] + 1, TFT_BLACK);
-                display.drawFastVLine(i * 3 + 2, 75 - (int)previousSpectrum[i * index], (int)previousSpectrum[i * index] + 1, TFT_BLACK);
+                // 计算在频谱数组中的浮点索引
+                float srcIndex = (float)x * (SAMPLES_HALF - 1) / (DISPLAY_WIDTH - 1);
+                int idx = (int)srcIndex;
+                float frac = srcIndex - idx;
+
+                // 线性插值得到幅度值
+                float mag;
+                if (idx < SAMPLES_HALF - 1)
+                {
+                    mag = previousSpectrum[idx] * (1.0f - frac) + previousSpectrum[idx + 1] * frac;
+                }
+                else
+                {
+                    mag = previousSpectrum[idx]; // 最后一个点
+                }
+
+                // 转换为像素高度（基线 y=75，往上绘制）
+                int barHeight = (int)(mag); // mag 已经过平滑和增益，可直接用
+                if (barHeight > 75)
+                    barHeight = 75;
+                if (barHeight < 0)
+                    barHeight = 0;
+
+                // 画垂直线
+                display.drawFastVLine(x, 75 - barHeight, barHeight + 1, TFT_BLACK);
             }
         }
     }
@@ -4050,7 +4086,7 @@ void initCurveScaling()
     const float lowScale = hal.pref.getFloat("low_scale", 0.00011);  // 低频压缩值
     const float highScale = hal.pref.getFloat("high_scale", 0.0009); // 高频压缩值
 
-    for (int i = 0; i < SAMPLES / 2; i++)
+    for (int i = 0; i < app.SAMPLES / 2; i++)
     {
         if (i < lowFreqCount)
         {
@@ -4070,12 +4106,12 @@ void initCurveScaling()
         }
     }
 
-    esp_err_t ret = dsps_fft2r_init_fc32(NULL, SAMPLES);
+    esp_err_t ret = dsps_fft2r_init_fc32(NULL, app.SAMPLES);
     if (ret != ESP_OK)
     {
         log_e("DSP", "FFT init failed: %d", ret);
     }
-    dsps_wind_hann_f32(wind, SAMPLES); // 计算窗系数
+    dsps_wind_hann_f32(app.wind, app.SAMPLES); // 计算窗系数
 }
 
 void AppMusicPlayer::onBtnC_Click(void *param)
@@ -4125,11 +4161,14 @@ void AppMusicPlayer::setup()
     display.setPowerMode(POWER_MODE_HPM);
     digitalWrite(PIN_DAC_XSMT, 1);
 
+    SAMPLES = hal.pref.getUInt("fft_samples", 256);
     vReal = new float[SAMPLES];
     // vImag = new float[SAMPLES];
     curveScaling = new float[SAMPLES / 2];
     previousSpectrum = new float[SAMPLES / 2];
     memset(previousSpectrum, 0, sizeof(float[SAMPLES / 2]));
+    wind = (float *)heap_caps_aligned_alloc(16, SAMPLES * sizeof(float), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
+    fft_data = (float *)heap_caps_aligned_alloc(16, 2 * SAMPLES * sizeof(float), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
     initCurveScaling();
     ring_buffer = (float *)ps_malloc(sizeof(float[RING_BUFFER_SIZE]));
     if (ring_buffer)
