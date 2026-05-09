@@ -152,7 +152,7 @@ void CMD::begin()
     register_commands();
 
     // 创建控制台任务
-    xTaskCreate(console_task, "console_task", 8192, NULL, 4, &console_task_handle);
+    xTaskCreatePinnedToCore(console_task, "console_task", 8192, NULL, 4, &console_task_handle, 1);
 #ifndef USE_CDC
     uart->onReceive(serialRxCallback, true);
 #endif
@@ -559,12 +559,13 @@ static int cmd_taskload(int argc, char **argv)
         const char *state_str = (t2.eCurrentState < state_count) ? state[t2.eCurrentState] : "?";
         int core = (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID;
 
-        log_printf("%s%-*s %5d %5s %5u %10lu %10lu %8.02f%%\033[0m\n",
+        log_printf("%s%-*s %5d %5s %2u/%2u %10lu %10lu %8.02f%%\033[0m\n",
                    classColor,
                    (int)maxNameLen, t2.pcTaskName,
                    core,
                    state_str,
                    t2.uxBasePriority,
+                   t2.uxCurrentPriority,
                    (unsigned long)t2.usStackHighWaterMark,
                    delta,
                    percent);

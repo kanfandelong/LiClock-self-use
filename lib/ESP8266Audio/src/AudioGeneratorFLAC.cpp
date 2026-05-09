@@ -32,6 +32,7 @@ AudioGeneratorFLAC::AudioGeneratorFLAC()
   buffPtr = 0;
   buffLen = 0;
   running = false;
+  currentFillTaskPriority = RINGBUF_BASE_PRIORITY;
   // Initialize timing statistics (if enabled)
 #if ENABLE_FLAC_DECODE_TIMING
   decodeTimeSumUs = 0;
@@ -425,6 +426,7 @@ bool AudioGeneratorFLAC::stop()
       vTaskDelete(filltaskhandle);
       filltaskhandle = NULL;
     }
+    currentFillTaskPriority = RINGBUF_BASE_PRIORITY;
   }
   running = false;
   output->stop();
@@ -461,6 +463,28 @@ void AudioGeneratorFLAC::fillTask(void *param)
     {
       log_e("后台缓冲区填充失败");
       break;
+    }
+
+    // ========== 缓冲区水位线检查 ==========
+    size_t bufferedBytes = 0;
+    vRingbufferGetInfo(self->ringBuf, NULL, NULL, NULL, NULL, &bufferedBytes);
+
+    // 如果缓冲区水位较低，提高优先级以加快填充
+    if (bufferedBytes < RINGBUF_WATERLINE)
+    {
+      if (self->currentFillTaskPriority < RINGBUF_MAX_PRIORITY)
+      {
+        self->currentFillTaskPriority = RINGBUF_MAX_PRIORITY;
+        vTaskPrioritySet(self->filltaskhandle, RINGBUF_MAX_PRIORITY);
+        log_i("缓冲区水位低: %zu bytes, 提升优先级到 %u", bufferedBytes, RINGBUF_MAX_PRIORITY);
+      }
+    }
+    // 如果缓冲区充分，恢复到基础优先级
+    else if (bufferedBytes > (RINGBUF_SIZE / 2) && self->currentFillTaskPriority > RINGBUF_BASE_PRIORITY)
+    {
+      self->currentFillTaskPriority = RINGBUF_BASE_PRIORITY;
+      vTaskPrioritySet(self->filltaskhandle, RINGBUF_BASE_PRIORITY);
+      log_i("缓冲区充分: %zu bytes, 恢复优先级到 %u", bufferedBytes, RINGBUF_BASE_PRIORITY);
     }
   }
   log_i("后台缓冲区填充任务终止, 当前最小剩余栈:%ld", uxTaskGetStackHighWaterMark(NULL));
@@ -501,7 +525,11 @@ void AudioGeneratorFLAC::start_fillTask()
   //   core = 1;
   // else
   //   core = 0;
-  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 4096, this, 4, &filltaskhandle, 1);
+  currentFillTaskPriority = RINGBUF_BASE_PRIORITY;
+  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 4096, this, RINGBUF_BASE_PRIORITY, &filltaskhandle, 1);
+  log_i("缓冲区水位线: %u bytes (%.1f%% of %u), 基础优先级: %u, 最高优先级: %u",
+        RINGBUF_WATERLINE, (float)RINGBUF_WATERLINE / RINGBUF_SIZE * 100, RINGBUF_SIZE,
+        RINGBUF_BASE_PRIORITY, RINGBUF_MAX_PRIORITY);
   delay(100);
 }
 

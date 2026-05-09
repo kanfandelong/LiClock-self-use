@@ -92,21 +92,6 @@ typedef enum
     WAV_Generator,
 } generator_t;
 
-SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
-TaskHandle_t player_loop_task_handle = NULL; // 音频任务句柄
-AudioFileSourceVorbis *vorbis = nullptr;
-AudioFileSource *in = nullptr;     // 音频文件源
-AudioFileSourceID3 *id3 = nullptr; // ID3信息解码处理
-AudioGenerator *generator = nullptr;
-AudioGeneratorMP3 *mp3_generator = nullptr;   // MP3解码器
-AudioGeneratorMP3a *mp3a_generator = nullptr; // MP3解码器（另一个版本）
-AudioGeneratorFLAC *flac_generator = nullptr; // flac解码器
-AudioGeneratorAAC *aac_generator = nullptr;
-AudioGeneratorOpus *opus_generator = nullptr;
-AudioGeneratorWAV *wav_generator = nullptr;
-AudioOutput *output = nullptr;
-AudioOutputI2S *i2s_output = nullptr; // I2S输出
-AudioOutputI2SNoDAC *noDAC = nullptr; // I2S输出
 // 以下变量保存至RTC内存，避免deepsleep后丢失
 RTC_DATA_ATTR int32_t currentSongIndex = 0;  // 当前播放索引（音乐列表数组位置）
 RTC_DATA_ATTR char buf[512] = "";            // 实际存储当前播放文件路径字符串
@@ -123,7 +108,24 @@ class AppMusicPlayer : public AppBase
 {
 private:
     /* data */
-public:
+    public:
+
+    SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
+    TaskHandle_t player_loop_task_handle = NULL; // 音频任务句柄
+    AudioFileSourceVorbis *vorbis = nullptr;
+    AudioFileSource *in = nullptr;     // 音频文件源
+    AudioFileSourceID3 *id3 = nullptr; // ID3信息解码处理
+    AudioGenerator *generator = nullptr;
+    AudioGeneratorMP3 *mp3_generator = nullptr;   // MP3解码器
+    AudioGeneratorMP3a *mp3a_generator = nullptr; // MP3解码器（另一个版本）
+    AudioGeneratorFLAC *flac_generator = nullptr; // flac解码器
+    AudioGeneratorAAC *aac_generator = nullptr;
+    AudioGeneratorOpus *opus_generator = nullptr;
+    AudioGeneratorWAV *wav_generator = nullptr;
+    AudioOutput *output = nullptr;
+    AudioOutputI2S *i2s_output = nullptr; // I2S输出
+    AudioOutputI2SNoDAC *noDAC = nullptr; // I2S输出
+
     AppMusicPlayer()
     {
         name = "musicplayer";
@@ -616,7 +618,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     app.backup_buff_updata = true;
 }
 #ifdef CONFIG_DAC_32bit
-void GetSampleCB(int32_t sample[2])
+static void GetSampleCB(int32_t sample[2])
 {
     // 将左右声道分别转换为浮点数
     float left = (float)(sample[0] >> 16);
@@ -627,7 +629,7 @@ void GetSampleCB(int32_t sample[2])
     app.write_index = (app.write_index + 1) & (app.RING_BUFFER_SIZE - 1); // 快速取模
 }
 #else
-void GetSampleCB(int16_t sample[2])
+static void GetSampleCB(int16_t sample[2])
 {
     if (app.fftProcessing)
     {
@@ -714,17 +716,17 @@ static void player_deepsleep()
  */
 void delete_generator()
 {
-    if (generator != nullptr)
+    if (app.generator != nullptr)
     {
-        delete generator;
-        generator = nullptr;
+        delete app.generator;
+        app.generator = nullptr;
     }
-    mp3_generator = nullptr;
-    mp3a_generator = nullptr;
-    flac_generator = nullptr;
-    opus_generator = nullptr;
-    wav_generator = nullptr;
-    aac_generator = nullptr;
+    app.mp3_generator = nullptr;
+    app.mp3a_generator = nullptr;
+    app.flac_generator = nullptr;
+    app.opus_generator = nullptr;
+    app.wav_generator = nullptr;
+    app.aac_generator = nullptr;
 }
 
 /**
@@ -733,40 +735,41 @@ void delete_generator()
  */
 void delete_output()
 {
-    if (output != nullptr)
+    if (app.output != nullptr)
     {
-        delete output;
-        output = nullptr;
+        delete app.output;
+        app.output = nullptr;
     }
-    i2s_output = nullptr;
-    noDAC = nullptr;
+    app.i2s_output = nullptr;
+    app.noDAC = nullptr;
 }
 /**
  * @brief 音频解码任务主循环函数
  * @param parameter 任务参数（未使用）
  * @note 运行在独立任务中，负责音频解码循环，使用信号量保证线程安全
  */
-void player_loop(void *)
+static void player_loop(void * parameter)
 {
+    AppMusicPlayer *self = (AppMusicPlayer *)parameter;
     log_i("开始音频解码任务");
     log_i("目标音频文件：%s", music_file);
-    log_i("目标解码器：%s", play_generator_str[app.play_generator]);
+    log_i("目标解码器：%s", play_generator_str[self->play_generator]);
     log_i("当前栈的历史剩余最小值：%ld", uxTaskGetStackHighWaterMark(NULL));
-    app.play_time_start = millis();
-    while (!app.stop_requested)
+    self->play_time_start = millis();
+    while (!self->stop_requested)
     { // 检查退出标志
-        if (xSemaphoreTake(audio_control_sem, 1000 / portTICK_PERIOD_MS) == pdTRUE)
+        if (xSemaphoreTake(self->audio_control_sem, 1000 / portTICK_PERIOD_MS) == pdTRUE)
         {
-            if (generator->isRunning())
+            if (self->generator->isRunning())
             {
-                if (!generator->loop())
+                if (!self->generator->loop())
                 {
-                    generator->stop();
-                    app._play_end = true;
-                    app.play_time_end = millis();
-                    app.play_time_total = app.play_time_end - app.play_time_start;
+                    self->generator->stop();
+                    self->_play_end = true;
+                    self->play_time_end = millis();
+                    self->play_time_total = self->play_time_end - self->play_time_start;
                     log_i("解码器已停止");
-                    xSemaphoreGive(audio_control_sem); // 确保释放信号量
+                    xSemaphoreGive(self->audio_control_sem); // 确保释放信号量
                     break;                             // 退出循环
                 }
             }
@@ -774,25 +777,25 @@ void player_loop(void *)
             {
                 delay(5);
             }
-            xSemaphoreGive(audio_control_sem);
+            xSemaphoreGive(self->audio_control_sem);
         }
         else
         {
-            log_w("信号量获取失败");
-            if (!app.user_stop)
+            // log_w("信号量获取失败");
+            if (!self->user_stop)
             {
-                xSemaphoreGive(audio_control_sem); // 确保释放信号量
-                log_w("释放信号量");
+                xSemaphoreGive(self->audio_control_sem); // 确保释放信号量
+                // log_w("释放信号量");
             }
             delay(5);
         }
     }
     // 退出前清理（如果尚未停止）
-    if (generator->isRunning())
+    if (self->generator->isRunning())
     {
-        generator->stop();
+        self->generator->stop();
     }
-    player_loop_task_handle = NULL;
+    self->player_loop_task_handle = NULL;
     log_i("解码器任务栈的历史剩余最小值：%ld", uxTaskGetStackHighWaterMark(NULL));
     vTaskDelete(NULL);
 }
@@ -2578,9 +2581,9 @@ void AppMusicPlayer::begin_player_task()
     log_i("将为解码任务分配%ld字节堆栈", stack_size);
     log_i("app运行在: core%d", core);
     if (core == 0)
-        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 8, &player_loop_task_handle, 1);
+        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, this, 8, &player_loop_task_handle, 1);
     else
-        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, NULL, 8, &player_loop_task_handle, 0);
+        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, this, 8, &player_loop_task_handle, 0);
 }
 
 String AppMusicPlayer::getVlbmPach(const char *musicPath)
@@ -4059,7 +4062,7 @@ bool AppMusicPlayer::player_set()
         delete_output();
         if (hal.pref.getBool("USE_I2S", true))
         {
-            i2s_output = new AudioOutputI2S(0, 0, 8, apll);
+            i2s_output = new AudioOutputI2S(0, 0, hal.pref.getInt("dma_buf_count", 8), apll);
             output = i2s_output;
             i2s_output->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
             i2s_output->SetMclk(false);
@@ -4078,7 +4081,7 @@ bool AppMusicPlayer::player_set()
     }
 }
 
-// 初始化曲线缩放数组（在setup或初始化函数中调用）
+// 初始化曲线缩放数组
 void initCurveScaling()
 {
     const int lowFreqCount = hal.pref.getInt("low_freq_count", 5);   // 低频点数量
