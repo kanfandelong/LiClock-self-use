@@ -108,8 +108,7 @@ class AppMusicPlayer : public AppBase
 {
 private:
     /* data */
-    public:
-
+public:
     SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
     TaskHandle_t player_loop_task_handle = NULL; // 音频任务句柄
     AudioFileSourceVorbis *vorbis = nullptr;
@@ -748,7 +747,7 @@ void delete_output()
  * @param parameter 任务参数（未使用）
  * @note 运行在独立任务中，负责音频解码循环，使用信号量保证线程安全
  */
-static void player_loop(void * parameter)
+static void player_loop(void *parameter)
 {
     AppMusicPlayer *self = (AppMusicPlayer *)parameter;
     log_i("开始音频解码任务");
@@ -770,7 +769,7 @@ static void player_loop(void * parameter)
                     self->play_time_total = self->play_time_end - self->play_time_start;
                     log_i("解码器已停止");
                     xSemaphoreGive(self->audio_control_sem); // 确保释放信号量
-                    break;                             // 退出循环
+                    break;                                   // 退出循环
                 }
             }
             else
@@ -3411,7 +3410,10 @@ void AppMusicPlayer::show_display_fft()
         display.drawRoundRect(x, y - 8, w1, 8, 2, TFT_BLACK);
         // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
         char time_buf[16];
-        sprintf(time_buf, "%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
+        if (total_time == 0)
+            sprintf(time_buf, "--:--");
+        else
+            sprintf(time_buf, "%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
         int time_buf_width = u8g2Fonts.getUTF8Width(time_buf);
         u8g2Fonts.setCursor(323 + ((MAX_X - 323) - time_buf_width) / 2, y);
         u8g2Fonts.printf("%s", time_buf);
@@ -4095,24 +4097,30 @@ void initCurveScaling()
     const int transitionCount = hal.pref.getInt("trans_cnt", 70);    // 过渡区数量
     const float lowScale = hal.pref.getFloat("low_scale", 0.00011);  // 低频压缩值
     const float highScale = hal.pref.getFloat("high_scale", 0.0009); // 高频压缩值
+    const float hf_boost = hal.pref.getFloat("hf_boost", 0.0012f);   // 高频提升值
 
     for (int i = 0; i < app.SAMPLES / 2; i++)
     {
+        // 归一化位置 0~1
+        float t = (float)i / (app.SAMPLES / 2 - 1);
+
+        // 低频保持 strong compression，高频趋向 highScale
         if (i < lowFreqCount)
-        {
-            // 低频部分 - 强压缩
             app.curveScaling[i] = lowScale;
-        }
         else if (i < lowFreqCount + transitionCount)
         {
-            // 过渡区域 - 线性插值
-            float ratio = (float)(i - lowFreqCount) / transitionCount;
-            app.curveScaling[i] = lowScale + (highScale - lowScale) * ratio;
+            float t2 = (float)(i - lowFreqCount) / transitionCount;
+            // ease-out 效果：前半段变化慢，后半段快，高频延展感更好
+            t2 = 1.0f - (1.0f - t2) * (1.0f - t2);
+            app.curveScaling[i] = lowScale + (highScale - lowScale) * t2;
         }
         else
         {
-            // 高频部分 - 弱压缩
-            app.curveScaling[i] = highScale;
+            // 高频后半段继续往上翘一点，但不增加参数，用固定函数
+            float t3 = (float)(i - lowFreqCount - transitionCount) / (app.SAMPLES / 2 - lowFreqCount - transitionCount);
+            // 轻微上翘到 highScale 和 1.0 之间的某个值
+            float extra = t3 * t3 * hf_boost; // 0.3 是固定上翘幅度，按需调整
+            app.curveScaling[i] = highScale + (1.0f - highScale) * extra;
         }
     }
 
