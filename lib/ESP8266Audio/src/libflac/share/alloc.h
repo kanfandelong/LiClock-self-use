@@ -46,6 +46,11 @@
 #include <stdint.h> /* for SIZE_MAX in case limits.h didn't get it */
 //#endif
 #include <stdlib.h> /* for size_t, malloc(), etc */
+#include <string.h> /* for memset */
+#ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
+#include <esp_heap_caps.h>
+#define FLAC__ESP32_HEAP_CAPS_FLAGS (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+#endif
 #include "compat.h"
 
 #ifndef SIZE_MAX
@@ -71,14 +76,33 @@ static inline void *safe_malloc_(size_t size)
 	/* malloc(0) is undefined; FLAC src convention is to always allocate */
 	if(!size)
 		size++;
+#ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
+	void *p = heap_caps_malloc(size, FLAC__ESP32_HEAP_CAPS_FLAGS);
+	if(!p)
+		p = malloc(size); /* fallback to default allocation when internal heap is exhausted */
+	return p;
+#else
 	return malloc(size);
+#endif
 }
 
 static inline void *safe_calloc_(size_t nmemb, size_t size)
 {
 	if(!nmemb || !size)
-		return malloc(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
+		return safe_malloc_(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
+#ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
+	size_t total = nmemb * size;
+	if(nmemb > 0 && total / nmemb != size)
+		return 0;
+	void *p = heap_caps_malloc(total, FLAC__ESP32_HEAP_CAPS_FLAGS);
+	if(p) {
+		memset(p, 0, total);
+		return p;
+	}
+	return calloc(nmemb, size); /* fallback to default allocation when internal heap is exhausted */
+#else
 	return calloc(nmemb, size);
+#endif
 }
 
 /*@@@@ there's probably a better way to prevent overflows when allocating untrusted sums but this works for now */
@@ -144,21 +168,32 @@ static inline void *safe_malloc_mul2add_(size_t size1, size_t size2, size_t size
 static inline void *safe_malloc_muladd2_(size_t size1, size_t size2, size_t size3)
 {
 	if(!size1 || (!size2 && !size3))
-		return malloc(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
+		return safe_malloc_(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
 	size2 += size3;
 	if(size2 < size3)
 		return 0;
 	if(size1 > SIZE_MAX / size2)
 		return 0;
-	return malloc(size1*size2);
+	return safe_malloc_(size1*size2);
 }
 
 static inline void *safe_realloc_(void *ptr, size_t size)
 {
 	void *oldptr = ptr;
+#ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
+	void *newptr = heap_caps_realloc(ptr, size, FLAC__ESP32_HEAP_CAPS_FLAGS);
+	if(!newptr && size > 0) {
+		newptr = realloc(ptr, size); /* fallback to default allocation when internal heap is exhausted */
+		if(!newptr)
+			free(oldptr);
+	}
+	else if(size > 0 && newptr == 0)
+		free(oldptr);
+#else
 	void *newptr = realloc(ptr, size);
 	if(size > 0 && newptr == 0)
 		free(oldptr);
+#endif
 	return newptr;
 }
 static inline void *safe_realloc_add_2op_(void *ptr, size_t size1, size_t size2)

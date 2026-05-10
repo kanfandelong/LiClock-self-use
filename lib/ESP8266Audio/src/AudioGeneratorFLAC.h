@@ -30,9 +30,6 @@ extern "C"
 
 #define RINGBUF_SIZE (1024 * 1024) // 1 MB
 #define TEMPBUF_SIZE (16 * 1024)
-#define RINGBUF_WATERLINE (RINGBUF_SIZE / 4) // 25% 水位线阈值
-#define RINGBUF_BASE_PRIORITY 4  // 基础优先级
-#define RINGBUF_MAX_PRIORITY 7   // 最大优先级
 
 // Macro to control decode timing logging. Define ENABLE_FLAC_DECODE_TIMING to 0 to disable.
 // Users can override this definition via compiler flags or before including this header.
@@ -75,7 +72,6 @@ protected:
   uint8_t *ringBufferStorage = NULL;
   uint8_t *tempBuffer = NULL;
   bool en_ringbuff = false;
-  UBaseType_t currentFillTaskPriority = RINGBUF_BASE_PRIORITY; // 当前填充任务优先级
 
   // FLAC callbacks, need static functions to bounce into c++ from c
   static FLAC__StreamDecoderReadStatus _read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes, void *client_data)

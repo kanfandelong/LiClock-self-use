@@ -24,6 +24,10 @@
 /* define to align allocated memory on 32-byte boundaries */
 #define FLAC__ALIGN_MALLOC_DATA 1
 
+/* define to force libFLAC to allocate internal ESP32 heap using heap_caps_* functions */
+/* #undef FLAC__USE_ESP32_HEAP_CAPS_ALLOC */
+#define FLAC__USE_ESP32_HEAP_CAPS_ALLOC 1
+
 /* define if building for ia32/i386 */
 /* #undef FLAC__CPU_IA32 */
 

@@ -2380,6 +2380,7 @@ static const menu_select menu_set_player[] =
         {true, "播放视频?", "en_vlbm"},
         {true, "显示音量/显示播放次数", "show_gain"},
         {true, "启用环形缓存区", "en_ringbuff"},
+        {true, "启用柱状频谱", "bar_mode"},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
@@ -3409,8 +3410,11 @@ void AppMusicPlayer::show_display_fft()
 
         display.drawRoundRect(x, y - 8, w1, 8, 2, TFT_BLACK);
         // display.drawLine(x, y - 4, x + (int16_t)w, y - 4, TFT_BLACK);
-        u8g2Fonts.setCursor(341, y);
-        u8g2Fonts.printf("%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
+        char time_buf[16];
+        sprintf(time_buf, "%02d:%02d", total_time / 1000 / 60, total_time / 1000 % 60);
+        int time_buf_width = u8g2Fonts.getUTF8Width(time_buf);
+        u8g2Fonts.setCursor(323 + ((MAX_X - 323) - time_buf_width) / 2, y);
+        u8g2Fonts.printf("%s", time_buf);
 
         // 电池
         if ((hal.pref.getBool(hal.get_char_sha_key("精准电量显示"), false) || hal.bat_info.soc != 255) && hal.VCC < 4300 && !hal.isCharging)
@@ -3484,8 +3488,11 @@ void AppMusicPlayer::show_display_fft()
         w = w1;
     // display.fillCircle(x + (int16_t)w, y - 4, 5, TFT_BLACK);
     display.fillRoundRect(x, y - 8, (int16_t)w, 8, 2, TFT_BLACK);
-    u8g2Fonts.setCursor(18, y);
-    u8g2Fonts.printf("%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
+    char time_buf[16];
+    sprintf(time_buf, "%02d:%02d", play_time / 1000 / 60, play_time / 1000 % 60);
+    int time_buf_width = u8g2Fonts.getUTF8Width(time_buf);
+    u8g2Fonts.setCursor((x - time_buf_width) / 2, y);
+    u8g2Fonts.printf("%s", time_buf);
 
     d_time.fft_start = micros();
 
@@ -4322,7 +4329,7 @@ void AppMusicPlayer::setup()
             GUI::info_msgbox("提示", "出现暂未解决的BUG,将会在重启后恢复播放");
             break;
         }
-        if (_play_end && !_end)
+        if (_play_end && !_end && (loopPlay || autoPlay || randomPlay))
         {
             delay(10);
             next_song();

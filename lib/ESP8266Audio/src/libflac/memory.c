@@ -213,8 +213,16 @@ FLAC__bool FLAC__memory_alloc_aligned_real_array(size_t elements, FLAC__real **u
 void *safe_malloc_mul_2op_p(size_t size1, size_t size2)
 {
 	if(!size1 || !size2)
-		return malloc(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
+		return safe_malloc_(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
 	if(size1 > SIZE_MAX / size2)
 		return 0;
-	return malloc(size1*size2);
+	size_t total = size1 * size2;
+#ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
+	void *p = heap_caps_malloc(total, FLAC__ESP32_HEAP_CAPS_FLAGS);
+	if(!p)
+		p = malloc(total); /* fallback to default allocation when internal heap is exhausted */
+	return p;
+#else
+	return malloc(total);
+#endif
 }
