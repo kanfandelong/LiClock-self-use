@@ -216,7 +216,11 @@ public:
     bool nodac = false;       // 无DAC标志
     bool in_littlefs = false; // 文件是否位于LittleFS
     bool bits_per_chan = false;
-    float gain = 0.3; // 音频输出增益（音量）
+    float gain = 0.3;                 // 音频输出增益（音量）
+    float volume_percent = 50.0f;     // 音量百分比 0~100
+    float VOLUME_DB_MIN = -60.0f;     // 最小分贝值
+    float VOLUME_DB_MAX = 14.0f;      // 最大分贝值（0 dB 对应原声，增益 1.0）
+    float VOLUME_STEP_PERCENT = 2.0f; // 每次按键增减的百分比
     int apll = 0;
 
     // 低功耗/标志
@@ -2475,19 +2479,18 @@ void AppMusicPlayer::player_menu()
                 _play_end = true;
             break;
         case 5:
-            gain = (float)GUI::msgbox_number("0-400", 3, gain * 100.0) / 100.0;
-            if (gain > 4.0)
-            {
-                gain = 4.0;
-            }
-            if (gain < 0.0)
-            {
-                gain = 0.0;
-            }
+        {
+            volume_percent = (float)GUI::msgbox_number("音量 0-100", 3, (int)volume_percent);
+            if (volume_percent < 0.0f)
+                volume_percent = 0.0f;
+
+            float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
+            gain = powf(10.0f, db / 20.0f);
+
             if (!nodac)
                 output->SetGain(gain);
-            break;
-
+        }
+        break;
         case 11:
             player_set_menu();
             break;
@@ -2921,7 +2924,7 @@ void AppMusicPlayer::show_display_debug()
         }
 
         char gain_buf[16];
-        sprintf(gain_buf, "音量:%d", (uint16_t)(gain * 100.0));
+        sprintf(gain_buf, "音量:%d", (uint16_t)volume_percent);
         u8g2Fonts.setCursor(381 - u8g2Fonts.getUTF8Width(gain_buf), 165);
         u8g2Fonts.printf(gain_buf);
 
@@ -3460,7 +3463,7 @@ void AppMusicPlayer::show_display_fft()
 
         char _buf[16];
         if (hal.pref.getBool("show_gain"))
-            sprintf(_buf, "音量:%.0f", gain * 100.0f);
+            sprintf(_buf, "音量:%.0f", volume_percent);
         else
         {
             SongPlayCount *rec = findPlayCountRecord(music_file);
@@ -3816,21 +3819,21 @@ void AppMusicPlayer::updateVolumeUI()
 {
     // 静态变量保存动画状态
     // 初始化音量相关变量为gain,避免应用启动时显示
-    static float currentDisplayVolume = gain;     // 当前显示的音量值（0~1）
-    static float targetVolume = gain;             // 目标音量值（0~1）,
-    static unsigned long lastChangeTime = 0;      // 最后一次音量改变的时间（毫秒）
-    static int animState = 0;                     // 0=隐藏, 1=滑入, 2=显示, 3=滑出
-    static int currentX = PHYSICAL_WIDTH;         // 音量条当前左边缘 x 坐标
-    static const int targetXIn = 368;             // 滑入目标 x 坐标
-    static const int targetXOut = PHYSICAL_WIDTH; // 滑出目标 x 坐标（完全移出屏幕）
-    static const int step = 2;                    // 滑动每帧移动像素数
-    static const float volumeSmoothing = 0.1f;    // 音量加减动画平滑系数（每帧接近目标的比例）
+    static float currentDisplayVolume = volume_percent / 100.0f; // 当前显示的音量
+    static float targetVolume = volume_percent / 100.0f;         // 目标音量
+    static unsigned long lastChangeTime = 0;                     // 最后一次音量改变的时间（毫秒）
+    static int animState = 0;                                    // 0=隐藏, 1=滑入, 2=显示, 3=滑出
+    static int currentX = PHYSICAL_WIDTH;                        // 音量条当前左边缘 x 坐标
+    static const int targetXIn = 368;                            // 滑入目标 x 坐标
+    static const int targetXOut = PHYSICAL_WIDTH;                // 滑出目标 x 坐标（完全移出屏幕）
+    static const int step = 2;                                   // 滑动每帧移动像素数
+    static const float volumeSmoothing = 0.1f;                   // 音量加减动画平滑系数（每帧接近目标的比例）
 
     // ========== 检测音量改变 ==========
-    bool volumeChanged = (gain != targetVolume); // 实际音量与目标音量比较
+    bool volumeChanged = (volume_percent / 100.0f != targetVolume);
     if (volumeChanged)
     {
-        targetVolume = gain; // 更新目标音量
+        targetVolume = volume_percent / 100.0f;
         lastChangeTime = millis();
 
         // 若当前为隐藏或滑出状态，立即启动滑入动画
@@ -4201,10 +4204,20 @@ void AppMusicPlayer::setup()
     display_debug_mode = hal.pref.getBool("music_debug", true);
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
     fft_gain = hal.pref.getFloat("fft_gain", 1.2f);
+    VOLUME_STEP_PERCENT = hal.pref.getFloat("volume_step", 5.0f);
+    VOLUME_DB_MIN = hal.pref.getFloat("volume_db_min", -60.0f);
+    VOLUME_DB_MAX = hal.pref.getFloat("volume_db_max", 0.0f);
 
     loopPlay = hal.pref.getBool("loopPlay", false);
     autoPlay = hal.pref.getBool("autoPlay", true);
     randomPlay = hal.pref.getBool("randomPlay", false);
+
+    float db = 20.0f * log10f(gain);
+    if (db < VOLUME_DB_MIN)
+        db = VOLUME_DB_MIN;
+    if (db > VOLUME_DB_MAX)
+        db = VOLUME_DB_MAX;
+    volume_percent = (db - VOLUME_DB_MIN) / (VOLUME_DB_MAX - VOLUME_DB_MIN) * 100.0f;
 
     loadPlayCounts();
 
@@ -4301,8 +4314,9 @@ void AppMusicPlayer::setup()
         {
             flag_btnr_click = false;
             backup_buff_updata = true;
-            float gain_step = hal.pref.getFloat("gain_step", 0.05f);
-            gain = min(gain + gain_step, 4.0f);
+            volume_percent += VOLUME_STEP_PERCENT;
+            float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
+            gain = powf(10.0f, db / 20.0f);
             if (!nodac)
                 output->SetGain(gain);
             show_display();
@@ -4318,8 +4332,9 @@ void AppMusicPlayer::setup()
         {
             flag_btnl_click = false;
             backup_buff_updata = true;
-            float gain_step = hal.pref.getFloat("gain_step", 0.05f);
-            gain = max(gain - gain_step, 0.0f);
+            volume_percent -= VOLUME_STEP_PERCENT;
+            float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
+            gain = powf(10.0f, db / 20.0f);
             if (!nodac)
                 output->SetGain(gain);
             show_display();

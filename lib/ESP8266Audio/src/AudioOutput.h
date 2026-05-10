@@ -35,7 +35,12 @@ class AudioOutput
     virtual int GetBitsPerSample() { return bps; }
     virtual uint32_t GetPlaytimeMs() { return (playedSampleFrames * 1000) / hertz; }
     virtual bool SetChannels(int chan) { channels = chan; return true; }
-    virtual bool SetGain(float f) { if (f>4.0) f = 4.0; if (f<0.0) f=0.0; gainF2P6 = (uint8_t)(f*(1<<6)); return true; }
+    virtual bool SetGain(float f) {
+        if (f > 4.0f) f = 4.0f;
+        if (f < 0.0f) f = 0.0f;
+        gainF2P16 = (uint32_t)(f * 65536.0f + 0.5f);  // 加0.5四舍五入
+        return true;
+    }
     virtual bool begin() { return false; };
     typedef enum { LEFTCHANNEL=0, RIGHTCHANNEL=1 } SampleIndex;
     #ifdef CONFIG_DAC_32bit
@@ -81,11 +86,10 @@ class AudioOutput
     };
 
     inline int32_t Amplify(int32_t s) {
-        // 32位音频增益调整，gainF2P6为2.6定点格式
-        int64_t v = (int64_t(s) * gainF2P6) >> 6;
+        int64_t v = (int64_t(s) * gainF2P16) >> 16;
         if (v < INT32_MIN) return INT32_MIN;
-        else if (v > INT32_MAX) return INT32_MAX;
-        else return int32_t(v);
+        if (v > INT32_MAX) return INT32_MAX;
+        return int32_t(v);
     }
     #else
     void MakeSampleStereo16(int16_t sample[2]) {
@@ -100,7 +104,7 @@ class AudioOutput
     };
 
     inline int16_t Amplify(int16_t s) {
-      int32_t v = (s * gainF2P6)>>6;
+      int32_t v = (s * gainF2P16)>>16;
       if (v < -32767) return -32767;
       else if (v > 32767) return 32767;
       else return (int16_t)(v&0xffff);
@@ -113,7 +117,7 @@ class AudioOutput
     uint32_t hertz;
     uint8_t bps;
     uint8_t channels;
-    uint8_t gainF2P6; // Fixed point 2.6
+    uint32_t gainF2P16; // Fixed point 16.16
 
   protected:
     AudioStatus cb;
