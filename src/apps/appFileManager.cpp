@@ -685,13 +685,13 @@ file_info:
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
-                    // uart->println("[文件管理]file无法打开文件");
+                    // log_println("[文件管理]file无法打开文件");
                     log_e("无法打开文件%s", filename);
                     break;
                 }
                 if (!newfile)
                 {
-                    // uart->println("[文件管理]newfile 无法打开文件");
+                    // log_println("[文件管理]newfile 无法打开文件");
                     log_e("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
@@ -728,12 +728,12 @@ file_info:
                 float filesize = (float)file.size() / 1024.0;
                 if (!file)
                 {
-                    // uart->println("[文件管理]file无法打开文件");
+                    // log_println("[文件管理]file无法打开文件");
                     log_e("无法打开文件%s", filename);
                 }
                 if (!newfile)
                 {
-                    // uart->println("[文件管理]newfile 无法打开文件");
+                    // log_println("[文件管理]newfile 无法打开文件");
                     log_e("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                 }
                 unsigned long begin = millis();
@@ -1241,7 +1241,7 @@ void AppFileManager::selctwenjianjia(bool _file)
         strcpy(result, fileList[appIdx].title);
         strcat(result, "/");
         directoryname = result;
-        uart->print(directoryname);*/
+        log_print(directoryname);*/
 
         /*std::string original(fileList[appIdx].title);
         std::string modified = "/" + original + "/";

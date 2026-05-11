@@ -145,70 +145,41 @@ bool HAL::rmdir(const String &path)
 
 void HAL::printBatteryInfo()
 {
-    uart->println("\n------ Battery Information ------");
+    log_printf("\n------ Battery Information ------\n");
 
     // 基础信息
-    uart->print("SOC: ");
-    uart->print(hal.bat_info.soc);
-    uart->println("%");
-    uart->print("SOH: ");
-    uart->print(hal.bat_info.soh);
-    uart->println("%");
-    uart->printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
-    uart->printf("S3 Temperature: %.3f ℃\n", hal.bat_info.s3_temp);
-    uart->printf("Voltage: %.3f V\n", hal.bat_info.voltage);
-    uart->print("Avg Power: ");
-    uart->print(hal.bat_info.power);
-    uart->println(" mW");
+    log_printf("SOC: %d%%\n", hal.bat_info.soc);
+    log_printf("SOH: %d%%\n", hal.bat_info.soh);
+    log_printf("Temperature: %.3f ℃\n", hal.bat_info.temp);
+    log_printf("S3 Temperature: %.3f ℃\n", hal.bat_info.s3_temp);
+    log_printf("Voltage: %.3f V\n", hal.bat_info.voltage);
+    log_printf("Avg Power: %d mW\n", hal.bat_info.power);
 
     // 电流信息
-    uart->println("\n-- Current --");
-    uart->print("Average: ");
-    uart->print(hal.bat_info.current.avg);
-    uart->println(" mA");
-    uart->print("Max: ");
-    uart->print(hal.bat_info.current.max);
-    uart->println(" mA");
-    uart->print("Standby: ");
-    uart->print(hal.bat_info.current.stby);
-    uart->println(" mA");
+    log_printf("\n-- Current --\n");
+    log_printf("Average: %d mA\n", hal.bat_info.current.avg);
+    log_printf("Max: %d mA\n", hal.bat_info.current.max);
+    log_printf("Standby: %d mA\n", hal.bat_info.current.stby);
 
     // 容量信息
-    uart->println("\n-- Capacity --");
-    uart->print("Remaining: ");
-    uart->print(hal.bat_info.capacity.remain);
-    uart->println(" mAh");
-    uart->print("Full: ");
-    uart->print(hal.bat_info.capacity.full);
-    uart->println(" mAh");
-    uart->print("Available: ");
-    uart->print(hal.bat_info.capacity.avail);
-    uart->println(" mAh");
-    uart->print("Available Full: ");
-    uart->print(hal.bat_info.capacity.avail_full);
-    uart->println(" mAh");
-    uart->print("Remaining Filtered: ");
-    uart->print(hal.bat_info.capacity.remain_f);
-    uart->println(" mAh");
-    uart->print("Full Filtered: ");
-    uart->print(hal.bat_info.capacity.full_f);
-    uart->println(" mAh");
-    uart->print("Design: ");
-    uart->print(hal.bat_info.capacity.design);
-    uart->println(" mAh");
+    log_printf("\n-- Capacity --\n");
+    log_printf("Remaining: %d mAh\n", hal.bat_info.capacity.remain);
+    log_printf("Full: %d mAh\n", hal.bat_info.capacity.full);
+    log_printf("Available: %d mAh\n", hal.bat_info.capacity.avail);
+    log_printf("Available Full: %d mAh\n", hal.bat_info.capacity.avail_full);
+    log_printf("Remaining Filtered: %d mAh\n", hal.bat_info.capacity.remain_f);
+    log_printf("Full Filtered: %d mAh\n", hal.bat_info.capacity.full_f);
+    log_printf("Design: %d mAh\n", hal.bat_info.capacity.design);
 
     // 状态标志
-    uart->println("\n-- Flags --");
-    uart->print("Discharging: ");
-    uart->println(hal.bat_info.flag.DSG ? "Yes" : "No");
-    uart->print("Fully Charged: ");
-    uart->println(hal.bat_info.flag.FC ? "Yes" : "No");
-    uart->print("Charging Allowed: ");
-    uart->println(hal.bat_info.flag.CHG ? "Yes" : "No");
+    log_printf("\n-- Flags --\n");
+    log_printf("Discharging: %s\n", hal.bat_info.flag.DSG ? "Yes" : "No");
+    log_printf("Fully Charged: %s\n", hal.bat_info.flag.FC ? "Yes" : "No");
+    log_printf("Charging Allowed: %s\n", hal.bat_info.flag.CHG ? "Yes" : "No");
 
-    uart->printf("Update Time: [%06d]\n", hal.bat_info.update_time);
+    log_printf("Update Time: [%06d]\n", hal.bat_info.update_time);
 
-    uart->println("---------------------------------\n");
+    log_printf("---------------------------------\n");
 }
 
 void task_bat_info(void *)
@@ -772,7 +743,7 @@ bool HAL::cheak_firmware_update()
             // 防止缓冲区溢出
             if (index >= file_size * 2)
             {
-                uart->println("缓冲区溢出，证书可能被截断");
+                log_printf("缓冲区溢出，证书可能被截断");
                 break;
             }
         }
@@ -796,7 +767,7 @@ run:
         DynamicJsonDocument doc(2048);
         String http_str = http.getString();
         deserializeJson(doc, http_str);
-        uart->println("正在写入固件版本检查文件...");
+        log_printf("正在写入固件版本检查文件...");
         File f = LittleFS.open("/System/CFU.json", "w");
         f.print(http_str);
         f.close();
@@ -805,12 +776,12 @@ run:
     {
         for (int i = 0; i < 5; i++)
         {
-            uart->println("连接失败，正在重试...");
+            log_printf("连接失败，正在重试...");
             delay(1000);
             httpCode = http.GET();
             if (httpCode != HTTP_CODE_OK)
             {
-                uart->printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
+                log_printf("请求失败，http code: %d, 重试次数: %d\n", httpCode, i + 1);
                 delay(1000); // 等待1秒后重试
             }
             else
@@ -824,6 +795,9 @@ run:
     log_i("结束固件更新状态检查");
     return true;
 }
+
+extern void reinstall_ws_putc2();
+
 /**
  * @brief 检查当前 CPU 频率，若低于指定频率或需要强制设置，则调整为指定频率
  *
@@ -856,6 +830,7 @@ void HAL::cheak_freq(int _freq, bool setfreq)
         uart->begin(pref.getUInt("uart_baud", 115200));
         uart->setDebugOutput(true);
         reinstall_putc2();
+        reinstall_ws_putc2();
         cmd.SetCallback();
         log_i("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
         if (cpuset)
@@ -882,11 +857,11 @@ void HAL::WiFiConfigSmartConfig()
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(500);
-        uart->print(".");
+        log_printf(".");
         ++count;
         if (count >= 240) // 120秒超时
         {
-            uart->println("SmartConfig超时");
+            log_printf("SmartConfig超时\n");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("SmartConfig超时");
@@ -902,7 +877,7 @@ void HAL::WiFiConfigSmartConfig()
     */
     if (WiFi.waitForConnectResult() == WL_CONNECTED)
     {
-        uart->println("WiFi connected");
+        log_printf("WiFi connected\n");
         config[PARAM_SSID] = WiFi.SSID();
         config[PARAM_PASS] = WiFi.psk();
         hal.saveConfig();
@@ -941,7 +916,7 @@ void HAL::WiFiConfigManual()
                 // QRCode qrcode;
                 // uint8_t qrcodeData[qrcode_getBufferSize(7)];
                 qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-                uart->println(qrcode.size);
+                log_printf("QR Code Size: %d\n", qrcode.size);
                 for (uint8_t y = 0; y < qrcode.size; y++)
                 {
                     // Each horizontal module
@@ -974,7 +949,7 @@ void HAL::WiFiConfigManual()
             display.fillScreen(TFT_WHITE);
             display.drawXBitmap(0, 0, wifi_manual_bits, 296, 128, TFT_BLACK);
             qrcode_initText(&qrcode, qrcodeData, 6, 0, str.c_str());
-            uart->println(qrcode.size);
+            log_printf("QR Code Size: %d\n", qrcode.size);
             for (uint8_t y = 0; y < qrcode.size; y++)
             {
                 // Each horizontal module
@@ -993,7 +968,7 @@ void HAL::WiFiConfigManual()
         }
         if (millis() - last_millis > 300000) // 10分钟超时
         {
-            uart->println("手动配置超时");
+            log_printf("手动配置超时\n");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("手动配置超时");
@@ -1094,7 +1069,7 @@ void HAL::ReqWiFiConfig()
     size_request = size_physical - 0x310000;// - 0x1000
     if (hal.pref.getUInt("size", 0) != size_request)
     {
-        uart->println("检测到分区大小不一致，正在格式化");
+        log_println("检测到分区大小不一致，正在格式化");
         hal.pref.putUInt("size", size_request);
         LittleFS.format();
     }
@@ -1116,34 +1091,34 @@ void HAL::ReqWiFiConfig()
     size_request = size_physical - 0x310000;// - 0x1000
     esp_flash_read(esp_flash_default_chip, table, 0x8000, sizeof(table));
     memcpy(partition_size.size_byte, &table[16 * 2 * PARTITION_SPIFFS + 0x8], 4);
-    uart->printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
+    log_printf("当前LittleFS分区大小%d\n期望LittleFS分区大小%d\n", partition_size.size, size_request);
     if (partition_size.size != size_request)
     {
-        uart->printf("正在修改分区表\n");
+        log_printf("正在修改分区表\n");
         partition_size.size = size_request;
         memcpy(&table[16 * 2 * PARTITION_SPIFFS + 0x8], partition_size.size_byte, 4);
-        uart->println("正在计算MD5\n");
+        log_println("正在计算MD5\n");
         esp_rom_md5_update(&ctx, table, 16 * 2 * PARTITION_TOTAL);
         esp_rom_md5_final(&table[16 * (2 * PARTITION_TOTAL + 1)], &ctx);
         esp_flash_set_chip_write_protect(esp_flash_default_chip, false);
-        uart->println("\n正在写入");
+        log_println("\n正在写入");
         if (esp_flash_erase_region(esp_flash_default_chip, 0x8000, 0x1000) != ESP_OK)
         {
-            uart->println("擦除失败");
+            log_println("擦除失败");
             while (1)
                 vTaskDelay(1000);
         }
         if (esp_flash_write(esp_flash_default_chip, table, 0x8000, sizeof(table)) != ESP_OK)
         {
-            uart->println("写入失败");
+            log_println("写入失败");
             while (1)
                 vTaskDelay(1000);
         }
-        uart->println("完成，正在校验结果");
+        log_println("完成，正在校验结果");
         esp_flash_read(esp_flash_default_chip, table1, 0x8000, sizeof(table1));
         if (memcmp(table, table1, sizeof(table)) != 0)
         {
-            uart->println("校验失败");
+            log_println("校验失败");
             while (1)
                 vTaskDelay(1000);
         }
@@ -1151,10 +1126,10 @@ void HAL::ReqWiFiConfig()
         {
             for (size_t i = 0; i < 16 * 12; i++)
             {
-                uart->printf("0x%02X ", table[i]);
+                log_printf("0x%02X ", table[i]);
                 if ((i + 1) % 16 == 0)
                 {
-                    uart->println();
+                    log_println();
                 }
             }
         }
@@ -1406,7 +1381,7 @@ bool HAL::init()
         LittleFS.format();
         if (LittleFS.begin(false) == false)
         {
-            uart->println("LittleFS格式化失败");
+            log_printf("LittleFS格式化失败\n");
             display.fillScreen(TFT_WHITE);
             u8g2Fonts.setCursor(70, 80);
             u8g2Fonts.print("LittleFS格式化失败");
@@ -1453,7 +1428,7 @@ bool HAL::init()
         }
         if (LittleFS.exists("/System/config.json") == false)
         {
-            uart->println("正在写入默认配置");
+            log_printf("正在写入默认配置\n");
             File f = LittleFS.open("/System/config.json", "w");
             f.print(DEFAULT_CONFIG);
             f.close();
@@ -1693,13 +1668,13 @@ static void pre_sleep()
     while (!hal.can_sleep)
     {
         delay(100);
-        uart->printf("\r|");
+        log_printf("\r|");
         delay(100);
-        uart->printf("\r/");
+        log_printf("\r/");
         delay(100);
-        uart->printf("\r-");
+        log_printf("\r-");
         delay(100);
-        uart->printf("\r\\");
+        log_printf("\r\\");
     }
     cmd.end();
     peripherals.sleep();
@@ -1858,22 +1833,22 @@ void HAL::checkNightSleep()
 {
     if (hal.timeinfo.tm_year < (2016 - 1900))
     {
-        uart->println("[夜间模式] 时间错误，直接返回");
+        log_printf("[夜间模式] 时间错误，直接返回\n");
         return;
     }
     if (config[PARAM_SLEEPATNIGHT].as<String>() == "0")
     {
-        uart->println("[夜间模式] 夜间模式已禁用");
+        log_printf("[夜间模式] 夜间模式已禁用\n");
         return;
     }
     if (night_sleep_today == hal.timeinfo.tm_mday)
     {
-        uart->println("[夜间模式] 当天暂时退出夜间模式");
+        log_printf("[夜间模式] 当天暂时退出夜间模式\n");
         return;
     }
     if (hal.timeinfo.tm_year < (2016 - 1900))
     {
-        uart->println("[夜间模式] 时间错误");
+        log_printf("[夜间模式] 时间错误\n");
         night_sleep = 0;
         night_sleep_today = -1;
         return;
@@ -1926,7 +1901,7 @@ void HAL::checkNightSleep()
     // 判断当前屏幕显示
     if (night_sleep != night_sleep_pend)
     {
-        uart->println("[DEBUG] 夜间模式重绘");
+        log_printf("[DEBUG] 夜间模式重绘\n");
         night_sleep = night_sleep_pend;
         display.clearScreen();
         if (night_sleep == 1)

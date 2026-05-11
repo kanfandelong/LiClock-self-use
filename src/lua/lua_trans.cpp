@@ -131,7 +131,7 @@ void openLua_simple()
 {
     if (L)
         return;
-    uart->println("Lua 部分初始化");
+    log_printf("Lua 部分初始化\n");
     L = luaL_newstate();
 }
 
@@ -139,7 +139,7 @@ void openLua()
 {
     if (L)
         return;
-    uart->println("Lua 初始化");
+    log_printf("Lua 初始化\n");
     L = luaL_newstate();
     luaL_openlibs(L);
     lua_pushcfunction(L, common_delay);

@@ -179,7 +179,7 @@ void AppShowTH::setup()
     EnvData *rawData = new EnvData[maxRawData];
     int rawCount = parseDataFile("/System/temp.log", rawData, maxRawData);
 
-    uart->printf("Raw data points: %d\n", rawCount);
+    log_printf("Raw data points: %d\n", rawCount);
     if (rawCount == 0)
     {
         delete[] rawData;
@@ -190,7 +190,7 @@ void AppShowTH::setup()
     EnvData *sampledData = new EnvData[MAX_POINTS];
     int sampledCount = sampleData(rawData, rawCount, sampledData, MAX_POINTS);
 
-    uart->printf("Sampled data points: %d\n", sampledCount);
+    log_printf("Sampled data points: %d\n", sampledCount);
 
     // 绘制图表
     drawGraph(sampledData, sampledCount);

@@ -52,7 +52,7 @@ void AppIna219::setup()
     Wire1.setClock(400000);
     if (!ina219.begin(&Wire1))
     {
-        uart->println("Failed to find INA219 chip");
+        log_printf("Failed to find INA219 chip\n");
         GUI::info_msgbox("警告", "无法初始化INA219...");
         delay(1000);
         return;

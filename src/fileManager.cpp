@@ -298,8 +298,8 @@ namespace GUI
         entries[0].title = "..";
         while (1)
         {
-            uart->print("[文件浏览] 当前工作目录：");
-            uart->println(cwd);
+            log_printf("[文件浏览] 当前工作目录：");
+            log_printf("%s\n", cwd.c_str());
             // 首先清除
             for (int i = 1; i < total_entries; ++i)
             {
@@ -371,18 +371,18 @@ namespace GUI
                 {
                     if (isDir)
                     {
-                        uart->printf("\033[36m%s\033[0m\n", name);
+                        log_printf("\033[36m%s\033[0m\n", name);
                     }
                     else
                     {
                         // 检查扩展名是否为 ".lua"
                         if (extLen == 3 && strcmp(ext, "lua") == 0)
                         {
-                            uart->printf("\033[32m%s\033[0m\n", name);
+                            log_printf("\033[32m%s\033[0m\n", name);
                         }
                         else
                         {
-                            uart->println(name);
+                            log_printf("%s\n", name);
                         }
                     }
                 }

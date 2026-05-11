@@ -49,8 +49,8 @@ void drawDPPQRCode(const char *str)
     QRCode qrcode;
     uint8_t qrcodeData[qrcode_getBufferSize(7)];
     qrcode_initText(&qrcode, qrcodeData, 6, 0, str);
-    uart->println(qrcode.size);
-    uart->println(str);
+    log_printf("QR Code size: %d\n", qrcode.size);
+    log_printf("QR Code data: %s\n", str);
     for (uint8_t y = 0; y < qrcode.size; y++)
     {
         // Each horizontal module

@@ -110,7 +110,7 @@ static bool login()
             GUI::msgbox("错误", "二维码生成失败，请联系开发者");
             return false;
         }
-        uart->println(Response);
+        log_printf("Response: %s\n", Response.c_str());
         ArduinoJson::deserializeJson(doc, Response);
         obj = doc.as<JsonObject>();
 
@@ -120,7 +120,7 @@ static bool login()
         QRCode qrcode;
         uint8_t qrcodeData[qrcode_getBufferSize(7)];
         qrcode_initText(&qrcode, qrcodeData, 6, 0, URL.c_str());
-        uart->println(qrcode.size);
+        log_printf("QRCode size: %d\n", qrcode.size);
         for (uint8_t y = 0; y < qrcode.size; y++)
         {
             // Each horizontal module
@@ -132,11 +132,11 @@ static bool login()
         display.display();
         while (millis() - millisStart < 180000)
         {
-            uart->print(".");
+            log_printf(".");
             HTTPClient http;
             if (hal.btnl.isPressing())
             {
-                uart->println("cancel");
+                log_printf("cancel\n");
                 goto err;
             }
             vTaskDelay(1000);
@@ -152,8 +152,8 @@ static bool login()
                 }
                 else
                 {
-                    uart->println(code);//307
-                    uart->println(http.header("Location"));
+                    log_printf("HTTP Code: %d\n", code);
+                    log_printf("Location: %s\n", http.header("Location").c_str());
                 }
             }
 
@@ -166,7 +166,7 @@ static bool login()
                 Cookies = Response.substring(Response.indexOf("?") + 1);
                 Cookies.replace("&", ";");
                 http.end();
-                uart->println("ok");
+                log_printf("ok\n");
                 goto scaned;
             }
             else
@@ -179,7 +179,7 @@ static bool login()
                 }
                 else if (obj["data"]["code"] == 86090)
                 {
-                    uart->print("*");
+                    log_printf("*");
                 }
             }
             http.end();
@@ -215,7 +215,7 @@ static void updateInfo()
     if (obj["code"] != 0)
     {
         // 获取消息数失败
-        uart->println(Response);
+        log_printf("Response: %s\n", Response.c_str());
         GUI::msgbox("错误", "获取消息数失败");
         return;
     }
@@ -227,7 +227,7 @@ static void updateInfo()
     if (obj["code"] != 0)
     {
         // 获取私信数失败
-        uart->println(Response);
+        log_printf("Response: %s\n", Response.c_str());
         GUI::msgbox("错误", "获取私信数失败");
         return;
     }
@@ -241,7 +241,7 @@ static void updateInfo()
     if (obj["code"] != 0)
     {
         // 获取关注数失败
-        uart->println(Response);
+        log_printf("Response: %s\n", Response.c_str());
         GUI::msgbox("错误", "获取粉丝数失败");
         return;
     }

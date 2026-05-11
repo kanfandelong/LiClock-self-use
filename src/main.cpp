@@ -79,7 +79,7 @@ void setup()
 
     alarms.load();
     alarms.check();
-    uart->printf("当前CPU频率：%lu\n", ESP.getCpuFreqMHz());
+    log_printf("当前CPU频率：%lu\n", ESP.getCpuFreqMHz());
     log_i("启动appManager...");
     xTaskCreatePinnedToCore(task_appManager, "appManager", 8192, NULL, 4, NULL, 1);
     if (hal.pref.getInt("oobe", 0) <= 2)

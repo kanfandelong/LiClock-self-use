@@ -108,7 +108,7 @@ namespace GUI
         int16_t val2_int = val2;
         int16_t tmp = val1_int + val2_int;
         int16_t out = 0;
-        // uart->print("val1_int:" + String(val1_int)); uart->print(" val2_int:" + String(val2_int)); uart->println(" tmp:" + String(tmp));
+        // log_print("val1_int:" + String(val1_int)); log_print(" val2_int:" + String(val2_int)); log_println(" tmp:" + String(tmp));
         if (tmp > 255)
             return 255;
         else if (tmp < 0)
@@ -1780,7 +1780,7 @@ namespace GUI
         uint8_t *img = (uint8_t *)malloc(imgsize);
         if (!img)
         {
-            uart->printf("malloc failed!\n");
+            log_printf("malloc failed!\n");
             fclose(fp);
             return;
         }
@@ -1876,7 +1876,7 @@ namespace GUI
         uint8_t *img = (uint8_t *)malloc(imgsize);
         if (!img)
         {
-            uart->printf("malloc failed!\n");
+            log_printf("malloc failed!\n");
             fclose(fp);
             return;
         }
@@ -2049,10 +2049,8 @@ namespace GUI
             uint16_t depth = read16(file);        // 每像素位数
             uint32_t format = read32(file);       // 格式
 
-            uart->print("width0:");
-            uart->println(width);
-            uart->print("height0:");
-            uart->println(height);
+            log_printf("width0: %d\n", width);
+            log_printf("height0: %d\n", height);
 
             // 检测图片大小 设置方向
             /*if (width <= display.width() && height > display.height())
@@ -2062,13 +2060,13 @@ namespace GUI
             if (width > max_row_width)
             {
                 msgbox("错误", "图片width过大，应小于等于500");
-                uart->print("错误：图片width过大，应小于等于500\n");
+                log_printf("错误：图片width过大，应小于等于500\n");
                 return;
             }
             else if (height > max_row_width)
             {
                 msgbox("错误", "图片height过大，应小于等于500");
-                uart->print("错误：图片height过大，应小于等于500\n");
+                log_printf("错误：图片height过大，应小于等于500\n");
                 return;
             }
 
@@ -2079,11 +2077,11 @@ namespace GUI
             boolean ddxhFirst = 1; // 抖动循环的首次状态
             uint16_t yrow1 = 0;    // Y轴移位
             uint16_t yrow_old = 0; // 绘制像素点时 初始Y轴存储
-            // uart->print("depth:"); uart->println(depth);
+            // log_print("depth:"); log_println(depth);
             if (depth >= 32)
             {
                 msgbox("错误", "不支持32位深度的图片");
-                uart->print("不支持32位深度的图片\n");
+                log_printf("不支持32位深度的图片\n");
                 return;
             }
             if ((planes == 1) && ((format == 0) || (format == 3))) // 处理未压缩，565同样
@@ -2114,8 +2112,7 @@ namespace GUI
                         with_color = false;
                     if (depth <= 8) // 8位颜色及以下使用调色板,如不使用有些图会翻转颜色
                     {
-                        uart->print("depth:");
-                        uart->print(depth);
+                        log_printf("depth: %d\n", depth);
                         if (depth < 8)
                             bitmask >>= depth;
                         // file.seek(54); //调色板始终 @ 54
@@ -2226,7 +2223,7 @@ namespace GUI
                                     }
 
                                     uint16_t yrow = y + (flip ? h - row - 1 : row);
-                                    // uart->print("x + col:" + String(x + col)); uart->println(" yrow:" + String(yrow));
+                                    // log_print("x + col:" + String(x + col)); log_println(" yrow:" + String(yrow));
                                     if (depth == 1) // 位深为1位，直接绘制
                                     {
                                         if (whitish)
@@ -2261,7 +2258,7 @@ namespace GUI
                                                 else if (flip == 0 && yrow == (height - 1))
                                                     y_max0 = yrow1;
 
-                                                // uart->print("y_max0："); uart->println(y_max0);
+                                                // log_print("y_max0："); log_println(y_max0);
                                                 yrow1 = 2; // Y轴进位回到第3行，012
 
                                                 for (uint16_t y = 0; y <= y_max0; y++) // height width
@@ -2305,16 +2302,16 @@ namespace GUI
                                                     y_max1 = yrow_old + 1;
                                                 else if (flip == 0 && yrow == (height - 1))
                                                     y_max1 = height - yrow_old;
-                                                // uart->print("yrow:"); uart->println(yrow);
+                                                // log_print("yrow:"); log_println(yrow);
                                                 for (uint16_t y = 0; y < y_max1; y++)
                                                 {
                                                     for (uint16_t x = 0; x < w; x++) // width 修补 w
                                                     {
-                                                        /*uart->print("x:" + String(x));
-                                                          uart->print(" y:" + String(y));
-                                                          uart->println(" bmp8:" + String(bmp8[x][y]));*/
+                                                        /*log_print("x:" + String(x));
+                                                          log_print(" y:" + String(y));
+                                                          log_println(" bmp8:" + String(bmp8[x][y]));*/
                                                         /*if (yrow_old > 110) {
-                                                          uart->print("yrow_old:"); uart->println(yrow_old);
+                                                          log_print("yrow_old:"); log_println(yrow_old);
                                                           }*/
                                                         display.drawPixel(x, yrow_old, bmp8[x][y]);
                                                     }
@@ -2339,7 +2336,7 @@ namespace GUI
                         } while (false);
                     display.display();
                     // display.powerOff(); // 为仅关闭电源
-                    uart->println("图像显示完毕");
+                    log_printf("图像显示完毕");
                 }
             }
         }
@@ -2347,7 +2344,7 @@ namespace GUI
         if (!valid)
         {
             msgbox("警告", "发生未知错误");
-            uart->print("发生未知错误\n");
+            log_printf("发生未知错误\n");
             return;
         }
     }
@@ -2369,10 +2366,8 @@ namespace GUI
 
         // 获取jpeg的宽度和高度（以像素为单位）
         TJpgDec.getFsJpgSize(&jpgWidth, &jpgHeight, name, fs);
-        uart->print("jpgWidth = ");
-        uart->print(jpgWidth);
-        uart->print(", jpgHeight = ");
-        uart->println(jpgHeight);
+        log_printf("jpgWidth = %d\n", jpgWidth);
+        log_printf("jpgHeight = %d\n", jpgHeight);
 
         // 设置屏幕方向
         // display.setRotation(ScreenOrientation); // 用户方向
@@ -2395,8 +2390,7 @@ namespace GUI
             scale = 8; // 至多8倍缩放
         TJpgDec.setJpgScale(scale);
 
-        uart->print("scale:");
-        uart->println(scale);
+        log_printf("scale: %d\n", scale);
 
         // 重新计算缩放后的长宽
         jpgWidth = jpgWidth / scale;
@@ -2408,10 +2402,8 @@ namespace GUI
         // 自动居中
         int32_t x_center = (display.width() / 2) - (jpgWidth / 2);
         int32_t y_center = (display.height() / 2) - (jpgHeight / 2);
-        uart->print("x_center:");
-        uart->println(x_center);
-        uart->print("y_center:");
-        uart->println(y_center);
+        log_printf("x_center: %d\n", x_center);
+        log_printf("y_center: %d\n", y_center);
 
         // display.init(0, 0, 10, 1);
         // // display.setFullWindow();
@@ -2445,8 +2437,7 @@ namespace GUI
                 sprintf(buf, "文件%s\n错误原因:%s", name.c_str(), str.c_str());
                 msgbox("JPG解码库错误", buf);
             }
-            uart->println("error:" + String(error) + " " + str);
-            uart->println("");
+            log_printf("error: %d %s\n", error, str.c_str());
         } while (false);
 
         display.display(); // 关闭屏幕电源
@@ -2459,11 +2450,11 @@ namespace GUI
     int16_t y_start; // 绘制像素点的y轴坐标初始值记录
     bool epd_output(int16_t x, int16_t y, uint16_t w, uint16_t h, uint8_t *bitmap)
     {
-        // uart->print("x:"); uart->println(x);
-        // uart->print("y:"); uart->println(y);
-        // uart->print("w:"); uart->println(w);
-        // uart->print("h:"); uart->println(h);
-        //  uart->println(" ");
+        // log_print("x:"); log_println(x);
+        // log_print("y:"); log_println(y);
+        // log_print("w:"); log_println(w);
+        // log_print("h:"); log_println(h);
+        //  log_println(" ");
 
         yield();
         // 绘制像素点的 x y从哪里开始

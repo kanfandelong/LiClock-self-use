@@ -27,16 +27,25 @@ extern "C" void lua_printf(const char *format, ...)
 {
     va_list argptr;
     va_start(argptr, format);
-    char str[1024];
-    vsprintf(str, format, argptr);
+    char str[2][1024];
+    vsprintf(str[0], format, argptr);
     if (wsRunning)
     {
-        ws.textAll(str);
-        ws.textAll("\r\n");
+        struct timeval tv;
+        struct tm timeinfo;
+        gettimeofday(&tv, NULL);
+        localtime_r(&tv.tv_sec, &timeinfo);
+        snprintf(str[1], sizeof(str[1]), "(%02d:%02d:%02d.%03ld) [LUA]: %s\r\n",
+                timeinfo.tm_hour,
+                timeinfo.tm_min,
+                timeinfo.tm_sec,
+                tv.tv_usec / 1000,
+                str[0]);
+        ws.textAll(str[1]);
     }
     else
     {
-        log_i("%s", str);
+        log_i("%s", str[0]);
     }
     va_end(argptr);
 }
@@ -191,7 +200,7 @@ bool myxcopy(const String path, const String newpath)
         filenames.pop_back();
         if (!root)
         {
-            uart->println("[文件] 无法打开目录");
+            log_printf("[文件] 无法打开目录\n");
             continue;
         }
         LittleFS.mkdir(tmp);
@@ -215,7 +224,7 @@ bool myxcopy(const String path, const String newpath)
                 if (!newFile)
                 {
                     // 打开失败
-                    uart->println("无法写入文件");
+                    log_printf("无法写入文件\n");
                     file.close();
                     root.close();
                     return false;
@@ -261,7 +270,7 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         if (info->final && info->index == 0 && info->len == len)
         {
             // the whole message is in a single frame and we got all of it's data
-            // uart->printf("ws[%u]", client->id());
+            // log_printf("ws[%u]", client->id());
             if (info->opcode == WS_TEXT)
             {
                 /*
@@ -426,9 +435,9 @@ void beginFileServer(bool for_TF)
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
-        uart->println("Error setting up MDNS responder!");
+        log_printf("Error setting up MDNS responder!\n");
 
-    uart->println("File Server started");
+    log_printf("File Server started\n");
     serverRunning = true;
     hal.can_sleep = false;
 }
@@ -575,7 +584,7 @@ void beginWebServer()
 
     server.on("/conf", HTTP_POST, [](AsyncWebServerRequest *request)
               {
-                uart->println(request->getParam("json", true, false)->value());
+                log_printf("%s\n", request->getParam("json", true, false)->value().c_str());
                                 deserializeJson(config, request->getParam(0)->value());
                                 request->send(200, "text/plain", "OK");
                                 hal.saveConfig(); });
@@ -662,8 +671,8 @@ void beginWebServer()
     if (mdns)
         MDNS.addService("http", "tcp", 80);
     else
-        uart->println("Error setting up MDNS responder!");
-    uart->println("HTTP server started");
+        log_printf("Error setting up MDNS responder!\n");
+    log_printf("HTTP server started\n");
     serverRunning = true;
     hal.can_sleep = false;
 }

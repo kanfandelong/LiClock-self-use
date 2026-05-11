@@ -132,21 +132,21 @@ int truetypeClass::readTableDirectory(int checkCheckSum)
   this->table = (ttTable_t *)malloc(sizeof(ttTable_t) * numTables);
 
   file.seek(tablePos);
-  // uart->println("---table list---");
+  // log_println("---table list---");
   for (int i = 0; i < numTables; i++)
   {
     for (int j = 0; j < 4; j++)
     {
       this->table[i].name[j] = this->getUInt8t();
-      // uart->printf("%c", table[i].name[j]);
+      // log_printf("%c", table[i].name[j]);
     }
     this->table[i].name[4] = '\0';
     this->table[i].checkSum = this->getUInt32t();
     this->table[i].offset = this->getUInt32t();
     this->table[i].length = this->getUInt32t();
 
-    // uart->printf("--%X", table[i].offset);
-    // uart->println();
+    // log_printf("--%X", table[i].offset);
+    // log_println();
   }
 
   if (checkCheckSum)
@@ -317,7 +317,7 @@ uint8_t truetypeClass::readKern()
 
   if (this->seekToTable("kern") == 0)
   {
-    // uart->println("kern not found");
+    // log_println("kern not found");
     return 0;
   }
 
@@ -392,7 +392,7 @@ uint8_t truetypeClass::readHMetric()
 {
   if (this->seekToTable("hmtx") == 0)
   {
-    // uart->println("hmtx not found");
+    // log_println("hmtx not found");
     return 0;
   }
 
@@ -595,7 +595,7 @@ uint8_t truetypeClass::readCompoundGlyph()
 
   glyph.numberOfContours = 0;
 
-  // uart->println("---CompoundGlyph---");
+  // log_println("---CompoundGlyph---");
 
   do
   {
@@ -626,9 +626,9 @@ uint8_t truetypeClass::readCompoundGlyph()
       this->charCode = glyphIndex;
     }
 
-    // uart->printf("--%d: flag: 0x%04X index: %4d\n", numberOfGlyphs, flags, glyphIndex);
-    // uart->printf("dx: %3d, dy: %3d\n", this->glyphTransformation.dx, this->glyphTransformation.dy);
-    // uart->printf("Scaling: %d\n", this->glyphTransformation.enableScale);
+    // log_printf("--%d: flag: 0x%04X index: %4d\n", numberOfGlyphs, flags, glyphIndex);
+    // log_printf("dx: %3d, dy: %3d\n", this->glyphTransformation.dx, this->glyphTransformation.dy);
+    // log_printf("Scaling: %d\n", this->glyphTransformation.enableScale);
 
     offset = file.position();
 
@@ -715,10 +715,10 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t _width)
   {
     uint8_t firstPointOfContour = j;
     uint8_t lastPointOfContour = glyph.endPtsOfContours[i];
-    // uart->print("---Contour--- ");
-    // uart->print(j);
-    // uart->print(" , ");
-    // uart->println(lastPointOfContour);
+    // log_print("---Contour--- ");
+    // log_print(j);
+    // log_print(" , ");
+    // log_println(lastPointOfContour);
 
     // Rotate to on-curve the first point
     uint16_t numberOfRotations = 0;
@@ -747,7 +747,7 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t _width)
     {
       ttCoordinate_t pointsOfCurve[4];
 
-      // uart->printf("%3d 0x%02X %5d %5d  - deg - ", j, glyph.points[j].flag, glyph.points[j].x, glyph.points[j].y);
+      // log_printf("%3d 0x%02X %5d %5d  - deg - ", j, glyph.points[j].flag, glyph.points[j].x, glyph.points[j].y);
 
       // Examine the number of dimensions of a curve
       pointsOfCurve[0].x = glyph.points[j].x;
@@ -756,7 +756,7 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t _width)
       uint8_t degree = 1;
       while (searchPoint != j)
       {
-        // uart->printf("%5d 0x%02X %5d %5d  - ", searchPoint, glyph.points[searchPoint].flag, glyph.points[searchPoint].x, glyph.points[searchPoint].y);
+        // log_printf("%5d 0x%02X %5d %5d  - ", searchPoint, glyph.points[searchPoint].flag, glyph.points[searchPoint].x, glyph.points[searchPoint].y);
         if (degree < 4)
         {
           pointsOfCurve[degree].x = glyph.points[searchPoint].x;
@@ -770,7 +770,7 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t _width)
         degree++;
       }
 
-      // uart->printf(" ---- degree: %5d ", degree);
+      // log_printf(" ---- degree: %5d ", degree);
       // Replace Bezier curves of 4 dimensions or more with straight lines
       if (degree >= 4)
       {
@@ -836,10 +836,10 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t _width)
       }
       j += degree;
     }
-    // uart->println(this->numPoints);
+    // log_println(this->numPoints);
     this->addEndPoint(this->numPoints - 1);
     this->addBeginPoint(this->numPoints);
-    // uart->println("---Contour end---");
+    // log_println("---Contour end---");
   }
   return;
 }
@@ -847,7 +847,7 @@ void truetypeClass::generateOutline(int16_t _x, int16_t _y, uint16_t _width)
 /* Bresenham's line algorithm */
 void truetypeClass::addLine(int16_t _x0, int16_t _y0, int16_t _x1, int16_t _y1)
 {
-  // uart->printf("addLine(%3d, %3d) -> (%3d, %3d)\n", _x0, _y0, _x1, _y1);
+  // log_printf("addLine(%3d, %3d) -> (%3d, %3d)\n", _x0, _y0, _x1, _y1);
   uint16_t dx = abs(_x1 - _x0);
   uint16_t dy = abs(_y1 - _y0);
   int16_t sx, sy, err, e2;
@@ -1062,12 +1062,12 @@ void truetypeClass::_textDraw(int16_t _x, int16_t _y, const wchar_t _character[]
       c++;
       continue;
     }
-    // uart->printf("%c\n", _character[c]);
+    // log_printf("%c\n", _character[c]);
 
     this->charCode = this->codeToGlyphId(_character[c]);
-    // uart->printf("code:%4d\n", this->charCode);
+    // log_printf("code:%4d\n", this->charCode);
     this->readGlyph(this->charCode);
-    // uart->println(glyph.numberOfContours);
+    // log_println(glyph.numberOfContours);
 
     _x += this->characterSpace;
     if (prev_code != 0 && this->kerningOn)
@@ -1115,7 +1115,7 @@ void truetypeClass::_textDraw(int16_t _x, int16_t _y, const wchar_t _character[]
     this->freePointsAll();
     this->freeGlyph();
 
-    // uart->println("---done");
+    // log_println("---done");
     _x += (hMetric.advanceWidth) ? (hMetric.advanceWidth) : (width);
     c++;
   }

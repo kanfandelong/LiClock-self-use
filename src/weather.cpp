@@ -77,7 +77,7 @@ int8_t Weather::refresh()
     http.addHeader("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36");
 
     hal.autoConnectWiFi();
-    uart->println("开始更新天气");
+    log_printf("开始更新天气\n");
     int httpCode = http.GET();
 
     if (httpCode == HTTP_CODE_OK)
@@ -138,7 +138,7 @@ int8_t Weather::refresh()
         for (uint8_t i = 0; i < 4; ++i)
         {
             dateStr = doc["result"]["daily"]["temperature"][i]["date"].as<const char*>();
-            uart->println(dateStr ? dateStr : "error");
+            log_printf("%s\n", dateStr ? dateStr : "error");
             // F_LOG(dateStr ? dateStr : "error");
             five_days[i].max = int16_t(doc["result"]["daily"]["temperature"][i]["max"].as<float>() * 10);
             five_days[i].min = int16_t(doc["result"]["daily"]["temperature"][i]["min"].as<float>() * 10);

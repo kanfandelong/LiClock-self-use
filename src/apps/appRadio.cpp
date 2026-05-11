@@ -160,7 +160,7 @@ void AppRadio::setup()
         rda.setSeekThreshold(50);    // Sets RSSI Seek Threshold (0 to 127)
     }
     rssi = rda.getRssi();
-    uart->printf("frequency: %d, rssi: %d, volume: %d\n", frequency, rssi, volume);
+    log_printf("frequency: %d, rssi: %d, volume: %d\n", frequency, rssi, volume);
     drawRadioUI(true);
     bool end = false;
     while (!end)

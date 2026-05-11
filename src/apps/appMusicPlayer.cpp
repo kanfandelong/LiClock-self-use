@@ -2709,7 +2709,7 @@ void AppMusicPlayer::show_display_vlbm()
         img = (uint8_t *)malloc(imgsize);
         if (!img)
         {
-            uart->printf("malloc failed!\n");
+            log_printf("malloc failed!\n");
             fclose(fp);
             img = NULL;
             return;

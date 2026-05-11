@@ -42,7 +42,7 @@ void AppDemoAHT20::setup()
         sprintf(buf, "温度: %g ℃\n相对湿度：%g% rH\n当前为SHT30传感器", peripherals.sht.getTemperature(), peripherals.sht.getHumidity());
     }
 
-    uart->println(buf);
+    log_printf("%s\n", buf);
     GUI::msgbox("传感器信息", buf);
     appManager.goBack();
 }

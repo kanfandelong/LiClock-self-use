@@ -138,7 +138,7 @@ void distanceCalculationTask(void *parameter)
             }
             else if (millis() - signalLostTime > signalLostThreshold)
             {
-                // uart->println("GPS signal lost for too long, using speed estimation.");
+                // log_println("GPS signal lost for too long, using speed estimation.");
                 isRunning = false; // 暂停正常距离计算，启用速度预估
             }
 
@@ -161,11 +161,11 @@ void distanceCalculationTask(void *parameter)
                 previousLat = estimatedLat;
                 previousLng = estimatedLng;
 
-                // uart->print("Estimated Distance: ");
-                // uart->print(calculatedDistance, 6);
-                // uart->print(" km, Total Distance: ");
-                // uart->print(totalDistance, 6);
-                // uart->println(" km");
+                // log_print("Estimated Distance: ");
+                // log_print(calculatedDistance, 6);
+                // log_print(" km, Total Distance: ");
+                // log_print(totalDistance, 6);
+                // log_println(" km");
             }
         }
         else
@@ -174,7 +174,7 @@ void distanceCalculationTask(void *parameter)
             {
                 gpsSignalLost = false;
                 isRunning = true; // 恢复正常距离计算
-                                  // uart->println("GPS signal restored!");
+                                  // log_println("GPS signal restored!");
             }
 
             // 如果任务正在运行，计算距离
@@ -187,11 +187,11 @@ void distanceCalculationTask(void *parameter)
                 {
                     double distance = app.calculateDistance(previousLat, previousLng, currentLat, currentLng);
                     totalDistance += distance;
-                    //   uart->print("Distance: ");
-                    //   uart->print(distance, 6);
-                    //   uart->print(" km, Total Distance: ");
-                    //   uart->print(totalDistance, 6);
-                    //   uart->println(" km");
+                    //   log_print("Distance: ");
+                    //   log_print(distance, 6);
+                    //   log_print(" km, Total Distance: ");
+                    //   log_print(totalDistance, 6);
+                    //   log_println(" km");
                 }
 
                 // 更新上一个点的经纬度

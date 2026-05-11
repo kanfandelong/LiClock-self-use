@@ -28,7 +28,7 @@
 
 #include "A_Config.h"
 
-#define chip_report_printf uart->printf
+#define chip_report_printf log_printf
 #define ARDUINO_HOST_OS "Windows10 x64 22H2 19045.6466"
 
 #define printMemCapsInfo(caps) _printMemCapsInfo(MALLOC_CAP_##caps, #caps)

@@ -422,7 +422,7 @@ void AppSettings::menu_network()
             File configFile = LittleFS.open(wifi_config_file);
             if (!configFile)
             {
-                uart->println("Failed to open file for reading");
+                log_printf("Failed to open file for reading\n");
             }
 
             StaticJsonDocument<1024> wifi_list;
@@ -494,7 +494,7 @@ void AppSettings::menu_network()
                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00};
             WiFi.mode(WIFI_STA);
             hal.searchWiFi();
-            uart->printf("搜索到的个数:%d", hal.numNetworks);
+            log_printf("搜索到的个数:%d", hal.numNetworks);
             char winfo[hal.numNetworks][64];
             int rssis[hal.numNetworks];
             char _ssid[hal.numNetworks][64];
@@ -668,7 +668,7 @@ void AppSettings::menu_network()
                 QRCode qrcode;
                 uint8_t qrcodeData[qrcode_getBufferSize(7)];
                 qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-                uart->println(qrcode.size);
+                log_printf("%u\n", qrcode.size);
                 for (uint8_t y = 0; y < qrcode.size; y++)
                 {
                     // Each horizontal module
@@ -736,7 +736,7 @@ void AppSettings::menu_network()
             QRCode qrcode;
             uint8_t qrcodeData[qrcode_getBufferSize(7)];
             qrcode_initText(&qrcode, qrcodeData, 6, 2, str.c_str());
-            uart->println(qrcode.size);
+            log_printf("%u\n", qrcode.size);
             for (uint8_t y = 0; y < qrcode.size; y++)
             {
                 // Each horizontal module
@@ -786,8 +786,8 @@ void AppSettings::menu_network()
             uint8_t qrcodeData[2][qrcode_getBufferSize(7)];
             qrcode_initText(&qrcode1, qrcodeData[0], 6, 2, str1.c_str());
             qrcode_initText(&qrcode2, qrcodeData[1], 6, 2, str2.c_str());
-            uart->println(qrcode1.size);
-            uart->println(qrcode2.size);
+            log_printf("%u\n", qrcode1.size);
+            log_printf("%u\n", qrcode2.size);
             for (uint8_t y = 0; y < qrcode1.size; y++)
             {
                 // Each horizontal module
@@ -1123,13 +1123,13 @@ void AppSettings::menu_peripherals()
             {
                 config[TFmode] = "1";
                 hal.saveConfig();
-                uart->printf("修改TF卡电源控制,当卸载后才断电");
+                log_printf("修改TF卡电源控制,当卸载后才断电");
             }
             else
             {
                 config[TFmode] = "0";
                 hal.saveConfig();
-                uart->printf("修改TF卡电源控制,休眠后就断电");
+                log_printf("修改TF卡电源控制,休眠后就断电");
             }
             break;
         case 5:
@@ -1265,7 +1265,7 @@ void AppSettings::menu_system()
                 AppBase *tmp = appManager.appSelector(true);
                 if (tmp)
                 {
-                    uart->println(tmp->name);
+                    log_printf("%s\n", tmp->name);
                     if (GUI::msgbox_yn("警告", "选择不兼容的App可能会导致无法进入菜单，是否确认？") == true)
                     {
                         if (strcmp(tmp->name, "clock") == 0)
@@ -1386,15 +1386,15 @@ void AppSettings::menu_system()
             {
                 bool cpuset = setCpuFrequencyMhz(new_freq);
                 uart->begin(115200);
-                uart->printf("CpuFreq: %dMHZ -> %dMHZ ......", freq, new_freq);
+                log_printf("CpuFreq: %dMHZ -> %dMHZ ......", freq, new_freq);
                 if (cpuset)
                 {
-                    uart->print("ok\n");
+                    log_printf("ok\n");
                     GUI::msgbox("提示", "频率修改成功");
                 }
                 else
                 {
-                    uart->print("err\n");
+                    log_printf("err\n");
                     GUI::msgbox("错误", "频率未能修改");
                     log_e("CPU频率修改失败,设置的值:%d", new_freq);
                 }
@@ -1435,7 +1435,7 @@ void AppSettings::menu_system()
             bool file_true = true;
             if (!cfufile)
             {
-                uart->println("Failed to open cfu file");
+                log_printf("Failed to open cfu file\n");
                 file_true = false;
             }
             deserializeJson(cfu, cfufile);
@@ -1510,7 +1510,7 @@ void AppSettings::menu_system()
                 }
                 else
                 {
-                    uart->printf("备份成功，大小：%d字节\n", written);
+                    log_printf("备份成功，大小：%d字节\n", written);
                     GUI::info_msgbox("操作成功", "已创建备份文件nvs.bin");
                 }
             }
@@ -1844,7 +1844,7 @@ void AppSettings::menu_DS3231()
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
             sprintf(buf, "20%d年%d月%d日 星期%d %d:%d:%d", Srtc.getYear(), Srtc.getMonth(), Srtc.getDate(), Srtc.getDoW(), Srtc.getHour(), Srtc.getMinute(), Srtc.getSecond());
             xSemaphoreGive(peripherals.i2cMutex);
-            uart->println(buf);
+            log_printf("%s\n", buf);
             GUI::msgbox("DS3231时间", buf);
         }
         break;

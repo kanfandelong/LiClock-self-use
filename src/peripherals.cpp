@@ -50,7 +50,7 @@ void Peripherals::check()
     }
     xSemaphoreGive(i2cMutex);
     log_i("Peripherals check OK: 0x%02x", i2cbitmask);
-    uart->println(msg);
+    log_printf("检测到的外设:\n%s", msg.c_str());
     GUI::msgbox("检测到的外设", msg.c_str(), 5);
     i2cbitmask |= PERIPHERALS_SD_BIT;
     hal.pref.putUShort(SETTINGS_PARAM_PHERIPHERAL_BITMASK, i2cbitmask);
@@ -76,15 +76,15 @@ void Peripherals::initSGP()
     {
         if (!sgp.begin(&Wire, false))
         {
-            uart->println("Sensor not found :(");
+            log_printf("Sensor not found :(\n");
             xSemaphoreGive(i2cMutex);
             check();
             return;
         }
-        uart->print("Found SGP30 serial #");
-        uart->print(sgp.serialnumber[0], HEX);
-        uart->print(sgp.serialnumber[1], HEX);
-        uart->println(sgp.serialnumber[2], HEX);
+        log_printf("Found SGP30 serial #");
+        log_printf(" %02X", sgp.serialnumber[0]);
+        log_printf(" %02X", sgp.serialnumber[1]);
+        log_printf(" %02X\n", sgp.serialnumber[2]);
         sgpInited = true;
     }
 }
@@ -260,7 +260,7 @@ void Peripherals::sleep()
             gpio_hold_dis((gpio_num_t)PIN_SDVDD_CTRL);
             digitalWrite(PIN_SDVDD_CTRL, 1);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
-            uart->printf("[外设] 卸载并关闭TF卡供电\n");
+            log_printf("[外设] 卸载并关闭TF卡供电\n");
             // F_LOG("卸载并关闭TF卡供电");
         }else if((peripherals_load & PERIPHERALS_SD_BIT) && digitalRead(PIN_SD_CARDDETECT) != LOW){
             log_w("[外设] TF卡不存在，无需卸载");
@@ -276,7 +276,7 @@ void Peripherals::sleep()
             digitalWrite(PIN_SDVDD_CTRL, 0);
             gpio_hold_en((gpio_num_t)PIN_SDVDD_CTRL);
             //gpio_deep_sleep_hold_en();
-            uart->printf("[外设] 卸载并保持TF卡供电\n");
+            log_printf("[外设] 卸载并保持TF卡供电\n");
             // F_LOG("卸载并保持TF卡供电");
         }else if((peripherals_load & PERIPHERALS_SD_BIT) && digitalRead(PIN_SD_CARDDETECT) != LOW){
             log_w("[外设] TF卡不存在，无需卸载");

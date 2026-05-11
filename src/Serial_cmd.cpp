@@ -3,15 +3,36 @@
 #include "chip-debug-report.h"
 #include <cstring>
 
-extern SPIClass SDSPI;
-CMD cmd;
-bool stop_fileserver = false;
-static TaskHandle_t console_task_handle = NULL;
-extern bool serverRunning;
-extern QueueHandle_t multi_thread_queue;
-
 // Forward declaration for custom hint lookup
 static const char *find_cmd_hint(const char *cmdName);
+static void on_wifi_task(void *pvParameters);
+static TaskHandle_t console_task_handle = NULL;
+extern QueueHandle_t multi_thread_queue;
+bool stop_fileserver = false;
+extern bool serverRunning;
+CMD cmd;
+
+// ============ 新增头文件 ============
+#include <AsyncWebSocket.h>
+#include <ESPAsyncWebServer.h>
+#include "rom/ets_sys.h" // ets_install_putc2 (如果还没包含)
+#include <atomic>
+
+// ===================== WebSocket 控制台配置 =====================
+#define WS_LOG_RING_SIZE (32 * 1024) // 32 KB 环形缓冲区，必须是 2 的 N 次幂
+#define WS_CMD_QUEUE_SIZE 4
+#define WS_CMD_MAX_LEN 512 // 单条命令最大长度
+
+// ===================== WebSocket 控制台全局变量 =====================
+static AsyncWebServer *wsServer = nullptr;
+static AsyncWebSocket *wsSocket = nullptr;
+static char *wsRingBuf = nullptr;
+static std::atomic<uint32_t> wsWriteIdx{0};
+static std::atomic<uint32_t> wsReadIdx{0};
+static TaskHandle_t wsSenderTaskHandle = nullptr;
+static TaskHandle_t wsCmdTaskHandle = nullptr;
+static QueueHandle_t wsCmdQueue = nullptr;
+static bool wsConsoleActive = false;
 
 // 任务函数
 static void console_task(void *pvParameters)
@@ -50,7 +71,7 @@ static void console_task(void *pvParameters)
                         {
                             // Show the hint as normal info (no error prefix)
                             ERROR_COLOR;
-                            uart->printf("%s\n", hint_str);
+                            log_printf("%s\n", hint_str);
                             RESET_COLOR;
                         }
                     }
@@ -152,7 +173,7 @@ void CMD::begin()
     register_commands();
 
     // 创建控制台任务
-    xTaskCreatePinnedToCore(console_task, "console_task", 8192, NULL, 4, &console_task_handle, 1);
+    xTaskCreatePinnedToCore(console_task, "console_task", 8192, NULL, 5, &console_task_handle, 1);
 #ifndef USE_CDC
     uart->onReceive(serialRxCallback, true);
 #endif
@@ -196,6 +217,355 @@ void CMD::end()
 // 0: 命令成功
 // 1: 命令参数错误
 // 2: 命令执行失败
+
+// ===================== putc2 钩子（ISR 安全） =====================
+static void IRAM_ATTR ws_putc2(char c)
+{
+    if (!wsRingBuf || !wsConsoleActive)
+        return;
+
+    uint32_t w = wsWriteIdx.load(std::memory_order_relaxed);
+    uint32_t next = (w + 1) & (WS_LOG_RING_SIZE - 1);
+
+    if (next == wsReadIdx.load(std::memory_order_acquire))
+    {
+        return; // 缓冲区满，丢弃
+    }
+    wsRingBuf[w] = c;
+    wsWriteIdx.store(next, std::memory_order_release);
+
+    // 每写入一个换行就通知发送任务（ISR 安全）
+    if (c == '\n' && wsSenderTaskHandle)
+    {
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        vTaskNotifyGiveFromISR(wsSenderTaskHandle, &xHigherPriorityTaskWoken);
+        if (xHigherPriorityTaskWoken)
+        {
+            portYIELD_FROM_ISR();
+        }
+    }
+}
+
+void reinstall_ws_putc2()
+{
+    if (wsConsoleActive)
+        ets_install_putc2(ws_putc2);
+}
+
+// ===================== 日志发送任务 =====================
+static void ws_sender_task(void *param)
+{
+    String line;
+    TickType_t lastSendTick = xTaskGetTickCount(); // 上一次发送时间戳（用于残留行超时）
+
+    while (wsConsoleActive)
+    {
+        // 等待通知（换行到来）或 200ms 超时
+        uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(200));
+
+        // 读取环形缓冲区中所有可读字符
+        uint32_t r = wsReadIdx.load(std::memory_order_relaxed);
+        uint32_t w = wsWriteIdx.load(std::memory_order_acquire);
+        while (r != w)
+        {
+            char c = wsRingBuf[r];
+            r = (r + 1) & (WS_LOG_RING_SIZE - 1);
+
+            if (c == '\n')
+            {
+                // 完整行：发送当前累积的行
+                if (wsSocket && wsSocket->count() > 0)
+                {
+                    wsSocket->textAll(line);
+                }
+                line = "";
+                lastSendTick = xTaskGetTickCount(); // 更新时间戳
+            }
+            else
+            {
+                line += c;
+            }
+        }
+        wsReadIdx.store(r, std::memory_order_release);
+
+        // 若一行长时间没有换行符，超时后强制发送残留部分
+        if (line.length() > 0)
+        {
+            TickType_t now = xTaskGetTickCount();
+            if ((now - lastSendTick) >= pdMS_TO_TICKS(200))
+            {
+                if (wsSocket && wsSocket->count() > 0)
+                {
+                    wsSocket->textAll(line);
+                }
+                line = "";
+                lastSendTick = now;
+            }
+        }
+    }
+
+    // 任务退出前，发送最后可能残留的行
+    if (line.length() > 0 && wsSocket && wsSocket->count() > 0)
+    {
+        wsSocket->textAll(line);
+    }
+    vTaskDelete(nullptr);
+}
+
+// ===================== 命令处理任务 =====================
+static void ws_cmd_task(void *param)
+{
+    char cmdBuf[WS_CMD_MAX_LEN];
+    while (wsConsoleActive)
+    {
+        if (xQueueReceive(wsCmdQueue, cmdBuf, portMAX_DELAY) == pdTRUE)
+        {
+            int ret;
+            esp_err_t err = esp_console_run(cmdBuf, &ret);
+            if (err == ESP_ERR_NOT_FOUND)
+            {
+                log_e("Command not found: %s", cmdBuf);
+            }
+            else if (err == ESP_OK)
+            {
+                if (ret == 1)
+                {
+                    log_e("Parameter error for: %s", cmdBuf);
+                }
+                else if (ret == 2)
+                {
+                    log_e("Command execution failed: %s", cmdBuf);
+                }
+            }
+            else
+            {
+                log_e("Error executing '%s': %s", cmdBuf, esp_err_to_name(err));
+            }
+        }
+    }
+    vTaskDelete(nullptr);
+}
+
+// ===================== WebSocket 事件处理 =====================
+static void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
+                      AwsEventType type, void *arg, uint8_t *data, size_t len)
+{
+    if (type == WS_EVT_CONNECT)
+    {
+        log_i("WS console client connected: %u", client->id());
+    }
+    else if (type == WS_EVT_DISCONNECT)
+    {
+        log_i("WS console client disconnected: %u", client->id());
+    }
+    else if (type == WS_EVT_DATA)
+    {
+        AwsFrameInfo *info = (AwsFrameInfo *)arg;
+        if (info->opcode == WS_TEXT)
+        {
+            // 构造命令字符串
+            String msg;
+            msg.reserve(len + 1);
+            memcpy(msg.begin(), (char *)data, len);
+            msg.begin()[len] = '\0';
+
+            if (wsCmdQueue && msg.length() < WS_CMD_MAX_LEN)
+            {
+                char cmd[WS_CMD_MAX_LEN];
+                strncpy(cmd, msg.c_str(), sizeof(cmd));
+                cmd[sizeof(cmd) - 1] = '\0';
+                xQueueSend(wsCmdQueue, cmd, 0);
+            }
+        }
+    }
+}
+
+// ===================== wsconsole 命令实现 =====================
+static int cmd_wsconsole(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        PRINT_INFO("WebSocket console is %s", wsConsoleActive ? "RUNNING" : "STOPPED");
+        return 0;
+    }
+
+    const char *action = argv[1];
+
+    if (strcmp(action, "start") == 0)
+    {
+        if (wsConsoleActive)
+        {
+            PRINT_ERROR("WebSocket console already running");
+            return 2;
+        }
+        if (!WiFi.isConnected())
+        {
+            xTaskCreatePinnedToCore(on_wifi_task, "on_wifi_task", 8192, NULL, 1, NULL, 0);
+
+            unsigned long start = millis();
+            const unsigned long timeout = 30000; // 30 秒超时
+            while (!WiFi.isConnected() && (millis() - start) < timeout)
+            {
+                delay(100);
+                log_printf("\r|");
+                delay(100);
+                log_printf("\r/");
+                delay(100);
+                log_printf("\r-");
+                delay(100);
+                log_printf("\r\\");
+            }
+
+            if (!WiFi.isConnected())
+            {
+                PRINT_ERROR("WiFi connection timeout!");
+                return 2;
+            }
+            log_printf("\r\n"); // 清除旋转动画
+            PRINT_INFO("WiFi connected.");
+        }
+        // 1. 挂起串口控制台（避免并发执行 esp_console_run）
+        // cmd.stop();
+
+        // 2. 分配环形缓冲区
+        wsRingBuf = (char *)heap_caps_malloc(WS_LOG_RING_SIZE, MALLOC_CAP_SPIRAM);
+        if (!wsRingBuf)
+        {
+            wsRingBuf = (char *)malloc(WS_LOG_RING_SIZE);
+            if (!wsRingBuf)
+            {
+                PRINT_ERROR("Failed to allocate WS ring buffer");
+                cmd.run(); // 恢复串口
+                return 2;
+            }
+            PRINT_WARNING("PSRAM allocation failed, using internal DRAM for WS ring");
+        }
+        wsWriteIdx = 0;
+        wsReadIdx = 0;
+
+        // 3. 启动 WebSocket 服务器
+        wsServer = new AsyncWebServer(81);
+        wsSocket = new AsyncWebSocket("/ws");
+        wsSocket->onEvent(onWsEvent);
+        wsServer->addHandler(wsSocket);
+        wsServer->on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+                     {
+            const char *buildTime = __DATE__ " " __TIME__ " GMT";
+                  if (request->header("If-Modified-Since").equals(buildTime))
+                  {
+                      request->send(304);
+                  }
+                  else
+                  {
+                    if (LittleFS.exists("/System/console.html.gz")) {
+                        File file = LittleFS.open("/System/console.html.gz", "r");
+                        time_t lastWrite = file.getLastWrite(); // 获取UTC时间戳
+                        file.close();
+                  
+                        struct tm tm;
+                        gmtime_r(&lastWrite, &tm); // 转换为GMT时间结构
+                        
+                        char timeStr[64];
+                        strftime(timeStr, sizeof(timeStr), "%a, %d %b %Y %H:%M:%S GMT", &tm);
+                        buildTime = timeStr;
+                        AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/System/console.html.gz", "text/html", false);
+                        response->addHeader("Content-Encoding", "gzip");
+                        response->addHeader("Last-Modified", buildTime);
+                        request->send(response);
+                    }
+                    else
+                        request->send(404, "text/plain", "file not found");
+                  } });
+        wsServer->begin();
+        PRINT_INFO("WebSocket server started on port 81, path /ws");
+
+        // 4. 创建命令队列
+        wsCmdQueue = xQueueCreate(WS_CMD_QUEUE_SIZE, WS_CMD_MAX_LEN);
+        if (!wsCmdQueue)
+        {
+            PRINT_ERROR("Failed to create command queue");
+            delete wsSocket;
+            wsSocket = nullptr;
+            delete wsServer;
+            wsServer = nullptr;
+            free(wsRingBuf);
+            wsRingBuf = nullptr;
+            return 2;
+        }
+
+        // 5. 安装 putc2 钩子，并标记为活跃
+        ets_install_putc2(ws_putc2);
+        wsConsoleActive = true;
+
+        // 6. 创建日志发送和命令处理任务
+        xTaskCreatePinnedToCore(ws_sender_task, "ws_sender", 4096, nullptr, 2, &wsSenderTaskHandle, 1);
+        xTaskCreatePinnedToCore(ws_cmd_task, "ws_cmd", 4096, nullptr, 3, &wsCmdTaskHandle, 1);
+
+        PRINT_SUCCESS("WebSocket console started. Connect to ws://<IP>:81/ws");
+        return 0;
+    }
+    else if (strcmp(action, "stop") == 0)
+    {
+        if (!wsConsoleActive)
+        {
+            PRINT_ERROR("WebSocket console is not running");
+            return 2;
+        }
+
+        // 1. 卸载 WS 钩子并通知任务退出
+        ets_install_putc2(nullptr);
+        wsConsoleActive = false;
+
+        // 2. 等待任务结束
+        if (wsSenderTaskHandle)
+        {
+            while (eTaskGetState(wsSenderTaskHandle) != eDeleted)
+            {
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
+            wsSenderTaskHandle = nullptr;
+        }
+        if (wsCmdTaskHandle)
+        {
+            while (eTaskGetState(wsCmdTaskHandle) != eDeleted)
+            {
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
+            wsCmdTaskHandle = nullptr;
+        }
+
+        // 3. 释放资源
+        if (wsCmdQueue)
+        {
+            vQueueDelete(wsCmdQueue);
+            wsCmdQueue = nullptr;
+        }
+        if (wsSocket)
+        {
+            wsSocket->closeAll();
+            delete wsSocket;
+            wsSocket = nullptr;
+        }
+        if (wsServer)
+        {
+            wsServer->end();
+            delete wsServer;
+            wsServer = nullptr;
+        }
+        free(wsRingBuf);
+        wsRingBuf = nullptr;
+
+        // 4. 恢复原有的 putc2 钩子（根据文件日志配置）
+        reinstall_putc2();
+
+        PRINT_SUCCESS("WebSocket console stopped, serial console restored");
+        return 0;
+    }
+    else
+    {
+        return 1; // 参数错误，自动显示帮助
+    }
+}
 
 static int cmd_cpufreq(int argc, char **argv)
 {
@@ -1952,6 +2322,11 @@ static const esp_console_cmd_t cmds[] = {
                                                                             "  -bit: optional bit position (0-31)\n"
                                                                             "  value: for -w: full register value, or 0/1 when -bit is used",
      .func = &cmd_espreg,
+     .argtable = NULL},
+    {.command = "wsconsole",
+     .help = "Start/stop WebSocket console (port 81)",
+     .hint = "Usage: wsconsole <start|stop>",
+     .func = &cmd_wsconsole,
      .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 

@@ -114,7 +114,7 @@ static void appebook_exit()
     }
     // hal.pref.putInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, currentPage);
     app.ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
-    uart->printf("退出电子书，当前页：%d\n", currentPage);
+    log_printf("退出电子书，当前页：%d\n", currentPage);
     currentPage = -1;
     ebook_run = false;
 }
@@ -387,7 +387,7 @@ bool AppEBook::indexcode_1()
     indexFileHandle = fopen(indexname.c_str(), "wb");
     if (indexFileHandle == NULL)
     {
-        uart->println("打开索引文件失败");
+        log_printf("打开索引文件失败\n");
         GUI::msgbox("打开索引文件失败", indexname.c_str());
         return false;
     }
@@ -399,7 +399,7 @@ bool AppEBook::indexcode_1()
     // 检查是否为 BOM 头
     if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
     {
-        uart->println("File starts with UTF-8 BOM");
+        log_printf("File starts with UTF-8 BOM\n");
         fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
     }
     else
@@ -564,7 +564,7 @@ bool AppEBook::indexcode_2()
     indexFileHandle = fopen(indexname.c_str(), "wb");
     if (indexFileHandle == NULL)
     {
-        uart->println("打开索引文件失败");
+        log_printf("打开索引文件失败\n");
         GUI::msgbox("打开索引文件失败", indexname.c_str());
         return false;
     }
@@ -576,7 +576,7 @@ bool AppEBook::indexcode_2()
     // 检查是否为 BOM 头
     if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
     {
-        uart->println("File starts with UTF-8 BOM");
+        log_printf("File starts with UTF-8 BOM\n");
         fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
     }
     else
@@ -1142,8 +1142,8 @@ bool AppEBook::indexcode_3()
 
     indexesFile = hal.open(indexesName, "r", true);
     uint32_t indexes_size = indexesFile.size();
-    // uart->print("yswz_count：");
-    // uart->println(yswz_count);
+    // log_print("yswz_count：");
+    // log_println(yswz_count);
     log_i("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 2));
     log_i("索引文件大小：%lu", indexes_size);
 
@@ -1304,9 +1304,9 @@ bool AppEBook::indexcode_ttf()
                 log_i("文件名称：%s 索引进度：%0.2f%%", currentFilename, shengyu_float);
                 last = millis();
             }
-            // uart->println("写入索引文件");
+            // log_println("写入索引文件");
             // }
-            // uart->print("第"); uart->print(pageCount); uart->print("页，页首位置："); uart->println(yswz_uint32);
+            // log_print("第"); log_print(pageCount); log_print("页，页首位置："); log_println(yswz_uint32);
         }
 
         c = txtFile.read();                          // 读取一个字节
@@ -1490,8 +1490,8 @@ bool AppEBook::indexcode_ttf()
 
     indexesFile = hal.open(indexesName, "r", true);
     uint32_t indexes_size = indexesFile.size();
-    // uart->print("yswz_count：");
-    // uart->println(yswz_count);
+    // log_print("yswz_count：");
+    // log_println(yswz_count);
     log_i("pageCount：%lu 预期大小：%lu", pageCount, 4 * ((pageCount - 1) + 1));
     log_i("索引文件大小：%lu", indexes_size);
 
@@ -1693,12 +1693,12 @@ bool AppEBook::gotoPage(uint32_t page)
         {
             // uint32_t gbwz = 0;    // 计算上一页的页首位置
             // String gbwz_str = ""; // 光标位置String
-            // uart->print("当前页1："); uart->println(pageCurrent);
+            // log_print("当前页1："); log_println(pageCurrent);
             // 计算上一页的页首位置
             // 因为第一页不需要记录所以要减1，因为我要的是上一页所以再减1
             // gbwz = (page + 1) * 7 - 7;
             // gbwz = (page + 1) * 4 - 4;
-            // uart->print("gbwz："); uart->println(gbwz);
+            // log_print("gbwz："); log_println(gbwz);
             // 打开索引，寻找上一页的页首位置
             indexesFile.seek((page - 1) * 4, SeekSet);
             // 获取索引的数据
@@ -1763,7 +1763,7 @@ bool AppEBook::draw_page1()
         // 检查是否为 BOM 头
         if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
         {
-            uart->println("File starts with UTF-8 BOM");
+            log_printf("File starts with UTF-8 BOM\n");
             fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
         }
         else
@@ -1908,7 +1908,7 @@ bool AppEBook::draw_page2()
     // 检查是否为 BOM 头
     if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
     {
-        uart->println("File starts with UTF-8 BOM");
+        log_printf("File starts with UTF-8 BOM\n");
         fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
     }
     else
@@ -1967,7 +1967,7 @@ bool AppEBook::draw_page2()
             }
             else
             {
-                uart->println("非预期的UTF8编码");
+                log_printf("非预期的UTF8编码\n");
                 log_w("绘制文本时索引错误，可能文件非UTF-8编码");
                 return false;
                 break;
@@ -2158,19 +2158,19 @@ bool AppEBook::draw_page3()
 
         /*if (line == 4)
           {
-          uart->println("");
-          uart->println(txt[line]);
-          uart->print("ch_count:"); uart->println(ch_count);
-          uart->print("en_count:"); uart->println(en_count);
-          uart->print("预计像素长度:"); uart->println(StringLength);
-          uart->print("实际像素长度:"); uart->println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+          log_println("");
+          log_println(txt[line]);
+          log_print("ch_count:"); log_println(ch_count);
+          log_print("en_count:"); log_println(en_count);
+          log_print("预计像素长度:"); log_println(StringLength);
+          log_print("实际像素长度:"); log_println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
         if (StringLength >= (mode ? vertical_x - 11 : max_x - 11)) // 检查是否已填满屏幕 283
         {
-            // uart->println("");
-            // uart->print("行"); uart->print(line); uart->print(" 预计像素长度:"); uart->println(StringLength);
-            // uart->print("行"); uart->print(line); uart->print(" 实际像素长度:"); uart->println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+            // log_println("");
+            // log_print("行"); log_print(line); log_print(" 预计像素长度:"); log_println(StringLength);
+            // log_print("行"); log_print(line); log_print(" 实际像素长度:"); log_println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
             if (asciiState == 0) // 最后一个字符是中文，直接换行
             {
                 line++;
@@ -2183,10 +2183,10 @@ bool AppEBook::draw_page3()
                 txtFile.seek(-1, SeekCur); // 往回移
                 int8_t cz = (mode ? 168 : 378) - StringLength;
                 int8_t t_length = getCharLength(t);
-                /*uart->print("字符t:"); uart->println(t);
-                  uart->print("字符t:"); uart->println(t, HEX);
-                  uart->print("t长度:"); uart->println(t_length);
-                  uart->print("差值:"); uart->println(cz);*/
+                /*log_print("字符t:"); log_println(t);
+                  log_print("字符t:"); log_println(t, HEX);
+                  log_print("t长度:"); log_println(t_length);
+                  log_print("差值:"); log_println(cz);*/
                 byte a = B11100000;
                 byte b = t & a;
                 if (b == B11100000 || b == B11000000) // 中文 ascii扩展
@@ -2194,19 +2194,19 @@ bool AppEBook::draw_page3()
                     line++;
                     en_count = 0;
                     ch_count = 0;
-                    // uart->println("测试2");
+                    // log_println("测试2");
                 }
                 else if (t_length > cz)
                 {
                     line++;
                     en_count = 0;
                     ch_count = 0;
-                    // uart->println("测试3");
+                    // log_println("测试3");
                 }
             }
         }
     }
-    // for (uint8_t i = 0; i < 8; i++) uart->println(txt[i]); //串口输出内容
+    // for (uint8_t i = 0; i < 8; i++) log_println(txt[i]); //串口输出内容
     display.swapBuffer(3);
 
     if (mode)
@@ -2504,19 +2504,19 @@ begin:
 
         /*if (line == 4)
           {
-          uart->println("");
-          uart->println(txt[line]);
-          uart->print("ch_count:"); uart->println(ch_count);
-          uart->print("en_count:"); uart->println(en_count);
-          uart->print("预计像素长度:"); uart->println(StringLength);
-          uart->print("实际像素长度:"); uart->println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+          log_println("");
+          log_println(txt[line]);
+          log_print("ch_count:"); log_println(ch_count);
+          log_print("en_count:"); log_println(en_count);
+          log_print("预计像素长度:"); log_println(StringLength);
+          log_print("实际像素长度:"); log_println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
         if (StringLength >= (mode ? vertical_x - 11 : max_x - 11)) // 检查是否已填满屏幕 283
         {
-            // uart->println("");
-            // uart->print("行"); uart->print(line); uart->print(" 预计像素长度:"); uart->println(StringLength);
-            // uart->print("行"); uart->print(line); uart->print(" 实际像素长度:"); uart->println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+            // log_println("");
+            // log_print("行"); log_print(line); log_print(" 预计像素长度:"); log_println(StringLength);
+            // log_print("行"); log_print(line); log_print(" 实际像素长度:"); log_println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
             if (asciiState == 0) // 最后一个字符是中文，直接换行
             {
                 line++;
@@ -2529,10 +2529,10 @@ begin:
                 txtFile.seek(-1, SeekCur); // 往回移
                 int8_t cz = (mode ? 168 : 378) - StringLength;
                 int8_t t_length = getCharLength(t);
-                /*uart->print("字符t:"); uart->println(t);
-                  uart->print("字符t:"); uart->println(t, HEX);
-                  uart->print("t长度:"); uart->println(t_length);
-                  uart->print("差值:"); uart->println(cz);*/
+                /*log_print("字符t:"); log_println(t);
+                  log_print("字符t:"); log_println(t, HEX);
+                  log_print("t长度:"); log_println(t_length);
+                  log_print("差值:"); log_println(cz);*/
                 byte a = B11100000;
                 byte b = t & a;
                 if (b == B11100000 || b == B11000000) // 中文 ascii扩展
@@ -2540,14 +2540,14 @@ begin:
                     line++;
                     en_count = 0;
                     ch_count = 0;
-                    // uart->println("测试2");
+                    // log_println("测试2");
                 }
                 else if (t_length > cz)
                 {
                     line++;
                     en_count = 0;
                     ch_count = 0;
-                    // uart->println("测试3");
+                    // log_println("测试3");
                 }
             }
         }
