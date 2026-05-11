@@ -265,11 +265,14 @@ namespace GUI
      */
     int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h, int default_selected)
     {
-        constexpr int start_x = (MAX_X - 200) / 2;
-        constexpr int start_y = (MAX_Y - 111) / 2; // 200*96
-        constexpr int number_of_items = 6;
-        constexpr int item_height = (96) / number_of_items; // 16
-        constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
+        constexpr int w = 260;
+        constexpr int h = 128;
+        constexpr int max_h = h + 15;
+        constexpr int item_height = 16;
+        constexpr int start_x = (MAX_X - w) / 2;
+        constexpr int start_y = (MAX_Y - max_h) / 2;
+        constexpr int item_width = w - 5 - 5 - 5;        // 右侧滚动条
+        constexpr int number_of_items = h / item_height; // 每页显示的项目数
         int total = 0;
         bool hasIcon = false;
         bool init = false;
@@ -382,8 +385,8 @@ namespace GUI
                     // 计算当前矩形 Y 坐标（线性插值）
                     int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
                     // 绘制窗口背景和标题
-                    drawWindowsWithTitle(title, start_x, start_y, 200, 111);
-                    display.setDrawWindow(start_x, start_y + 14, 198, 111 - 16);
+                    drawWindowsWithTitle(title, start_x, start_y, w, max_h);
+                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
                     // 绘制项目列表
                     int max_items = min(number_of_items, total);
                     for (int i = 0; i < max_items; ++i)
@@ -395,13 +398,13 @@ namespace GUI
                         }
                         u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
 
-                        display.drawRoundRect(start_x + 3, cur_y_rect, 195 - 6, 15, 3, 0);
+                        display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
                     }
                     // 滚动条
                     if (total > number_of_items)
                     {
-                        barPos = selected * (96 - barHeight) / total;
-                        display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
+                        barPos = selected * (h - barHeight) / total;
+                        display.fillRoundRect(start_x + w - 5 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
                     display.display();
                     xTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -714,13 +717,16 @@ namespace GUI
      */
     int select_menu(const char *title, const menu_select options[], int default_selected)
     {
-        uint8_t ico_h = 12, ico_w = 12;
-        constexpr int start_x = (MAX_X - 200) / 2;
-        constexpr int start_y = (MAX_Y - 111) / 2; // 200*96
-        constexpr int number_of_items = 6;
-        constexpr int item_height = (96) / number_of_items; // 16
-        constexpr int item_width = 200 - 5 - 5 - 5;         // 右侧滚动条
-        int pageStart = 0;                                  // 屏幕顶部第一个
+        constexpr uint8_t ico_h = 12, ico_w = 12;
+        constexpr int w = 260;
+        constexpr int h = 128;
+        constexpr int max_h = h + 15;
+        constexpr int item_height = 16;
+        constexpr int start_x = (MAX_X - w) / 2;
+        constexpr int start_y = (MAX_Y - max_h) / 2;
+        constexpr int item_width = w - 5 - 5 - 5;        // 右侧滚动条
+        constexpr int number_of_items = h / item_height; // 每页显示的项目数
+        int pageStart = 0;                               // 屏幕顶部第一个
         int selected = 0;
         int total = 0;
         int barHeight;
@@ -740,7 +746,7 @@ namespace GUI
         char sha_option_key[total][16];
         uint8_t temp[32];
         char hex_hash[65]; // 64 字节的十六进制字符串 + 1 字节的 null 终止符
-        barHeight = number_of_items * 96 / total;
+        barHeight = number_of_items * h / total;
         hal.hookButton(true);
         push_buffer();
         // 通过sha256为每一个选项生成一个key，以便存储
@@ -868,8 +874,8 @@ namespace GUI
                     // 计算当前矩形 Y 坐标（线性插值）
                     int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
                     // 绘制窗口背景和标题
-                    drawWindowsWithTitle(title, start_x, start_y, 200, 111);
-                    display.setDrawWindow(start_x, start_y + 14, 198, 111 - 16);
+                    drawWindowsWithTitle(title, start_x, start_y, w, max_h);
+                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
                     // 绘制项目列表
                     int max_items = min(number_of_items, total);
                     for (int i = 0; i < max_items; ++i)
@@ -894,13 +900,13 @@ namespace GUI
                         }
                         u8g2Fonts.drawUTF8(start_x + 5 + (options[i + pageStart].select ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
 
-                        display.drawRoundRect(start_x + 3, cur_y_rect, 195 - 6, 15, 3, 0);
+                        display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
                     }
                     // 滚动条
                     if (total > number_of_items)
                     {
-                        barPos = selected * (96 - barHeight) / total;
-                        display.fillRoundRect(start_x + 195 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
+                        barPos = selected * (h - barHeight) / total;
+                        display.fillRoundRect(start_x + w - 5 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
                     display.display();
                     xTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -934,227 +940,302 @@ namespace GUI
         return selected;
     }
 
-    const int KEY_WIDTH = 26;
-    const int KEY_HEIGHT = 17;
-
-    const char da[5][11] = {
-        {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '<'}, // '<' 表示删除键
-        {'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '='},
-        {'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '.', '^'},
-        {'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '~', '_', '+'},
-        {'!', '^', '*', '(', ')', ':', '\'', '"', '?', '/', '-'}};
-    const char xiao[5][11] = {
-        {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '<'}, // '<' 表示删除键
-        {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '='},
-        {'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', '.', 'v'},
-        {'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '~', '_', '+'},
-        {'!', '^', '*', '(', ')', ':', '\'', '"', '?', '/', '-'}};
-
-    const int numRows = 5;  // 按键行数
-    const int numCols = 11; // 按键列数
-    bool uppercase = false; // 是否大写状态
     /**
-     * @brief  键盘绘制函数
-     * @param selectedRow 选中的行
-     * @param selectedCol 选中的列
+     * @brief  全屏英文输入
+     * @param name 输入框标题
+     * @return char* 输入的字符串（需要调用者负责释放内存）
      */
-    void drawKeyboard(int selectedRow, int selectedCol)
+    char *englishInput(const char *name)
     {
-        // display.clearScreen();
+        // ================= 布局常量 (384×168) =================
+        constexpr int WIN_W = 364;
+        constexpr int WIN_H = 158;
+        constexpr int start_x = (MAX_X - WIN_W) / 2;
+        constexpr int start_y = (MAX_Y - WIN_H) / 2;
 
-        u8g2Fonts.setFont(u8g2_font_9x15_me);
-        u8g2Fonts.setFontMode(1);
-        u8g2Fonts.setForegroundColor(TFT_BLACK);
-        u8g2Fonts.setBackgroundColor(TFT_WHITE);
-        // 绘制键盘
-        display.drawRect(0, 0, 296, 43, TFT_BLACK);
+        constexpr int TITLE_H = 15;
+        constexpr int INPUT_H = 32;
+        constexpr int KEYBOARD_Y = start_y + TITLE_H + INPUT_H;
+        constexpr int KEYBOARD_H = WIN_H - TITLE_H - INPUT_H;
 
-        // 绘制键盘
-        for (int row = 0; row < numRows; row++)
+        constexpr int KEY_COLS = 11, KEY_ROWS = 5;
+        constexpr int KEY_W = WIN_W / KEY_COLS;
+        constexpr int KEY_H = KEYBOARD_H / KEY_ROWS;
+        constexpr int KEYBOARD_X = start_x + (WIN_W - KEY_W * KEY_COLS) / 2;
+
+        // 字符映射表
+        const char keymap_lower[KEY_ROWS][KEY_COLS] = {
+            {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '<'},
+            {'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '='},
+            {'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', '.', '^'},
+            {'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '~', '_', '+'},
+            {'!', '(', ')', ':', '\'', '"', '?', '/', '-', ' ', ' '}};
+        const char keymap_upper[KEY_ROWS][KEY_COLS] = {
+            {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '<'},
+            {'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '='},
+            {'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', '.', '^'},
+            {'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '~', '_', '+'},
+            {'!', '(', ')', ':', '\'', '"', '?', '/', '-', ' ', ' '}};
+
+        // ================= 按键事件队列 =================
+        enum class KeyEvent : uint8_t
         {
-            for (int col = 0; col < numCols; col++)
+            LEFT = 1,
+            RIGHT,
+            OK,
+            LEFT_REPEAT,
+            RIGHT_REPEAT // 新增长按连续移动事件
+        };
+
+        static QueueHandle_t keyQueue = nullptr;
+        keyQueue = xQueueCreate(16, sizeof(KeyEvent));
+        if (!keyQueue)
+            return nullptr;
+
+        // 统一按键回调（带 void* 参数）
+        auto onInputEvent = [](void *param)
+        {
+            KeyEvent ev = static_cast<KeyEvent>(reinterpret_cast<uintptr_t>(param));
+            xQueueSend(keyQueue, &ev, 0);
+        };
+
+        // ---------- 注册短按与长按重复事件 ----------
+        // 左键：短按 LEFT，长按连续 LEFT_REPEAT
+        hal.btnl.attachClick(onInputEvent, reinterpret_cast<void *>(KeyEvent::LEFT));
+        hal.btnl.attachDuringLongPress(onInputEvent, reinterpret_cast<void *>(KeyEvent::LEFT_REPEAT));
+        hal.btnl.setLongPressIntervalMs(100); // 长按重复间隔 120ms
+
+        // 右键：短按 RIGHT，长按连续 RIGHT_REPEAT
+        hal.btnr.attachClick(onInputEvent, reinterpret_cast<void *>(KeyEvent::RIGHT));
+        hal.btnr.attachDuringLongPress(onInputEvent, reinterpret_cast<void *>(KeyEvent::RIGHT_REPEAT));
+        hal.btnr.setLongPressIntervalMs(100);
+
+        // 中键：仅短按 OK
+        hal.btnc.attachClick(onInputEvent, reinterpret_cast<void *>(KeyEvent::OK));
+
+        // ================= 动态状态 =================
+        char *inputBuffer = (char *)heap_caps_malloc(512, MALLOC_CAP_8BIT);
+        memset(inputBuffer, 0, 128);
+        int cursor = 0;
+        int selRow = 0, selCol = 0;
+        bool uppercase = false;
+        bool exitFlag = false;
+        bool needRedrawKeyboard = true;
+
+        // ================= 多缓冲区 =================
+        enum
+        {
+            BUF_BACKGROUND = 0,
+            BUF_WORK = 1,
+            BUF_KEYBOARD = 2
+        };
+
+        display.copyBuffer(BUF_BACKGROUND, display.current_buffer_idx);
+        display.swapBuffer(BUF_WORK);
+
+        // ---------- 静态键盘底图绘制函数 ----------
+        auto drawKeyboardBase = [&]()
+        {
+            display.swapBuffer(BUF_KEYBOARD);
+            drawWindowsWithTitle(name, start_x, start_y, WIN_W, WIN_H);
+            display.setDrawWindow(start_x, start_y + TITLE_H, WIN_W, WIN_H - TITLE_H);
+
+            for (int r = 0; r < KEY_ROWS; ++r)
             {
-                int x = col * KEY_WIDTH;
-                int y = 43 + (row * KEY_HEIGHT); // 键盘从文本框下方开始
+                for (int c = 0; c < KEY_COLS; ++c)
+                {
+                    int kx = KEYBOARD_X + c * KEY_W;
+                    int ky = KEYBOARD_Y + r * KEY_H;
+                    display.drawRoundRect(kx, ky, KEY_W, KEY_H, 3, 0);
+                    display.fillRoundRect(kx + 1, ky + 1, KEY_W - 2, KEY_H - 2, 2, 1);
 
-                display.drawRect(x, y, KEY_WIDTH, KEY_HEIGHT, TFT_BLACK);
+                    u8g2Fonts.setForegroundColor(0);
+                    u8g2Fonts.setBackgroundColor(1);
 
-                if (row == selectedRow && col == selectedCol)
-                {
-                    display.fillRect(x + 1, y + 1, KEY_WIDTH - 2, KEY_HEIGHT - 2, TFT_BLACK);
-                    u8g2Fonts.setForegroundColor(TFT_WHITE);
-                    u8g2Fonts.setBackgroundColor(TFT_BLACK);
-                }
-                else
-                {
-                    display.fillRect(x + 1, y + 1, KEY_WIDTH - 2, KEY_HEIGHT - 2, TFT_WHITE);
-                    u8g2Fonts.setForegroundColor(TFT_BLACK);
-                    u8g2Fonts.setBackgroundColor(TFT_WHITE);
-                }
+                    int centerX = kx + KEY_W / 2;
+                    int centerY = ky + KEY_H / 2 + 5;
 
-                u8g2Fonts.setCursor(x + 3, y + 15); // 控制文本位置
-                char key;
-                if (uppercase == false)
-                {
-                    key = xiao[row][col];
+                    if (r == 1 && c == 10)
+                    { // OK
+                        const char *label = "OK";
+                        u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width(label) / 2, centerY);
+                        u8g2Fonts.print(label);
+                    }
+                    else if (r == 0 && c == 10)
+                    { // Del
+                        const char *label = "Del";
+                        u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width(label) / 2, centerY);
+                        u8g2Fonts.print(label);
+                    }
+                    else if (r == 2 && c == 10)
+                    { // Aa/aa
+                        const char *label = uppercase ? "Aa" : "aa";
+                        u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width(label) / 2, centerY);
+                        u8g2Fonts.print(label);
+                    }
+                    else
+                    { // 普通字符
+                        char ch = uppercase ? keymap_upper[r][c] : keymap_lower[r][c];
+                        u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width(String(ch).c_str()) / 2, centerY);
+                        u8g2Fonts.print(ch);
+                    }
                 }
-                else
+            }
+            display.swapBuffer(BUF_WORK);
+            needRedrawKeyboard = false;
+        };
+
+        drawKeyboardBase();
+
+        // ================= 主循环 =================
+        TickType_t xLastWakeTime = xTaskGetTickCount();
+        const TickType_t xFrequency = pdMS_TO_TICKS(20);
+
+        while (!exitFlag)
+        {
+            KeyEvent ev;
+            while (xQueueReceive(keyQueue, &ev, 0) == pdTRUE)
+            {
+                switch (ev)
                 {
-                    key = da[row][col];
-                }
-                if (key == '=')
-                {
-                    u8g2Fonts.print("OK");
-                }
-                else if (key == '|')
-                {
-                    if (uppercase == false)
+                // ---- 短按 / 长按重复：统一移动逻辑 ----
+                case KeyEvent::LEFT:
+                case KeyEvent::LEFT_REPEAT:
+                    if (selCol > 0)
+                        --selCol;
+                    else if (selRow > 0)
                     {
-                        u8g2Fonts.print("v");
+                        --selRow;
+                        selCol = KEY_COLS - 1;
                     }
                     else
                     {
-                        u8g2Fonts.print("^");
+                        selRow = KEY_ROWS - 1;
+                        selCol = KEY_COLS - 1;
                     }
-                }
-                else
-                {
-                    if (uppercase)
+                    break;
+
+                case KeyEvent::RIGHT:
+                case KeyEvent::RIGHT_REPEAT:
+                    if (selCol < KEY_COLS - 1)
+                        ++selCol;
+                    else if (selRow < KEY_ROWS - 1)
                     {
-                        key = toupper(key);
+                        ++selRow;
+                        selCol = 0;
                     }
-                    u8g2Fonts.print(key);
-                }
-            }
-        }
-        display.display();
-    }
-    /**
-     * @brief  英文输入GUI
-     * @param name 显示在文本框下侧的字符串，可以是中文
-     * @return 用户输入的字符
-     */
-    const char *englishInput(const char *name)
-    {
-        char *inputBuffer = new char[256];
-        unsigned long wait_time = 0;
-        // sprintf(inputBuffer,"%s",name);
-        display.fillRect(1, 1, 296 - 2, 43 - 2, TFT_WHITE);
-        u8g2Fonts.drawUTF8(5, 75, name);
-        memset(inputBuffer, 0, sizeof(inputBuffer));
-
-        int cursorPosition = 0;
-        int selectedRow = 0;
-        int selectedCol = 0;
-
-        drawKeyboard(selectedRow, selectedCol);
-
-        while (true)
-        {
-            if (hal.btnl.isPressing())
-            {
-                if (selectedCol > 0)
-                {
-                    selectedCol--;
-                }
-                else if (selectedRow > 0)
-                {
-                    selectedRow--;
-                    selectedCol = numCols - 1;
-                }
-                else
-                {
-                    selectedRow = numRows - 1;
-                    selectedCol = numCols - 1;
-                }
-                drawKeyboard(selectedRow, selectedCol);
-                delay(100);
-                wait_time = millis();
-            }
-            else if (hal.btnr.isPressing())
-            {
-                if (selectedCol < numCols - 1)
-                {
-                    selectedCol++;
-                }
-                else if (selectedRow < numRows - 1)
-                {
-                    selectedRow++;
-                    selectedCol = 0;
-                }
-                else
-                {
-                    selectedRow = 0;
-                    selectedCol = 0;
-                }
-                drawKeyboard(selectedRow, selectedCol);
-                delay(100);
-                wait_time = millis();
-            }
-            else if (hal.btnc.isPressing())
-            {
-                // 按下中央按钮时的操作
-                if (selectedRow == 0 && selectedCol == 10)
-                { // 删除键
-                    if (cursorPosition > 0)
+                    else
                     {
-                        inputBuffer[--cursorPosition] = '\0';
+                        selRow = 0;
+                        selCol = 0;
                     }
-                }
-                else if (selectedRow == 1 && selectedCol == 10)
-                { // 确定键
+                    break;
+
+                case KeyEvent::OK:
+                {
+                    int r = selRow, c = selCol;
+                    if (r == 1 && c == 10)
+                    {
+                        exitFlag = true;
+                    }
+                    else if (r == 0 && c == 10)
+                    {
+                        if (cursor > 0)
+                            inputBuffer[--cursor] = '\0';
+                    }
+                    else if (r == 2 && c == 10)
+                    {
+                        uppercase = !uppercase;
+                        needRedrawKeyboard = true;
+                    }
+                    else
+                    {
+                        char ch = uppercase ? keymap_upper[r][c] : keymap_lower[r][c];
+                        if (cursor < 127)
+                        {
+                            inputBuffer[cursor++] = ch;
+                            inputBuffer[cursor] = '\0';
+                        }
+                    }
                     break;
                 }
-                else if (selectedRow == 2 && selectedCol == 10)
-                { // 切换大小写键
-                    uppercase = !uppercase;
-                    drawKeyboard(selectedRow, selectedCol);
+                default:
+                    break;
                 }
-                else
-                {
-                    char key;
-                    if (uppercase == false)
-                    {
-                        key = xiao[selectedRow][selectedCol];
-                    }
-                    else
-                    {
-                        key = da[selectedRow][selectedCol];
-                    }
+            }
 
-                    inputBuffer[cursorPosition++] = key;
-                    inputBuffer[cursorPosition + 1] = '\0';
-                    /*if (cursorPosition >= sizeof(inputBuffer) - 1) {
-                        break; // 输入缓冲区已满，退出
-                    }*/
-                }
-                display.fillRect(1, 1, 296 - 2, 43 - 2, TFT_WHITE); // 清空文本框
-                u8g2Fonts.setCursor(5, 15);                         // 在文本框中绘制文本
-                u8g2Fonts.setForegroundColor(TFT_BLACK);
-                u8g2Fonts.setBackgroundColor(TFT_WHITE);
-                if (hal.pref.getString("system_font", "default") == "default")
-                    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
-                else
-                    u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
-                autoIndentDraw(inputBuffer, 190, 5);
-                u8g2Fonts.drawUTF8(5, 40, name);
-                display.display(); // 更新文本框内容
-                while (hal.btnc.isPressing())
-                {
-                   delay(10);
-                }
-                wait_time = millis();
-            }
-            // delay(200); // 适当延迟，避免重复输入
-            delay(10);
-            if (millis() - wait_time > 30000)
+            // 更新底图（大小写变化）
+            if (needRedrawKeyboard)
             {
-                hal.wait_input();
-                wait_time = millis();
+                drawKeyboardBase();
             }
+
+            // 合成当前帧
+            display.copyBuffer(BUF_WORK, BUF_KEYBOARD);
+            display.swapBuffer(BUF_WORK);
+
+            // 输入框与文本
+            int input_y = start_y + TITLE_H + 2;
+            display.fillRoundRect(start_x + 5, input_y, WIN_W - 10, INPUT_H - 4, 2, 1);
+            display.drawRoundRect(start_x + 5, input_y, WIN_W - 10, INPUT_H - 4, 2, 0);
+            u8g2Fonts.setForegroundColor(0);
+            u8g2Fonts.setBackgroundColor(1);
+            if (hal.pref.getString("system_font", "default") == "default")
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            else
+                u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+            u8g2Fonts.setCursor(start_x + 10, input_y + INPUT_H - 10);
+            for (int i = 0; i < cursor; ++i)
+                u8g2Fonts.print(inputBuffer[i]);
+            if (millis() % 1000 < 500)
+                u8g2Fonts.print('_');
+
+            // 高亮选中键
+            int hlx = KEYBOARD_X + selCol * KEY_W;
+            int hly = KEYBOARD_Y + selRow * KEY_H;
+            display.fillRoundRect(hlx, hly, KEY_W, KEY_H, 3, 0);
+            u8g2Fonts.setForegroundColor(1);
+            u8g2Fonts.setBackgroundColor(0);
+
+            int centerX = hlx + KEY_W / 2;
+            int centerY = hly + KEY_H / 2 + 5;
+            if (selRow == 1 && selCol == 10)
+            {
+                u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width("OK") / 2, centerY);
+                u8g2Fonts.print("OK");
+            }
+            else if (selRow == 0 && selCol == 10)
+            {
+                u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width("Del") / 2, centerY);
+                u8g2Fonts.print("Del");
+            }
+            else if (selRow == 2 && selCol == 10)
+            {
+                const char *label = uppercase ? "Aa" : "aa";
+                u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width(label) / 2, centerY);
+                u8g2Fonts.print(label);
+            }
+            else
+            {
+                char ch = uppercase ? keymap_upper[selRow][selCol] : keymap_lower[selRow][selCol];
+                u8g2Fonts.setCursor(centerX - u8g2Fonts.getUTF8Width(String(ch).c_str()) / 2, centerY);
+                u8g2Fonts.print(ch);
+            }
+
+            display.display();
+            xTaskDelayUntil(&xLastWakeTime, xFrequency);
         }
-        pop_buffer();
-        hal.unhookButton();
+
+        // 清理
+        hal.btnl.attachClick(nullptr);
+        hal.btnl.attachDuringLongPress(nullptr);
+        hal.btnr.attachClick(nullptr);
+        hal.btnr.attachDuringLongPress(nullptr);
+        hal.btnc.attachClick(nullptr);
+        vQueueDelete(keyQueue);
+        keyQueue = nullptr;
+
+        display.swapBuffer(BUF_BACKGROUND);
         display.display();
         return inputBuffer;
     }

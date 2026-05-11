@@ -1,6 +1,5 @@
 #pragma once
 #include "A_Config.h"
-#include "esp_console.h"
 // 缓冲区大小
 #define COMMAND_BUFFER_SIZE 8192 * 4
 // 命令头标识

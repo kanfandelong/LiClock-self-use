@@ -119,7 +119,7 @@ public:
 	 * 通过指定的 buffer_index切换到对应的缓冲区。
 	 * 如果索引超出范围，函数直接返回，不会修改当前缓冲区。
 	 *
-	 * @param buffer_index 要切换到的缓冲区索引，取值范围 0~2
+	 * @param buffer_index 要切换到的缓冲区索引，取值范围 0~3
 	 */
 	void swapBuffer(uint16_t buffer_index)
 	{

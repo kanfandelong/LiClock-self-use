@@ -9,19 +9,20 @@
 #include <ArduinoJson.h>
 #include <TJpg_Decoder.h>
 #include "qrcode.h"
-#include <esp_sntp.h>
 #include <Fonts/FreeSans18pt7b.h>
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/FreeMono9pt7b.h>
-#include "esp_task_wdt.h"
-#include <driver/rtc_io.h>
-#include <esp_netif.h>
 #include <LittleFS.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 
 extern "C" {
 #include <dirent.h>
+#include <esp_sntp.h>
+#include <esp_netif.h>
+#include "esp_console.h"
+#include "esp_task_wdt.h"
+#include <driver/rtc_io.h>
 }
 
 // #include <ESP32-targz.h>

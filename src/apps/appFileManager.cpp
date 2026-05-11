@@ -496,15 +496,15 @@ void AppFileManager::setup()
 {
     display.setPowerMode(POWER_MODE_HPM);
     char char_buf[64];
-    int used = 0, total = 0, free = 0, res = 1;
+    int _used = 0, _total = 0, _free = 0, res = 1;
     String _filename, dir;
     u32_t a;
     const char *file_system;
     bool run_first = true, tf_flie;
     GUI::info_msgbox("提示", "获取文件系统信息...");
-    total = LittleFS.totalBytes() / 1024;
-    used = LittleFS.usedBytes() / 1024;
-    free = total - used;
+    _total = LittleFS.totalBytes() / 1024;
+    _used = LittleFS.usedBytes() / 1024;
+    _free = _total - _used;
     if (filename != NULL)
         run_first = false;
     if (run_first)
@@ -516,7 +516,7 @@ void AppFileManager::setup()
         sprintf(buf, "%s", filename); // 将filename指向的数据拷贝到buf
         filename = buf;               // 将filename指向到buf
     }
-    sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", used, total, free);
+    sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", _used, _total, _free);
     // GUI::info_msgbox("提示", "正在获取文件信息...");
 file_info:
     a = getFileSize(filename);
@@ -612,9 +612,9 @@ file_info:
                         OK = hal.remove(filename);
                         if (tf_flie)
                         {
-                            used = LittleFS.usedBytes() / 1024;
-                            free = total - used;
-                            sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", used, total, free);
+                            _used = LittleFS.usedBytes() / 1024;
+                            _free = _total - _used;
+                            sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", _used, _total, _free);
                         }
                         if (OK)
                         {
@@ -657,9 +657,9 @@ file_info:
                             String dirname = "/littlefs" + String(directoryname);
                             dirname[dirname.length() - 1] = '\0';
                             hal.rm_rf(dirname.c_str());
-                            used = LittleFS.usedBytes() / 1024;
-                            free = total - used;
-                            sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", used, total, free);
+                            _used = LittleFS.usedBytes() / 1024;
+                            _free = _total - _used;
+                            sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", _used, _total, _free);
                         }
                     }
                 }
@@ -695,7 +695,7 @@ file_info:
                     log_e("无法打开文件%s", combinePath(directoryname, getFileName(filename)));
                     break;
                 }
-                if (filesize > free)
+                if (filesize > _free)
                 {
                     GUI::msgbox("警告", "littlefs剩余的空间不足以复制当前的文件,自动取消当前复制!");
                     newfile.close();
@@ -715,9 +715,9 @@ file_info:
                     char buf[512];
                     sprintf(buf, "从TF卡复制 %s 到littlefs,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
                     GUI::info_msgbox("提示", buf);
-                    used = LittleFS.usedBytes() / 1024;
-                    free = total - used;
-                    sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", used, total, free);
+                    _used = LittleFS.usedBytes() / 1024;
+                    _free = _total - _used;
+                    sprintf(char_buf, "文件系统:%d/%d|剩余%dkB", _used, _total, _free);
                     delay(500);
                 }
             }
@@ -748,8 +748,8 @@ file_info:
                     char buf[512];
                     sprintf(buf, "从littlefs复制 %s 到TF卡,\n耗时:%0.1f S\n速度:%0.2f KB/S", getFileName(filename), (float)usetime / 1000.0, filesize / ((float)usetime / 1000.0));
                     GUI::info_msgbox("提示", buf);
-                    used = LittleFS.usedBytes() / 1024;
-                    free = total - used;
+                    _used = LittleFS.usedBytes() / 1024;
+                    _free = _total - _used;
                     delay(500);
                 }
             }
@@ -806,7 +806,7 @@ file_info:
         break;
         case 6: // 重命名
         {
-            const char *newname;
+            char *newname;
             bool ok = false;
             if (strncmp(filename, "/sd/", 4) == 0)
             {
@@ -818,7 +818,7 @@ file_info:
                 newname = GUI::englishInput(remove_path_prefix(filename, "/littlefs"));
                 ok = hal.rename(filename, newname);
             }
-            delete[] newname;
+            free(newname);
         }
         break;
         case 7:

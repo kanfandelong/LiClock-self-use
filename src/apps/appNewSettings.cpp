@@ -495,19 +495,53 @@ void AppSettings::menu_network()
             WiFi.mode(WIFI_STA);
             hal.searchWiFi();
             log_printf("搜索到的个数:%d", hal.numNetworks);
-            char winfo[hal.numNetworks][64];
+            char winfo[hal.numNetworks][96];
             int rssis[hal.numNetworks];
-            char _ssid[hal.numNetworks][64];
+            char _ssid[hal.numNetworks][96];
             if (hal.numNetworks != 0)
             {
+                const int MAX_PX = 233; // 最大像素宽度
+
                 for (int i = 0; i < hal.numNetworks; i++)
                 {
                     String ssid = WiFi.SSID(i);
-                    char ssidArray[ssid.length() + 1]; // +1 是为了包含字符串末尾的 null 字符
-                    ssid.toCharArray(ssidArray, sizeof(ssidArray));
-                    sprintf(winfo[i], "%s %d", ssidArray, WiFi.RSSI(i));
-                    rssis[i] = WiFi.RSSI(i);
-                    sprintf(_ssid[i], "%s", ssidArray);
+                    int rssi = rssis[i] = WiFi.RSSI(i);
+                    int channel = WiFi.channel(i);
+                    String bssid = WiFi.BSSIDstr(i);
+
+                    char rightPart[96];
+                    sprintf(rightPart, "%s|ch%2d|%3d", bssid.c_str(), channel, rssi); // 固定宽度格式
+
+                    // 测量宽度
+                    int leftW = u8g2Fonts.getUTF8Width(ssid.c_str());
+                    int rightW = u8g2Fonts.getUTF8Width(rightPart);
+                    int spaceW = u8g2Fonts.getUTF8Width(" "); // 单个空格宽度
+
+                    int available = MAX_PX - leftW - rightW;
+                    if (available < 0)
+                    {
+                        // SSID 太长，需要截断（可省略，直接截取字符）
+                        // 这里简单截断到可用宽度
+                        while (ssid.length() > 0 && u8g2Fonts.getUTF8Width(ssid.c_str()) > MAX_PX - rightW - spaceW)
+                        {
+                            ssid.remove(ssid.length() - 1);
+                        }
+                        leftW = u8g2Fonts.getUTF8Width(ssid.c_str());
+                        available = MAX_PX - leftW - rightW;
+                    }
+
+                    int spaceCount = available / spaceW; // 需要填充的空格数
+                    if (spaceCount < 0)
+                        spaceCount = 0;
+
+                    // 构造字符串
+                    char *p = winfo[i];
+                    p += sprintf(p, "%s", ssid.c_str());
+                    for (int j = 0; j < spaceCount; j++)
+                        p += sprintf(p, " ");
+                    sprintf(p, "%s", rightPart);
+
+                    sprintf(_ssid[i], "%s", ssid.c_str());
                 }
             }
             menu_item *WiFi_list = new menu_item[hal.numNetworks + 2];
@@ -1673,7 +1707,7 @@ void AppSettings::menu_system()
                 GUI::msgbox("提示", "系统全局字体设置完成");
             }
         }
-            break;
+        break;
         default:
             break;
         }
@@ -1932,30 +1966,17 @@ void AppSettings::cheak_config(char *a)
     }
     else
         return;
-    if (GUI::msgbox_yn("密码是否仅有数字", a, "是", "否"))
+    if (GUI::msgbox_yn("提示", "是否启动网页服务器配置密码,否则使用內部简易软键盘输入", "确定", "取消"))
     {
-        char pass[32];
-        sprintf(pass, "%d", GUI::msgbox_number("输入密码", 8, 0));
-        config[PARAM_PASS] = pass;
-        hal.pref.putBool(hal.get_char_sha_key("离线模式"), false);
-        hal.saveConfig();
-        GUI::msgbox("提示", "已写入配置，即将重启！");
-        esp_restart();
+        hal.WiFiConfigManual();
+        ESP.restart();
     }
     else
     {
-        if (GUI::msgbox_yn("提示", "是否启动网页服务器配置密码", "确定", "取消"))
-        {
-            hal.WiFiConfigManual();
-            ESP.restart();
-        }
-        else
-        {
-            if (GUI::msgbox_yn("提示", "是否使用简易输入法输入密码", "确定", "取消"))
-            {
-                config[PARAM_PASS] = GUI::englishInput("输入WiFi密码");
-            }
-        }
+        char *pwd = GUI::englishInput("输入WiFi密码");
+        config[PARAM_PASS] = pwd;
+        free(pwd);
+        hal.saveConfig();
     }
 }
 

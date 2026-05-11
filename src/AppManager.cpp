@@ -362,6 +362,11 @@ AppBase *AppManager::appSelector(bool showHidden)
     display.copyBuffer(1, 0);
     display.slideScreenFull(SLIDE_DOWN, 250, 2);
     display.display();
+
+    int code = 0;
+    esp_err_t err = esp_console_run(hal.pref.getString("init_cmd", "wsconsole start").c_str(), &code);
+    log_printf("command returned %d, code %d\n", err, code);
+
     // 下面是选择
     hal.hookButton();
     while (finished == false)
@@ -820,7 +825,7 @@ void AppManager::attachLocalEvent()
                                   {if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) ((AppManager *)scope)->method = APPMANAGER_SHOWAPPSELECTOR; },
                                   this);
     hal.btnl.attachLongPressStart([](void *scope)
-                                  { if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) {((AppManager *)scope)->method = APPMANAGER_GOBACK; log_printf("Back."); } },
+                                  { if( ((AppManager *)scope)->currentApp->noDefaultEvent == false) {((AppManager *)scope)->method = APPMANAGER_GOBACK; log_printf("Back.\n"); } },
                                   this);
 }
 void AppManager::loadLuaApps()
