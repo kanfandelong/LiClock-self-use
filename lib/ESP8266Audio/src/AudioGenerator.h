@@ -55,4 +55,16 @@ class AudioGenerator
     AudioStatus cb;
 };
 
+struct XingHeaderInfo {
+    bool valid = false;         // 是否成功解析
+    uint32_t frames = 0;       // 总帧数
+    uint32_t bytes = 0;        // 音频数据总字节数（可能为0，表示未存储）
+    uint32_t bitrate = 0;      // 平均比特率 (bps)
+    float duration = 0.0f;     // 总时长 (秒)
+    int sampleRate = 0;        // 采样率
+    int channels = 0;          // 声道数（从帧头获取）
+};
+
+extern XingHeaderInfo parseXingHeader(const uint8_t* buf, size_t len);
+
 #endif

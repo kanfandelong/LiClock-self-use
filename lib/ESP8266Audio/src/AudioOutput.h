@@ -33,7 +33,7 @@ class AudioOutput
     virtual bool SetBitsPerSample(int bits) { bps = bits; return true; }
     virtual int GetRate() { return hertz; }
     virtual int GetBitsPerSample() { return bps; }
-    virtual uint32_t GetPlaytimeMs() { return (playedSampleFrames * 1000) / hertz; }
+    virtual uint64_t GetPlaytimeMs() { return (playedSampleFrames * 1000) / hertz; }
     virtual bool SetChannels(int chan) { channels = chan; return true; }
     virtual bool SetGain(float f) {
         if (f > 4.0f) f = 4.0f;
@@ -112,8 +112,8 @@ class AudioOutput
     #endif
 
   protected:
-    // Use 32-bit to support high sample rates (e.g., 88200 Hz) without overflow
     uint64_t playedSampleFrames;
+    // Use 32-bit to support high sample rates (e.g., 88200 Hz) without overflow
     uint32_t hertz;
     uint8_t bps;
     uint8_t channels;

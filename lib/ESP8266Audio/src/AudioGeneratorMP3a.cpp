@@ -1,7 +1,7 @@
 /*
   AudioGeneratorMP3
   Audio output generator using the Helix MP3 decoder
-  
+
   Copyright (C) 2017  Earle F. Philhower, III
 
   This program is free software: you can redistribute it and/or modify
@@ -18,10 +18,9 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma GCC optimize ("O3")
+#pragma GCC optimize("O3")
 
 #include "AudioGeneratorMP3a.h"
-
 
 AudioGeneratorMP3a::AudioGeneratorMP3a()
 {
@@ -29,7 +28,8 @@ AudioGeneratorMP3a::AudioGeneratorMP3a()
   file = NULL;
   output = NULL;
   hMP3Decoder = MP3InitDecoder();
-  if (!hMP3Decoder) {
+  if (!hMP3Decoder)
+  {
     log_printf("Out of memory error!\n");
     Serial.flush();
   }
@@ -51,7 +51,8 @@ AudioGeneratorMP3a::~AudioGeneratorMP3a()
 
 bool AudioGeneratorMP3a::stop()
 {
-  if (!running) return true;
+  if (!running)
+    return true;
   running = false;
   output->stop();
   return file->close();
@@ -66,25 +67,33 @@ bool AudioGeneratorMP3a::FillBufferWithValidFrame()
 {
   buff[0] = 0; // Destroy any existing sync word @ 0
   int nextSync;
-  do {
+  do
+  {
     nextSync = MP3FindSyncWord(buff + lastFrameEnd, buffValid - lastFrameEnd);
-    if (nextSync >= 0) nextSync += lastFrameEnd;
+    if (nextSync >= 0)
+      nextSync += lastFrameEnd;
     lastFrameEnd = 0;
-    if (nextSync == -1) {
-      if (buff[buffValid-1]==0xff) { // Could be 1st half of syncword, preserve it...
+    if (nextSync == -1)
+    {
+      if (buff[buffValid - 1] == 0xff)
+      { // Could be 1st half of syncword, preserve it...
         buff[0] = 0xff;
-        buffValid = file->read(buff+1, sizeof(buff)-1);
-        if (buffValid==0) return false; // No data available, EOF
-      } else { // Try a whole new buffer
+        buffValid = file->read(buff + 1, sizeof(buff) - 1);
+        if (buffValid == 0)
+          return false; // No data available, EOF
+      }
+      else
+      { // Try a whole new buffer
         buffValid = file->read(buff, sizeof(buff));
-        if (buffValid==0) return false; // No data available, EOF
+        if (buffValid == 0)
+          return false; // No data available, EOF
       }
     }
   } while (nextSync == -1);
 
   // Move the frame to start at offset 0 in the buffer
   buffValid -= nextSync; // Throw out prior to nextSync
-  memmove(buff, buff+nextSync, buffValid);
+  memmove(buff, buff + nextSync, buffValid);
 
   // We have a sync word at 0 now, try and fill remainder of buffer
   buffValid += file->read(buff + buffValid, sizeof(buff) - buffValid);
@@ -96,7 +105,30 @@ bool AudioGeneratorMP3a::FillBufferWithValidFrame()
 
 bool AudioGeneratorMP3a::loop()
 {
-  if (!running) goto done; // Nothing to do here!
+  if (!running)
+    goto done; // Nothing to do here!
+
+  if (!xingParsed)
+  {
+    xingParsed = true;
+    first_frame_pos = file->getPos();
+    uint8_t frameBuf[2880];                                 // 足够容纳最大 MPEG 帧 (2880 字节)
+    int readBytes = file->read(frameBuf, sizeof(frameBuf)); // 读取一帧的数据
+    if (readBytes > 4)
+    {
+      XingHeaderInfo xing = parseXingHeader(frameBuf, readBytes);
+      if (xing.valid)
+      {
+        log_i("Xing header detected: frames=%u, bytes=%u, bitrate=%u bps, duration=%.2f s, sampleRate=%d Hz, channels=%d",
+              xing.frames, xing.bytes, xing.bitrate, xing.duration, xing.sampleRate, xing.channels);
+        String durationStr = String((uint64_t)(xing.duration * 1000));
+        cb.md("tlen", false, durationStr.c_str());
+        totalSent = true;   // 阻止后续估算
+      }
+      // 不要忘记将文件指针回退到帧开始处，以便解码器从开头读取
+      file->seek(file->getPos() - readBytes, SEEK_SET);
+    }
+  }
 
 #ifdef ENABLE_MP3_TIMING
   static unsigned long lastPrintMillis = 0;
@@ -104,10 +136,11 @@ bool AudioGeneratorMP3a::loop()
   static unsigned long totalFindMicros = 0;
   static unsigned long totalDecodeMicros = 0;
   static unsigned long totalConsumeSampleMicros = 0;
-  static unsigned int frameCount = 0;          // 新增：帧数
+  static unsigned int frameCount = 0; // 新增：帧数
   unsigned long tStart, tEnd;
 
-  if (firstPrint) {
+  if (firstPrint)
+  {
     lastPrintMillis = millis();
     firstPrint = false;
   }
@@ -116,25 +149,28 @@ bool AudioGeneratorMP3a::loop()
 #endif
 
   // If we've got data, try and pump it out...
-  while (validSamples) {
-    lastSample[0] = outSample[curSample*2] << 16;
-    lastSample[1] = outSample[curSample*2 + 1] << 16;
-    if (!output->ConsumeSample(lastSample)) {// Can't send, but no error detected
+  while (validSamples)
+  {
+    lastSample[0] = outSample[curSample * 2] << 16;
+    lastSample[1] = outSample[curSample * 2 + 1] << 16;
+    if (!output->ConsumeSample(lastSample))
+    {           // Can't send, but no error detected
       delay(2); // Avoid busy loop if output is blocked
       goto done;
-    } 
+    }
     validSamples--;
     curSample++;
   }
-  
+
 #ifdef ENABLE_MP3_TIMING
-    tEnd = micros();
-    totalConsumeSampleMicros += (tEnd - tStart);
-    tStart = micros();
+  tEnd = micros();
+  totalConsumeSampleMicros += (tEnd - tStart);
+  tStart = micros();
 #endif
 
   // No samples available, need to decode a new frame
-  if (FillBufferWithValidFrame()) {
+  if (FillBufferWithValidFrame())
+  {
 
 #ifdef ENABLE_MP3_TIMING
     tEnd = micros();
@@ -150,33 +186,70 @@ bool AudioGeneratorMP3a::loop()
 #ifdef ENABLE_MP3_TIMING
     tEnd = micros();
     totalDecodeMicros += (tEnd - tStart);
-    frameCount++;   // 成功解码一帧
+    frameCount++; // 成功解码一帧
 #endif
 
-    if (ret) {
+    if (ret)
+    {
       // Error, skip the frame...
       log_i("MP3 decode error %d", ret);
-    } else {
+    }
+    else
+    {
       lastFrameEnd = buffValid - bytesLeft;
       MP3FrameInfo fi;
       MP3GetLastFrameInfo(hMP3Decoder, &fi);
-      if ((int)fi.samprate!= (int)lastRate) {
+      if ((int)fi.samprate != (int)lastRate)
+      {
         output->SetRate(fi.samprate);
         lastRate = fi.samprate;
       }
-      if (fi.nChans != lastChannels) {
+      if (fi.nChans != lastChannels)
+      {
         output->SetChannels(fi.nChans);
         lastChannels = fi.nChans;
       }
       curSample = 0;
       validSamples = fi.outputSamps / lastChannels;
+
+      // ------ 总时长估算逻辑 ------
+      if (!totalSent && fi.bitrate > 0)
+      {
+        // Helix 的 bitrate 单位是 kbps，转换为 bps 进行累加
+        bitrateSum += (uint64_t)fi.bitrate * 1000;
+        bitrateCount++;
+
+        // 至少 50 帧后才开始估算并发送，每 50 帧更新一次
+        if (bitrateCount >= 50 && (bitrateCount == 50 || bitrateCount % 50 == 0))
+        {
+          uint64_t avgBitrate = bitrateSum / bitrateCount;
+          if (avgBitrate == 0)
+            avgBitrate = (uint64_t)fi.bitrate * 1000; // 保险
+
+          // 计算剩余音频数据长度（字节）和总时长（毫秒）
+          uint64_t totalBytes = file->getSize() - first_frame_pos;
+          uint64_t totalSeconds = (totalBytes * 8) / avgBitrate;
+          uint64_t total_ms = totalSeconds * 1000;
+
+          cb.md("tlen", false, ((String)total_ms).c_str());
+        }
+
+        // 帧数足够多后认为比特率稳定，停止发送以避免重复通知
+        if (bitrateCount >= 400)
+        {
+          totalSent = true;
+        }
+      }
     }
-  } else {
+  }
+  else
+  {
     running = false; // No more data, we're done here...
   }
 
 #ifdef ENABLE_MP3_TIMING
-  if (millis() - lastPrintMillis >= 10000) {
+  if (millis() - lastPrintMillis >= 10000)
+  {
     log_printf("MP3 timing: find=%lu us, decode=%lu us, consume=%lu us, frames=%u\n"),
                           totalFindMicros, totalDecodeMicros, totalConsumeSampleMicros, frameCount);
     lastPrintMillis = millis();
@@ -196,19 +269,21 @@ done:
 
 bool AudioGeneratorMP3a::begin(AudioFileSource *source, AudioOutput *output)
 {
-  if (!source) return false;
+  if (!source)
+    return false;
   file = source;
-  if (!output) return false;
+  if (!output)
+    return false;
   this->output = output;
-  if (!file->isOpen()) return false; // Error
+  if (!file->isOpen())
+    return false; // Error
 
   output->begin();
-  
+
   // AAC always comes out at 16 bits
   output->SetBitsPerSample(16);
-  
+
   running = true;
-  
+
   return true;
 }
-

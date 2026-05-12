@@ -48,6 +48,12 @@ class AudioGeneratorMP3a : public AudioGenerator
     int16_t outSample[1152 * 2]; // Interleaved L/R
     int16_t validSamples;
     int16_t curSample;
+    // 总时长估算相关
+    uint32_t first_frame_pos = 0;   // 第一帧在文件中的偏移（跳过 ID3 等）
+    uint32_t bitrateCount = 0;      // 已统计的有效帧数
+    uint64_t bitrateSum = 0;        // 累计比特率（单位 bps）
+    bool totalSent = false;         // 是否已发送总时长回调
+    bool xingParsed = false;
 
     // Each frame may change this if they're very strange, I guess
     unsigned int lastRate;

@@ -507,7 +507,7 @@ static bool id3_tlen_received = false;
 
 void MDCallback(void *cbData, const char *type, bool isUnicode, const char *string)
 {
-    String outputString;
+    String outputString = string; // 默认直接使用原始字符串
     String tag_type = type;
     const char *src = static_cast<const char *>(cbData);
 
@@ -518,76 +518,75 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     }
 
     // ----- 文字编码处理 -----
-    if (isUnicode)
-    {
-        // 计算 UTF‑16 字符串长度（字节数）
-        size_t length = 0;
-        const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
-        while (ptr[length] != 0 || ptr[length + 1] != 0)
+    /*     if (isUnicode)
         {
-            length += 2;
-            if (length > 1024 * 10)
-                break; // 防止缓冲区溢出
-        }
-        outputString = utf16ToUtf8(reinterpret_cast<const uint8_t *>(string), length);
-    }
-    else
-    {
-        // 已经是 UTF‑8 ?
-        if (isUtf8(string))
-        {
-            outputString = string;
+            size_t length = 0;
+            const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
+            while (ptr[length] != 0 || ptr[length + 1] != 0)
+            {
+                length += 2;
+                if (length > 1024 * 10)
+                    break;
+            }
+            outputString = utf16ToUtf8(reinterpret_cast<const uint8_t *>(string), length);
         }
         else
         {
-            // 假设 ISO‑8859‑1，手动转为 UTF‑8
-            const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
-            while (*ptr)
+            if (isUtf8(string))
             {
-                if (*ptr < 0x80)
+                outputString = string;
+            }
+            else
+            {
+                const uint8_t *ptr = reinterpret_cast<const uint8_t *>(string);
+                while (*ptr)
                 {
-                    outputString += static_cast<char>(*ptr);
+                    if (*ptr < 0x80)
+                        outputString += static_cast<char>(*ptr);
+                    else {
+                        outputString += static_cast<char>(0xC0 | (*ptr >> 6));
+                        outputString += static_cast<char>(0x80 | (*ptr & 0x3F));
+                    }
+                    ++ptr;
                 }
-                else
-                {
-                    outputString += static_cast<char>(0xC0 | (*ptr >> 6));
-                    outputString += static_cast<char>(0x80 | (*ptr & 0x3F));
-                }
-                ++ptr;
             }
         }
-    }
+     */
+// 多标签名匹配宏（lambda 通过 [&] 捕获局部变量）
+#define MATCH_TAG(tag, ...) \
+    ([&]() {                                     \
+            for (const char* n : {__VA_ARGS__})    \
+                if (tag.equalsIgnoreCase(n)) return true; \
+            return false; }())
 
-    // ----- 保存标签信息 -----
-    if (tag_type.equalsIgnoreCase("title"))
+    // ----- 根据标签类型保存信息（兼容多种命名） -----
+    if (MATCH_TAG(tag_type, "TIT2", "TT2", "title"))
     {
         app.info.title = outputString;
     }
-    else if (tag_type.equalsIgnoreCase("album"))
+    else if (MATCH_TAG(tag_type, "TALB", "TAL", "album"))
     {
         app.info.album = outputString;
     }
-    else if (tag_type.equalsIgnoreCase("performer") || tag_type.equalsIgnoreCase("artist"))
+    else if (MATCH_TAG(tag_type, "TPE1", "TP1", "performer", "artist"))
     {
         app.info.performer = outputString;
     }
-    else if (tag_type.equalsIgnoreCase("tlen"))
+    else if (MATCH_TAG(tag_type, "TLEN", "tlen"))
     {
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
-        // 当回调来源是 ID3TAG 时，始终写入并标记已收到
-        if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 || strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0)
+        if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 ||
+            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0)
         {
             app.info.tlen = newLen;
             id3_tlen_received = true;
         }
-        // 当来源是 MP3INFO 且尚未收到 ID3TAG，则更新（每次回调均可更新）
         else if (strcmp(src, "MP3INFO") == 0 && !id3_tlen_received)
         {
             app.info.tlen = newLen;
         }
-        // 其它来源保持原值
     }
-    else if (tag_type.equalsIgnoreCase("LYRICS") || tag_type.equalsIgnoreCase("USLT"))
+    else if (MATCH_TAG(tag_type, "USLT", "SYLT", "SLT", "LYRICS"))
     {
         String lyricPath = app.getLyricPath(music_file);
         if (!hal.exists(lyricPath))
@@ -604,7 +603,6 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
                 log_e("无法创建歌词文件: %s", lyricPath.c_str());
             }
             log_i("已写入歌词文件用做缓存: %s", lyricPath.c_str());
-            // 在写入歌词文件后立即加载歌词，因为默认歌词加载位置位于解码开始之前，此时可能还没有歌词文件，导致无法加载到歌词(哪怕回调获取到了歌词)。
             if (hal.pref.getBool("en_Lyrics", false))
             {
                 app.loadLyrics(music_file);
@@ -617,8 +615,9 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     }
 
     log_i("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
-    // log_i("%s callback for: %s 的原始值 = '%s'", cbData, type, string);
     app.backup_buff_updata = true;
+
+#undef MATCH_TAG
 }
 #ifdef CONFIG_DAC_32bit
 static void GetSampleCB(int32_t sample[2])
@@ -1296,17 +1295,22 @@ void AppMusicPlayer::loadLyrics(const char *path)
     newLyricIndex = 0;
 
     sprintf(currentLyric[0], "---");
-    strncpy(currentLyric[1], lyricArray[0].text.c_str(), 127);
+    if (totalLyricLines > 0)
+        strncpy(currentLyric[1], lyricArray[0].text.c_str(), 127);
     currentLyric[1][127] = '\0';
-    strncpy(currentLyric[2], lyricArray[1].text.c_str(), 127);
+    if (totalLyricLines > 1)
+        strncpy(currentLyric[2], lyricArray[1].text.c_str(), 127);
     currentLyric[2][127] = '\0';
 
     newLyrics[0] = "---";
     oldLyrics[0] = "---";
-    newLyrics[1] = lyricArray[0].text;
+    if (totalLyricLines > 0)
+        newLyrics[1] = lyricArray[0].text;
     oldLyrics[1] = "---";
-    newLyrics[2] = lyricArray[1].text;
-    oldLyrics[2] = lyricArray[0].text;
+    if (totalLyricLines > 1)
+        newLyrics[2] = lyricArray[1].text;
+    if (totalLyricLines > 0)
+        oldLyrics[2] = lyricArray[0].text;
 
     scrolling = false;
 }
@@ -3300,7 +3304,12 @@ void AppMusicPlayer::show_display_fft()
     constexpr int x = 61;   // 设置进度条的X起始坐标
     constexpr int w1 = 262; // 设置进度条的宽度
     static int lrc_max_x = SCREEN_WIDTH;
-    uint32_t play_time = (millis() - play_time_start - play_stop_time);
+    uint32_t play_time;
+    if (output != nullptr)
+        play_time = output->GetPlaytimeMs();
+    else
+        play_time = (millis() - play_time_start - play_stop_time);
+
     static uint32_t total_time = 0;
 
     if (backup_buff_updata)
@@ -3398,8 +3407,8 @@ void AppMusicPlayer::show_display_fft()
             u8g2Fonts.print("音乐播放器");
         }
 
-        // if (info.tlen == 0 && i2s_output != nullptr)
-        //     i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
+        if (info.tlen == 0 && i2s_output != nullptr && play_generator == MP3_Generator)
+            i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
         if (!loopPlay)
             play_time_total = 0;
         if (info.tlen != 0 && play_time_total == 0)

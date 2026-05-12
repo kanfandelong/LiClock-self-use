@@ -83,6 +83,7 @@ class AudioGeneratorMP3 : public AudioGenerator
   private:
     int unrecoverable = 0;
     bool totalSent = false; // 是否已发送总时长回调
+    bool xingParsed = false;
     uint32_t first_frame_pos = 0; // 第一帧的位置
     uint32_t bitrateCount = 0; // 已累计的帧数
     uint64_t bitrateSum = 0; // 累计比特率（bps）总和
