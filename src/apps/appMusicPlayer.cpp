@@ -315,7 +315,6 @@ public:
     uint32_t playCountNum = 0;                                  // 当前记录条数
     uint32_t playCountCapacity = 0;                             // 已分配容量（用于动态扩容）
     static const uint32_t PLAY_COUNT_CAPACITY_STEP = 10;        // 扩容步长
-    const char *PLAY_COUNT_FILE = "/sd/playlist/playcount.bin"; // 存储文件路径
 
     // 辅助函数
     void computePathHash(const char *path, uint8_t *hashOut);
@@ -852,7 +851,7 @@ SongPlayCount *AppMusicPlayer::addPlayCountRecord(const char *path)
 
 void AppMusicPlayer::loadPlayCounts()
 {
-    File f = hal.open(PLAY_COUNT_FILE, "rb");
+    File f = hal.open(hal.pref.getString("playcountfile", "/sd/playlist/playcount.bin"), "rb");
     if (!f)
     {
         log_i("No play count file, start fresh");
@@ -891,19 +890,39 @@ void AppMusicPlayer::loadPlayCounts()
 
 void AppMusicPlayer::savePlayCounts()
 {
-    if (playCountNum == 0)
-        return;
+    if (playCountNum == 0) return;
 
-    File f = hal.open(PLAY_COUNT_FILE, "wb");
+    String path = hal.pref.getString("playcountfile", "/sd/playlist/playcount.bin");
+    File f = hal.open(path, "wb");
     if (!f)
     {
-        log_e("Cannot open play count file for writing");
-        return;
+        log_w("Cannot open primary play count file: %s, trying fallback", path.c_str());
+        String fallbackDir = "/littlefs/playlist";
+        if (!hal.exists(fallbackDir))
+            hal.mkdir(fallbackDir);
+        f = hal.open("/littlefs/playlist/playcount.bin", "wb");
+        if (!f)
+        {
+            log_e("Cannot open fallback play count file, giving up");
+            return;
+        }
+        GUI::msgbox("错误", "无法保存播放计数到SD卡(默认路径)，已临时切换到内部存储尝试保存，请注意检查TF卡文件系统或物理介质状态", 60);
     }
 
-    f.write((uint8_t *)playCountRecords, playCountNum * sizeof(SongPlayCount));
+    size_t expected = playCountNum * sizeof(SongPlayCount);
+    size_t written = f.write((uint8_t *)playCountRecords, expected);
     f.close();
-    log_i("Saved %u play count records", playCountNum);
+
+    if (written != expected)
+    {
+        log_e("Failed to write all data (written: %zu, expected: %zu). File may be corrupted.", written, expected);
+        // 可选：删除不完整的文件
+        // hal.remove(path);
+    }
+    else
+    {
+        log_i("Saved %u play count records", playCountNum);
+    }
 }
 
 void AppMusicPlayer::increasePlayCount(const char *path)
@@ -1175,7 +1194,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
     }
     else if (totalLyricLines == 0)
     {
-        log_w("未在歌词文件 \"%s\" 中识别到有效的歌词,中止加载操作", lrcPath.c_str());
+        log_w("未在歌词文件 \"%s\" 中识别到有效的同步歌词,中止加载操作", lrcPath.c_str());
         return;
     }
 
@@ -4248,20 +4267,19 @@ void AppMusicPlayer::setup()
     audio_control_sem = xSemaphoreCreateBinary(); // 创建二进制信号量
     xSemaphoreGive(audio_control_sem);            // 初始化为可用状态
     uint8_t run_index = 0;
-    if (music_file == NULL)
+    
+    String file = buf;
+    if (file.endsWith(".mp3") || file.endsWith(".wav") ||
+        file.endsWith(".aac") || file.endsWith(".opus") || file.endsWith(".flac"))
     {
-        String file = buf;
-        if (file.endsWith(".mp3") || file.endsWith(".wav") ||
-            file.endsWith(".aac") || file.endsWith(".opus") || file.endsWith(".flac"))
-        {
-            music_file = buf;
-        }
-        else
-        {
-            sprintf(buf, "%s", hal.pref.getString("music_file").c_str());
-            music_file = buf;
-        }
+        music_file = buf;
     }
+    else
+    {
+        sprintf(buf, "%s", hal.pref.getString("music_file").c_str());
+        music_file = buf;
+    }
+
     select_file();
 
     if (player_set())

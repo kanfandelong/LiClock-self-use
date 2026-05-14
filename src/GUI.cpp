@@ -139,34 +139,77 @@ namespace GUI
      */
     void msgbox(const char *title, const char *msg, uint16_t timeout)
     {
-        // 160*100窗口，圆角5
-        constexpr int start_x = (MAX_X - 160) / 2;
-        constexpr int start_y = (MAX_Y - 96) / 2;
+        // ---------- 窗口尺寸与圆角 ----------
+        constexpr int kMsgBoxWidth = 190;
+        constexpr int kMsgBoxHeight = 110;
+        constexpr int kMsgBoxCornerRadius = 5; // 窗口圆角（若 drawWindowsWithTitle 内部使用）
+
+        // ---------- 内容区域边距 ----------
+        constexpr int kContentLeftMargin = 2; // 文字左侧留白
+        constexpr int kContentTopOffset = 28; // 从窗口顶部到文字基线的距离（标题栏下方）
+
+        // ---------- “确定”按钮 ----------
+        constexpr int kButtonWidth = 70;
+        constexpr int kButtonHeight = 15;
+        constexpr int kButtonCornerRadius = 3;
+        constexpr int kButtonRightMargin = 5;         // 按钮右侧距离窗口右边缘
+        constexpr int kButtonBottomMargin = 5;        // 按钮底部距离窗口下边缘
+        constexpr int kButtonTextBaselineOffset = 12; // 文字基线距按钮顶部的偏移，用于垂直居中
+
+        // 按钮文字（也可定义为常量，便于多语言）
+        constexpr const char *kButtonLabel = "确定";
+
+        // ---------- 计算窗口起始坐标 ----------
+        const int start_x = (MAX_X - kMsgBoxWidth) / 2;
+        const int start_y = (MAX_Y - kMsgBoxHeight) / 2;
+
         int16_t w;
-        bool result = false;
+        bool result = false; // 保留以备将来扩展
+
         hal.hookButton();
         push_buffer();
-        drawWindowsWithTitle(title, start_x, start_y, 160, 96);
-        // 内容
+
+        // 绘制带标题的窗口背景
+        drawWindowsWithTitle(title, start_x, start_y, kMsgBoxWidth, kMsgBoxHeight);
+
+        // 绘制消息内容（自动缩进显示）
         if (msg)
         {
-            u8g2Fonts.setCursor(start_x + 2, start_y + 28);
-            autoIndentDraw(msg, start_x + 160 - 2, start_x + 2);
+            u8g2Fonts.setCursor(start_x + kContentLeftMargin,
+                                start_y + kContentTopOffset);
+            autoIndentDraw(msg,
+                           start_x + kMsgBoxWidth - kContentLeftMargin, // 右边界
+                           start_x + kContentLeftMargin);               // 左边界
         }
-        // 按钮
-        display.drawRoundRect(start_x + 85, start_y + 96 - 20, 70, 15, 3, 0);
-        w = u8g2Fonts.getUTF8Width("确定");
-        u8g2Fonts.setCursor(start_x + 85 + (70 - w) / 2, start_y + 96 - 20 + 12);
-        u8g2Fonts.print("确定");
-        // display.displayWindow(start_x, start_y, 160, 96);
+
+        // 计算按钮位置（靠右下角对齐）
+        const int buttonX = start_x + kMsgBoxWidth - kButtonRightMargin - kButtonWidth;
+        const int buttonY = start_y + kMsgBoxHeight - kButtonBottomMargin - kButtonHeight;
+
+        // 绘制按钮矩形
+        display.drawRoundRect(buttonX, buttonY,
+                              kButtonWidth, kButtonHeight,
+                              kButtonCornerRadius, 0);
+
+        // 绘制按钮文字（水平居中，垂直偏移保证视觉居中）
+        w = u8g2Fonts.getUTF8Width(kButtonLabel);
+        u8g2Fonts.setCursor(buttonX + (kButtonWidth - w) / 2,
+                            buttonY + kButtonTextBaselineOffset);
+        u8g2Fonts.print(kButtonLabel);
+
+        // 刷新显示
         display.display(true);
+
+        // 等待用户操作（超时或按键）
         hal.wait_input(timeout);
-        display.setDrawWindow(); // 恢复绘制窗口
+
+        // 恢复绘制环境
+        display.setDrawWindow();
         pop_buffer();
         hal.unhookButton();
     }
     /**
-     * @brief  消息显示GUI,等待5min用户输入
+     * @brief  消息显示GUI，不等待输入，显示后立即恢复绘图环境
      * @param title 窗口标题
      * @param msg  消息内容
      * @param start_x 起始X坐标(左上角)
@@ -174,65 +217,123 @@ namespace GUI
      */
     void info_msgbox(const char *title, const char *msg, int start_x, int start_y)
     {
-        // 160*100窗口，圆角5
-        // constexpr int start_x = (296 - 160) / 2;
-        // constexpr int start_y = (128 - 96) / 2;
+        // ---------- 窗口固定大小 ----------
+        constexpr int kInfoBoxWidth = 190;
+        constexpr int kInfoBoxHeight = 110;
+
+        // ---------- 内容区域边距 ----------
+        constexpr int kContentLeftMargin = 2; // 文字左侧留白
+        constexpr int kContentTopOffset = 28; // 标题栏下方文字基线位置
+
+        if (start_x < 0)
+            start_x = (MAX_X - kInfoBoxWidth) / 2;
+        if (start_y < 0)
+            start_y = (MAX_Y - kInfoBoxHeight) / 2;
+
         int16_t x = u8g2Fonts.getCursorX(), y = u8g2Fonts.getCursorY();
+
         push_buffer();
-        drawWindowsWithTitle(title, start_x, start_y, 160, 96);
-        // 内容
+        drawWindowsWithTitle(title, start_x, start_y, kInfoBoxWidth, kInfoBoxHeight);
+
+        // 绘制消息内容（自动缩进显示）
         if (msg)
         {
-            u8g2Fonts.setCursor(start_x + 2, start_y + 28);
-            autoIndentDraw(msg, start_x + 160 - 2, start_x + 2);
+            u8g2Fonts.setCursor(start_x + kContentLeftMargin,
+                                start_y + kContentTopOffset);
+            autoIndentDraw(msg,
+                           start_x + kInfoBoxWidth - kContentLeftMargin, // 右边界
+                           start_x + kContentLeftMargin);                // 左边界
         }
-        // display.displayWindow(start_x, start_y, 160, 96);
+
         display.display();
         display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         u8g2Fonts.setCursor(x, y);
     }
     /**
-     * @brief  选择GUI
+     * @brief  二选一确认对话框，左/右按键选择，30秒超时
      * @param title 窗口标题
      * @param msg  消息内容
-     * @param yes 右按钮文本
-     * @param no 左按钮文本
-     * @return bool  true:右键，false:左键
+     * @param yes  右按钮文本（默认 "确定 (右)"）
+     * @param no   左按钮文本（默认 "取消 (左)"）
+     * @return bool  true:选择了右按钮，false:选择了左按钮
      */
     bool msgbox_yn(const char *title, const char *msg, const char *yes, const char *no)
     {
-        // 160*100窗口，圆角5
-        constexpr int start_x = (MAX_X - 160) / 2;
-        constexpr int start_y = (MAX_Y - 96) / 2;
-        if (yes == NULL)
+        // ---------- 窗口尺寸与圆角 ----------
+        constexpr int kMsgBoxWidth = 190;
+        constexpr int kMsgBoxHeight = 110;
+
+        // ---------- 内容区域边距 ----------
+        constexpr int kContentLeftMargin = 2;
+        constexpr int kContentTopOffset = 28;
+
+        // ---------- 按钮通用参数 ----------
+        constexpr int kButtonWidth = 70;
+        constexpr int kButtonHeight = 15;
+        constexpr int kButtonCornerRadius = 3;
+        constexpr int kButtonSideMargin = 5;          // 按钮到窗口左右边缘的距离
+        constexpr int kButtonBottomMargin = 5;        // 按钮到窗口下边缘的距离
+        constexpr int kButtonTextBaselineOffset = 12; // 文字在按钮内的垂直偏移
+
+        // ---------- 超时与默认文本 ----------
+        constexpr unsigned long kInputTimeout = 30000; // 30秒超时间隔
+        if (yes == nullptr)
             yes = "确定 (右)";
-        if (no == NULL)
+        if (no == nullptr)
             no = "取消 (左)";
+
+        // ---------- 居中定位 ----------
+        constexpr int start_x = (MAX_X - kMsgBoxWidth) / 2;
+        constexpr int start_y = (MAX_Y - kMsgBoxHeight) / 2;
+
         int16_t w;
         bool result = false;
+
         hal.hookButton();
         push_buffer();
-        drawWindowsWithTitle(title, start_x, start_y, 160, 96);
-        // 内容
-        u8g2Fonts.setCursor(start_x + 2, start_y + 28);
-        autoIndentDraw(msg, start_x + 160 - 2, start_x + 2);
-        // 按钮
-        display.drawRoundRect(start_x + 5, start_y + 96 - 20, 70, 15, 3, 0);
-        display.drawRoundRect(start_x + 85, start_y + 96 - 20, 70, 15, 3, 0);
+
+        // 绘制带标题的窗口背景
+        drawWindowsWithTitle(title, start_x, start_y, kMsgBoxWidth, kMsgBoxHeight);
+
+        // 绘制消息内容
+        u8g2Fonts.setCursor(start_x + kContentLeftMargin,
+                            start_y + kContentTopOffset);
+        autoIndentDraw(msg,
+                       start_x + kMsgBoxWidth - kContentLeftMargin,
+                       start_x + kContentLeftMargin);
+
+        // 计算两个按钮的坐标
+        const int leftButtonX = start_x + kButtonSideMargin;
+        const int rightButtonX = start_x + kMsgBoxWidth - kButtonSideMargin - kButtonWidth;
+        const int buttonY = start_y + kMsgBoxHeight - kButtonBottomMargin - kButtonHeight;
+
+        // 绘制左按钮（对应 no）
+        display.drawRoundRect(leftButtonX, buttonY,
+                              kButtonWidth, kButtonHeight,
+                              kButtonCornerRadius, 0);
         w = u8g2Fonts.getUTF8Width(no);
-        u8g2Fonts.setCursor(start_x + 5 + (70 - w) / 2, start_y + 96 - 20 + 12);
+        u8g2Fonts.setCursor(leftButtonX + (kButtonWidth - w) / 2,
+                            buttonY + kButtonTextBaselineOffset);
         u8g2Fonts.print(no);
+
+        // 绘制右按钮（对应 yes）
+        display.drawRoundRect(rightButtonX, buttonY,
+                              kButtonWidth, kButtonHeight,
+                              kButtonCornerRadius, 0);
         w = u8g2Fonts.getUTF8Width(yes);
-        u8g2Fonts.setCursor(start_x + 85 + (70 - w) / 2, start_y + 96 - 20 + 12);
+        u8g2Fonts.setCursor(rightButtonX + (kButtonWidth - w) / 2,
+                            buttonY + kButtonTextBaselineOffset);
         u8g2Fonts.print(yes);
-        // display.displayWindow(start_x, start_y, 160, 96);
+
         display.display(true);
+
+        // 等待用户按键，每30秒调用一次 hal.wait_input() 防止看门狗或系统挂起
         unsigned long start = millis();
-        while (1)
+        while (true)
         {
             delay(10);
-            if (millis() - start > 30000)
+            if (millis() - start > kInputTimeout)
             {
                 hal.wait_input();
                 start = millis();
@@ -252,6 +353,7 @@ namespace GUI
         display.setDrawWindow(); // 恢复绘制窗口
         pop_buffer();
         hal.unhookButton();
+
         return result;
     }
     /**
@@ -1818,7 +1920,41 @@ namespace GUI
         display.setDrawWindow(); // 恢复绘制窗口
         return current_value;
     }
-
+    // RLE 解压函数（与 Python 端 rle_compress 对应）
+    // 参数：
+    //   src    : 压缩数据
+    //   src_len: 压缩数据长度
+    //   dst    : 输出缓冲区（必须足够容纳解压后数据）
+    //   dst_max: 输出缓冲区最大容量，防止溢出
+    // 返回值：成功解压的字节数，失败返回 -1
+    IRAM_ATTR int rle_decompress(const uint8_t *src, uint32_t src_len, uint8_t *dst, uint32_t dst_max)
+    {
+        uint32_t i = 0;
+        uint32_t out_idx = 0;
+        while (i < src_len)
+        {
+            uint8_t cmd = src[i++];
+            if (cmd < 0x80)
+            { // 字面量
+                uint32_t len = cmd + 1;
+                if (out_idx + len > dst_max)
+                    return -1;
+                memcpy(dst + out_idx, src + i, len);
+                i += len;
+                out_idx += len;
+            }
+            else
+            { // 重复字节
+                uint32_t len = (cmd & 0x7F) + 1;
+                if (out_idx + len > dst_max)
+                    return -1;
+                uint8_t val = src[i++];
+                memset(dst + out_idx, val, len);
+                out_idx += len;
+            }
+        }
+        return out_idx;
+    }
     /**
      * @brief 播放vlbm视频
      * @param x 起始绘制x坐标
@@ -1834,72 +1970,127 @@ namespace GUI
             log_e("File %s not found!", filename);
             return;
         }
+
+        // 读取全局文件头
         LBM_V_HEAD header;
-        fread(&header, sizeof(LBM_V_HEAD), 1, fp);
+        if (fread(&header, sizeof(LBM_V_HEAD), 1, fp) != 1)
+        {
+            log_e("Failed to read LBM_V_HEAD");
+            fclose(fp);
+            return;
+        }
+
         uint16_t w = header.w;
         uint16_t h = header.h;
         uint8_t gray_level = header.gray;
         TickType_t xFrequency = pdMS_TO_TICKS(header.frametime);
-        log_i("w: %u h: %u gray: %u frametime: %u", w, h, gray_level, header.frametime);
+        log_i("w=%u h=%u gray=%u frametime=%u ms", w, h, gray_level, header.frametime);
 
-        // 根据灰度等级计算每像素位数
-        uint8_t bits_per_pixel;
-        switch (gray_level)
+        // 当前仅支持 2 阶灰度（1 bpp）
+        if (gray_level != 2)
         {
-        case 2:
-            bits_per_pixel = 1;
-            break;
-        default:
-            log_e("Invalid gray level: %u", gray_level);
+            log_e("Only gray_level=2 is supported, got %u", gray_level);
             fclose(fp);
             return;
         }
-        uint8_t pixels_per_byte = 8 / bits_per_pixel;
+
+        uint8_t bits_per_pixel = 1;
+        uint8_t pixels_per_byte = 8 / bits_per_pixel; // = 8
         uint16_t bytes_per_row = (w + pixels_per_byte - 1) / pixels_per_byte;
-        size_t imgsize = bytes_per_row * h;
+        size_t imgsize = bytes_per_row * h; // 原始 LBM 位图大小（字节）
 
+        // 分配原始位图缓冲区（解压后的目标）
         uint8_t *img = (uint8_t *)malloc(imgsize);
-        if (!img)
+        uint8_t *buf = (uint8_t *)malloc(imgsize); // 读取帧数据的临时缓冲区
+        if (!img || !buf)
         {
-            log_printf("malloc failed!\n");
+            log_e("malloc img failed!");
             fclose(fp);
             return;
         }
 
-        TickType_t startTick = xTaskGetTickCount();
-        uint32_t frameCount = 0;
         TickType_t xLastWakeTime = xTaskGetTickCount();
+        uint32_t frameCount = 0;
+        TickType_t startTick = xTaskGetTickCount();
+        bool eof = false;
 
-        while (1)
+        while (!eof)
         {
-            size_t read_bytes = fread(img, 1, imgsize, fp);
-            if (read_bytes != imgsize)
-            {
-                if (feof(fp))
-                {
-                    log_i("Playback finished: reached EOF at frame %lu", frameCount);
-                    break;
-                }
-                else
-                {
-                    log_e("Incomplete frame data at frame %lu, read %u bytes", frameCount, read_bytes);
-                    break;
-                }
-            }
-
             if (hal.btnl.isPressing())
             {
                 delay(100);
                 if (hal.btnl.isPressing())
                 {
-                    log_i("Playback interrupted by button at frame %lu", frameCount);
+                    log_i("Playback interrupted by user after %lu frames", frameCount);
+                    break;
+                }
+            }
+            frame_HEAD fh;
+            size_t bytes_read = fread(&fh, sizeof(frame_HEAD), 1, fp);
+            if (bytes_read != 1)
+            {
+                eof = true;
+                break; // 文件结束或读取错误
+            }
+
+            if (fh.signature == FRAME_MAGIC)
+            {
+                // 读取帧数据块
+                if (fread(buf, 1, fh.data_len, fp) != fh.data_len)
+                {
+                    log_e("Incomplete frame data");
+                    free(buf);
+                    break;
+                }
+
+                bool success = false;
+                if (fh.data_type == FRAME_TYPE_LBM)
+                {
+                    if (fh.data_len == imgsize)
+                    {
+                        memcpy(img, buf, imgsize);
+                        success = true;
+                    }
+                    else
+                    {
+                        log_e("LBM size mismatch: %u vs %u", fh.data_len, imgsize);
+                    }
+                }
+                else if (fh.data_type == FRAME_TYPE_LBM_RLE)
+                {
+                    int dec_len = rle_decompress(buf, fh.data_len, img, imgsize);
+                    if (dec_len == (int)imgsize)
+                        success = true;
+                    else
+                        log_e("RLE decompress error");
+                }
+                else
+                {
+                    log_e("Unsupported data_type %d", fh.data_type);
+                }
+                if (!success)
+                    break;
+            }
+            else
+            {
+                // ----- 旧格式：回退指针，然后按原始帧大小读取 -----
+                fseek(fp, -sizeof(frame_HEAD), SEEK_CUR); // 回到帧起始位置
+                size_t read_bytes = fread(img, 1, imgsize, fp);
+                if (read_bytes != imgsize)
+                {
+                    if (feof(fp))
+                        break;
+                    log_e("Incomplete old-format frame at %lu", frameCount);
                     break;
                 }
             }
 
+            // 绘制当前帧
             display.clearScreen();
-            display.drawbitmap(x, y, img, w, h, color); // 传递每像素位数
+            display.drawbitmap(x, y, img, w, h, color);
             display.display();
+
+            // 帧同步延时
             xTaskDelayUntil(&xLastWakeTime, xFrequency);
             frameCount++;
 
@@ -1914,12 +2105,12 @@ namespace GUI
         uint32_t elapsedMs = (endTick - startTick) * portTICK_PERIOD_MS;
         float elapsedSec = elapsedMs / 1000.0f;
         float avgFps = (elapsedSec > 0) ? (frameCount / elapsedSec) : 0;
-
+        // 播放完毕或被中断
         log_i("Playback finished. Total frames: %lu, elapsed time: %.2f sec, average FPS: %.2f",
               frameCount, elapsedSec, avgFps);
-
         fclose(fp);
         free(img);
+        free(buf);
     }
     /**
      * @brief 绘制LBM格式的灰度图像

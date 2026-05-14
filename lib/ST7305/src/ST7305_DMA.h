@@ -74,15 +74,52 @@ public:
 			   int8_t cs_pin, int8_t dc_pin,
 			   int8_t rst_pin, int8_t te_pin = -1);
 
+	void spi_lock()
+	{
+		xSemaphoreTake(_spi_mutex, portMAX_DELAY);
+	}
+	void spi_unlock()
+	{
+		xSemaphoreGive(_spi_mutex);
+	}
+
+	/**
+	 * @brief 发送命令到显示屏
+	 * @param command 要发送的命令字节
+	 * @note 如果你需要在显示驱动的几个功能函数外使用，应确保使用锁来包裹你的命令序列
+	 */
 	void sendCommand(uint8_t command);
+	/**
+	 * @brief 发送数据到显示屏
+	 * @param data 要发送的数据字节
+	 * @note 如果你需要在显示驱动的几个功能函数外使用，应确保使用锁来包裹你的命令序列
+	 */
 	void sendData(uint8_t data);
+	/**
+	 * @brief 发送数据到显示屏
+	 * @param data 要发送的数据缓冲区指针
+	 * @param len  要发送的数据长度（字节数）
+	 * @note 如果你需要在显示驱动的几个功能函数外使用，应确保使用锁来包裹你的命令序列
+	 */
 	void sendData(uint8_t *data, size_t len);
+	/**
+	 * @brief 从显示屏接收数据
+	 * @param buffer 用于存储接收数据的缓冲区指针
+	 * @param len    要接收的数据长度（字节数）
+	 * @note 如果你需要在显示驱动的几个功能函数外使用，应确保使用锁来包裹你的命令序列
+	 */
 	void receiveData(uint8_t *buffer, size_t len);
 
+	/**
+	 * @brief 初始化显示屏
+	 * 该函数配置 SPI 总线、初始化显示寄存器，并准备好显示屏进行数据传输。
+	 * @param reset 是否在初始化后执行一次完整的显示刷新，默认为 true
+	 * @return true 初始化成功，false 初始化失败
+	 */
 	bool begin(bool reset = true);
 	/**
 	 * @brief 刷新显示内容
-	 * 该函数将当前缓冲区的内容发送到显示屏。它会等待 TE 信号（如果 TE 引脚有效）以同步刷新，确保显示稳定。
+	 * 该函数将当前缓冲区的内容发送到显示屏。它会等待 TE 信号（如果 TE 引脚有效）以同步刷新，以避免撕裂。
 	 * @param ignoreTE 是否忽略 TE 信号直接刷新，默认为 false。当设置为 true 时，函数会立即刷新显示并强制阻塞5ms以确保数据传输完成
 	 * @note 频繁使用忽略TE的刷新会因为阻塞导致性能问题
 	 */
@@ -108,6 +145,9 @@ public:
 	void display_Inversion(bool enabled);
 	void invertDisplay(bool i) { display_Inversion(i); };
 	void set_te_interrupt_mode(int mode) { te_interrupt_mode = mode; }
+	/**
+	 * 启用drawPixel的日志输出，非必要时请勿启用以避免严重的性能下降
+	 */
 	void debug_log(bool debug)
 	{
 		log_out = debug;
@@ -288,6 +328,7 @@ private:
 	// 同步对象
 	SemaphoreHandle_t _te_semaphore;   // TE 信号量（由 ISR 释放）
 	SemaphoreHandle_t _dma_mutex;	   // 保护共享数据的互斥量
+	SemaphoreHandle_t _spi_mutex;      // 保护SPI设备访问的互斥量
 	TaskHandle_t _display_task_handle; // 后台刷新任务句柄
 
 	// TE 中断服务例程（静态）

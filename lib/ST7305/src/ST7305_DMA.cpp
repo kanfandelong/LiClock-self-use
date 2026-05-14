@@ -79,6 +79,7 @@ bool ST7305_DMA::begin(bool reset)
     // 创建同步对象
     _te_semaphore = xSemaphoreCreateBinary();
     _dma_mutex = xSemaphoreCreateMutex();
+    _spi_mutex = xSemaphoreCreateMutex();
     if (!_te_semaphore || !_dma_mutex)
     {
         log_e("信号量创建失败");
@@ -147,7 +148,7 @@ bool ST7305_DMA::begin(bool reset)
 
     // 添加设备
     spi_device_interface_config_t devcfg = {};
-    devcfg.mode = 0;                          // SPI 模式 0
+    devcfg.mode = 0; // SPI 模式 0
     devcfg.clock_speed_hz = SPI_MASTER_FREQ_26M;
     devcfg.spics_io_num = _cs_pin;
     devcfg.queue_size = 7;
@@ -164,7 +165,9 @@ bool ST7305_DMA::begin(bool reset)
 
     // 初始化屏幕寄存器
     log_i("初始化屏幕...");
+    spi_lock();
     initDisplay();
+    spi_unlock();
     clearDisplay();
     if (reset)
         display();
@@ -176,7 +179,7 @@ void ST7305_DMA::sendCommand(uint8_t cmd)
     spi_transaction_t t = {0};
     t.length = 8;
     t.tx_buffer = &cmd;
-    t.rx_buffer = NULL; 
+    t.rx_buffer = NULL;
     t.user = (void *)((uintptr_t)this | 0); // DC = 0
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
     if (ret != ESP_OK)
@@ -190,7 +193,7 @@ void ST7305_DMA::sendData(uint8_t data)
     spi_transaction_t t = {0};
     t.length = 8;
     t.tx_buffer = &data;
-    t.rx_buffer = NULL; 
+    t.rx_buffer = NULL;
     t.user = (void *)((uintptr_t)this | 1); // DC = 1
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
     if (ret != ESP_OK)
@@ -206,7 +209,7 @@ void ST7305_DMA::sendData(uint8_t *data, size_t len)
     spi_transaction_t t = {0};
     t.length = len * 8;
     t.tx_buffer = data;
-    t.rx_buffer = NULL; 
+    t.rx_buffer = NULL;
     t.user = (void *)((uintptr_t)this | 1); // DC = 1
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
     if (ret != ESP_OK)
@@ -215,18 +218,21 @@ void ST7305_DMA::sendData(uint8_t *data, size_t len)
     }
 }
 
-void ST7305_DMA::receiveData(uint8_t *buffer, size_t len)
-{
-    if (len == 0)
+void ST7305_DMA::receiveData(uint8_t *buffer, size_t len) {
+    if (len == 0) return;
+    if (len > 4) {
+        log_e("receiveData: only up to 4 bytes supported in half-duplex mode");
         return;
+    }
     spi_transaction_t t = {0};
+    t.flags = SPI_TRANS_USE_RXDATA;
     t.length = len * 8;
-    t.rx_buffer = buffer;
-    t.tx_buffer = NULL; 
-    t.user = (void *)((uintptr_t)this | 1); // DC = 1
+    t.rx_buffer = NULL;  // 使用内置 rx_data
+    t.user = (void *)((uintptr_t)this | 1);
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
-    if (ret != ESP_OK)
-    {
+    if (ret == ESP_OK) {
+        memcpy(buffer, t.rx_data, len);
+    } else {
         log_e("receiveData 失败: %d", ret);
     }
 }
@@ -352,6 +358,8 @@ void ST7305_DMA::display(bool ignoreTE)
         uint8_t caset[] = {0x17, 0x17 + 14 - 1};
         uint8_t raset[] = {0x00, 0x00 + 192 - 1};
 
+        spi_lock();
+
         sendCommand(0x2A);
         sendData(caset, sizeof(caset));
 
@@ -360,6 +368,8 @@ void ST7305_DMA::display(bool ignoreTE)
 
         sendCommand(0x2C);
         sendData(buffer, BYTES_PER_BUFFER);
+
+        spi_unlock();
 
         _active_dma_idx = -1;
         _pending_dma_idx = -1;
@@ -457,8 +467,10 @@ void ST7305_DMA::display_task(void *pvParameters)
                 // 释放互斥锁，避免在发送命令期间阻塞其他操作
                 xSemaphoreGive(d->_dma_mutex);
 
+                d->spi_lock();
                 // 执行实际刷屏（发送命令和 DMA 数据）
                 d->displayInternal(buf_to_send);
+                d->spi_unlock();
 
                 // 注意：displayInternal 会 queue 新 DMA 事务，完成后 _active_dma_idx 会在下次循环中清除
                 // 但为了立即知道完成，我们可以在 displayInternal 后等待完成？这里我们选择不等待，
@@ -632,7 +644,7 @@ IRAM_ATTR void ST7305_DMA::drawPixel(int16_t x, int16_t y, uint16_t color)
  *
  * 根据方向更新当前缓冲区，滑动后空缺部分从新缓冲区相应位置填充。
  */
-void ST7305_DMA::slideOneBlock(SlideDirection dir, uint8_t new_buffer, uint8_t step)
+IRAM_ATTR void ST7305_DMA::slideOneBlock(SlideDirection dir, uint8_t new_buffer, uint8_t step)
 {
     if (new_buffer > 3)
         return;
@@ -723,7 +735,7 @@ void ST7305_DMA::slideScreenFull(SlideDirection dir, uint32_t duration_ms, uint8
     }
 }
 
-void ST7305_DMA::drawbitmap(int16_t x, int16_t y, const uint8_t bitmap[], int16_t w, int16_t h, uint16_t color)
+IRAM_ATTR void ST7305_DMA::drawbitmap(int16_t x, int16_t y, const uint8_t bitmap[], int16_t w, int16_t h, uint16_t color)
 {
     const int16_t physWidth = PHYSICAL_WIDTH;
     const int16_t physHeight = PHYSICAL_HEIGHT;
@@ -1373,6 +1385,7 @@ void ST7305_DMA::setDrawWindow(int16_t x, int16_t y, int16_t w, int16_t h)
 
 void ST7305_DMA::setPowerMode(PowerMode mode)
 {
+    spi_lock();
     if (mode == POWER_MODE_LPM)
     {
         if (LPM_MODE)
@@ -1472,10 +1485,12 @@ void ST7305_DMA::setPowerMode(PowerMode mode)
             delay(20);
         }
     }
+    spi_unlock();
 }
 
 void ST7305_DMA::display_on(bool enabled)
 {
+    spi_lock();
     if (enabled)
     {
         sendCommand(0x29); // DISPLAY ON
@@ -1484,15 +1499,19 @@ void ST7305_DMA::display_on(bool enabled)
     {
         sendCommand(0x28); // DISPLAY OFF
     }
+    spi_unlock();
 }
 
 void ST7305_DMA::display_sleep(bool enabled)
 {
+    spi_lock();
     if (enabled)
     {
         if (LPM_MODE)
         {
+            spi_unlock();
             setPowerMode(POWER_MODE_HPM); // HPM:high Power Mode ON
+            spi_lock();
             delay(300);
         }
         sendCommand(0x10); // sleep ON
@@ -1503,10 +1522,12 @@ void ST7305_DMA::display_sleep(bool enabled)
         sendCommand(0x11); // sleep OFF
         delay(100);
     }
+    spi_unlock();
 }
 
 void ST7305_DMA::display_Inversion(bool enabled)
 {
+    spi_lock();
     if (enabled)
     {
         sendCommand(0x21); // Display Inversion On
@@ -1515,4 +1536,5 @@ void ST7305_DMA::display_Inversion(bool enabled)
     {
         sendCommand(0x20); // Display Inversion Off
     }
+    spi_unlock();
 }

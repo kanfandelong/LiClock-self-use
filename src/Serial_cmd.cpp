@@ -2280,6 +2280,136 @@ static int cmd_espreg(int argc, char **argv)
     return 0;
 }
 
+// Add this function implementation to Serial_cmd.cpp, e.g., before the command registration array
+
+static int cmd_display(int argc, char **argv)
+{
+    // Usage: display <r|w> <cmd> [len|data...]
+    if (argc < 3)
+    {
+        return 1;
+    }
+
+    const char *mode = argv[1];
+    bool is_read = false;
+    if (strcmp(mode, "r") == 0)
+    {
+        is_read = true;
+    }
+    else if (strcmp(mode, "w") == 0)
+    {
+        is_read = false;
+    }
+    else
+    {
+        PRINT_ERROR("Invalid mode: use 'r' or 'w'");
+        return 1;
+    }
+
+    // Parse command byte (hex)
+    uint8_t cmd;
+    char *endptr;
+    long cmd_val = strtol(argv[2], &endptr, 0);
+    if (*endptr != '\0' || cmd_val < 0 || cmd_val > 0xFF)
+    {
+        PRINT_ERROR("Invalid command value: %s (must be 0x00-0xFF)", argv[2]);
+        return 1;
+    }
+    cmd = (uint8_t)cmd_val;
+
+    if (is_read)
+    {
+        // display r <cmd> <len>
+        if (argc != 4)
+        {
+            return 1;
+        }
+        long len = strtol(argv[3], &endptr, 10);
+        if (*endptr != '\0' || len <= 0 || len > BYTES_PER_BUFFER)
+        {
+            PRINT_ERROR("Invalid read length (1-%d): %s", BYTES_PER_BUFFER, argv[3]);
+            return 1;
+        }
+        size_t read_len = (size_t)len;
+
+        // Allocate buffer
+        uint8_t *buffer = (uint8_t *)malloc(read_len);
+        if (!buffer)
+        {
+            PRINT_ERROR("Failed to allocate buffer for read");
+            return 2;
+        }
+
+        // Perform read operation with SPI lock
+        display.spi_lock();
+        display.sendCommand(cmd);
+        display.receiveData(buffer, read_len);
+        display.spi_unlock();
+
+        // Print result
+        PRINT_INFO("Read %u bytes from command 0x%02X:", read_len, cmd);
+        char hex_line[64];
+        char ascii_line[64];
+        size_t hex_off = 0, ascii_off = 0;
+        for (size_t i = 0; i < read_len; i++)
+        {
+            hex_off += snprintf(hex_line + hex_off, sizeof(hex_line) - hex_off, "%02X ", buffer[i]);
+            if (buffer[i] >= 0x20 && buffer[i] <= 0x7E)
+                ascii_off += snprintf(ascii_line + ascii_off, sizeof(ascii_line) - ascii_off, "%c", buffer[i]);
+            else
+                ascii_off += snprintf(ascii_line + ascii_off, sizeof(ascii_line) - ascii_off, ".");
+            if ((i + 1) % 16 == 0 || i == read_len - 1)
+            {
+                log_printf("  %-48s  %s\n", hex_line, ascii_line);
+                hex_off = 0;
+                ascii_off = 0;
+            }
+        }
+        free(buffer);
+        return 0;
+    }
+    else
+    {
+        // display w <cmd> <data...>
+        if (argc < 4)
+        {
+            return 1;
+        }
+        // Collect data bytes from argv[3] to argv[argc-1]
+        int data_count = argc - 3;
+        uint8_t *data = (uint8_t *)malloc(data_count);
+        if (!data)
+        {
+            PRINT_ERROR("Failed to allocate data buffer");
+            return 2;
+        }
+        for (int i = 0; i < data_count; i++)
+        {
+            long val = strtol(argv[3 + i], &endptr, 0);
+            if (*endptr != '\0' || val < 0 || val > 0xFF)
+            {
+                PRINT_ERROR("Invalid data byte at position %d: %s", i + 1, argv[3 + i]);
+                free(data);
+                return 1;
+            }
+            data[i] = (uint8_t)val;
+        }
+
+        // Perform write operation with SPI lock
+        display.spi_lock();
+        display.sendCommand(cmd);
+        if (data_count > 0)
+        {
+            display.sendData(data, data_count);
+        }
+        display.spi_unlock();
+
+        PRINT_SUCCESS("Sent command 0x%02X with %d data byte(s)", cmd, data_count);
+        free(data);
+        return 0;
+    }
+}
+
 // 命令注册表
 // Register all console commands defined in this file
 static const char *no_info = "";
@@ -2328,6 +2458,7 @@ static const esp_console_cmd_t cmds[] = {
      .hint = "Usage: wsconsole <start|stop>",
      .func = &cmd_wsconsole,
      .argtable = NULL},
+    {.command = "display", .help = "Send/read display command/data", .hint = "Usage:\n  display r <cmd> <len>   (read <len> bytes from command <cmd>)\n  display w <cmd> <data...> (write command <cmd> followed by data bytes)", .func = &cmd_display, .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.

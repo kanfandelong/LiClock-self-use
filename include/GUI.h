@@ -49,6 +49,24 @@ typedef struct
     uint16_t frametime;
 } LBM_V_HEAD;
 
+#define FRAME_MAGIC 0x524C4500 // "REL\0"表示Raw/Encoded LBM
+
+enum frameType
+{
+    FRAME_TYPE_LBM = 0,
+    FRAME_TYPE_LBM_RLE,
+    FRAME_TYPE_RAW,
+    FRAME_TYPE_RAW_RLE
+};
+
+typedef struct
+{
+    uint32_t signature;
+    uint16_t data_len;
+    uint8_t data_type;
+    uint8_t reserved;
+} frame_HEAD;
+
 namespace GUI
 {
     extern int last_buffer_idx;
@@ -56,7 +74,7 @@ namespace GUI
     void autoIndentDraw(const char *str, int max_x, int start_x = 2, int fontsize = 13);
     void drawWindowsWithTitle(const char *title = NULL, int16_t x = 0, int16_t y = 0, int16_t w = MAX_X, int16_t h = MAX_Y);
     void msgbox(const char *title, const char *msg, uint16_t timeout = 30);
-    void info_msgbox(const char *title, const char *msg, int start_x = 112, int start_y = 36);
+    void info_msgbox(const char *title, const char *msg, int start_x = -1, int start_y = -1);
     bool msgbox_yn(const char *title, const char *msg, const char *yes = NULL, const char *no = NULL);
     int msgbox_number(const char *title, uint16_t digits, int pre_value); // 注意digits，1表示一位，2表示两位，程序中减一
     int64_t msgbox_number64(const char *title, uint16_t digits, int64_t pre_value); // int64数字输入，支持大ID

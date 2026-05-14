@@ -2,7 +2,8 @@
 #include <algorithm>
 #include "AudioGenerator.h"
 
-#define xing_log log_i
+// #define xing_log log_i
+#define xing_log(format, ...) do {} while(0)
 #define xing_log_e log_e
 
 // 解析 Xing / Info 头，buf 至少包含一个完整的 MPEG 音频帧数据，len 为帧大小
@@ -149,7 +150,7 @@ XingHeaderInfo parseXingHeader(const uint8_t* buf, size_t len) {
         } else {
             info.bitrate = bitrate_kbps * 1000;
         }
-        log_i("parseXingHeader: success: frames=%u, bytes=%u, duration=%.2fs, bitrate=%u",
+        xing_log("parseXingHeader: success: frames=%u, bytes=%u, duration=%.2fs, bitrate=%u",
               info.frames, info.bytes, info.duration, info.bitrate);
     }
 
