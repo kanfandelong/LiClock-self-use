@@ -1301,7 +1301,6 @@ bool HAL::init()
     esp_task_wdt_init(portMAX_DELAY, false);
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
-    pinMode(PIN_SDVDD_CTRL, OUTPUT);
     pinMode(PIN_SCL, OUTPUT | PULLUP);
     pinMode(PIN_SDA, OUTPUT | PULLUP);
 
@@ -1314,8 +1313,8 @@ bool HAL::init()
     pinMode(PIN_I2S_MCLK, OUTPUT);
     digitalWrite(PIN_I2S_MCLK, 0);
 
+    pinMode(PIN_SDVDD_CTRL, OUTPUT);
     digitalWrite(PIN_SDVDD_CTRL, 1);
-    digitalWrite(PIN_BUZZER, 0);
     pinMode(PIN_BUZZER, OUTPUT);
     digitalWrite(PIN_BUZZER, 0);
 

@@ -2280,134 +2280,74 @@ static int cmd_espreg(int argc, char **argv)
     return 0;
 }
 
-// Add this function implementation to Serial_cmd.cpp, e.g., before the command registration array
+// ==================== display 命令（底层调试） ====================
+// 用法：display <cmd> [data...]
+//   cmd  : 命令字节（支持十进制或十六进制，如 42 或 0x2A）
+//   data : 可选的若干个数据字节（同样支持十进制或十六进制）
 
 static int cmd_display(int argc, char **argv)
 {
-    // Usage: display <r|w> <cmd> [len|data...]
-    if (argc < 3)
+    if (argc < 2)
     {
-        return 1;
+        return 1; // 参数不足，显示帮助
     }
 
-    const char *mode = argv[1];
-    bool is_read = false;
-    if (strcmp(mode, "r") == 0)
-    {
-        is_read = true;
-    }
-    else if (strcmp(mode, "w") == 0)
-    {
-        is_read = false;
-    }
-    else
-    {
-        PRINT_ERROR("Invalid mode: use 'r' or 'w'");
-        return 1;
-    }
-
-    // Parse command byte (hex)
-    uint8_t cmd;
+    // 1. 解析命令字节
     char *endptr;
-    long cmd_val = strtol(argv[2], &endptr, 0);
-    if (*endptr != '\0' || cmd_val < 0 || cmd_val > 0xFF)
+    unsigned long cmd_val = strtoul(argv[1], &endptr, 0);
+    if (*endptr != '\0' || cmd_val > 0xFF)
     {
-        PRINT_ERROR("Invalid command value: %s (must be 0x00-0xFF)", argv[2]);
+        PRINT_ERROR("Invalid command byte: %s (must be 0-255)", argv[1]);
         return 1;
     }
-    cmd = (uint8_t)cmd_val;
+    uint8_t cmd_byte = (uint8_t)cmd_val;
 
-    if (is_read)
+    // 2. 准备数据字节数组（最多 argc-2 个）
+    int data_count = argc - 2;
+    uint8_t *data_bytes = nullptr;
+    if (data_count > 0)
     {
-        // display r <cmd> <len>
-        if (argc != 4)
+        data_bytes = (uint8_t *)malloc(data_count);
+        if (!data_bytes)
         {
-            return 1;
-        }
-        long len = strtol(argv[3], &endptr, 10);
-        if (*endptr != '\0' || len <= 0 || len > BYTES_PER_BUFFER)
-        {
-            PRINT_ERROR("Invalid read length (1-%d): %s", BYTES_PER_BUFFER, argv[3]);
-            return 1;
-        }
-        size_t read_len = (size_t)len;
-
-        // Allocate buffer
-        uint8_t *buffer = (uint8_t *)malloc(read_len);
-        if (!buffer)
-        {
-            PRINT_ERROR("Failed to allocate buffer for read");
+            PRINT_ERROR("Failed to allocate memory for data bytes");
             return 2;
         }
-
-        // Perform read operation with SPI lock
-        display.spi_lock();
-        display.sendCommand(cmd);
-        display.receiveData(buffer, read_len);
-        display.spi_unlock();
-
-        // Print result
-        PRINT_INFO("Read %u bytes from command 0x%02X:", read_len, cmd);
-        char hex_line[64];
-        char ascii_line[64];
-        size_t hex_off = 0, ascii_off = 0;
-        for (size_t i = 0; i < read_len; i++)
-        {
-            hex_off += snprintf(hex_line + hex_off, sizeof(hex_line) - hex_off, "%02X ", buffer[i]);
-            if (buffer[i] >= 0x20 && buffer[i] <= 0x7E)
-                ascii_off += snprintf(ascii_line + ascii_off, sizeof(ascii_line) - ascii_off, "%c", buffer[i]);
-            else
-                ascii_off += snprintf(ascii_line + ascii_off, sizeof(ascii_line) - ascii_off, ".");
-            if ((i + 1) % 16 == 0 || i == read_len - 1)
-            {
-                log_printf("  %-48s  %s\n", hex_line, ascii_line);
-                hex_off = 0;
-                ascii_off = 0;
-            }
-        }
-        free(buffer);
-        return 0;
     }
-    else
+
+    // 3. 解析每个数据字节
+    for (int i = 0; i < data_count; i++)
     {
-        // display w <cmd> <data...>
-        if (argc < 4)
+        unsigned long val = strtoul(argv[2 + i], &endptr, 0);
+        if (*endptr != '\0' || val > 0xFF)
         {
+            PRINT_ERROR("Invalid data byte at position %d: %s (must be 0-255)", i + 1, argv[2 + i]);
+            if (data_bytes)
+                free(data_bytes);
             return 1;
         }
-        // Collect data bytes from argv[3] to argv[argc-1]
-        int data_count = argc - 3;
-        uint8_t *data = (uint8_t *)malloc(data_count);
-        if (!data)
-        {
-            PRINT_ERROR("Failed to allocate data buffer");
-            return 2;
-        }
-        for (int i = 0; i < data_count; i++)
-        {
-            long val = strtol(argv[3 + i], &endptr, 0);
-            if (*endptr != '\0' || val < 0 || val > 0xFF)
-            {
-                PRINT_ERROR("Invalid data byte at position %d: %s", i + 1, argv[3 + i]);
-                free(data);
-                return 1;
-            }
-            data[i] = (uint8_t)val;
-        }
-
-        // Perform write operation with SPI lock
-        display.spi_lock();
-        display.sendCommand(cmd);
-        if (data_count > 0)
-        {
-            display.sendData(data, data_count);
-        }
-        display.spi_unlock();
-
-        PRINT_SUCCESS("Sent command 0x%02X with %d data byte(s)", cmd, data_count);
-        free(data);
-        return 0;
+        data_bytes[i] = (uint8_t)val;
     }
+
+    // 4. 加锁并发送命令/数据
+    display.spi_lock(); // 假设 display 对象提供了公共的锁方法
+
+    PRINT_INFO("Sending command: 0x%02X (%d)", cmd_byte, cmd_byte);
+    display.sendCommand(cmd_byte);
+
+    for (int i = 0; i < data_count; i++)
+    {
+        PRINT_INFO("  data[%d]: 0x%02X (%d)", i, data_bytes[i], data_bytes[i]);
+        display.sendData(data_bytes[i]);
+    }
+
+    display.spi_unlock();
+
+    if (data_bytes)
+        free(data_bytes);
+
+    PRINT_SUCCESS("Command sent successfully");
+    return 0;
 }
 
 // 命令注册表
@@ -2458,7 +2398,13 @@ static const esp_console_cmd_t cmds[] = {
      .hint = "Usage: wsconsole <start|stop>",
      .func = &cmd_wsconsole,
      .argtable = NULL},
-    {.command = "display", .help = "Send/read display command/data", .hint = "Usage:\n  display r <cmd> <len>   (read <len> bytes from command <cmd>)\n  display w <cmd> <data...> (write command <cmd> followed by data bytes)", .func = &cmd_display, .argtable = NULL},
+    {.command = "display",
+     .help = "Send raw command/data to display (debugging)",
+     .hint = "Usage: display <cmd> [data...]\n"
+             "  cmd  : command byte (decimal or hex, e.g. 42 or 0x2A)\n"
+             "  data : optional data bytes (multiple values allowed)",
+     .func = &cmd_display,
+     .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.

@@ -50,10 +50,10 @@ public:
     FILE *indexFileHandle = NULL;
     FILE *currentFileHandle = NULL;
     File txtFile, indexesFile;
-    char indexesName[512];
-    char chapterTitle[512];
+    char *indexesName;
+    char *chapterTitle;
+    char *currentFilename;
     size_t currentFileOffset = 0;
-    char currentFilename[512];
     bool page_next = true;
     bool __eof = false;
     bool exit_app = false;       // 是否退出app
@@ -107,6 +107,9 @@ static void appebook_exit()
             app.indexFileHandle = NULL;
         }
     }
+    free(app.indexesName);
+    free(app.chapterTitle);
+    free(app.currentFilename);
     if (hal.pref.getBool(hal.get_char_sha_key("反色显示")))
     {
         u8g2Fonts.setBackgroundColor(TFT_WHITE);
@@ -165,6 +168,10 @@ void AppEBook::setup()
     // // rtc_wdt_enable();
     // rtc_wdt_disable();
     // rtc_wdt_protect_on();
+    
+    indexesName = (char *)malloc(512);
+    chapterTitle = (char *)malloc(512);
+    currentFilename = (char *)malloc(512);
     bool page_changed = false;
     ebook_nvs.begin("ebook");
     app.exit = appebook_exit;
@@ -2740,7 +2747,7 @@ void AppEBook::ebooksettings()
     char nvs_info[48];
     nvs_stats_t stats = ebook_nvs.getStats();
     sprintf(nvs_info, "NVS使用 %d/%d", stats.used_entries, stats.total_entries);
-    static const menu_select ebook_set[] = {
+    menu_select ebook_set[] = {
         {false, "< 返回", nullptr},
         {true, "根据唤醒源翻页", nullptr},
         {true, "自动翻页", nullptr},
