@@ -707,6 +707,157 @@ static int cmd_heap(int argc, char **argv)
     return 0;
 }
 
+// 缓冲区大小 (128KB)
+#define DUMP_BUFFER_SIZE (128 * 1024)
+
+// 全局缓冲区指针和写入位置
+static char *s_dump_buffer = nullptr;
+static size_t s_dump_write_idx = 0;
+static size_t s_dump_buffer_size = 0;
+static bool s_dump_overflow = false;
+
+static void IRAM_ATTR custom_dump_putc(char c)
+{
+    if (!s_dump_buffer) return;
+
+    if (s_dump_write_idx < s_dump_buffer_size - 1) {
+        s_dump_buffer[s_dump_write_idx++] = c;
+    } else {
+        s_dump_overflow = true;
+        // 缓冲区满，停止写入（或可环形覆盖，但一般丢弃）
+    }
+}
+
+/**
+ * @brief 对指定 caps 执行 heap_caps_dump，将结果保存到文件中
+ * @param caps   内存能力掩码
+ * @param file_path  输出文件路径（例如 "/littlefs/heapdump.txt" 或 "/sd/dump.txt"）
+ * @return true 成功, false 失败
+ */
+bool heap_caps_dump_to_file(uint32_t caps, const char *file_path)
+{
+    // 1. 分配 PSRAM 缓冲区
+    s_dump_buffer = (char*)heap_caps_malloc(DUMP_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_dump_buffer) {
+        // 尝试降级到内部 DRAM
+        s_dump_buffer = (char*)malloc(DUMP_BUFFER_SIZE);
+        if (!s_dump_buffer) {
+            log_e("Failed to allocate dump buffer");
+            return false;
+        }
+        log_w("Using internal DRAM for dump buffer");
+    }
+    s_dump_buffer_size = DUMP_BUFFER_SIZE;
+    s_dump_write_idx = 0;
+    s_dump_overflow = false;
+    s_dump_buffer[0] = '\0';
+
+    // 2. 劫持 putc1
+    ets_install_putc1(custom_dump_putc);
+
+    // 3. 临时禁用看门狗（虽然理论上临界区时间变短，但为保险仍禁用任务看门狗）
+    disableCore1WDT();
+    // 注意：heap_caps_dump 内部有临界区，但我们已经大幅缩短了输出时间
+    // 4. 执行 dump
+    heap_caps_dump(caps);
+
+    // 5. 恢复环境
+    enableCore1WDT();
+    
+    // 重载所有钩子
+    uart->setDebugOutput(true);
+    reinstall_putc2();
+    reinstall_ws_putc2();
+
+
+    // 6. 将缓冲区内容写入文件
+    bool write_success = false;
+    FILE *f = fopen(file_path, "w");
+    if (f) {
+        size_t written = fwrite(s_dump_buffer, 1, s_dump_write_idx, f);
+        if (written == s_dump_write_idx) {
+            log_i("Heap dump written to %s (%u bytes)", file_path, s_dump_write_idx);
+            write_success = true;
+        } else {
+            log_e("Write error: only %u of %u bytes written", written, s_dump_write_idx);
+        }
+        fclose(f);
+    } else {
+        log_e("Cannot open file: %s", file_path);
+    }
+
+    // 7. 处理溢出警告
+    if (s_dump_overflow) {
+        log_w("Dump buffer overflow! Increase DUMP_BUFFER_SIZE.");
+    }
+
+    // 8. 释放缓冲区
+    free(s_dump_buffer);
+    s_dump_buffer = nullptr;
+
+    return write_success;
+}
+
+// ==================== heapdump 命令 ====================
+// 用法：heapdump <type>
+// 支持的 type:
+//   internal, spiram, dma, exec, 8bit, default, retention, rt-cram
+//   也可以直接输入十六进制数值，如 0x8 (MALLOC_CAP_DMA)
+static int cmd_heapdump(int argc, char **argv)
+{
+    if (argc != 3) {
+        return 1; // 显示帮助
+    }
+
+    // 参数1：caps 类型（字符串或数字）
+    const char *type_str = argv[1];
+    uint32_t caps = 0;
+
+    // 字符串解析（同上文）
+    if (strcmp(type_str, "internal") == 0)
+        caps = MALLOC_CAP_INTERNAL;
+    else if (strcmp(type_str, "spiram") == 0)
+        caps = MALLOC_CAP_SPIRAM;
+    else if (strcmp(type_str, "dma") == 0)
+        caps = MALLOC_CAP_DMA;
+    else if (strcmp(type_str, "exec") == 0)
+        caps = MALLOC_CAP_EXEC;
+    else if (strcmp(type_str, "8bit") == 0)
+        caps = MALLOC_CAP_8BIT;
+    else if (strcmp(type_str, "default") == 0)
+        caps = MALLOC_CAP_DEFAULT;
+    else if (strcmp(type_str, "retention") == 0)
+        caps = MALLOC_CAP_RETENTION;
+    else if (strcmp(type_str, "rtcram") == 0)
+        caps = MALLOC_CAP_RTCRAM;
+    else {
+        char *endptr;
+        unsigned long val = strtoul(type_str, &endptr, 0);
+        if (*endptr != '\0') {
+            PRINT_ERROR("Unknown heap type: %s", type_str);
+            return 1;
+        }
+        caps = (uint32_t)val;
+    }
+
+    // 参数2：输出文件路径
+    const char *out_file = argv[2];
+    if (!out_file || !out_file[0]) {
+        PRINT_ERROR("Invalid file path");
+        return 1;
+    }
+
+    PRINT_INFO("Dumping heap caps=0x%08X to %s", caps, out_file);
+    bool ok = heap_caps_dump_to_file(caps, out_file);
+    if (ok) {
+        PRINT_SUCCESS("Dump completed");
+    } else {
+        PRINT_ERROR("Dump failed");
+        return 2;
+    }
+    return 0;
+}
+
 static int cmd_chipinfo(int argc, char **argv)
 {
     PRINT_INFO("CHIP INFORMATION:");
@@ -2357,6 +2508,14 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "cpufreq", .help = "获取当前CPU频率或设置频率", .hint = "Usage: cpufreq [freq]\n  freq: 240,160,80", .func = &cmd_cpufreq, .argtable = NULL},
     {.command = "longpress", .help = "设置长按检测时间（X10ms）", .hint = "Usage: longpress [value]", .func = &cmd_longpress, .argtable = NULL},
     {.command = "heap", .help = "显示堆内存使用情况", .hint = no_info, .func = &cmd_heap, .argtable = NULL},
+    {.command = "heapdump",
+     .help = "Dump heap structure to file (PSRAM buffer 128KB)",
+     .hint = "Usage: heapdump <type> <file>\n"
+             "  type: internal, spiram, dma, exec, 8bit, default, retention, rtcram\n"
+             "        or numeric caps mask\n"
+             "  file: output path, e.g. /littlefs/heap.txt",
+     .func = &cmd_heapdump,
+     .argtable = NULL},
     {.command = "cfgcpufreq", .help = "配置CPU频率（重启后生效）", .hint = "Usage: cfgcpufreq <freq>\n  freq: 240,160,80", .func = &cmd_cfgcpufreq, .argtable = NULL},
     {.command = "erasenvs", .help = "擦除所有NVS数据并重启", .hint = "谨慎操作", .func = &cmd_erasenvs, .argtable = NULL},
     {.command = "lfsformat", .help = "格式化LittleFS文件系统", .hint = "谨慎操作", .func = &cmd_lfsformat, .argtable = NULL},
