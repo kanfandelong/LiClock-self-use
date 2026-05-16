@@ -5,3 +5,4 @@ tools/coredump_*
 elf_versions/*
 elf_versions/elf_database.json
 .cache
+.deepseek
