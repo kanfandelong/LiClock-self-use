@@ -1126,7 +1126,7 @@ void AppFileManager::openfile()
         // GUI::info_msgbox("提示", "lua脚本执行完毕", 136, 32);
         hal.wait_input();
     }
-    else if (strcasecmp(houzhui, "mp3") == 0 || strcasecmp(houzhui, "wav") == 0 || strcasecmp(houzhui, "aac") == 0 || strcasecmp(houzhui, "opus") == 0 || strcasecmp(houzhui, "flac") == 0)
+    else if (strcasecmp(houzhui, "mp3") == 0 || strcasecmp(houzhui, "wav") == 0 || strcasecmp(houzhui, "aac") == 0 || strcasecmp(houzhui, "opus") == 0 || strcasecmp(houzhui, "flac") == 0 || strcasecmp(houzhui, "m4a") == 0)
     {
         hasToApp = true;
         toApp = "musicplayer";
