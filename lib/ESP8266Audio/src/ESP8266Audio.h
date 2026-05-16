@@ -29,6 +29,7 @@
 // Actual decode/audio generation logic
 #include "AudioGeneratorAAC.h"
 #include "AudioGeneratorFLAC.h"
+#include "AudioGeneratorM4A.h"
 #include "AudioGenerator.h"
 // #include "AudioGeneratorMIDI.h"
 // #include "AudioGeneratorMOD.h"
