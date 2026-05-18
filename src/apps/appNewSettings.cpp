@@ -1749,6 +1749,18 @@ void AppSettings::about()
 
     u8g2Fonts.drawUTF8(5, 120, "GitHub: github.com/kanfandelong/LiClock-self-use");
 
+    uint64_t unique_id[2];
+    esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, unique_id, 128);
+    uint8_t *chip_uid[2];
+    chip_uid[0] = (uint8_t *)&unique_id[0];
+    chip_uid[1] = (uint8_t *)&unique_id[1];
+    u8g2Fonts.setCursor(5, 135);
+    u8g2Fonts.printf("  Unique ID:   %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+                     chip_uid[0][0], chip_uid[0][1], chip_uid[0][2], chip_uid[0][3],
+                     chip_uid[0][4], chip_uid[0][5], chip_uid[0][6], chip_uid[0][7],
+                     chip_uid[1][0], chip_uid[1][1], chip_uid[1][2], chip_uid[1][3],
+                     chip_uid[1][4], chip_uid[1][5], chip_uid[1][6], chip_uid[1][7]);
+
     display.display(true);
     hal.wait_input();
 }

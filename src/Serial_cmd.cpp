@@ -718,11 +718,15 @@ static bool s_dump_overflow = false;
 
 static void IRAM_ATTR custom_dump_putc(char c)
 {
-    if (!s_dump_buffer) return;
+    if (!s_dump_buffer)
+        return;
 
-    if (s_dump_write_idx < s_dump_buffer_size - 1) {
+    if (s_dump_write_idx < s_dump_buffer_size - 1)
+    {
         s_dump_buffer[s_dump_write_idx++] = c;
-    } else {
+    }
+    else
+    {
         s_dump_overflow = true;
         // 缓冲区满，停止写入（或可环形覆盖，但一般丢弃）
     }
@@ -737,11 +741,13 @@ static void IRAM_ATTR custom_dump_putc(char c)
 bool heap_caps_dump_to_file(uint32_t caps, const char *file_path)
 {
     // 1. 分配 PSRAM 缓冲区
-    s_dump_buffer = (char*)heap_caps_malloc(DUMP_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!s_dump_buffer) {
+    s_dump_buffer = (char *)heap_caps_malloc(DUMP_BUFFER_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!s_dump_buffer)
+    {
         // 尝试降级到内部 DRAM
-        s_dump_buffer = (char*)malloc(DUMP_BUFFER_SIZE);
-        if (!s_dump_buffer) {
+        s_dump_buffer = (char *)malloc(DUMP_BUFFER_SIZE);
+        if (!s_dump_buffer)
+        {
             log_e("Failed to allocate dump buffer");
             return false;
         }
@@ -752,42 +758,49 @@ bool heap_caps_dump_to_file(uint32_t caps, const char *file_path)
     s_dump_overflow = false;
     s_dump_buffer[0] = '\0';
 
-    // 2. 劫持 putc1
-    ets_install_putc1(custom_dump_putc);
-
-    // 3. 临时禁用看门狗（虽然理论上临界区时间变短，但为保险仍禁用任务看门狗）
+    // 2. 临时禁用看门狗（虽然理论上临界区时间变短，但为保险仍禁用任务看门狗）
     disableCore1WDT();
     // 注意：heap_caps_dump 内部有临界区，但我们已经大幅缩短了输出时间
+
+    // 3. 劫持 putc1
+    ets_install_putc1(custom_dump_putc);
+
     // 4. 执行 dump
     heap_caps_dump(caps);
 
     // 5. 恢复环境
     enableCore1WDT();
-    
+
     // 重载所有钩子
     uart->setDebugOutput(true);
     reinstall_putc2();
     reinstall_ws_putc2();
 
-
     // 6. 将缓冲区内容写入文件
     bool write_success = false;
     FILE *f = fopen(file_path, "w");
-    if (f) {
+    if (f)
+    {
         size_t written = fwrite(s_dump_buffer, 1, s_dump_write_idx, f);
-        if (written == s_dump_write_idx) {
+        if (written == s_dump_write_idx)
+        {
             log_i("Heap dump written to %s (%u bytes)", file_path, s_dump_write_idx);
             write_success = true;
-        } else {
+        }
+        else
+        {
             log_e("Write error: only %u of %u bytes written", written, s_dump_write_idx);
         }
         fclose(f);
-    } else {
+    }
+    else
+    {
         log_e("Cannot open file: %s", file_path);
     }
 
     // 7. 处理溢出警告
-    if (s_dump_overflow) {
+    if (s_dump_overflow)
+    {
         log_w("Dump buffer overflow! Increase DUMP_BUFFER_SIZE.");
     }
 
@@ -805,7 +818,8 @@ bool heap_caps_dump_to_file(uint32_t caps, const char *file_path)
 //   也可以直接输入十六进制数值，如 0x8 (MALLOC_CAP_DMA)
 static int cmd_heapdump(int argc, char **argv)
 {
-    if (argc != 3) {
+    if (argc != 3)
+    {
         return 1; // 显示帮助
     }
 
@@ -830,10 +844,12 @@ static int cmd_heapdump(int argc, char **argv)
         caps = MALLOC_CAP_RETENTION;
     else if (strcmp(type_str, "rtcram") == 0)
         caps = MALLOC_CAP_RTCRAM;
-    else {
+    else
+    {
         char *endptr;
         unsigned long val = strtoul(type_str, &endptr, 0);
-        if (*endptr != '\0') {
+        if (*endptr != '\0')
+        {
             PRINT_ERROR("Unknown heap type: %s", type_str);
             return 1;
         }
@@ -842,16 +858,20 @@ static int cmd_heapdump(int argc, char **argv)
 
     // 参数2：输出文件路径
     const char *out_file = argv[2];
-    if (!out_file || !out_file[0]) {
+    if (!out_file || !out_file[0])
+    {
         PRINT_ERROR("Invalid file path");
         return 1;
     }
 
     PRINT_INFO("Dumping heap caps=0x%08X to %s", caps, out_file);
     bool ok = heap_caps_dump_to_file(caps, out_file);
-    if (ok) {
+    if (ok)
+    {
         PRINT_SUCCESS("Dump completed");
-    } else {
+    }
+    else
+    {
         PRINT_ERROR("Dump failed");
         return 2;
     }
@@ -870,13 +890,26 @@ static int cmd_chipinfo(int argc, char **argv)
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     PRINT_INFO("  MAC:         %s", macStr);
+    uint64_t unique_id[2];
+    esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, unique_id, 128);
+    uint8_t *chip_uid[2];
+    chip_uid[0] = (uint8_t *)&unique_id[0];
+    chip_uid[1] = (uint8_t *)&unique_id[1];
+    PRINT_INFO("  Unique ID:   %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+               chip_uid[0][0], chip_uid[0][1], chip_uid[0][2], chip_uid[0][3],
+               chip_uid[0][4], chip_uid[0][5], chip_uid[0][6], chip_uid[0][7],
+               chip_uid[1][0], chip_uid[1][1], chip_uid[1][2], chip_uid[1][3],
+               chip_uid[1][4], chip_uid[1][5], chip_uid[1][6], chip_uid[1][7]);
     PRINT_INFO("  Flash size:  %d MB", ESP.getFlashChipSize() / 1048576);
     uint32_t flash_id;
     uint64_t flash_unique_id;
     esp_flash_read_id(esp_flash_default_chip, &flash_id);
     esp_flash_read_unique_chip_id(esp_flash_default_chip, &flash_unique_id);
     PRINT_INFO("  Flash ID:    %04x", flash_id);
-    PRINT_INFO("  Unique ID:   %016llx", flash_unique_id);
+    uint8_t *fuid = (uint8_t *)&flash_unique_id;
+    PRINT_INFO("  Unique ID (Flash): %02x%02x%02x%02x%02x%02x%02x%02x",
+               fuid[0], fuid[1], fuid[2], fuid[3],
+               fuid[4], fuid[5], fuid[6], fuid[7]);
     return 0;
 }
 

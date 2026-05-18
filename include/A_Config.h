@@ -23,6 +23,8 @@ extern "C" {
 #include "esp_console.h"
 #include "esp_task_wdt.h"
 #include <driver/rtc_io.h>
+#include "esp_efuse.h"
+#include "esp_efuse_table.h"
 }
 
 // #include <ESP32-targz.h>

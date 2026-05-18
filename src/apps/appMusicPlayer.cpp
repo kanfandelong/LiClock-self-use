@@ -79,7 +79,7 @@ struct SongPlayCount
     uint32_t count = 0;        // 累计播放次数
 };
 
-static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "MP3a_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator", "MA4A_Generator"};
+static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "MP3a_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator", "M4A_Generator"};
 
 typedef enum
 {
@@ -90,7 +90,7 @@ typedef enum
     AAC_Generator,
     OPUS_Generator,
     WAV_Generator,
-    MA4A_Generator
+    M4A_Generator
 } generator_t;
 
 // 以下变量保存至RTC内存，避免deepsleep后丢失
@@ -577,7 +577,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     {
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
         if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 ||
-            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0)
+            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 || strcmp(src, "M4ATAG") == 0)
         {
             app.info.tlen = newLen;
             id3_tlen_received = true;
@@ -4004,7 +4004,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         play_generator = OPUS_Generator;
     else if (play_file.endsWith(".m4a"))
     {
-        play_generator = MA4A_Generator;
+        play_generator = M4A_Generator;
     }
     else
     {
@@ -4047,7 +4047,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         opus_generator->RegisterMetadataCB(MDCallback, (void *)"OPUSTAG");
         generator = opus_generator;
         break;
-    case MA4A_Generator:
+    case M4A_Generator:
         m4a_generator = new AudioGeneratorM4A();
         m4a_generator->RegisterMetadataCB(MDCallback, (void *)"M4ATAG");
         generator = m4a_generator;

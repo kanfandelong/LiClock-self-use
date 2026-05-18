@@ -77,6 +77,9 @@ class AudioGeneratorM4A : public AudioGenerator
     int ascSampleRate;        // sample rate from ASC
     int ascChannelConfig;     // channel config from ASC
 
+    // --- Container metadata ---
+    uint64_t mp4DurationMs;  // total duration in ms from mvhd box
+
     // --- Bitrate tracking for total duration ---
     uint64_t bitrateSum;
     uint32_t bitrateCount;

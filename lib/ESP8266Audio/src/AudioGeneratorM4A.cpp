@@ -73,6 +73,7 @@ AudioGeneratorM4A::AudioGeneratorM4A()
     ascAudioObjectType = 0;
     ascSampleRate = 0;
     ascChannelConfig = 0;
+    mp4DurationMs = 0;
     fileSize = 0;
     bitrateSum = 0;
     bitrateCount = 0;
@@ -114,6 +115,7 @@ AudioGeneratorM4A::AudioGeneratorM4A(void *preallocateData, int preallocateSz)
     ascAudioObjectType = 0;
     ascSampleRate = 0;
     ascChannelConfig = 0;
+    mp4DurationMs = 0;
     fileSize = 0;
     bitrateSum = 0;
     bitrateCount = 0;
@@ -162,6 +164,12 @@ bool AudioGeneratorM4A::begin(AudioFileSource *source, AudioOutput *output)
                                     &ascChannelConfig)) {
         log_e("Failed to decode AudioSpecificConfig (bad or unsupported M4A)");
         return false;
+    }
+
+    // Send total duration from container metadata (mvhd), or fall back to bitrate estimate later
+    if (mp4DurationMs > 0) {
+        cb.md("tlen", false, ((String)(unsigned long)mp4DurationMs).c_str());
+        totalSent = true;
     }
 
     output->begin();
@@ -1087,7 +1095,78 @@ bool AudioGeneratorM4A::ParseMP4()
 
     if (moovSize == 0) return false;
 
-    // Step 2: parse the moov box tree to find stbl and extract sample info
+    // Step 2: parse mvhd inside moov for total duration
+    {
+        if (!SeekTo(moovPos)) return false;
+        uint8_t moovHdr[8];
+        file->read(moovHdr, 8); // moov box header
+        uint32_t moovHdrBytes = 8;
+        if (moovSize == 1) {
+            file->read(moovHdr, 8);
+            moovHdrBytes = 16;
+        }
+        // Find mvhd inside moov
+        uint32_t mvhdSize = 0, mvhdPos = 0;
+        if (ParseBoxContent(file, moovSize, moovHdrBytes,
+                            "mvhd", &mvhdSize, &mvhdPos)) {
+            if (SeekTo(mvhdPos)) {
+                // Read mvhd box header + body
+                file->read(moovHdr, 8); // box header
+                if (mvhdSize == 1) file->read(moovHdr, 8);
+                uint8_t mvhdBody[4];
+                file->read(mvhdBody, 4); // version + flags (4 bytes)
+                uint8_t ver = mvhdBody[0];
+                if (ver <= 1) {
+                    if (ver == 0) {
+                        // Skip creation_time(4) + modification_time(4)
+                        file->read(moovHdr, 8);
+                        // timescale(4) + duration(4)
+                        uint8_t tsBody[4], durBody[4];
+                        file->read(tsBody, 4);
+                        uint32_t timescale = ((uint32_t)tsBody[0] << 24) |
+                                             ((uint32_t)tsBody[1] << 16) |
+                                             ((uint32_t)tsBody[2] << 8)  |
+                                             (uint32_t)tsBody[3];
+                        file->read(durBody, 4);
+                        uint32_t duration = ((uint32_t)durBody[0] << 24) |
+                                            ((uint32_t)durBody[1] << 16) |
+                                            ((uint32_t)durBody[2] << 8)  |
+                                            (uint32_t)durBody[3];
+                        if (timescale > 0) {
+                            mp4DurationMs = ((uint64_t)duration * 1000ULL) / timescale;
+                        }
+                    } else {
+                        // Skip creation_time(8) + modification_time(8) = 16
+                        file->read(moovHdr, 8);
+                        file->read(moovHdr, 8);
+                        // timescale(4)
+                        uint8_t tsBody[4];
+                        file->read(tsBody, 4);
+                        uint32_t timescale = ((uint32_t)tsBody[0] << 24) |
+                                             ((uint32_t)tsBody[1] << 16) |
+                                             ((uint32_t)tsBody[2] << 8)  |
+                                             (uint32_t)tsBody[3];
+                        // duration(8)
+                        uint8_t durBody[8];
+                        file->read(durBody, 8);
+                        uint64_t duration = ((uint64_t)durBody[0] << 56) |
+                                            ((uint64_t)durBody[1] << 48) |
+                                            ((uint64_t)durBody[2] << 40) |
+                                            ((uint64_t)durBody[3] << 32) |
+                                            ((uint64_t)durBody[4] << 24) |
+                                            ((uint64_t)durBody[5] << 16) |
+                                            ((uint64_t)durBody[6] << 8)  |
+                                            (uint64_t)durBody[7];
+                        if (timescale > 0) {
+                            mp4DurationMs = (duration * 1000ULL) / timescale;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Step 3: parse the moov box tree to find stbl and extract sample info
     if (!SeekTo(moovPos)) return false;
 
     // Find stsd inside moov and parse its contents
