@@ -79,7 +79,7 @@ struct SongPlayCount
     uint32_t count = 0;        // 累计播放次数
 };
 
-static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "MP3a_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator", "M4A_Generator"};
+static const char play_generator_str[][32] = {"UNKONWN_Generator", "MP3_Generator", "MP3a_Generator", "Flac_Generator", "AAC_Generator", "OPUS_Generator", "WAV_Generator", "M4A_Generator", "OGG_Generator"};
 
 typedef enum
 {
@@ -90,7 +90,8 @@ typedef enum
     AAC_Generator,
     OPUS_Generator,
     WAV_Generator,
-    M4A_Generator
+    M4A_Generator,
+    OGG_Generator
 } generator_t;
 
 // 以下变量保存至RTC内存，避免deepsleep后丢失
@@ -121,6 +122,7 @@ public:
     AudioGeneratorFLAC *flac_generator = nullptr; // flac解码器
     AudioGeneratorAAC *aac_generator = nullptr;
     AudioGeneratorOpus *opus_generator = nullptr;
+    AudioGeneratorOGG *ogg_generator = nullptr;
     AudioGeneratorWAV *wav_generator = nullptr;
     AudioGeneratorM4A *m4a_generator = nullptr;
     AudioOutput *output = nullptr;
@@ -577,7 +579,8 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     {
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
         if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 ||
-            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 || strcmp(src, "M4ATAG") == 0)
+            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 || 
+            strcmp(src, "M4ATAG") == 0 || strcmp(src, "OGGTAG") == 0)
         {
             app.info.tlen = newLen;
             id3_tlen_received = true;
@@ -731,6 +734,7 @@ void delete_generator()
     app.wav_generator = nullptr;
     app.aac_generator = nullptr;
     app.m4a_generator = nullptr;
+    app.ogg_generator = nullptr;
 }
 
 /**
@@ -1783,7 +1787,7 @@ void AppMusicPlayer::select_file(bool user)
     if (music_file != NULL && !user) // is_ran &&
     {
         String name = music_file;
-        if (name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".flac") || name.endsWith(".m4a"))
+        if (name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".aac") || name.endsWith(".opus") || name.endsWith(".ogg") || name.endsWith(".flac") || name.endsWith(".m4a"))
         {
             if (!hal.exists(music_file))
                 goto select;
@@ -1795,7 +1799,7 @@ void AppMusicPlayer::select_file(bool user)
             music_file = NULL;
             while (music_file == NULL)
             {
-                music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nflac\nm4a", NULL, currentDir);
+                music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nogg\nflac\nm4a", NULL, currentDir);
             }
             file_in(music_file);
         }
@@ -1805,7 +1809,7 @@ void AppMusicPlayer::select_file(bool user)
         music_file = NULL;
         while (music_file == NULL)
         {
-            music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nflac\nm4a", NULL, currentDir);
+            music_file = GUI::fileDialog("选择音乐文件", false, "mp3\nwav\naac\nopus\nogg\nflac\nm4a", NULL, currentDir);
         }
         if (strncmp(music_file, "/sd/", 4) == 0)
         {
@@ -2214,7 +2218,8 @@ void AppMusicPlayer::bulid_music_list()
                 bool isAudio = false;
                 if (strcmp(ext, "mp3") == 0 || strcmp(ext, "wav") == 0 ||
                     strcmp(ext, "aac") == 0 || strcmp(ext, "opus") == 0 ||
-                    strcmp(ext, "flac") == 0 || strcmp(ext, "m4a") == 0)
+                    strcmp(ext, "flac") == 0 || strcmp(ext, "m4a") == 0 ||
+                    strcmp(ext, "ogg") == 0)
                 {
                     isAudio = true;
                 }
@@ -4000,8 +4005,10 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         id3 = new AudioFileSourceID3(source);
         id3->RegisterMetadataCB(MDCallback, (void *)"ID3TAG");
     }
-    else if (play_file.endsWith(".opus") || play_file.endsWith(".ogg"))
+    else if (play_file.endsWith(".opus"))
         play_generator = OPUS_Generator;
+    else if (play_file.endsWith(".ogg"))
+        play_generator = OGG_Generator;
     else if (play_file.endsWith(".m4a"))
     {
         play_generator = M4A_Generator;
@@ -4051,6 +4058,11 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         m4a_generator = new AudioGeneratorM4A();
         m4a_generator->RegisterMetadataCB(MDCallback, (void *)"M4ATAG");
         generator = m4a_generator;
+        break;
+    case OGG_Generator:
+        ogg_generator = new AudioGeneratorOGG();
+        ogg_generator->RegisterMetadataCB(MDCallback, (void *)"OGGTAG");
+        generator = ogg_generator;
         break;
     default:
         break;
@@ -4287,7 +4299,8 @@ void AppMusicPlayer::setup()
     
     String file = buf;
     if (file.endsWith(".mp3") || file.endsWith(".wav") ||
-        file.endsWith(".aac") || file.endsWith(".opus") || file.endsWith(".flac") || file.endsWith(".m4a"))
+        file.endsWith(".aac") || file.endsWith(".opus") ||
+        file.endsWith(".ogg") || file.endsWith(".flac") || file.endsWith(".m4a"))
     {
         music_file = buf;
     }

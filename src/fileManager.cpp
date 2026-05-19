@@ -45,6 +45,8 @@ static const struct s_fileicondict fileicondict[] = {
     {"aac", musicfile_bits},
     {"wav", musicfile_bits},
     {"opus", musicfile_bits}, // 添加opus格式支持
+    {"m4a", musicfile_bits},
+    {"ogg", musicfile_bits},
     {"ttf", fontfile_bits},
     {"TTF", fontfile_bits},
     {"i", sysfile_bits},
