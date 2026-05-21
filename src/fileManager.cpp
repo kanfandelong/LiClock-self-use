@@ -250,11 +250,8 @@ namespace GUI
                     switch (selected)
                     {
                     case 0:
-                        GUI::msgbox("警告", "没有上级目录");
-                        if (select_ < 4)
-                            goto select_fs;
-                        else
-                            useSD = false;
+                        result = NULL;
+                        goto clean;
                         break;
                     case 1:
                         useSD = false;

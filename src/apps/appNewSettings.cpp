@@ -1755,7 +1755,7 @@ void AppSettings::about()
     chip_uid[0] = (uint8_t *)&unique_id[0];
     chip_uid[1] = (uint8_t *)&unique_id[1];
     u8g2Fonts.setCursor(5, 135);
-    u8g2Fonts.printf("  Unique ID:   %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+    u8g2Fonts.printf("Unique ID:   %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                      chip_uid[0][0], chip_uid[0][1], chip_uid[0][2], chip_uid[0][3],
                      chip_uid[0][4], chip_uid[0][5], chip_uid[0][6], chip_uid[0][7],
                      chip_uid[1][0], chip_uid[1][1], chip_uid[1][2], chip_uid[1][3],

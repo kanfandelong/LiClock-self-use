@@ -581,7 +581,7 @@ int16_t u8g2_DrawStr(u8g2_font_t *u8g2, int16_t x, int16_t y, const char *s)
 static const uint8_t *psram_font_ptr = nullptr;
 
 /* 记录上次从文件加载的字体信息（用于跳过重复加载） */
-static char last_font_path[256] = {0};     // 最多支持127字符路径
+static char last_font_path[256] = {0}; // 最多支持127字符路径
 static const uint8_t *last_file_font_ptr = nullptr;
 
 /* --------------------------------------------------------------
@@ -589,49 +589,57 @@ static const uint8_t *last_file_font_ptr = nullptr;
    -------------------------------------------------------------- */
 void u8g2_SetFont(u8g2_font_t *u8g2, const uint8_t *font, size_t font_size)
 {
-    /* 如果已经是同一个字体则直接返回 */
-    if ((psram_font_ptr && u8g2->font == psram_font_ptr) ||
-        (!psram_font_ptr && u8g2->font == font))
-        return;
+  /* 如果已经是同一个字体则直接返回 */
+  if ((psram_font_ptr && u8g2->font == psram_font_ptr) ||
+      (!psram_font_ptr && u8g2->font == font))
+    return;
 
-    /* 检查是否真的有 PSRAM */
-    if (psramFound())
+  if (u8g2->font_width_table != nullptr)
+  {
+    uint8_t *table = (uint8_t *)u8g2->font_width_table;
+    free(table);
+  }
+  u8g2->font_width_table = nullptr;
+  u8g2->font_width_table_size = 0;
+
+  /* 检查是否真的有 PSRAM */
+  if (psramFound())
+  {
+    if (font_size == 0)
     {
-        if (font_size == 0)
-        {
-            if (psram_font_ptr)
-                heap_caps_free((void *)psram_font_ptr);
-            goto no_psram;
-        }
-
-        const uint8_t *p = font;
-        size_t font_sz = font_size;
-
-        uint8_t *buf = (uint8_t *)heap_caps_malloc(font_sz, MALLOC_CAP_SPIRAM);
-        if (buf != nullptr)
-        {
-            memcpy(buf, font, font_sz);
-
-            if (psram_font_ptr)
-                heap_caps_free((void *)psram_font_ptr);
-            psram_font_ptr = buf;
-
-            /* 清除上次文件加载的记录（因为现在 PSRAM 中不是来自文件） */
-            last_font_path[0] = '\0';
-            last_file_font_ptr = nullptr;
-
-            u8g2->font = buf;
-            u8g2->font_decode.is_transparent = 0;
-            u8g2_read_font_info(&(u8g2->font_info), buf);
-            log_i("加载字体到PSRAM +\'0x%08x ==> 0x%08x\'", font, buf);
-            return;
-        }
+      if (psram_font_ptr)
+        heap_caps_free((void *)psram_font_ptr);
+      goto no_psram;
     }
 
+    const uint8_t *p = font;
+    size_t font_sz = font_size;
+
+    uint8_t *buf = (uint8_t *)heap_caps_malloc(font_sz, MALLOC_CAP_SPIRAM);
+    if (buf != nullptr)
+    {
+      memcpy(buf, font, font_sz);
+
+      if (psram_font_ptr)
+        heap_caps_free((void *)psram_font_ptr);
+      psram_font_ptr = buf;
+
+      /* 清除上次文件加载的记录（因为现在 PSRAM 中不是来自文件） */
+      last_font_path[0] = '\0';
+      last_file_font_ptr = nullptr;
+
+      u8g2->font = buf;
+      u8g2->font_decode.is_transparent = 0;
+      u8g2_read_font_info(&(u8g2->font_info), buf);
+      log_i("加载字体到PSRAM +\'0x%08x ==> 0x%08x\'", font, buf);
+      return;
+    }
+  }
+
 no_psram:
-    u8g2->font = font;
-    u8g2->font_decode.is_transparent = 0;
-    u8g2_read_font_info(&(u8g2->font_info), font);
+  u8g2->font = font;
+  u8g2->font_decode.is_transparent = 0;
+  u8g2_read_font_info(&(u8g2->font_info), font);
 }
 
 /* --------------------------------------------------------------
@@ -639,81 +647,98 @@ no_psram:
    -------------------------------------------------------------- */
 void u8g2_SetFont(u8g2_font_t *u8g2, const char *path)
 {
-    if (!u8g2 || !path) {
-        log_e("无效参数");
-        return;
-    }
+  if (!u8g2 || !path)
+  {
+    log_e("无效参数");
+    return;
+  }
 
-    /* 必须存在 PSRAM */
-    if (!psramFound()) {
-        log_e("未检测到 PSRAM，无法从文件加载字体");
-        return;
-    }
+  /* 必须存在 PSRAM */
+  if (!psramFound())
+  {
+    log_e("未检测到 PSRAM，无法从文件加载字体");
+    return;
+  }
 
-    /* 重复加载检测：如果当前字体正是上次从同一文件加载的，则跳过 */
-    if (last_font_path[0] != '\0' && strcmp(last_font_path, path) == 0 &&
-        u8g2->font == last_file_font_ptr) {
-        // log_i("字体已加载，跳过: %s", path);
-        return;
-    }
+  /* 重复加载检测：如果当前字体正是上次从同一文件加载的，则跳过 */
+  if (last_font_path[0] != '\0' && strcmp(last_font_path, path) == 0 &&
+      u8g2->font == last_file_font_ptr)
+  {
+    // log_i("字体已加载，跳过: %s", path);
+    return;
+  }
 
-    /* 打开文件 */
-    FILE *fp = fopen(path, "rb");
-    if (!fp) {
-        log_e("无法打开字体文件 %s", path);
-        return;
-    }
+  if (u8g2->font_width_table != nullptr)
+  {
+    uint8_t *table = (uint8_t *)u8g2->font_width_table;
+    free(table);
+  }
+  u8g2->font_width_table = nullptr;
+  u8g2->font_width_table_size = 0;
 
-    int fd = fileno(fp);
-    if (fd == -1) {
-        log_e("获取文件描述符失败");
-        fclose(fp);
-        return;
-    }
+  /* 打开文件 */
+  FILE *fp = fopen(path, "rb");
+  if (!fp)
+  {
+    log_e("无法打开字体文件 %s", path);
+    return;
+  }
 
-    struct stat stbuf;
-    if (fstat(fd, &stbuf) == -1) {
-        log_e("获取文件状态失败");
-        fclose(fp);
-        return;
-    }
-
-    size_t file_size = (size_t)stbuf.st_size;
-
-    /* 在 PSRAM 中分配内存 */
-    uint8_t *buf = (uint8_t *)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM);
-    if (!buf) {
-        log_e("PSRAM 分配失败（需要 %zu 字节）", file_size);
-        fclose(fp);
-        return;
-    }
-
-    size_t bytes_read = fread(buf, 1, file_size, fp);
+  int fd = fileno(fp);
+  if (fd == -1)
+  {
+    log_e("获取文件描述符失败");
     fclose(fp);
+    return;
+  }
 
-    if (bytes_read != file_size) {
-        log_e("读取不完整（期望 %zu，实际 %zu）", file_size, bytes_read);
-        heap_caps_free(buf);
-        if (u8g2->font == psram_font_ptr)
-            u8g2->font = nullptr;
-        return;
-    }
+  struct stat stbuf;
+  if (fstat(fd, &stbuf) == -1)
+  {
+    log_e("获取文件状态失败");
+    fclose(fp);
+    return;
+  }
 
-    /* 释放之前 PSRAM 中的字体（如果有） */
-    if (psram_font_ptr) {
-        heap_caps_free((void *)psram_font_ptr);
-    }
+  size_t file_size = (size_t)stbuf.st_size;
 
-    /* 更新静态指针和记录 */
-    psram_font_ptr = buf;
-    last_file_font_ptr = buf;
-    strncpy(last_font_path, path, sizeof(last_font_path) - 1);
-    last_font_path[sizeof(last_font_path) - 1] = '\0';
+  /* 在 PSRAM 中分配内存 */
+  uint8_t *buf = (uint8_t *)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM);
+  if (!buf)
+  {
+    log_e("PSRAM 分配失败（需要 %zu 字节）", file_size);
+    fclose(fp);
+    return;
+  }
 
-    u8g2->font = buf;
-    u8g2->font_decode.is_transparent = 0;
-    u8g2_read_font_info(&(u8g2->font_info), buf);
-    log_i("从文件 \'%s\'加载 %zu B 字体到PSRAM +\'0x%08x\'", path, file_size, buf);
+  size_t bytes_read = fread(buf, 1, file_size, fp);
+  fclose(fp);
+
+  if (bytes_read != file_size)
+  {
+    log_e("读取不完整（期望 %zu，实际 %zu）", file_size, bytes_read);
+    heap_caps_free(buf);
+    if (u8g2->font == psram_font_ptr)
+      u8g2->font = nullptr;
+    return;
+  }
+
+  /* 释放之前 PSRAM 中的字体（如果有） */
+  if (psram_font_ptr)
+  {
+    heap_caps_free((void *)psram_font_ptr);
+  }
+
+  /* 更新静态指针和记录 */
+  psram_font_ptr = buf;
+  last_file_font_ptr = buf;
+  strncpy(last_font_path, path, sizeof(last_font_path) - 1);
+  last_font_path[sizeof(last_font_path) - 1] = '\0';
+
+  u8g2->font = buf;
+  u8g2->font_decode.is_transparent = 0;
+  u8g2_read_font_info(&(u8g2->font_info), buf);
+  log_i("从文件 \'%s\'加载 %zu B 字体到PSRAM +\'0x%08x\'", path, file_size, buf);
 }
 
 void u8g2_SetForegroundColor(u8g2_font_t *u8g2, uint16_t fg)
@@ -829,6 +854,7 @@ int16_t U8G2_FOR_ADAFRUIT_GFX::drawUTF8(int16_t x, int16_t y, const char *str)
 int16_t U8G2_FOR_ADAFRUIT_GFX::getUTF8Width(const char *str)
 {
   uint16_t e;
+  uint16_t last_e = 0;
   int16_t dx, w;
 
   u8g2.font_decode.glyph_width = 0;
@@ -837,16 +863,22 @@ int16_t U8G2_FOR_ADAFRUIT_GFX::getUTF8Width(const char *str)
   dx = 0;
   for (;;)
   {
+    last_e = e;
     e = utf8_next((uint8_t)*str);
     if (e == 0x0ffff)
       break;
     str++;
     if (e != 0x0fffe)
     {
-      dx = u8g2_GetGlyphWidth(&u8g2, e);
+      if (u8g2.font_width_table != nullptr && e < u8g2.font_width_table_size)
+        dx = u8g2.font_width_table[e];
+      else
+        dx = u8g2_GetGlyphWidth(&u8g2, e);
       w += dx;
     }
   }
+  if (u8g2.font_width_table != nullptr)
+    u8g2_GetGlyphWidth(&u8g2, last_e);
   /* adjust the last glyph, check for issue #16: do not adjust if width is 0 */
   if (u8g2.font_decode.glyph_width != 0)
   {
@@ -857,4 +889,36 @@ int16_t U8G2_FOR_ADAFRUIT_GFX::getUTF8Width(const char *str)
   }
 
   return w;
+}
+
+bool U8G2_FOR_ADAFRUIT_GFX::SetfontWidthTable(uint8_t *widthTable, size_t tableSize)
+{
+  u8g2.font_width_table = widthTable;
+  u8g2.font_width_table_size = tableSize;
+  return true;
+}
+
+bool U8G2_FOR_ADAFRUIT_GFX::BuildfontWidthTable(uint8_t *widthTable, size_t tableSize)
+{
+  if (!widthTable || tableSize == 0)
+  {
+    log_e("无效参数");
+    return false;
+  }
+  log_i("正在构建字体宽度表...");
+  for (uint32_t encoding = 0; encoding < tableSize; encoding++)
+  {
+    if ((encoding >= 0xD800 && encoding <= 0xDFFF) ||
+        encoding == 0xFFFE || encoding == 0xFFFF)
+    {
+      widthTable[encoding] = 0;
+      continue;
+    }
+    int16_t w = (int16_t)u8g2_GetGlyphWidth(&u8g2, encoding);
+    widthTable[encoding] = (w > 0) ? (uint8_t)w : 0;
+  }
+  log_i("字体宽度表构建完成");
+  u8g2.font_width_table = widthTable;
+  u8g2.font_width_table_size = tableSize;
+  return true;
 }

@@ -1060,10 +1060,10 @@ static int cmd_taskload(int argc, char **argv)
 
     // 打印表头
     log_printf("\n--- CPU Load in last %d seconds ---\n", window_sec);
-    log_printf("%-*s %5s %5s %5s %10s %10s %9s\n",
+    log_printf("%-*s %5s %5s %5s %3s %10s %10s %9s\n",
                (int)maxNameLen, "Name",
-               "Core", "State", "Prio", "Stack", "Time(us)", "Load%");
-    log_printf("%-*s ----- ----- ----- ---------- ---------- ---------\n",
+               "Core", "State", "Prio", "WDT", "Stack", "Time(us)", "Load%");
+    log_printf("%-*s ----- ----- ----- --- ---------- ---------- ---------\n",
                (int)maxNameLen, "----");
 
     const char state[6][2] = {"X", "R", "B", "S", "D", "?"};
@@ -1111,15 +1111,28 @@ static int cmd_taskload(int argc, char **argv)
             classColor = "\033[90m"; // 灰色（<1%）
 
         const char *state_str = (t2.eCurrentState < state_count) ? state[t2.eCurrentState] : "?";
+
+        esp_err_t wdt_ret = esp_task_wdt_status(t2.xHandle);
+        const char *wdt_str = "  -"; // 默认：未初始化或无效
+        if (wdt_ret == ESP_OK)
+        {
+            wdt_str = "  √"; // 已订阅
+        }
+        else if (wdt_ret == ESP_ERR_NOT_FOUND)
+        {
+            wdt_str = "  ✗"; // 未订阅
+        }
+
         int core = (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID;
 
-        log_printf("%s%-*s %5d %5s %2u/%2u %10lu %10lu %8.02f%%\033[0m\n",
+        log_printf("%s%-*s %5d %5s %2u/%2u %s %10lu %10lu %8.02f%%\033[0m\n",
                    classColor,
                    (int)maxNameLen, t2.pcTaskName,
                    core,
                    state_str,
                    t2.uxBasePriority,
                    t2.uxCurrentPriority,
+                   wdt_str,
                    (unsigned long)t2.usStackHighWaterMark,
                    delta,
                    percent);
@@ -2534,6 +2547,66 @@ static int cmd_display(int argc, char **argv)
     return 0;
 }
 
+static int cmd_fontinfo(int argc, char **argv)
+{
+    u8g2_font_t *u8g2 = u8g2Fonts.getU8g2();
+    if (!u8g2)
+    {
+        PRINT_ERROR("No active u8g2 font object");
+        return 2;
+    }
+
+    const u8g2_font_info_t *info = &u8g2->font_info;
+    PRINT_INFO("=== U8g2 Font Information ===");
+    PRINT_INFO("Font pointer        : 0x%p", u8g2->font);
+    PRINT_INFO("Glyph count         : %5u", info->glyph_cnt);
+    PRINT_INFO("BBX mode            : %5u", info->bbx_mode);
+    PRINT_INFO("Bits per 0          : %5u", info->bits_per_0);
+    PRINT_INFO("Bits per 1          : %5u", info->bits_per_1);
+    PRINT_INFO("Bits per char width : %5u", info->bits_per_char_width);
+    PRINT_INFO("Bits per char height: %5u", info->bits_per_char_height);
+    PRINT_INFO("Bits per char x     : %5u", info->bits_per_char_x);
+    PRINT_INFO("Bits per char y     : %5u", info->bits_per_char_y);
+    PRINT_INFO("Bits per delta x    : %5u", info->bits_per_delta_x);
+    PRINT_INFO("Max char width      : %5d", info->max_char_width);
+    PRINT_INFO("Max char height     : %5d", info->max_char_height);
+    PRINT_INFO("X offset            : %5d", info->x_offset);
+    PRINT_INFO("Y offset            : %5d", info->y_offset);
+    PRINT_INFO("Ascent 'A'          : %5d", info->ascent_A);
+    PRINT_INFO("Descent 'g'         : %5d", info->descent_g);
+    PRINT_INFO("Ascent paragraph    : %5d", info->ascent_para);
+    PRINT_INFO("Descent paragraph   : %5d", info->descent_para);
+    PRINT_INFO("Start pos upper A   : 0x%04X", info->start_pos_upper_A);
+    PRINT_INFO("Start pos lower a   : 0x%04X", info->start_pos_lower_a);
+    PRINT_INFO("Start pos unicode   : 0x%04X", info->start_pos_unicode);
+
+    // 额外打印解码结构的部分关键信息（可选）
+    PRINT_INFO("Decode transparency: %s", u8g2->font_decode.is_transparent ? "yes" : "no");
+    PRINT_INFO("Decode direction   : %d", u8g2->font_decode.dir);
+
+    return 0;
+}
+
+static int cmd_buildfontwidthtable(int argc, char **argv)
+{
+    uint8_t *width_table = (uint8_t *)heap_caps_malloc(sizeof(uint8_t[0xFFFF]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    PRINT_INFO("Font width table built in PSRAM at address: %p", width_table);
+    u8g2Fonts.BuildfontWidthTable(width_table, 0xFFFF);
+    String width_table_path = hal.pref.getString("system_font", "default") + ".width_table";
+    File file = hal.open(width_table_path.c_str(), "w");
+    if (file)
+    {
+        file.write(width_table, sizeof(uint8_t[0xFFFF]));
+        file.close();
+        PRINT_SUCCESS("Font width table saved to %s", width_table_path.c_str());
+    }
+    else
+    {
+        PRINT_ERROR("Failed to save font width table to file: %s", width_table_path.c_str());
+    }
+    return 0;
+}
+
 // 命令注册表
 // Register all console commands defined in this file
 static const char *no_info = "";
@@ -2597,6 +2670,8 @@ static const esp_console_cmd_t cmds[] = {
              "  data : optional data bytes (multiple values allowed)",
      .func = &cmd_display,
      .argtable = NULL},
+    {.command = "fontinfo", .help = "显示当前u8g2字体的详细信息", .hint = no_info, .func = &cmd_fontinfo, .argtable = NULL},
+    {.command = "buildfontwidthtable", .help = "构建当前字体的宽度表并保存到文件", .hint = no_info, .func = &cmd_buildfontwidthtable, .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.

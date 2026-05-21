@@ -31,15 +31,11 @@ public:
     void set();
     void setup();
     //////////////////////////
-    bool indexcode_1();
-    bool indexcode_2();
     bool indexcode_3();
     bool indexcode_ttf();
     bool indexFile();
     bool openFile(const char *filename = NULL);
     bool gotoPage(uint32_t page);
-    bool draw_page1();
-    bool draw_page2();
     bool draw_page3();
     void drawCurrentPage();
     int findchapterTitle(bool up = false);
@@ -47,8 +43,6 @@ public:
     void openMenu();
     void ebooksettings();
     Preferences ebook_nvs;
-    FILE *indexFileHandle = NULL;
-    FILE *currentFileHandle = NULL;
     File txtFile, indexesFile;
     char *indexesName;
     char *chapterTitle;
@@ -68,10 +62,10 @@ typedef union
 {
     struct
     {
+        uint8_t font_h : 8;
+        uint8_t font_w : 8;
         bool mode : 1;          // 是否为竖屏
-        uint8_t font_size : 8;  // ttf字体尺寸
         uint16_t reserved : 15; // 保留位
-        uint8_t unused : 8;     // 可用作扩展或填充
     };
     uint32_t value; // 整体封装为uint32_t
 } index_info;
@@ -83,29 +77,13 @@ static void appebook_exit()
     hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
     display.clearScreen();
     display.display();
-    if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
+    if (app.txtFile)
     {
-        if (app.txtFile)
-        {
-            app.txtFile.close();
-        }
-        if (app.indexesFile)
-        {
-            app.indexesFile.close();
-        }
+        app.txtFile.close();
     }
-    else
+    if (app.indexesFile)
     {
-        if (app.currentFileHandle != NULL)
-        {
-            fclose(app.currentFileHandle);
-            app.currentFileHandle = NULL;
-        }
-        if (app.indexFileHandle != NULL)
-        {
-            fclose(app.indexFileHandle);
-            app.indexFileHandle = NULL;
-        }
+        app.indexesFile.close();
     }
     free(app.indexesName);
     free(app.chapterTitle);
@@ -123,29 +101,13 @@ static void appebook_exit()
 }
 static void appebook_deepsleep()
 {
-    if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
+    if (app.txtFile)
     {
-        if (app.txtFile)
-        {
-            app.txtFile.close();
-        }
-        if (app.indexesFile)
-        {
-            app.indexesFile.close();
-        }
+        app.txtFile.close();
     }
-    else
+    if (app.indexesFile)
     {
-        if (app.currentFileHandle != NULL)
-        {
-            fclose(app.currentFileHandle);
-            app.currentFileHandle = NULL;
-        }
-        if (app.indexFileHandle != NULL)
-        {
-            fclose(app.indexFileHandle);
-            app.indexFileHandle = NULL;
-        }
+        app.indexesFile.close();
     }
     // display.powerOff();
 }
@@ -168,10 +130,13 @@ void AppEBook::setup()
     // // rtc_wdt_enable();
     // rtc_wdt_disable();
     // rtc_wdt_protect_on();
-    
+
     indexesName = (char *)malloc(512);
     chapterTitle = (char *)malloc(512);
     currentFilename = (char *)malloc(512);
+    memset(indexesName, 0, 512);
+    memset(chapterTitle, 0, 512);
+    memset(currentFilename, 0, 512);
     bool page_changed = false;
     ebook_nvs.begin("ebook");
     app.exit = appebook_exit;
@@ -180,8 +145,14 @@ void AppEBook::setup()
     if (hal.pref.getBool(hal.get_char_sha_key("禁用休眠")))
         if (hal.pref.getBool(hal.get_char_sha_key("降频运行Ebook")))
             hal.cheak_freq(80, true);
+
+    if (!(hal.pref.getString("ebook_font", "default") == "default"))
+        u8g2Fonts.setFont(hal.pref.getString("ebook_font", "default").c_str());
+    else
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
     display.clearScreen();
-    size_t s = hal.pref.getBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, 256);
+    size_t s = hal.pref.getBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, 512);
     if (hal.wakeUpFromDeepSleep == false || currentPage == -1)
     {
         // currentPage = hal.pref.getInt(SETTINGS_PARAM_LAST_EBOOK_PAGE, 0);
@@ -372,350 +343,7 @@ void AppEBook::setup()
 // 每4字节代表一页在某个文件中的起始位置
 // 文件全部采用UTF 8编码
 // 字符宽度：默认英文7,中文14
-bool AppEBook::indexcode_1()
-{
-    if (currentFileHandle == NULL)
-    {
-        GUI::msgbox("索引错误", "请先打开文件");
-        return false;
-    }
-    uint32_t offsetall = 0;
-    fseek(currentFileHandle, 0L, SEEK_END);
-    offsetall = ftell(currentFileHandle);
-    rewind(currentFileHandle);
-    fseek(currentFileHandle, 0, SEEK_SET);
-    uint32_t page = 0;   // 页码
-    uint32_t offset = 0; // 主文件偏移量
-    int16_t x = 0;       // 当前页中字符的x坐标
-    int16_t y = 0;       // 当前页中字符的y坐标
-    int c;
-    bool r_flag = false;
-    String indexname = String(currentFilename) + ".i";
-    indexFileHandle = fopen(indexname.c_str(), "wb");
-    if (indexFileHandle == NULL)
-    {
-        log_printf("打开索引文件失败\n");
-        GUI::msgbox("打开索引文件失败", indexname.c_str());
-        return false;
-    }
-    uint8_t buffer[3];
-    buffer[0] = fgetc(currentFileHandle);
-    buffer[1] = fgetc(currentFileHandle);
-    buffer[2] = fgetc(currentFileHandle);
 
-    // 检查是否为 BOM 头
-    if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
-    {
-        log_printf("File starts with UTF-8 BOM\n");
-        fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
-    }
-    else
-        fseek(currentFileHandle, 0, SEEK_SET); // 如果不是 BOM 头，回到文件开头
-    long begin = millis(), last;
-    while (true)
-    {
-    start:
-        if (!r_flag)
-            c = fgetc(currentFileHandle);
-        else
-            r_flag = false;
-        if (c == EOF)
-            break;
-        offset++;
-        if (c == '\r')
-            goto start;
-        while (c == '\n' && x == 0 && y == 0)
-            goto start;
-        int utf_bytes = 0;
-        if (c & 0x80)
-        {
-            if (c & 0x40)
-            {
-                if (c & 0x20)
-                {
-                    if (c & 0x10)
-                    {
-                        if (c & 0x08)
-                        {
-                            if (c & 0x04)
-                                utf_bytes = 5;
-                            else
-                                utf_bytes = 4;
-                        }
-                        else
-                            utf_bytes = 3;
-                    }
-                    else
-                        utf_bytes = 2;
-                }
-                else
-                    utf_bytes = 1;
-            }
-            else
-            {
-                GUI::msgbox("索引错误", "非预期的UTF8编码");
-                fclose(indexFileHandle);
-                indexFileHandle = NULL;
-                return false;
-            }
-        }
-        if (utf_bytes != 0)
-        {
-            for (int i = 0; i < utf_bytes; i++)
-            {
-                fgetc(currentFileHandle);
-                offset++;
-            }
-        }
-        int add_pending;
-        if (utf_bytes == 0)
-            add_pending = 6;
-        else
-            add_pending = 12;
-        if (c == '\n')
-        {
-            y += 14;
-            x = 0;
-            add_pending = 0;
-            c = fgetc(currentFileHandle);
-            if (c == '\r')
-                offset++;
-            else
-                r_flag = true;
-            uint32_t offsetall = 0;
-            offsetall = ftell(currentFileHandle);
-            char r = fgetc(currentFileHandle);
-            if (r == '\r')
-                offset++;
-            else
-                fseek(currentFileHandle, offsetall, SEEK_SET);
-        }
-        else if (x + add_pending >= 294)
-        {
-            x = add_pending;
-            y += 14;
-        }
-        else
-            x += add_pending;
-        if (y >= 128 - 14)
-        {
-            page++;
-            x = 0;
-            y = 0;
-            uint32_t pageOffset = offset - utf_bytes - 1;
-            // uint32_t pageOffset = offset - utf_bytes;
-            fwrite(&pageOffset, 4, 1, indexFileHandle);
-        }
-        if (millis() - last > 1000)
-        {
-            display.clearScreen();
-            u8g2Fonts.setCursor(0, 15);
-            u8g2Fonts.printf("文件名称：%s", currentFilename);
-            u8g2Fonts.setCursor(0, 30);
-            u8g2Fonts.printf("文件大小：%u(%dKB)", offsetall, offsetall / 1024);
-            u8g2Fonts.setCursor(0, 45);
-            u8g2Fonts.printf("剩余大小：%d(%dKB)", offsetall - offset, (offsetall - offset) / 1024);
-            u8g2Fonts.setCursor(0, 60);
-            u8g2Fonts.printf("索引进度：%d%%", offset * 100 / offsetall);
-            display.display();
-            last = millis();
-        }
-        delay(1);
-    }
-    fclose(indexFileHandle);
-    indexFileHandle = NULL;
-    char *tmp = (char *)malloc(256);
-    int h = (millis() - begin) / 1000;
-    display.clearScreen();
-    u8g2Fonts.setCursor(0, 15);
-    u8g2Fonts.printf("文件名称：%s", currentFilename);
-    u8g2Fonts.setCursor(0, 30);
-    u8g2Fonts.printf("文件大小：%u(%dKB)", offsetall, offsetall / 1024);
-    u8g2Fonts.setCursor(0, 45);
-    u8g2Fonts.printf("剩余大小：0(0KB)");
-    u8g2Fonts.setCursor(0, 60);
-    u8g2Fonts.printf("索引进度：100%%");
-    u8g2Fonts.setCursor(0, 75);
-    u8g2Fonts.printf("耗时：%ds", h);
-    display.display();
-    sprintf(tmp, "共%d页, 最后一页偏移量：%d", page + 1, offset);
-    GUI::msgbox("索引成功", tmp);
-    free(tmp);
-    indexFileHandle = fopen((String(currentFilename) + ".i").c_str(), "rb");
-    if (indexFileHandle == NULL)
-    {
-        GUI::msgbox("索引失败", "无法再次打开索引文件");
-        return false;
-    }
-    return true;
-}
-bool AppEBook::indexcode_2()
-{
-    if (currentFileHandle == NULL)
-    {
-        GUI::msgbox("索引错误", "请先打开文件");
-        return false;
-    }
-    uint32_t offsetall = 0;
-    fseek(currentFileHandle, 0L, SEEK_END);
-    offsetall = ftell(currentFileHandle);
-    rewind(currentFileHandle);
-    fseek(currentFileHandle, 0, SEEK_SET);
-    uint32_t page = 0;   // 页码
-    uint32_t offset = 0; // 主文件偏移量
-    int16_t x = 0;       // 当前页中字符的x坐标
-    int16_t y = 0;       // 当前页中字符的y坐标
-    int c;
-    bool r_flag = false;
-    String indexname = String(currentFilename) + ".i";
-    indexFileHandle = fopen(indexname.c_str(), "wb");
-    if (indexFileHandle == NULL)
-    {
-        log_printf("打开索引文件失败\n");
-        GUI::msgbox("打开索引文件失败", indexname.c_str());
-        return false;
-    }
-    uint8_t buffer[3];
-    buffer[0] = fgetc(currentFileHandle);
-    buffer[1] = fgetc(currentFileHandle);
-    buffer[2] = fgetc(currentFileHandle);
-
-    // 检查是否为 BOM 头
-    if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
-    {
-        log_printf("File starts with UTF-8 BOM\n");
-        fseek(currentFileHandle, 3, SEEK_SET); // 移动到 BOM 头之后的位置
-    }
-    else
-        fseek(currentFileHandle, 0, SEEK_SET); // 如果不是 BOM 头，回到文件开头
-    long begin = millis(), last;
-    while (true)
-    {
-    start:
-        if (!r_flag)
-            c = fgetc(currentFileHandle);
-        else
-            r_flag = false;
-        if (c == EOF)
-            break;
-        offset++;
-        while (c == '\n' && x == 0 && y == 0)
-            goto start;
-        int utf_bytes = 0;
-        if (c & 0x80)
-        {
-            if (c & 0x40)
-            {
-                if (c & 0x20)
-                {
-                    if (c & 0x10)
-                    {
-                        if (c & 0x08)
-                        {
-                            if (c & 0x04)
-                                utf_bytes = 5;
-                            else
-                                utf_bytes = 4;
-                        }
-                        else
-                            utf_bytes = 3;
-                    }
-                    else
-                        utf_bytes = 2;
-                }
-                else
-                    utf_bytes = 1;
-            }
-            else
-            {
-                GUI::msgbox("索引错误", "非预期的UTF8编码");
-                fclose(indexFileHandle);
-                indexFileHandle = NULL;
-                return false;
-            }
-        }
-        if (utf_bytes != 0)
-        {
-            for (int i = 0; i < utf_bytes; i++)
-            {
-                fgetc(currentFileHandle);
-                offset++;
-            }
-        }
-        int add_pending;
-        if (utf_bytes == 0)
-            add_pending = 6;
-        else
-            add_pending = 12;
-        if (c == '\n')
-        {
-            y += 14;
-            x = 0;
-            add_pending = 0;
-            c = fgetc(currentFileHandle);
-            if (c == '\r')
-                offset++;
-            else
-                r_flag = true;
-        }
-        else if (x + add_pending >= 294)
-        {
-            x = add_pending;
-            y += 14;
-        }
-        else
-            x += add_pending;
-        if (y >= 128 - 14)
-        {
-            page++;
-            x = 0;
-            y = 0;
-            uint32_t pageOffset = offset - utf_bytes - 1;
-            fwrite(&pageOffset, 4, 1, indexFileHandle);
-        }
-        if (millis() - last > 1000)
-        {
-            display.clearScreen();
-            u8g2Fonts.setCursor(0, 15);
-            u8g2Fonts.printf("文件名称：%s", currentFilename);
-            u8g2Fonts.setCursor(0, 30);
-            u8g2Fonts.printf("文件大小：%u(%dKB)", offsetall, offsetall / 1024);
-            u8g2Fonts.setCursor(0, 45);
-            u8g2Fonts.printf("剩余大小：%d(%dKB)", offsetall - offset, (offsetall - offset) / 1024);
-            u8g2Fonts.setCursor(0, 60);
-            u8g2Fonts.printf("索引进度：%d%%", offset * 100 / offsetall);
-            display.display();
-            last = millis();
-        }
-        delay(1);
-    }
-    fclose(indexFileHandle);
-    indexFileHandle = NULL;
-    char *tmp = (char *)malloc(256);
-    int h = (millis() - begin) / 1000;
-    display.clearScreen();
-    u8g2Fonts.setCursor(0, 15);
-    u8g2Fonts.printf("文件名称：%s", currentFilename);
-    u8g2Fonts.setCursor(0, 30);
-    u8g2Fonts.printf("文件大小：%u(%dKB)", offsetall, offsetall / 1024);
-    u8g2Fonts.setCursor(0, 45);
-    u8g2Fonts.printf("剩余大小：0(0KB)");
-    u8g2Fonts.setCursor(0, 60);
-    u8g2Fonts.printf("索引进度：100%%\n");
-    u8g2Fonts.setCursor(0, 75);
-    u8g2Fonts.printf("耗时：%ds", h);
-    display.display();
-    sprintf(tmp, "共%d页, 最后一页偏移量：%d", page + 1, offset);
-    GUI::msgbox("索引成功", tmp);
-    free(tmp);
-    indexFileHandle = fopen((String(currentFilename) + ".i").c_str(), "rb");
-    if (indexFileHandle == NULL)
-    {
-        GUI::msgbox("索引失败", "无法再次打开索引文件");
-        return false;
-    }
-    return true;
-}
 /* const char *remove_path_prefix(const char *path, const char *prefix)
 {
     size_t prefix_len = strlen(prefix);
@@ -730,242 +358,73 @@ bool AppEBook::indexcode_2()
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
 } */
-int8_t getCharLength(char zf) // 获取ascii字符的长度
+int8_t getCharLength(char zf, bool rebuild = false)
 {
-    // 控制字符（0-31和127）返回0
+    // 控制字符（0-31 和 127）宽度一律为 0
     if ((zf >= 0 && zf <= 31) || zf == 127)
         return 0;
 
-    // 可打印字符
-    switch (zf)
+    // 静态查找表，只构建一次
+    static int8_t widthTable[128] = {0};
+    static bool tableBuilt = false;
+
+    if (!tableBuilt || rebuild)
     {
-    case ' ':
-        return 6; // 空格 (32)
-    case '!':
-        return 3; // 33
-    case '"':
-        return 5; // 34
-    case '#':
-        return 6; // 35
-    case '$':
-        return 5; // 36
-    case '%':
-        return 6; // 37
-    case '&':
-        return 5; // 38
-    case '\'':
-        return 3; // 39
-    case '(':
-        return 4; // 40
-    case ')':
-        return 4; // 41
-    case '*':
-        return 5; // 42
-    case '+':
-        return 7; // 43
-    case ',':
-        return 4; // 44
-    case '-':
-        return 5; // 45
-    case '.':
-        return 3; // 46
-    case '/':
-        return 4; // 47
-
-    // 数字 0-9
-    case '0':
-        return 5; // 48
-    case '1':
-        return 5; // 49
-    case '2':
-        return 5; // 50
-    case '3':
-        return 5; // 51
-    case '4':
-        return 6; // 52
-    case '5':
-        return 5; // 53
-    case '6':
-        return 5; // 54
-    case '7':
-        return 5; // 55
-    case '8':
-        return 5; // 56
-    case '9':
-        return 5; // 57
-
-    case ':':
-        return 1; // 58
-    case ';':
-        return 4; // 59
-    case '<':
-        return 5; // 60
-    case '=':
-        return 5; // 61
-    case '>':
-        return 5; // 62
-    case '?':
-        return 5; // 63
-    case '@':
-        return 7; // 64
-
-    // 大写字母 A-Z
-    case 'A':
-        return 7; // 65
-    case 'B':
-        return 6; // 66
-    case 'C':
-        return 6; // 67
-    case 'D':
-        return 7; // 68
-    case 'E':
-        return 5; // 69
-    case 'F':
-        return 5; // 70
-    case 'G':
-        return 6; // 71
-    case 'H':
-        return 6; // 72
-    case 'I':
-        return 3; // 73
-    case 'J':
-        return 3; // 74
-    case 'K':
-        return 5; // 75
-    case 'L':
-        return 5; // 76
-    case 'M':
-        return 7; // 77
-    case 'N':
-        return 6; // 78
-    case 'O':
-        return 7; // 79
-    case 'P':
-        return 5; // 80
-    case 'Q':
-        return 7; // 81
-    case 'R':
-        return 6; // 82
-    case 'S':
-        return 5; // 83
-    case 'T':
-        return 7; // 84
-    case 'U':
-        return 6; // 85
-    case 'V':
-        return 7; // 86
-    case 'W':
-        return 9; // 87
-    case 'X':
-        return 6; // 88
-    case 'Y':
-        return 7; // 89
-    case 'Z':
-        return 7; // 90
-
-    case '[':
-        return 5; // 91
-    case '\\':
-        return 5; // 92
-    case ']':
-        return 4; // 93
-    case '^':
-        return 5; // 94
-    case '_':
-        return 5; // 95
-    case '`':
-        return 3; // 96
-
-    // 小写字母 a-z
-    case 'a':
-        return 5; // 97
-    case 'b':
-        return 5; // 98
-    case 'c':
-        return 4; // 99
-    case 'd':
-        return 5; // 100
-    case 'e':
-        return 5; // 101
-    case 'f':
-        return 3; // 102
-    case 'g':
-        return 5; // 103
-    case 'h':
-        return 5; // 104
-    case 'i':
-        return 1; // 105
-    case 'j':
-        return 2; // 106
-    case 'k':
-        return 5; // 107
-    case 'l':
-        return 1; // 108
-    case 'm':
-        return 7; // 109
-    case 'n':
-        return 5; // 110
-    case 'o':
-        return 5; // 111
-    case 'p':
-        return 5; // 112
-    case 'q':
-        return 5; // 113
-    case 'r':
-        return 3; // 114
-    case 's':
-        return 5; // 115
-    case 't':
-        return 3; // 116
-    case 'u':
-        return 5; // 117
-    case 'v':
-        return 5; // 118
-    case 'w':
-        return 7; // 119
-    case 'x':
-        return 5; // 120
-    case 'y':
-        return 5; // 121
-    case 'z':
-        return 5; // 122
-
-    case '{':
-        return 3; // 123
-    case '|':
-        return 3; // 124
-    case '}':
-        return 3; // 125
-    case '~':
-        return 6; // 126
-
-    default:
-        return 6; // 其他字符（非ASCII或未覆盖的字符）
+        // 仅对可打印字符 32-126 进行测量
+        for (int c = 32; c <= 126; c++)
+        {
+            char str[2] = {(char)c, '\0'};
+            // u8g2 的 getUTF8Width 返回的是 u8g2_uint_t，转成 int8_t
+            widthTable[c] = (int8_t)u8g2Fonts.getUTF8Width(str);
+        }
+        tableBuilt = true;
     }
+
+    return widthTable[(unsigned char)zf];
 }
+
 bool AppEBook::indexcode_3()
 {
-    const int vertical_x = 165;
-    const int max_x = 380;
-    const int vertical_line = 27;
-    const int max_line = 12;
     bool mode = hal.pref.getBool("Vertical");
-    int8_t maxline = mode ? vertical_line : max_line;
-    String txt[mode ? vertical_line + 1 : max_line + 1] = {}; // 0-7行为一页 共8行
-    int8_t line = 0;                                          // 当前行
-    char c;                                                   // 中间数据
-    uint16_t en_count = 0;                                    // 统计ascii和ascii扩展字符 1-2个字节
-    uint16_t ch_count = 0;                                    // 统计中文等 3个字节的字符
-    uint8_t line_old = 0;                                     // 记录旧行位置
-    boolean hskgState = 0;                                    // 行首4个空格检测 0-检测过 1-未检测
+    // ========== 1. 获取当前字体的动态参数 ==========
+    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 1;
+    int8_t fontHeight = u8g2Fonts.getFontHeight() + 3; // 字体高度（像素）
+    int8_t spaceWidth = u8g2Fonts.getUTF8Width(" ");   // 空格宽度（像素）
+    if (fontHeight <= 0)
+        fontHeight = 14; // 防止异常
+    if (spaceWidth <= 0)
+        spaceWidth = fontHeight / 2; // 保底
 
-    uint32_t pageCount = 1;  // 页数计数
-    boolean line0_state = 1; // 每页页首记录状态位
-    // uint32_t yswz_count = 0;                // 待写入文件统计
-    // String yswz_str = "";                   // 待写入的文件
-    uint32_t txtTotalSize = txtFile.size(); // 记录该TXT文件的大小，插入到索引的倒数14-8位
+    // 根据屏幕方向和字体高度计算每页最大行数
+    const int screenHeight = mode ? 384 : 168; // 竖屏 384，横屏 168
+    int maxline = screenHeight / fontHeight;   // 动态行数
+    if (maxline < 1)
+        maxline = 1;
+
+    // 文本绘制区域宽度（保持原有边距概念，可随字体调整，此处沿用原值，亦可动态）
+    const int textWidthHoriz = 380;
+    const int textWidthVert = 165;
+    int textWidth = mode ? textWidthVert : textWidthHoriz;
+
+    // ========== 2. 初始化变量 ==========
+    String txt[maxline + 1]; // 动态行缓冲
+    int8_t line = 0;
+    uint16_t currentWidth = 0;     // 当前行累积像素宽度
+    bool extraIndentAdded = false; // 行首四空格额外缩进是否已加
+
+    char c;
+    uint16_t en_count = 0; // 保留用于旧逻辑兼容（实际未用）
+    uint16_t ch_count = 0;
+    uint8_t line_old = 0;
+    boolean hskgState = 0;
+
+    uint32_t pageCount = 1;
+    boolean line0_state = 1;
+    uint32_t txtTotalSize = txtFile.size();
+
+    // ========== 3. 打开索引文件 ==========
     txtFile.seek(0, SeekSet);
-    long begin = millis(), last;
+    long begin = millis(), last = 0;
     if (indexesFile)
     {
         indexesFile.close();
@@ -978,6 +437,7 @@ bool AppEBook::indexcode_3()
     }
     indexesFile.setBufferSize(8192);
     txtFile.setBufferSize(8192);
+
     while (txtFile.available())
     {
         if (line_old != line) // 行首4个空格检测状态重置
@@ -989,10 +449,10 @@ bool AppEBook::indexcode_3()
         if (line0_state == 1 && line == 0 && pageCount > 1)
         {
             line0_state = 0;
-            uint32_t yswz_uint32 = txtFile.position(); // 获取当前位置 yswz=页数位置
+            uint32_t position = txtFile.position(); // 获取当前位置 yswz=页数位置
             // 页数位置编码处理
 
-            indexesFile.write((uint8_t *)&yswz_uint32, 4);
+            indexesFile.write((uint8_t *)&position, 4);
 
             // 计算剩余量,进度条
             if (millis() - last > 1000)
@@ -1011,11 +471,12 @@ bool AppEBook::indexcode_3()
                 display.display();
                 log_i("文件名称：%s 索引进度：%0.2f%%", currentFilename, shengyu_float);
                 last = millis();
+                esp_task_wdt_reset();
             }
         }
 
-        c = txtFile.read();                                                    // 读取一个字节
-        while (c == '\n' && line <= (mode ? vertical_line - 1 : max_line - 1)) // 检查换行符,并将多个连续空白的换行合并成一个
+        c = txtFile.read();                  // 读取一个字节
+        while (c == '\n' && line <= maxline) // 检查换行符,并将多个连续空白的换行合并成一个
         {
             // 检测到首行并且为空白则不需要插入换行
             if (line == 0) // 等于首行，并且首行不为空，才插入换行
@@ -1034,7 +495,7 @@ bool AppEBook::indexcode_3()
                     line++;
                 /*else if (txt[line].length() == 1 && txt[line - 1].length() == 1) hh = 0;*/
             }
-            if (line <= (mode ? vertical_line - 1 : max_line - 1))
+            if (line <= maxline)
                 c = txtFile.read();
             en_count = 0;
             ch_count = 0;
@@ -1068,16 +529,16 @@ bool AppEBook::indexcode_3()
         }
         else if (b == B11000000) // ascii扩展 2个字节
         {
-            en_count += 12;
+            en_count += fontWidth;
             c = txtFile.read();
             txt[line] += c;
         }
         else if (c == '\t') // 水平制表符，代替两个中文位置，12*2
         {
             if (txt[line] == "    ")
-                en_count += 20; // 行首，因为后面会检测4个空格再加4所以这里是20
+                en_count += spaceWidth * 4; // 行首，因为后面会检测4个空格再加4所以这里是20
             else
-                en_count += 24; // 非行首
+                en_count += fontWidth * 2; // 非行首
         }
         else if (c >= 0 && c <= 255)
         {
@@ -1085,9 +546,9 @@ bool AppEBook::indexcode_3()
             asciiState = 1;
         }
 
-        uint16_t StringLength = en_count + (ch_count * 12); // 一个中文12个像素长度
+        uint16_t StringLength = en_count + (ch_count * fontWidth); // 一个中文12个像素长度
 
-        if (StringLength >= (mode ? vertical_x - 24 : max_x - 24) && hskgState) // 检测到行首的4个空格预计的长度再加长一点
+        if (StringLength >= textWidth - fontWidth * 2 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
         {
             if (txt[line][0] == ' ' && txt[line][1] == ' ' &&
                 txt[line][2] == ' ' && txt[line][3] == ' ')
@@ -1097,7 +558,7 @@ bool AppEBook::indexcode_3()
             hskgState = 0;
         }
 
-        if (StringLength >= (mode ? vertical_x - 11 : max_x - 11)) // 283个像素检查是否已填满屏幕 ，填满一行
+        if (StringLength >= textWidth - fontWidth - 1) // 283个像素检查是否已填满屏幕 ，填满一行
         {
             if (asciiState == 0)
             {
@@ -1105,7 +566,7 @@ bool AppEBook::indexcode_3()
                 en_count = 0;
                 ch_count = 0;
             }
-            else if (StringLength >= (mode ? vertical_x - 8 : max_x - 8))
+            else if (StringLength >= textWidth - (fontWidth / 3) * 2)
             {
                 char t = txtFile.read();
                 txtFile.seek(-1, SeekCur); // 往回移
@@ -1142,7 +603,8 @@ bool AppEBook::indexcode_3()
     indexesFile.write((uint8_t *)&txtTotalSize, 4); // 写入索引时txt的文件大小
     index_info info;
     info.mode = mode;
-    info.font_size = 12;
+    info.font_h = fontHeight;
+    info.font_w = fontWidth;
     indexesFile.write((uint8_t *)&info, 4); // 写入索引时的相关信息
     indexesFile.flush();
     indexesFile.close();
@@ -1565,38 +1027,21 @@ bool AppEBook::indexFile()
         hal.cheak_freq(80, true);
     else
         hal.cheak_freq(hal.pref.getInt("CpuFreq", 240));
-    if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true) == false)
-        return indexcode_2();
-    else if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) == false && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
-    {
-        return indexcode_3();
-    }
+
+    if (!(hal.pref.getString("ebook_font", "default") == "default"))
+        u8g2Fonts.setFont(hal.pref.getString("ebook_font", "default").c_str());
     else
-        return indexcode_1();
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
+    return indexcode_3();
 }
 
 bool AppEBook::openFile(const char *filename)
 {
-    if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
-    {
-        if (app.txtFile)
-            app.txtFile.close();
-        if (app.indexesFile)
-            app.indexesFile.close();
-    }
-    else
-    {
-        if (app.currentFileHandle != NULL)
-        {
-            fclose(app.currentFileHandle);
-            app.currentFileHandle = NULL;
-        }
-        if (app.indexFileHandle != NULL)
-        {
-            fclose(app.indexFileHandle);
-            app.indexFileHandle = NULL;
-        }
-    }
+    if (app.txtFile)
+        app.txtFile.close();
+    if (app.indexesFile)
+        app.indexesFile.close();
     if (filename == NULL)
     {
         const char *name = NULL;
@@ -1608,67 +1053,52 @@ bool AppEBook::openFile(const char *filename)
     }
     else
         strcpy(currentFilename, filename);
-    if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
-    {
-        sprintf(indexesName, "%s.i", currentFilename);
-        txtFile = hal.open(currentFilename);
-        indexesFile = hal.open(indexesName);
 
-        if (!txtFile)
+    sprintf(indexesName, "%s.i", currentFilename);
+    txtFile = hal.open(currentFilename);
+    indexesFile = hal.open(indexesName);
+
+    if (!txtFile)
+        return false;
+    if (!indexesFile)
+    {
+        bool index_ok = indexFile();
+        hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+        if (!index_ok)
             return false;
-        if (!indexesFile)
+    }
+    uint32_t lasttxtsize, nowtxtsize = txtFile.size();
+    index_info info;
+    indexesFile.seek(indexesFile.size() - 8, SeekSet);
+    indexesFile.readBytes((char *)&lasttxtsize, 4);
+    indexesFile.readBytes((char *)&info, 4);
+    indexesFile.seek(0, SeekSet);
+    log_i("lasttxtsize: %lu nowtxtsize: %lu", lasttxtsize, nowtxtsize);
+    if (lasttxtsize != nowtxtsize)
+    {
+        if (GUI::msgbox_yn("提示", "txt文件大小与创建索引时不同，是否重建索引", "重建", "忽略"))
         {
             bool index_ok = indexFile();
             hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
             if (!index_ok)
                 return false;
         }
-        uint32_t lasttxtsize, nowtxtsize = txtFile.size();
-        index_info info;
-        indexesFile.seek(indexesFile.size() - 8, SeekSet);
-        indexesFile.readBytes((char *)&lasttxtsize, 4);
-        indexesFile.readBytes((char *)&info, 4);
-        indexesFile.seek(0, SeekSet);
-        log_i("lasttxtsize: %lu nowtxtsize: %lu", lasttxtsize, nowtxtsize);
-        if (lasttxtsize != nowtxtsize)
+    }
+    if (hal.pref.getBool("Vertical") != info.mode)
+    {
+        if (GUI::msgbox_yn("提示", "当前屏幕方向与创建索引时不同，是否重建索引", "重建", "忽略"))
         {
-            if (GUI::msgbox_yn("提示", "txt文件大小与创建索引时不同，是否重建索引", "重建", "忽略"))
-            {
-                bool index_ok = indexFile();
-                hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
-                if (!index_ok)
-                    return false;
-            }
-        }
-        if (hal.pref.getBool("Vertical") != info.mode)
-        {
-            if (GUI::msgbox_yn("提示", "当前屏幕方向与创建索引时不同，是否重建索引", "重建", "忽略"))
-            {
-                bool index_ok = indexFile();
-                hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
-                if (!index_ok)
-                    return false;
-            }
-        }
-        else
-        {
-            log_i("索引时的屏幕方向与当前一致");
+            bool index_ok = indexFile();
+            hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
+            if (!index_ok)
+                return false;
         }
     }
     else
     {
-        currentFileHandle = fopen(currentFilename, "rb");
-        if (currentFileHandle == NULL)
-            return false;
-        indexFileHandle = fopen((String(currentFilename) + ".i").c_str(), "rb");
-        if (indexFileHandle == NULL)
-        {
-            bool index_ok = indexFile();
-            hal.cheak_freq(hal.pref.getInt("CpuFreq", 80));
-            if (!index_ok)
-                return false;
-        }
+        log_i("索引时的屏幕方向与当前一致");
     }
+
     hal.pref.putBytes(SETTINGS_PARAM_LAST_EBOOK, app.currentFilename, strlen(app.currentFilename));
     return true;
 }
@@ -1681,387 +1111,97 @@ bool AppEBook::gotoPage(uint32_t page)
     else
         page_next = false;
     last_page = page;
-    if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
+
+    if (!indexesFile)
     {
+        indexesFile = hal.open(indexesName);
         if (!indexesFile)
-        {
-            indexesFile = hal.open(indexesName);
-            if (!indexesFile)
-                log_e("indexesFile not open");
-        }
-        if (page == 0)
-        {
-            currentPage = 0;
-            currentFileOffset = 0;
-            txtFile.seek(currentFileOffset, SeekSet);
-            return true;
-        }
-        else
-        {
-            // uint32_t gbwz = 0;    // 计算上一页的页首位置
-            // String gbwz_str = ""; // 光标位置String
-            // log_print("当前页1："); log_println(pageCurrent);
-            // 计算上一页的页首位置
-            // 因为第一页不需要记录所以要减1，因为我要的是上一页所以再减1
-            // gbwz = (page + 1) * 7 - 7;
-            // gbwz = (page + 1) * 4 - 4;
-            // log_print("gbwz："); log_println(gbwz);
-            // 打开索引，寻找上一页的页首位置
-            indexesFile.seek((page - 1) * 4, SeekSet);
-            // 获取索引的数据
-            /*             for (uint8_t i = 0; i < 7; i++)
-                        {
-                            char c = indexesFile.read();
-                            gbwz_str += c;
-                        }
-                        uint32_t gbwz_uint32 = atol(gbwz_str.c_str()); // 装换成int格式 */
-            uint32_t gbwz_uint32;
-            if (indexesFile.read((uint8_t *)&gbwz_uint32, 4) == 0)
-                return false;
-            // indexesFile.close();
-            currentFileOffset = gbwz_uint32;
-            // log_i("%ld", gbwz_uint32);
-            // if (currentFileOffset > txtFile.size())
-            //     return false;
-            log_i("go to page %lu", page);
-            log_i("seekset ==> %lu", currentFileOffset);
-            txtFile.seek(currentFileOffset, SeekSet);
-            currentPage = page;
-            return true;
-        }
+            log_e("indexesFile not open");
+    }
+    if (page == 0)
+    {
+        currentPage = 0;
+        currentFileOffset = 0;
+        txtFile.seek(currentFileOffset, SeekSet);
+        return true;
     }
     else
     {
-        if (page == 0)
-        {
-            currentPage = 0;
-            currentFileOffset = 0;
-            fseek(currentFileHandle, 0, SEEK_SET);
-            return true;
-        }
-        else if (indexFileHandle != NULL)
-        {
-            fseek(indexFileHandle, (page - 1) * 4, SEEK_SET);
-            if (fread(&currentFileOffset, sizeof(currentFileOffset), 1, indexFileHandle) == 1)
-            {
-                currentPage = page;
-                log_i("go to page %lu", page);
-                log_i("seekset %lu", currentFileOffset);
-                fseek(currentFileHandle, currentFileOffset, SEEK_SET);
-                return true;
-            }
-            else
-                __eof = true;
-        }
+        // uint32_t gbwz = 0;    // 计算上一页的页首位置
+        // String gbwz_str = ""; // 光标位置String
+        // log_print("当前页1："); log_println(pageCurrent);
+        // 计算上一页的页首位置
+        // 因为第一页不需要记录所以要减1，因为我要的是上一页所以再减1
+        // gbwz = (page + 1) * 7 - 7;
+        // gbwz = (page + 1) * 4 - 4;
+        // log_print("gbwz："); log_println(gbwz);
+        // 打开索引，寻找上一页的页首位置
+        indexesFile.seek((page - 1) * 4, SeekSet);
+        // 获取索引的数据
+        /*             for (uint8_t i = 0; i < 7; i++)
+                    {
+                        char c = indexesFile.read();
+                        gbwz_str += c;
+                    }
+                    uint32_t gbwz_uint32 = atol(gbwz_str.c_str()); // 装换成int格式 */
+        uint32_t gbwz_uint32;
+        if (indexesFile.read((uint8_t *)&gbwz_uint32, 4) == 0)
+            return false;
+        // indexesFile.close();
+        currentFileOffset = gbwz_uint32;
+        // log_i("%ld", gbwz_uint32);
+        // if (currentFileOffset > txtFile.size())
+        //     return false;
+        log_i("go to page %lu", page);
+        log_i("seekset ==> %lu", currentFileOffset);
+        txtFile.seek(currentFileOffset, SeekSet);
+        currentPage = page;
+        return true;
     }
+
     return false;
 }
-uint8_t RTC_DATA_ATTR partcount = 100;
-bool AppEBook::draw_page1()
-{
-    uint32_t offsetall = 0;
-    offsetall = ftell(currentFileHandle);
-    if (offsetall == 0)
-    {
-        uint8_t buffer[3];
-        buffer[0] = fgetc(currentFileHandle);
-        buffer[1] = fgetc(currentFileHandle);
-        buffer[2] = fgetc(currentFileHandle);
-        // 检查是否为 BOM 头
-        if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
-        {
-            log_printf("File starts with UTF-8 BOM\n");
-            fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
-        }
-        else
-            fseek(currentFileHandle, offsetall, SEEK_SET); // 如果不是 BOM 头，回到文件开头
-    }
-    int16_t x = 1, y = 0;
-    int c;
-    bool r_flag = false;
-    // 窗口
-    if (hal.pref.getBool(hal.get_char_sha_key("反色显示")))
-    {
-        display.clearScreen(TFT_BLACK);
-        u8g2Fonts.setBackgroundColor(TFT_BLACK);
-        u8g2Fonts.setForegroundColor(TFT_WHITE);
-    }
-    else
-        display.clearScreen();
-    // 自动换行
-    while (true)
-    {
-    start:
-        if (!r_flag)
-            c = fgetc(currentFileHandle);
-        else
-            r_flag = false;
-        if (c == EOF)
-        {
-            __eof = true;
-            break;
-        }
-        if (c == '\r')
-            goto start;
-        while (c == '\n' && x == 1 && y == 0)
-            goto start;
-        int utf_bytes = 0;
-        if (c & 0x80)
-        {
-            if (c & 0x40)
-            {
-                if (c & 0x20)
-                {
-                    if (c & 0x10)
-                    {
-                        if (c & 0x08)
-                        {
-                            if (c & 0x04)
-                                utf_bytes = 5;
-                            else
-                                utf_bytes = 4;
-                        }
-                        else
-                            utf_bytes = 3;
-                    }
-                    else
-                        utf_bytes = 2;
-                }
-                else
-                    utf_bytes = 1;
-            }
-            else
-            {
-                GUI::info_msgbox("错误", "绘制文本时索引错误，可能文件非UTF-8编码");
-                log_w("绘制文本时索引错误，可能文件非UTF-8编码");
-                return false;
-                break;
-            }
-        }
-        int add_pending;
-        if (utf_bytes == 0)
-        {
-            add_pending = 6;
-        }
-        else
-        {
-            add_pending = 12;
-        }
-        if (c == '\n')
-        {
-            y += 14;
-            x = 1;
-            add_pending = 0;
-            c = fgetc(currentFileHandle);
-            if (c != '\r')
-                r_flag = true;
-            uint32_t offsetall = 0;
-            offsetall = ftell(currentFileHandle);
-            char r = fgetc(currentFileHandle);
-            if (r != '\r')
-                fseek(currentFileHandle, offsetall, SEEK_SET);
-        }
-        else if (x + add_pending >= 294 + 1)
-        {
-            x = 1;
-            y += 14;
-        }
-        if (y >= 128 - 14)
-        {
-            if (utf_bytes != 0)
-            {
-                for (int i = 0; i < utf_bytes; i++)
-                    fgetc(currentFileHandle);
-                break;
-            }
-        }
-        if (c != '\n' && c != '\r')
-        {
-            u8g2Fonts.setCursor(x, y + 13);
-            x += add_pending;
-            u8g2Fonts.write((uint8_t)c);
-            if (utf_bytes != 0)
-            {
-                for (int i = 0; i < utf_bytes; i++)
-                {
-                    int c1 = fgetc(currentFileHandle);
-                    if (c1 == EOF)
-                        break;
-                    u8g2Fonts.write((uint8_t)c1);
-                }
-            }
-        }
-    }
-    if (partcount < hal.pref.getInt("full_conut", 15))
-    {
-        display.display();
-        ++partcount;
-    }
-    else
-    {
-        partcount = 0;
-        display.display();
-    }
-    return true;
-}
-bool AppEBook::draw_page2()
-{
-    uint32_t offsetall = 0;
-    offsetall = ftell(currentFileHandle);
-    uint8_t buffer[3];
-    buffer[0] = fgetc(currentFileHandle);
-    buffer[1] = fgetc(currentFileHandle);
-    buffer[2] = fgetc(currentFileHandle);
-    // 检查是否为 BOM 头
-    if (buffer[0] == 0xEF && buffer[1] == 0xBB && buffer[2] == 0xBF)
-    {
-        log_printf("File starts with UTF-8 BOM\n");
-        fseek(currentFileHandle, offsetall + 3, SEEK_SET); // 移动到 BOM 头之后的位置
-    }
-    else
-        fseek(currentFileHandle, offsetall, SEEK_SET); // 如果不是 BOM 头，回到文件开头
-    int16_t x = 1, y = 0;
-    int c;
-    bool r_flag = false;
-    // 窗口
-    if (hal.pref.getBool(hal.get_char_sha_key("反色显示")))
-    {
-        display.clearScreen(TFT_BLACK);
-        u8g2Fonts.setBackgroundColor(TFT_BLACK);
-        u8g2Fonts.setForegroundColor(TFT_WHITE);
-    }
-    else
-        display.clearScreen();
-    // 自动换行
-    while (true)
-    {
-    start:
-        if (!r_flag)
-            c = fgetc(currentFileHandle);
-        else
-            r_flag = false;
-        if (c == EOF)
-        {
-            __eof = true;
-            break;
-        }
-        while (c == '\n' && x == 1 && y == 0)
-            goto start;
-        int utf_bytes = 0;
-        if (c & 0x80)
-        {
-            if (c & 0x40)
-            {
-                if (c & 0x20)
-                {
-                    if (c & 0x10)
-                    {
-                        if (c & 0x08)
-                        {
-                            if (c & 0x04)
-                                utf_bytes = 5;
-                            else
-                                utf_bytes = 4;
-                        }
-                        else
-                            utf_bytes = 3;
-                    }
-                    else
-                        utf_bytes = 2;
-                }
-                else
-                    utf_bytes = 1;
-            }
-            else
-            {
-                log_printf("非预期的UTF8编码\n");
-                log_w("绘制文本时索引错误，可能文件非UTF-8编码");
-                return false;
-                break;
-            }
-        }
-        int add_pending;
-        if (utf_bytes == 0)
-        {
-            add_pending = 6;
-        }
-        else
-        {
-            add_pending = 12;
-        }
-        if (c == '\n')
-        {
-            y += 14;
-            x = 1;
-            add_pending = 0;
-            c = fgetc(currentFileHandle);
-            if (c != '\r')
-            {
-                r_flag = true;
-            }
-        }
-        else if (x + add_pending >= 294 + 1)
-        {
-            x = 1;
-            y += 14;
-        }
-        if (y >= 128 - 14)
-        {
-            if (utf_bytes != 0)
-            {
-                for (int i = 0; i < utf_bytes; i++)
-                {
-                    fgetc(currentFileHandle);
-                }
-                break;
-            }
-        }
-        if (c != '\n')
-        {
-            u8g2Fonts.setCursor(x, y + 13);
-            x += add_pending;
-            u8g2Fonts.write((uint8_t)c);
-            if (utf_bytes != 0)
-            {
-                for (int i = 0; i < utf_bytes; i++)
-                {
-                    int c1 = fgetc(currentFileHandle);
-                    if (c1 == EOF)
-                    {
-                        break;
-                    }
-                    u8g2Fonts.write((uint8_t)c1);
-                }
-            }
-        }
-    }
-    if (partcount < hal.pref.getInt("full_conut", 15))
-    {
-        display.display();
-        ++partcount;
-    }
-    else
-    {
-        partcount = 0;
-        display.display();
-    }
-    return true;
-}
+
 bool AppEBook::draw_page3()
 {
-    const int vertical_x = 165;
-    const int max_x = 380;
-    const int vertical_line = 27;
-    const int max_line = 12;
     bool mode = hal.pref.getBool("Vertical");
-    int8_t maxline = mode ? vertical_line : max_line;
-    String txt[mode ? vertical_line + 1 : max_line + 1] = {}; // 0-7行为一页 共8行
-    int8_t line = 0;                                          // 当前行
-    char c;                                                   // 中间数据
-    uint16_t en_count = 0;                                    // 统计ascii和ascii扩展字符 1-2个字节
-    uint16_t ch_count = 0;                                    // 统计中文等 3个字节的字符
-    uint8_t line_old = 0;                                     // 记录旧行位置
-    boolean hskgState = 1;                                    // 行首4个空格检测 0-检测过 1-未检测
+    // ========== 1. 获取当前字体的动态参数 ==========
+    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 1;
+    int8_t fontHeight = u8g2Fonts.getFontHeight() + 3; // 字体高度（像素）
+    int8_t spaceWidth = u8g2Fonts.getUTF8Width(" ");   // 空格宽度（像素）
+    if (fontHeight <= 0)
+        fontHeight = 14; // 防止异常
+    if (spaceWidth <= 0)
+        spaceWidth = fontHeight / 2; // 保底
+
+    // 根据屏幕方向和字体高度计算每页最大行数
+    const int screenHeight = mode ? 384 : 168;   // 竖屏 384，横屏 168
+    int maxline = screenHeight / fontHeight; // 动态行数
+    if (maxline < 1)
+        maxline = 1;
+
+    // 文本绘制区域宽度（保持原有边距概念，可随字体调整，此处沿用原值，亦可动态）
+    const int textWidthHoriz = 380;
+    const int textWidthVert = 165;
+    int textWidth = mode ? textWidthVert : textWidthHoriz;
+
+    // log_i("fontHeight: %d, fontWidth: %d, spaceWidth: %d, maxline: %d, textWidth: %d", fontHeight, fontWidth, spaceWidth, maxline, textWidth);
+
+    // ========== 2. 初始化变量 ==========
+    String txt[maxline + 1]; // 动态行缓冲
+    int8_t line = 0;
+    uint16_t currentWidth = 0;     // 当前行累积像素宽度
+    bool extraIndentAdded = false; // 行首四空格额外缩进是否已加
+
+    char c;
+    uint16_t en_count = 0; // 保留用于旧逻辑兼容（实际未用）
+    uint16_t ch_count = 0;
+    uint8_t line_old = 0;
+    boolean hskgState = 0;
+
+    uint32_t pageCount = 1;
+    boolean line0_state = 1;
+
     if (!txtFile)
     {
         txtFile = hal.open(currentFilename);
@@ -2081,7 +1221,7 @@ bool AppEBook::draw_page3()
 
         c = txtFile.read(); // 读取一个字节
 
-        while (c == '\n' && line <= (mode ? vertical_line - 1 : max_line - 1)) // 检查换行符,并将多个连续空白的换行合并成一个
+        while (c == '\n' && line <= maxline) // 检查换行符,并将多个连续空白的换行合并成一个
         {
             // 检测到首行并且为空白则不需要插入换行
             if (line == 0) // 等于首行，并且首行不为空，才插入换行
@@ -2100,7 +1240,7 @@ bool AppEBook::draw_page3()
                     line++;
                 /*else if (txt[line].length() == 1 && txt[line - 1].length() == 1) hh = 0;*/
             }
-            if (line <= (mode ? vertical_line - 1 : max_line - 1))
+            if (line <= maxline)
                 c = txtFile.read();
             en_count = 0;
             ch_count = 0;
@@ -2134,16 +1274,16 @@ bool AppEBook::draw_page3()
         }
         else if (b == B11000000) // ascii扩展 2个字节
         {
-            en_count += 12;
+            en_count += fontWidth;
             c = txtFile.read();
             txt[line] += c;
         }
         else if (c == '\t') // 水平制表符，代替两个中文位置，12*2
         {
             if (txt[line] == "    ")
-                en_count += 20; // 行首，因为后面会检测4个空格再加4所以这里是20
+                en_count += spaceWidth * 4; // 行首，因为后面会检测4个空格再加4所以这里是20
             else
-                en_count += 24; // 非行首
+                en_count += fontWidth * 2; // 非行首
         }
         else if (c >= 0 && c <= 255)
         {
@@ -2151,9 +1291,9 @@ bool AppEBook::draw_page3()
             asciiState = 1;
         }
 
-        uint16_t StringLength = en_count + (ch_count * 12);
+        uint16_t StringLength = en_count + (ch_count * fontWidth);
 
-        if (StringLength >= (mode ? vertical_x - 24 : max_x - 24) && hskgState) // 检测到行首的4个空格预计的长度再加长一点
+        if (StringLength >= textWidth - fontWidth * 2 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
         {
             if (txt[line][0] == ' ' && txt[line][1] == ' ' &&
                 txt[line][2] == ' ' && txt[line][3] == ' ')
@@ -2170,10 +1310,10 @@ bool AppEBook::draw_page3()
           log_print("ch_count:"); log_println(ch_count);
           log_print("en_count:"); log_println(en_count);
           log_print("预计像素长度:"); log_println(StringLength);
-          log_print("实际像素长度:"); log_println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
+          log_print("实际像素长度:"); log_printf(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
-        if (StringLength >= (mode ? vertical_x - 11 : max_x - 11)) // 检查是否已填满屏幕 283
+        if (StringLength >= textWidth - fontWidth - 1) // 检查是否已填满屏幕 283
         {
             // log_println("");
             // log_print("行"); log_print(line); log_print(" 预计像素长度:"); log_println(StringLength);
@@ -2184,7 +1324,7 @@ bool AppEBook::draw_page3()
                 en_count = 0;
                 ch_count = 0;
             }
-            else if (StringLength >= (mode ? vertical_x - 8 : max_x - 8)) // 286 最后一个字符不是中文，在继续检测
+            else if (StringLength >= textWidth - (fontWidth / 3) * 2) // 286 最后一个字符不是中文，在继续检测
             {
                 char t = txtFile.read();
                 txtFile.seek(-1, SeekCur); // 往回移
@@ -2242,7 +1382,7 @@ bool AppEBook::draw_page3()
         u8g2Fonts.setBackgroundColor(TFT_WHITE);
         u8g2Fonts.setForegroundColor(TFT_BLACK);
     }
-    for (uint8_t i = 0; i < (mode ? vertical_line : max_line); i++)
+    for (uint8_t i = 0; i < maxline; i++)
     {
         uint8_t offset = 0;    // 缩减偏移量
         if (txt[i][0] == 0x20) // 检查首行是否为半角空格 0x20
@@ -2260,8 +1400,8 @@ bool AppEBook::draw_page3()
             txt[i].replace(String((char)0xE3) + String((char)0x80) + String((char)0x80), "  ");
             offset = 0;
         }
-        txt[i].replace(String("—"), "--");
-        u8g2Fonts.setCursor(4 + offset, i * 14 + 12);
+        // txt[i].replace(String("—"), "--");
+        u8g2Fonts.setCursor(4 + offset, i * fontHeight + (fontHeight - 1));
         u8g2Fonts.print(txt[i]);
         // log_i("%s", txt[i].c_str());
     }
@@ -2313,18 +1453,14 @@ void AppEBook::drawCurrentPage()
     // else
     // display.epd2.PLL_set(hal.pref.getUInt("ebook_pllset", 0x3C));
     bool state;
-    if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true) == false)
-    {
-        state = draw_page2();
-    }
-    else if (hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) == false && hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true))
-    {
-        state = draw_page3();
-    }
+
+    if (!(hal.pref.getString("ebook_font", "default") == "default"))
+        u8g2Fonts.setFont(hal.pref.getString("ebook_font", "default").c_str());
     else
-    {
-        state = draw_page1();
-    }
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
+    state = draw_page3();
+
     if (!state)
         GUI::info_msgbox("错误", "绘制文本中出现错误");
     // display.epd2.PLL_set(hal.pref.getUInt("pllset", 0x3C));
@@ -2368,19 +1504,44 @@ bool isChapterTitle(const String &str)
 
 int AppEBook::findchapterTitle(bool up)
 {
-    const int vertical_x = 165;
-    const int max_x = 380;
-    const int vertical_line = 27;
-    const int max_line = 12;
     bool mode = hal.pref.getBool("Vertical");
-    int8_t maxline = mode ? vertical_line : max_line;
-    String txt[mode ? vertical_line + 1 : max_line + 1] = {}; // 0-7行为一页 共8行
-    int8_t line = 0;                                          // 当前行
-    char c;                                                   // 中间数据
-    uint16_t en_count = 0;                                    // 统计ascii和ascii扩展字符 1-2个字节
-    uint16_t ch_count = 0;                                    // 统计中文等 3个字节的字符
-    uint8_t line_old = 0;                                     // 记录旧行位置
-    boolean hskgState = 1;                                    // 行首4个空格检测 0-检测过 1-未检测
+    // ========== 1. 获取当前字体的动态参数 ==========
+    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 1;
+    int8_t fontHeight = u8g2Fonts.getFontHeight() + 3; // 字体高度（像素）
+    int8_t spaceWidth = u8g2Fonts.getUTF8Width(" ");   // 空格宽度（像素）
+    if (fontHeight <= 0)
+        fontHeight = 14; // 防止异常
+    if (spaceWidth <= 0)
+        spaceWidth = fontHeight / 2; // 保底
+
+    // 根据屏幕方向和字体高度计算每页最大行数
+    const int screenHeight = mode ? 384 : 168;   // 竖屏 384，横屏 168
+    int maxline = screenHeight / fontHeight + 3; // 动态行数
+    if (maxline < 1)
+        maxline = 1;
+
+    // 文本绘制区域宽度（保持原有边距概念，可随字体调整，此处沿用原值，亦可动态）
+    const int textWidthHoriz = 380;
+    const int textWidthVert = 165;
+    int textWidth = mode ? textWidthVert : textWidthHoriz;
+
+    // log_i("fontHeight: %d, fontWidth: %d, spaceWidth: %d, maxline: %d, textWidth: %d", fontHeight, fontWidth, spaceWidth, maxline, textWidth);
+
+    // ========== 2. 初始化变量 ==========
+    String txt[maxline + 1]; // 动态行缓冲
+    int8_t line = 0;
+    uint16_t currentWidth = 0;     // 当前行累积像素宽度
+    bool extraIndentAdded = false; // 行首四空格额外缩进是否已加
+
+    char c;
+    uint16_t en_count = 0; // 保留用于旧逻辑兼容（实际未用）
+    uint16_t ch_count = 0;
+    uint8_t line_old = 0;
+    boolean hskgState = 0;
+
+    uint32_t pageCount = 1;
+    boolean line0_state = 1;
+
     uint32_t save_page = currentPage;
     bool is_find = false;
     if (!txtFile)
@@ -2427,7 +1588,7 @@ begin:
 
         c = txtFile.read(); // 读取一个字节
 
-        while (c == '\n' && line <= (mode ? vertical_line - 1 : max_line - 1)) // 检查换行符,并将多个连续空白的换行合并成一个
+        while (c == '\n' && line <= maxline) // 检查换行符,并将多个连续空白的换行合并成一个
         {
             // 检测到首行并且为空白则不需要插入换行
             if (line == 0) // 等于首行，并且首行不为空，才插入换行
@@ -2446,7 +1607,7 @@ begin:
                     line++;
                 /*else if (txt[line].length() == 1 && txt[line - 1].length() == 1) hh = 0;*/
             }
-            if (line <= (mode ? vertical_line - 1 : max_line - 1))
+            if (line <= maxline)
                 c = txtFile.read();
             en_count = 0;
             ch_count = 0;
@@ -2487,9 +1648,9 @@ begin:
         else if (c == '\t') // 水平制表符，代替两个中文位置，12*2
         {
             if (txt[line] == "    ")
-                en_count += 20; // 行首，因为后面会检测4个空格再加4所以这里是20
+                en_count += spaceWidth * 4; // 行首，因为后面会检测4个空格再加4所以这里是20
             else
-                en_count += 24; // 非行首
+                en_count += fontWidth * 2; // 非行首
         }
         else if (c >= 0 && c <= 255)
         {
@@ -2497,9 +1658,9 @@ begin:
             asciiState = 1;
         }
 
-        uint16_t StringLength = en_count + (ch_count * 12);
+        uint16_t StringLength = en_count + (ch_count * fontWidth);
 
-        if (StringLength >= (mode ? vertical_x - 24 : max_x - 24) && hskgState) // 检测到行首的4个空格预计的长度再加长一点
+        if (StringLength >= textWidth - fontWidth * 2 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
         {
             if (txt[line][0] == ' ' && txt[line][1] == ' ' &&
                 txt[line][2] == ' ' && txt[line][3] == ' ')
@@ -2519,7 +1680,7 @@ begin:
           log_print("实际像素长度:"); log_println(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
 
-        if (StringLength >= (mode ? vertical_x - 11 : max_x - 11)) // 检查是否已填满屏幕 283
+        if (StringLength >= textWidth - fontWidth - 1) // 检查是否已填满屏幕 283
         {
             // log_println("");
             // log_print("行"); log_print(line); log_print(" 预计像素长度:"); log_println(StringLength);
@@ -2530,7 +1691,7 @@ begin:
                 en_count = 0;
                 ch_count = 0;
             }
-            else if (StringLength >= (mode ? vertical_x - 8 : max_x - 8)) // 286 最后一个字符不是中文，在继续检测
+            else if (StringLength >= textWidth - (fontWidth / 3) * 2) // 286 最后一个字符不是中文，在继续检测
             {
                 char t = txtFile.read();
                 txtFile.seek(-1, SeekCur); // 往回移
@@ -2559,18 +1720,19 @@ begin:
             }
         }
     }
-    for (uint8_t i = 0; i < (mode ? vertical_line + 1 : max_line + 1); i++)
+    for (uint8_t i = 0; i < maxline + 1; i++)
     {
         if (isChapterTitle(txt[i]))
         {
             is_find = true;
-            log_i("在%d行找到 \"%s\"", txt[i].c_str());
+            log_i("在%d行找到 \"%s\"", i, txt[i].c_str());
             sprintf(chapterTitle, "%s", txt[i].c_str());
             return currentPage + 1;
         }
     }
     if (!is_find)
     {
+        delay(1);
         goto begin;
     }
     return currentPage + 1;
@@ -2578,18 +1740,9 @@ begin:
 
 int AppEBook::getTotalPages()
 {
-    if (hal.pref.getBool(hal.get_char_sha_key("甘草索引程序")), true)
-    {
-        int indexesFileSize = indexesFile.size();
-        // return (indexesFileSize / 4) + 1;
-        return (indexesFileSize / 4);
-    }
-    else
-    {
-        struct stat fileStat;
-        fstat(fileno(indexFileHandle), &fileStat);
-        return fileStat.st_size / 4 + 1;
-    }
+    int indexesFileSize = indexesFile.size();
+    // return (indexesFileSize / 4) + 1;
+    return (indexesFileSize / 4) + 1 - 2;
 }
 static int get_digits(int val)
 {
@@ -2603,24 +1756,27 @@ static int get_digits(int val)
 }
 void AppEBook::openMenu()
 {
+    if (!(hal.pref.getString("system_font", "default") == "default"))
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
+    bool mode = hal.pref.getBool("Vertical");
     const char *dayOfWeek[] = {"日", "一", "二", "三", "四", "五", "六"};
     int moth = hal.timeinfo.tm_mon + 1, d = hal.timeinfo.tm_mday, dw = hal.timeinfo.tm_wday, h = hal.timeinfo.tm_hour, m = hal.timeinfo.tm_min, s = hal.timeinfo.tm_sec;
-    char buf[64], vbat[64];
-    sprintf(buf, "当前时间:%d月%d日 星期%s %d:%d:%d", moth, d, dayOfWeek[dw], h, m, s);
-    sprintf(vbat, "电源电压：%.2fV (%d%%)", hal.bat_info.voltage, hal.bat_info.soc);
+    char buf[128];
+    sprintf(buf, "%d月%d日 星期%s %d:%d:%d    %.2fV (%d%%)", moth, d, dayOfWeek[dw], h, m, s, hal.bat_info.voltage, hal.bat_info.soc);
     char *title = (char *)malloc(128);
     int totalPages = getTotalPages();
     sprintf(title, "%d/%d %.1f%%", currentPage + 1, totalPages, (float)((currentPage + 1) * 100) / (float)(totalPages));
-    const menu_item items[] = {
-        {NULL, "< 返回"},
-        {NULL, "退出"},
-        {NULL, "跳转到.."},
-        {NULL, "重建当前文件索引"},
-        {NULL, "换文件.."},
-        {NULL, buf},
-        {NULL, "设置"},
-        {NULL, vbat},
-        {NULL, NULL},
+    const menu_select items[] = {
+        {false, "< 返回", nullptr},           // 0
+        {false, "退出", nullptr},             // 1
+        {false, "跳转到..", nullptr},         // 2
+        {false, "重建当前文件索引", nullptr}, // 3
+        {true, "竖屏模式", "Vertical"},       // 4
+        {false, "换文件..", nullptr},         // 5
+        {false, "设置", nullptr},             // 6
+        {false, buf},
+        {false, nullptr, nullptr},
     };
     const menu_item page_goto_items[] = {
         {NULL, "< 返回"},
@@ -2630,7 +1786,7 @@ void AppEBook::openMenu()
         {NULL, "跳转至上/下X章"},
         {NULL, NULL},
     };
-    int ret = GUI::menu(title, items);
+    int ret = GUI::select_menu(title, items);
     free(title);
     switch (ret)
     {
@@ -2642,7 +1798,7 @@ void AppEBook::openMenu()
     case 2:
     {
         int ret = GUI::menu(title, page_goto_items, 8, 8, 1);
-        int page;
+        int page = 0;
         switch (ret)
         {
         case 0:
@@ -2704,22 +1860,86 @@ void AppEBook::openMenu()
             delay(250);
             drawCurrentPage();
         }
-        else
-            GUI::msgbox("章节跳转", "发生未知错误");
     }
     break;
     case 3:
+    {
         display.clearScreen();
         display.setCursor(20, 20);
         display.setFont(&FreeSans9pt7b);
         display.print("Rebuilding index...");
         display.display();
+        if (!indexesFile)
+        {
+            indexesFile = hal.open(indexesName, "r");
+            if (!indexesFile)
+                log_e("indexesFile not open");
+        }
+        indexesFile.seek((currentPage - 1) * 4, SeekSet);
+        uint32_t indexeOffset = 0, page;
+        if (indexesFile.read((uint8_t *)&indexeOffset, 4) < 4)
+            return;
+
         indexFile();
-        gotoPage(0);
-        drawCurrentPage();
-        need_deepsleep = true;
-        break;
-    case 4:
+
+        size_t fileSize = indexesFile.size();
+
+        // 计算索引总数（每个索引4字节）
+        uint32_t indexCount = fileSize / 4 - 1;
+
+        // 二分查找
+        int32_t left = 0;               // 左边界（索引位置，对应第二页）
+        int32_t right = indexCount - 1; // 右边界
+        int32_t mid;
+        uint32_t midValue;
+        uint32_t foundPage = 1; // 默认第一页
+        if (!(indexeOffset == 0 || fileSize == 0))
+        {
+            while (left <= right)
+            {
+                int mid = left + (right - left) / 2;
+
+                // 读取中间的索引值
+                indexesFile.seek(mid * sizeof(uint32_t));
+                uint32_t midValue;
+                indexesFile.read((uint8_t *)&midValue, sizeof(uint32_t));
+
+                if (midValue <= indexeOffset)
+                {
+                    // 目标偏移量在中间索引之后或相等
+                    page = mid + 1; // 加1因为索引是从第二页开始的
+                    left = mid + 1;
+                }
+                else
+                {
+                    // 目标偏移量在中间索引之前
+                    right = mid - 1;
+                }
+            }
+        }
+        else
+        {
+            page = 1;
+        }
+        log_i("page %d", page - 1);
+        // 如果没有精确匹配，返回找到的页数
+        // 如果targetOffset小于第一个索引，foundPage保持为1
+        if (page > 0)
+        {
+            if (gotoPage(page - 1) == false)
+            {
+                String info = "页码";
+                info += page;
+                info += "超出范围";
+                GUI::msgbox("跳转失败", info.c_str());
+                log_e("跳转失败，%d超出范围", page - 1);
+                gotoPage(0);
+            }
+            drawCurrentPage();
+        }
+    }
+    break;
+    case 5:
         ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
         peripherals.load(PERIPHERALS_SD_BIT);
         if (openFile() == false)
@@ -2738,6 +1958,83 @@ void AppEBook::openMenu()
         GUI::msgbox("错误", "无效的选项,或此选项为空");
         break;
     }
+
+    if (!(hal.pref.getString("ebook_font", "default") == "default"))
+        u8g2Fonts.setFont(hal.pref.getString("ebook_font", "default").c_str());
+    else
+        u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
+    if (hal.pref.getBool("Vertical") != mode)
+    {
+        if (!indexesFile)
+        {
+            indexesFile = hal.open(indexesName, "r");
+            if (!indexesFile)
+                log_e("indexesFile not open");
+        }
+        indexesFile.seek((currentPage - 1) * 4, SeekSet);
+        uint32_t indexeOffset = 0, page;
+        if (indexesFile.read((uint8_t *)&indexeOffset, 4) < 4)
+            return;
+
+        indexFile();
+
+        size_t fileSize = indexesFile.size();
+
+        // 计算索引总数（每个索引4字节）
+        uint32_t indexCount = fileSize / 4 - 1;
+
+        // 二分查找
+        int32_t left = 0;               // 左边界（索引位置，对应第二页）
+        int32_t right = indexCount - 1; // 右边界
+        int32_t mid;
+        uint32_t midValue;
+        uint32_t foundPage = 1; // 默认第一页
+        if (!(indexeOffset == 0 || fileSize == 0))
+        {
+            while (left <= right)
+            {
+                int mid = left + (right - left) / 2;
+
+                // 读取中间的索引值
+                indexesFile.seek(mid * sizeof(uint32_t));
+                uint32_t midValue;
+                indexesFile.read((uint8_t *)&midValue, sizeof(uint32_t));
+
+                if (midValue <= indexeOffset)
+                {
+                    // 目标偏移量在中间索引之后或相等
+                    page = mid + 1; // 加1因为索引是从第二页开始的
+                    left = mid + 1;
+                }
+                else
+                {
+                    // 目标偏移量在中间索引之前
+                    right = mid - 1;
+                }
+            }
+        }
+        else
+        {
+            page = 1;
+        }
+        log_i("page %d", page - 1);
+        // 如果没有精确匹配，返回找到的页数
+        // 如果targetOffset小于第一个索引，foundPage保持为1
+        if (page > 0)
+        {
+            if (gotoPage(page - 1) == false)
+            {
+                String info = "页码";
+                info += page;
+                info += "超出范围";
+                GUI::msgbox("跳转失败", info.c_str());
+                log_e("跳转失败，%d超出范围", page - 1);
+                gotoPage(0);
+            }
+            drawCurrentPage();
+        }
+    }
 }
 
 #include <nvs.h>
@@ -2748,24 +2045,19 @@ void AppEBook::ebooksettings()
     nvs_stats_t stats = ebook_nvs.getStats();
     sprintf(nvs_info, "NVS使用 %d/%d", stats.used_entries, stats.total_entries);
     menu_select ebook_set[] = {
-        {false, "< 返回", nullptr},
-        {true, "根据唤醒源翻页", nullptr},
-        {true, "自动翻页", nullptr},
-        {false, "自动翻页延时", nullptr}, // 3
-        {true, "使用lightsleep", nullptr},
-        {true, "禁用休眠", nullptr},
-        {false, "最大lightsleep次数", nullptr}, // 6
-        {true, "反色显示", nullptr},
-        {true, "快速显示", nullptr},
-        {false, "屏幕全刷间隔", nullptr}, // 9
-        {true, "使用备选txt解析程序1", nullptr},
-        {true, "甘草索引程序", nullptr},
-        {true, "甘草索引竖屏模式", "Vertical"},
-        {true, "降频运行Ebook", nullptr},
-        {false, "保存页数", nullptr},                // 14
-        {false, "Ebook单独Pll设置", nullptr},        // 15
-        {false, "生成进度/读取进度(.sav)", nullptr}, // 16
-        {false, nvs_info, nullptr},
+        {false, "< 返回", nullptr},                  // 0
+        {true, "根据唤醒源翻页", nullptr},           // 1
+        {true, "自动翻页", nullptr},                 // 2
+        {false, "自动翻页延时", nullptr},            // 3
+        {true, "使用lightsleep", nullptr},           // 4
+        {true, "禁用休眠", nullptr},                 // 5
+        {false, "最大lightsleep次数", nullptr},      // 6
+        {true, "反色显示", nullptr},                 // 7
+        {true, "降频运行Ebook", nullptr},            // 8
+        {false, "设置自定义阅读字体", nullptr},      // 9
+        {false, "保存页数", nullptr},                // 10
+        {false, "生成进度/读取进度(.sav)", nullptr}, // 11
+        {false, nvs_info, nullptr},                  // 12
         {false, NULL, nullptr},
     };
     bool code = hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1"));
@@ -2787,19 +2079,24 @@ void AppEBook::ebooksettings()
             hal.pref.putInt("max_lightsleep", GUI::msgbox_number("输入次数", 3, hal.pref.getInt("max_lightsleep", 20)));
             break;
         case 9:
-            hal.pref.putInt("full_conut", GUI::msgbox_number("输入全刷间隔", 2, hal.pref.getInt("full_conut", 15)));
-            break;
-        case 14:
+        {
+            const char *str = GUI::fileDialog("请选择文本绘制字体文件", false, NULL, NULL);
+            if (str == NULL)
+            {
+                hal.pref.putString("ebook_font", hal.pref.getString("system_font", "default"));
+            }
+            else
+            {
+                hal.pref.putString("ebook_font", String(str));
+                u8g2Fonts.setFont(hal.pref.getString("ebook_font", "default").c_str());
+            }
+        }
+        break;
+        case 10:
             app.ebook_nvs.putUInt(hal.get_char_sha_key(app.currentFilename, true), currentPage);
             GUI::info_msgbox("提示", "已保存当前页到nvs");
             break;
-        case 15:
-        {
-            uint val = GUI::msgbox_hex("set_PLL", 2, hal.pref.getUInt("ebook_pllset", 0x3C));
-            hal.pref.putUInt("ebook_pllset", val);
-        }
-        break;
-        case 16:
+        case 11:
         {
             if (GUI::msgbox_yn("提示", "生成进度/读取进度(.sav)", "生成", "读取"))
             {
@@ -2912,7 +2209,7 @@ void AppEBook::ebooksettings()
             }
         }
         break;
-        case 17:
+        case 12:
             char buf[64];
             sprintf(buf, "%s\n清除所有阅读进度或返回", nvs_info);
             if (!GUI::msgbox_yn("提示", buf, "返回", "清除"))
@@ -2928,14 +2225,4 @@ void AppEBook::ebooksettings()
             break;
         }
     }
-    if (!(code == hal.pref.getBool(hal.get_char_sha_key("使用备选txt解析程序1")) && code2 == hal.pref.getBool(hal.get_char_sha_key("甘草索引程序"), true)))
-    {
-        indexFile();
-        gotoPage(0);
-        drawCurrentPage();
-    }
-    // if (hal.pref.getBool(hal.get_char_sha_key("快速显示")))
-    // display.epd2.PLL_set(0x3A);
-    // else
-    // display.epd2.PLL_set(hal.pref.getUInt("ebook_pllset", 0x3C));
 }
