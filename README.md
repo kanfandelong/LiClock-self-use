@@ -1,6 +1,6 @@
 ![:name](https://count.getloli.com/@aLiClock-self-use?name=LiClock-self-use&theme=green&padding=7&offset=0&align=top&scale=1&pixelated=1&darkmode=auto&prefix=0)
 # <center>LiClock-S3 全反屏天气时钟
-
+## tips:此分支因为在最新版本arduino-esp32编译通过后无法正常启动,具体表现是littlefs挂载时底层api发生内存访问错误,暂时未能解决,故暂时搁置
 ### <center>一种兼具易用性与扩展性的多功能全反屏天气时钟 
 ![封面](images/封面.png)
 
