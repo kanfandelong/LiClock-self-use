@@ -18,12 +18,14 @@
 
 extern "C" {
 #include <dirent.h>
+#include <driver/rtc_io.h>
 #include <esp_sntp.h>
 #include <esp_netif.h>
+#include "esp_efuse.h"
+#include "esp_system.h"
 #include "esp_console.h"
 #include "esp_task_wdt.h"
-#include <driver/rtc_io.h>
-#include "esp_efuse.h"
+#include "esp_core_dump.h"
 #include "esp_efuse_table.h"
 }
 

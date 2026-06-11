@@ -117,7 +117,7 @@ struct _u8g2_font_t
 
   int8_t glyph_x_offset; /* set by u8g2_GetGlyphWidth as a side effect */
 
-  const uint8_t *font_width_table; /* optional pointer to a pre-computed glyph width table, indexed by Unicode code point */
+  uint8_t *font_width_table; /* optional pointer to a pre-computed glyph width table, indexed by Unicode code point */
   uint16_t font_width_table_size;  /* size of the font width table, in number of entries (not bytes) */
 };
 typedef struct _u8g2_font_t u8g2_font_t;

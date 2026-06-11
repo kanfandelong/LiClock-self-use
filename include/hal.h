@@ -128,6 +128,7 @@ public:
     bool dis_DS3231 = false;
     bool can_sleep = true;
     bool can_light_sleep = true;
+    bool low_battery = false;
     char key[16]; // 存储经过SHA-256运算后结果的前15个字符
     OneButton btnr; // = OneButton(PIN_BUTTONR)
     OneButton btnl; // = OneButton(PIN_BUTTONL)

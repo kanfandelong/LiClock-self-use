@@ -61,7 +61,7 @@ static const uint8_t play_bits[] = {
 typedef struct
 {
     unsigned long timeMs = 0;
-    String text;
+    char *text;
 } LyricLine; // 歌词行结构体
 
 typedef struct
@@ -171,8 +171,7 @@ public:
     String getVlbmPach(const char *musicPath);
     // ===== UI/显示相关 =====
     void show_display();
-    bool vlbm_init = false;
-    bool vlbm_deinit = false;
+    bool vlbm_initialized = false;
     void show_display_vlbm();
     void show_display_debug();
     String truncateStringWithEllipsis(const char *input, int maxWidth);
@@ -239,6 +238,7 @@ public:
     int totalLyricLines = 0;           // 歌词总行数
     unsigned long lastLyricUpdate = 0; // 上次歌词更新时间
     LyricLine *lyricArray = nullptr;   // 使用动态数组存储歌词
+    uint16_t last_totalLyricLines = 0;
     TaskHandle_t netLrcTaskHandle = NULL;
     static void netLrcTask(void *pvParameters);
     void attemptNetworkLyrics();
@@ -315,10 +315,10 @@ public:
     int AVAILABLE_WIDTH = RIGHT_END_X - RIGHT_START_X;
 
     // 播放计数相关
-    SongPlayCount *playCountRecords = nullptr;                  // PSRAM 中的记录数组
-    uint32_t playCountNum = 0;                                  // 当前记录条数
-    uint32_t playCountCapacity = 0;                             // 已分配容量（用于动态扩容）
-    static const uint32_t PLAY_COUNT_CAPACITY_STEP = 10;        // 扩容步长
+    SongPlayCount *playCountRecords = nullptr;           // PSRAM 中的记录数组
+    uint32_t playCountNum = 0;                           // 当前记录条数
+    uint32_t playCountCapacity = 0;                      // 已分配容量（用于动态扩容）
+    static const uint32_t PLAY_COUNT_CAPACITY_STEP = 10; // 扩容步长
 
     // 辅助函数
     void computePathHash(const char *path, uint8_t *hashOut);
@@ -579,7 +579,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
     {
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
         if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 ||
-            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 || 
+            strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 ||
             strcmp(src, "M4ATAG") == 0 || strcmp(src, "OGGTAG") == 0)
         {
             app.info.tlen = newLen;
@@ -683,7 +683,15 @@ static void player_exit()
     }
     if (app.lyricArray != nullptr)
     {
-        delete[] app.lyricArray;
+        for (int i = 0; i < app.last_totalLyricLines; i++)
+        {
+            if (app.lyricArray[i].text)
+            {
+                heap_caps_free(app.lyricArray[i].text);
+            }
+        }
+        heap_caps_free(app.lyricArray);
+        app.lyricArray = nullptr;
     }
     if (app.fileList != nullptr)
     {
@@ -897,7 +905,8 @@ void AppMusicPlayer::loadPlayCounts()
 
 void AppMusicPlayer::savePlayCounts()
 {
-    if (playCountNum == 0) return;
+    if (playCountNum == 0)
+        return;
 
     String path = hal.pref.getString("playcountfile", "/sd/playlist/playcount.bin");
     File f = hal.open(path, "wb");
@@ -1186,11 +1195,6 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
     lrcisload = false;
     unsigned long loadlrcbegin = millis();
-    if (lyricArray != nullptr)
-    {
-        delete[] lyricArray;
-        lyricArray = nullptr;
-    }
     String lrcPath = getLyricPath(path);
     log_i("期望歌词路径：%s", lrcPath.c_str());
     totalLyricLines = countLyricLines(lrcPath.c_str());
@@ -1204,9 +1208,22 @@ void AppMusicPlayer::loadLyrics(const char *path)
         log_w("未在歌词文件 \"%s\" 中识别到有效的同步歌词,中止加载操作", lrcPath.c_str());
         return;
     }
+    if (lyricArray != nullptr)
+    {
+        for (int i = 0; i < last_totalLyricLines; i++)
+        {
+            if (lyricArray[i].text)
+            {
+                heap_caps_free(lyricArray[i].text);
+            }
+        }
+        heap_caps_free(lyricArray);
+        lyricArray = nullptr;
+    }
+    last_totalLyricLines = totalLyricLines;
 
     // 预先分配内存
-    lyricArray = new LyricLine[totalLyricLines];
+    lyricArray = (LyricLine *)heap_caps_malloc(sizeof(LyricLine[totalLyricLines]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
     if (lyricArray == nullptr)
     {
@@ -1296,7 +1313,16 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
                 // 存储到预分配数组
                 lyricArray[index].timeMs = timestamp;
-                lyricArray[index].text = text;
+                // 分配文件名内存
+                char *textCopy = (char *)heap_caps_malloc(text.length() + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (!textCopy)
+                {
+                    // 内存不足
+                    log_e("内存分配失败,中止加载操作");
+                    return;
+                }
+                strcpy(textCopy, text.c_str());
+                lyricArray[index].text = textCopy;
                 if (debug)
                     log_i("time: %ld lrc text:%s", timestamp, text.c_str());
                 index++;
@@ -1322,10 +1348,10 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
     sprintf(currentLyric[0], "---");
     if (totalLyricLines > 0)
-        strncpy(currentLyric[1], lyricArray[0].text.c_str(), 127);
+        strncpy(currentLyric[1], lyricArray[0].text, 127);
     currentLyric[1][127] = '\0';
     if (totalLyricLines > 1)
-        strncpy(currentLyric[2], lyricArray[1].text.c_str(), 127);
+        strncpy(currentLyric[2], lyricArray[1].text, 127);
     currentLyric[2][127] = '\0';
 
     newLyrics[0] = "---";
@@ -1959,7 +1985,8 @@ void AppMusicPlayer::next_song(bool next, bool btn)
         do
         {
             r = esp_random();
-        } while (r >= (UINT32_MAX - (UINT32_MAX % range)));
+            log_i("esp_random：%lu", r);
+        } while (r >= (UINT32_MAX / range) * range);
 
         currentSongIndex = r % range;
         log_i("随机索引：%u", currentSongIndex);
@@ -2671,114 +2698,345 @@ void AppMusicPlayer::show_display()
 
 void AppMusicPlayer::show_display_vlbm()
 {
-    static uint8_t compensation_counter = 0;
-    static TickType_t _xFrequency = 33;
-    static uint8_t *img = NULL;
-    static bool end = false;
-    static String vlbm_path;
-    static size_t imgsize;
-    static FILE *fp = NULL;
-    static uint16_t w;
-    static uint16_t h;
-    static uint8_t try_count = 0;
-    if (!vlbm_init)
+    // ---------- 状态变量 ----------
+    // ---------- 状态变量 ----------
+    static FILE *fp = nullptr;
+    static uint8_t *img = nullptr;
+    static size_t img_size = 0;
+    static uint16_t w = 0, h = 0;
+    static uint32_t frame_time_ms = 0;
+    static uint64_t video_start_time = 0;
+    static uint32_t current_frame = 0;
+    static bool eof_reached = false;
+    static bool has_frame = false;
+
+    uint32_t play_time;
+    if (output != nullptr)
+        play_time = output->GetPlaytimeMs();
+    else
+        play_time = (millis() - play_time_start - play_stop_time);
+
+    uint32_t total_time = 0;
+
+    if (info.tlen == 0 && i2s_output != nullptr && play_generator == MP3_Generator)
+        i2s_output->SetTimeout(0); // 设置i2s写无超时,以触发时长计算
+    if (!loopPlay)
+        play_time_total = 0;
+    if (info.tlen != 0 && play_time_total == 0)
+        total_time = info.tlen;
+    else
+        total_time = play_time_total;
+
+    if (info.tlen != 0 && play_time > info.tlen)
+        play_time = info.tlen;
+
+
+    // +++ 在函数入口立即记录开始时间（所有路径均会执行）+++
+    d_time.start = micros();
+
+    // 辅助函数：从文件中读取一帧（解压后放入 img）
+    auto read_one_frame = [&](FILE *f, uint8_t *out_buf, size_t out_size) -> bool
     {
-        if (vlbm_deinit)
+        long pos = ftell(f);
+        frame_HEAD fh;
+        if (fread(&fh, sizeof(fh), 1, f) != 1)
         {
-            if (fp != NULL)
-            {
-                fclose(fp);
-                fp = NULL;
-            }
-            if (img != NULL)
-            {
-                free(img);
-                img = NULL;
-            }
-            end = true;
-            xFrequency = _xFrequency;
-            vlbm_deinit = false;
-            try_count = 0;
+            fseek(f, pos, SEEK_SET);
+            size_t read_bytes = fread(out_buf, 1, out_size, f);
+            return (read_bytes == out_size);
         }
-        if (try_count > 3)
+
+        if (fh.signature == FRAME_MAGIC)
         {
-            show_display_fft();
-            return;
+            uint8_t *tmp = (uint8_t *)malloc(fh.data_len);
+            if (!tmp)
+                return false;
+            if (fread(tmp, 1, fh.data_len, f) != fh.data_len)
+            {
+                free(tmp);
+                return false;
+            }
+            bool ok = false;
+            if (fh.data_type == FRAME_TYPE_LBM)
+            {
+                if (fh.data_len == out_size)
+                {
+                    memcpy(out_buf, tmp, out_size);
+                    ok = true;
+                }
+            }
+            else if (fh.data_type == FRAME_TYPE_LBM_RLE)
+            {
+                int dec_len = GUI::rle_decompress(tmp, fh.data_len, out_buf, out_size);
+                if (dec_len == (int)out_size)
+                    ok = true;
+            }
+            free(tmp);
+            return ok;
         }
-        vlbm_path = getVlbmPach(music_file);
+        else
+        {
+            fseek(f, pos, SEEK_SET);
+            size_t read_bytes = fread(out_buf, 1, out_size, f);
+            return (read_bytes == out_size);
+        }
+    };
+
+    // 辅助函数：跳过一帧（不读取数据）
+    auto skip_one_frame = [&](FILE *f) -> bool
+    {
+        long pos = ftell(f);
+        frame_HEAD fh;
+        if (fread(&fh, sizeof(fh), 1, f) != 1)
+            return false;
+        if (fh.signature == FRAME_MAGIC)
+        {
+            return (fseek(f, fh.data_len, SEEK_CUR) == 0);
+        }
+        else
+        {
+            fseek(f, pos, SEEK_SET);
+            return (fseek(f, img_size, SEEK_CUR) == 0);
+        }
+    };
+
+    // ---------- 初始化 ----------
+    if (!vlbm_initialized)
+    {
+        if (fp)
+        {
+            fclose(fp);
+            fp = nullptr;
+        }
+        if (img)
+        {
+            free(img);
+            img = nullptr;
+        }
+
+        String vlbm_path = getVlbmPach(music_file);
         fp = fopen(vlbm_path.c_str(), "rb");
         if (!fp)
         {
-            log_e("File %s not found!", vlbm_path.c_str());
-            try_count++;
+            log_e("Cannot open VLBM file: %s", vlbm_path.c_str());
+            show_display_fft();
+            // +++ 即使退出也要记录 end 并更新 last_time，避免脏数据 +++
+            d_time.end = micros();
+            last_time = d_time;
             return;
         }
+
         LBM_V_HEAD header;
-        fread(&header, sizeof(LBM_V_HEAD), 1, fp);
+        if (fread(&header, sizeof(header), 1, fp) != 1)
+        {
+            log_e("Failed to read VLBM header");
+            fclose(fp);
+            fp = nullptr;
+            show_display_fft();
+            d_time.end = micros();
+            last_time = d_time;
+            return;
+        }
+
         w = header.w;
         h = header.h;
         uint8_t gray_level = header.gray;
-        log_i("w: %u h: %u gray: %u frametime: %u", w, h, gray_level, header.frametime);
+        frame_time_ms = header.frametime;
+        log_i("VLBM: %ux%u, gray=%d, frametime=%ums", w, h, gray_level, frame_time_ms);
 
-        // 根据灰度等级计算每像素位数
-        uint8_t bits_per_pixel;
-        switch (gray_level)
+        if (gray_level != 2)
         {
-        case 2:
-            bits_per_pixel = 1;
-            break;
-        default:
-            log_e("Invalid gray level: %u", gray_level);
+            log_e("Only gray_level=2 is supported");
             fclose(fp);
-            fp = NULL;
+            fp = nullptr;
+            show_display_fft();
+            d_time.end = micros();
+            last_time = d_time;
             return;
         }
+
+        uint8_t bits_per_pixel = 1;
         uint8_t pixels_per_byte = 8 / bits_per_pixel;
         uint16_t bytes_per_row = (w + pixels_per_byte - 1) / pixels_per_byte;
-        imgsize = bytes_per_row * h;
+        img_size = bytes_per_row * h;
 
-        img = (uint8_t *)malloc(imgsize);
+        img = (uint8_t *)malloc(img_size);
         if (!img)
         {
-            log_printf("malloc failed!\n");
+            log_e("malloc img failed");
             fclose(fp);
-            img = NULL;
+            fp = nullptr;
+            show_display_fft();
+            d_time.end = micros();
+            last_time = d_time;
             return;
         }
-        _xFrequency = xFrequency;
-        vlbm_init = true;
-        end = false;
-    }
-    else
-    {
-        if (end)
-            return;
-        size_t read_bytes = fread(img, 1, imgsize, fp);
-        if (read_bytes != imgsize)
+
+        video_start_time = (output != nullptr) ? output->GetPlaytimeMs() : 0;
+        current_frame = 0;
+        eof_reached = false;
+        has_frame = false;
+
+        // +++ 设置主循环周期，并强制不低于 40ms（根据实际绘制能力调整）+++
+        if (frame_time_ms > 0)
         {
-            if (feof(fp))
+            xFrequency = pdMS_TO_TICKS(frame_time_ms);
+            if (xFrequency < pdMS_TO_TICKS(40))
             {
-                fclose(fp);
-                fp = NULL;
-                free(img);
-                img = NULL;
-                end = true;
-                xFrequency = _xFrequency;
-                return;
+                log_w("Frame time %dms too short, capped at 40ms", frame_time_ms);
+                xFrequency = pdMS_TO_TICKS(40);
             }
+            xLastWakeTime = xTaskGetTickCount();
         }
+
+        vlbm_initialized = true;
+    }
+
+    // ---------- 结束清理 ----------
+    if (!vlbm_initialized || eof_reached)
+    {
+        if (fp)
+        {
+            fclose(fp);
+            fp = nullptr;
+        }
+        if (img)
+        {
+            free(img);
+            img = nullptr;
+        }
+        vlbm_initialized = false;
+        has_frame = false;
+        xFrequency = pdMS_TO_TICKS(hal.pref.getInt("xFrequency", 20));
+        show_display_fft();
+        // +++ 记录结束时间，更新 last_time +++
+        d_time.end = micros();
+        last_time = d_time;
+        return;
+    }
+
+    // +++ 记录同步处理开始时间（用于模拟 fft_start）+++
+    d_time.fft_start = micros();
+
+    // ---------- 同步逻辑 ----------
+    uint64_t audio_time = (output != nullptr) ? output->GetPlaytimeMs() : 0;
+    int64_t expected_frame = (audio_time - video_start_time) / frame_time_ms;
+    if (expected_frame < 0)
+        expected_frame = 0;
+
+    if (expected_frame < 0 && current_frame > 0)
+    {
+        fseek(fp, sizeof(LBM_V_HEAD), SEEK_SET);
+        current_frame = 0;
+        video_start_time = audio_time;
+        expected_frame = 0;
+    }
+
+    bool need_new_frame = false;
+    if (expected_frame >= (int64_t)current_frame)
+    {
+        uint32_t skip = (uint32_t)(expected_frame - current_frame);
+        for (uint32_t i = 0; i < skip; i++)
+        {
+            if (!skip_one_frame(fp))
+            {
+                eof_reached = true;
+                break;
+            }
+            current_frame++;
+        }
+        if (!eof_reached)
+            need_new_frame = true;
+    }
+
+    if (need_new_frame)
+    {
+        if (!read_one_frame(fp, img, img_size))
+        {
+            eof_reached = true;
+        }
+        else
+        {
+            current_frame++;
+            has_frame = true;
+        }
+    }
+
+    // +++ 记录同步处理结束时间 +++
+    d_time.fft_end = micros();
+
+    // +++ 记录绘制开始时间（无论是否有帧显示）+++
+    d_time.display_start = micros();
+
+    // ---------- 绘制 ----------
+    if (has_frame)
+    {
         display.clearScreen();
         display.drawbitmap(0, 0, img, w, h, TFT_BLACK);
-        display.display();
+        updateVolumeUI();
 
-        xFrequency = 33;
-        compensation_counter++;
-        if (compensation_counter >= 3)
-        { // 每3帧多等1个tick -> 33+33+34 = 100ms，正好3帧
-            xFrequency = 34;
-            compensation_counter = 0;
+        if (display_debug_mode)
+        {
+            static uint32_t last_update_time = 0;
+            uint32_t now = millis();
+            static char _buf[64];
+            static int x, w;
+            if (now - last_update_time > 200)
+            {
+                last_update_time = now;
+                float all = (float)(d_time.start - last_time.start) / 1000.0;
+                fps = 1000.0 / all;
+                float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
+                float other_time = ((float)(last_time.display_start - last_time.start) / 1000.0) - fft_time;
+                float display_time = (float)(last_time.end - last_time.display_start) / 1000.0;
+                sprintf(_buf, "%.1f|%.1f|%.1f|%d fps: %.1f", fft_time, other_time, display_time, xWasDelayed, fps);
+                w = u8g2Fonts.getUTF8Width(_buf);
+                x = (SCREEN_WIDTH - w) / 2;
+            }
+            display.fillRect(x, 166 - 10, w, 10, TFT_WHITE);
+            u8g2Fonts.setCursor(x, 166);
+            u8g2Fonts.print(_buf);
+        }
+        display.drawFastHLine(0, 167, 384, TFT_WHITE);
+        display.drawFastHLine(0, 166, 384, TFT_WHITE);
+        int i = 1;
+        if (total_time != 0)
+            i = (play_time * 384 + total_time / 2) / total_time;
+        display.drawFastHLine(0, 167, i, TFT_BLACK);
+        display.drawFastHLine(0, 166, i, TFT_BLACK);
+        display.display();
+    }
+
+    // +++ 记录整个函数结束时间 +++
+    d_time.end = micros();
+    // +++ 无论 has_frame 真假，都更新 last_time，避免旧值影响统计 +++
+    last_time = d_time;
+
+    // ---------- 同步误差校正（方向已修正） ----------
+    if (has_frame && !eof_reached)
+    {
+        int64_t video_time = video_start_time + (int64_t)(current_frame - 1) * frame_time_ms;
+        int64_t sync_err = (int64_t)audio_time - video_time; // 正数：音频超前
+        const int64_t threshold_ms = frame_time_ms / 2;
+        const float Kp = 0.05f;
+
+        if (abs(sync_err) > threshold_ms)
+        {
+            int32_t adj_ticks = (int32_t)(sync_err * configTICK_RATE_HZ / 1000.0f * Kp);
+            int32_t max_adj = (int32_t)(xFrequency * 0.1f);
+            adj_ticks = constrain(adj_ticks, -max_adj, max_adj);
+            // 音频超前 -> 减小等待周期，加快视频
+            xFrequency -= adj_ticks;
+
+            TickType_t min_ticks = pdMS_TO_TICKS(20);
+            TickType_t max_ticks = pdMS_TO_TICKS(500);
+            if (xFrequency < min_ticks)
+                xFrequency = min_ticks;
+            if (xFrequency > max_ticks)
+                xFrequency = max_ticks;
         }
     }
+
 }
 
 /**
@@ -3616,17 +3874,60 @@ void AppMusicPlayer::show_display_fft()
             previousSpectrum[i] = vReal[i];
         }
 
+        // 获取采样率（必须保证 output 有效）
+        float sampleRate = 44100.0f; // 默认值
+        if (output != nullptr)
+        {
+            sampleRate = output->GetRate();
+        }
+
+        // 配置项：是否启用对数频率轴
+        bool logFreq = hal.pref.getBool("log_freq", false);
+
+        // FFT 参数
+        const int FFT_SIZE = SAMPLES;                // 总点数
+        const int HALF_FFT = FFT_SIZE / 2;           // 正频率点数
+        const float freqRes = sampleRate / FFT_SIZE; // 频率分辨率（Hz/bin）
+
+        // 频率范围（对数映射用）
+        const float f_min = freqRes;           // 最低有效频率（>0）
+        const float f_max = sampleRate / 2.0f; // 奈奎斯特频率
+        const float log_f_min = logf(f_min);
+        const float log_f_max = logf(f_max);
+
+        // -------------------------------------------------------------
+        // 柱子模式
+        // -------------------------------------------------------------
         if (hal.pref.getBool("bar_mode", false))
         {
-            // 柱子模式：将 previousSpectrum 线性插值到 128 个柱子
             const int NUM_BARS = 128;
             int8_t barSpectrum[NUM_BARS];
-            const int srcLen = SAMPLES / 2;
+            const int srcLen = HALF_FFT; // 频谱数组长度
+
             for (int i = 0; i < NUM_BARS; i++)
             {
-                float srcIndex = (float)i * (srcLen - 1) / (NUM_BARS - 1);
+                float srcIndex; // 在频谱数组中的浮点索引
+                if (logFreq)
+                {
+                    // 对数映射：柱子索引 i -> 频率 -> 数组索引
+                    float t = (float)i / (NUM_BARS - 1); // 0..1
+                    float log_f = log_f_min + t * (log_f_max - log_f_min);
+                    float f = expf(log_f);
+                    srcIndex = f / freqRes; // 转换为索引
+                    if (srcIndex > srcLen - 1)
+                        srcIndex = srcLen - 1;
+                    if (srcIndex < 0)
+                        srcIndex = 0;
+                }
+                else
+                {
+                    // 线性映射（原始逻辑）
+                    srcIndex = (float)i * (srcLen - 1) / (NUM_BARS - 1);
+                }
+
                 int idx = (int)srcIndex;
                 float frac = srcIndex - idx;
+
                 if (idx < srcLen - 1)
                 {
                     barSpectrum[i] = (int8_t)(previousSpectrum[idx] * (1.0f - frac) + previousSpectrum[idx + 1] * frac);
@@ -3636,6 +3937,8 @@ void AppMusicPlayer::show_display_fft()
                     barSpectrum[i] = (int8_t)previousSpectrum[srcLen - 1];
                 }
             }
+
+            // 绘制柱子（与原代码相同）
             for (int i = 0; i < NUM_BARS; i++)
             {
                 int barHeight = (int)(barSpectrum[i]);
@@ -3647,37 +3950,82 @@ void AppMusicPlayer::show_display_fft()
                 display.drawFastVLine(i * 3 + 2, 75 - barHeight, barHeight + 1, TFT_BLACK);
             }
         }
+        // -------------------------------------------------------------
+        // 连续频谱模式
+        // -------------------------------------------------------------
         else
         {
-            const int DISPLAY_WIDTH = 384; // 频谱区域宽度（像素）
-            const int SAMPLES_HALF = SAMPLES / 2;
+            const int DISPLAY_WIDTH = 384;
+            const int srcLen = HALF_FFT;
+
+            uint8_t rawMag[DISPLAY_WIDTH];
+
+            // ----- 1. 填充原始幅度（线性或对数映射）-----
             for (int x = 0; x < DISPLAY_WIDTH; x++)
             {
-                // 计算在频谱数组中的浮点索引
-                float srcIndex = (float)x * (SAMPLES_HALF - 1) / (DISPLAY_WIDTH - 1);
-                int idx = (int)srcIndex;
-                float frac = srcIndex - idx;
-
-                // 线性插值得到幅度值
-                float mag;
-                if (idx < SAMPLES_HALF - 1)
+                float srcIndex;
+                if (logFreq)
                 {
-                    mag = previousSpectrum[idx] * (1.0f - frac) + previousSpectrum[idx + 1] * frac;
+                    float t = (float)x / (DISPLAY_WIDTH - 1);
+                    float log_f = log_f_min + t * (log_f_max - log_f_min);
+                    float f = expf(log_f);
+                    srcIndex = f / freqRes;
+                    if (srcIndex > srcLen - 1)
+                        srcIndex = srcLen - 1;
+                    if (srcIndex < 0)
+                        srcIndex = 0;
                 }
                 else
                 {
-                    mag = previousSpectrum[idx]; // 最后一个点
+                    srcIndex = (float)x * (srcLen - 1) / (DISPLAY_WIDTH - 1);
                 }
 
-                // 转换为像素高度（基线 y=75，往上绘制）
-                int barHeight = (int)(mag); // mag 已经过平滑和增益，可直接用
+                int idx = (int)srcIndex;
+                float frac = srcIndex - idx;
+                float mag;
+                if (idx < srcLen - 1)
+                    mag = previousSpectrum[idx] * (1.0f - frac) + previousSpectrum[idx + 1] * frac;
+                else
+                    mag = previousSpectrum[idx];
+
+                int barHeight = (int)mag;
                 if (barHeight > 75)
                     barHeight = 75;
                 if (barHeight < 0)
                     barHeight = 0;
+                rawMag[x] = (uint8_t)barHeight;
+            }
 
-                // 画垂直线
-                display.drawFastVLine(x, 75 - barHeight, barHeight + 1, TFT_BLACK);
+            // ----- 2. 根据是否对数映射决定是否平滑 -----
+            if (logFreq)
+            {
+                // 移动平均平滑（窗口大小建议 5，可调）
+                const int WINDOW = 5;
+                const int HALF = WINDOW / 2;
+                uint8_t smoothMag[DISPLAY_WIDTH];
+                for (int x = 0; x < DISPLAY_WIDTH; x++)
+                {
+                    int sum = 0, count = 0;
+                    for (int dx = -HALF; dx <= HALF; dx++)
+                    {
+                        int nx = x + dx;
+                        if (nx >= 0 && nx < DISPLAY_WIDTH)
+                        {
+                            sum += rawMag[nx];
+                            count++;
+                        }
+                    }
+                    smoothMag[x] = (uint8_t)(sum / count);
+                }
+                // 绘制平滑后的数据
+                for (int x = 0; x < DISPLAY_WIDTH; x++)
+                    display.drawFastVLine(x, 75 - smoothMag[x], smoothMag[x] + 1, TFT_BLACK);
+            }
+            else
+            {
+                // 线性映射：直接绘制原始数据（不平滑）
+                for (int x = 0; x < DISPLAY_WIDTH; x++)
+                    display.drawFastVLine(x, 75 - rawMag[x], rawMag[x] + 1, TFT_BLACK);
             }
         }
     }
@@ -3956,7 +4304,7 @@ void AppMusicPlayer::updateVolumeUI()
         int fillX = borderX;
 
         // 绘制背景（清空音量条区域）
-        display.fillRoundRect(borderX, borderY, borderW, borderH, radius, TFT_WHITE);
+        display.fillRoundRect(borderX - 1, borderY - 1, borderW + 2, borderH + 2, radius + 1, TFT_WHITE);
         // 绘制填充部分（音量条颜色）
         display.fillRoundRect(fillX, fillY, borderW, fillH, radius, TFT_BLACK);
         // 绘制边框
@@ -4109,8 +4457,7 @@ bool AppMusicPlayer::player_set()
     info.performer = "---";
     info.title = "---";
     info.tlen = 0;
-    vlbm_init = false;
-    vlbm_deinit = true;
+    vlbm_initialized = false;
     backup_buff_updata = true;
     id3_tlen_received = false;
     if (hal.pref.getBool("AutoGain", true))
@@ -4296,7 +4643,7 @@ void AppMusicPlayer::setup()
     audio_control_sem = xSemaphoreCreateBinary(); // 创建二进制信号量
     xSemaphoreGive(audio_control_sem);            // 初始化为可用状态
     uint8_t run_index = 0;
-    
+
     String file = buf;
     if (file.endsWith(".mp3") || file.endsWith(".wav") ||
         file.endsWith(".aac") || file.endsWith(".opus") ||
@@ -4324,7 +4671,7 @@ void AppMusicPlayer::setup()
     xFrequency = pdMS_TO_TICKS(hal.pref.getInt("xFrequency", 20)); // 20ms周期
     max_fps = 1000.0 / (float)xFrequency;
     unsigned long wait_time = millis();
-    while (!_end && !need_deep_sleep)
+    while (!_end && !need_deep_sleep && !hal.low_battery)
     {
         if (app_exit)
             return;
@@ -4359,6 +4706,7 @@ void AppMusicPlayer::setup()
                 else
                     _play_end = true;
             }
+            backup_buff_updata = true;
             show_display();
         }
         if (flag_btnc_long)
@@ -4439,4 +4787,17 @@ void AppMusicPlayer::setup()
         }
     }
     hal.cheak_freq(160, true);
+    if (hal.low_battery)
+    {
+        hal.pref.putString("music_file", (String)music_file);
+        delete_playtask();
+        delete in;
+        in = nullptr;
+        delete_output();
+        if (id3 != nullptr)
+            delete id3;
+        delete_generator();
+        appManager.goBack();
+        app_exit = true;
+    }
 }

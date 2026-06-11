@@ -16,7 +16,7 @@ ST7305_DMA::ST7305_DMA(int16_t w, int16_t h,
                                                         rotation(0)
 { // Initialize rotation to
 
-    memset(&_dma_trans, 0, sizeof(_dma_trans));
+    // memset(&_dma_trans, 0, sizeof(_dma_trans));
     te_interrupt_mode = RISING;
     // 像素数据结构为：
     // P1 P3 P5 P7
@@ -73,6 +73,8 @@ bool ST7305_DMA::begin(bool reset)
         log_e("DMA 缓冲区分配失败");
         return false;
     }
+    memset(dma_buffer[0], 0xFF, BYTES_PER_BUFFER);
+    memset(dma_buffer[1], 0xFF, BYTES_PER_BUFFER);
     _active_dma_idx = -1;
     _pending_dma_idx = -1;
 

@@ -1256,6 +1256,38 @@ static bool parseDouble(const char *str, double &value)
     return (*end == '\0' && end != str);
 }
 
+static size_t parseHexToBytes(const char* hexStr, uint8_t* out, size_t maxLen)
+{
+    if (!hexStr || !out || maxLen == 0) return 0;
+
+    // 跳过可选的 "0x" 或 "0X" 前缀
+    if (hexStr[0] == '0' && (hexStr[1] == 'x' || hexStr[1] == 'X'))
+        hexStr += 2;
+
+    size_t len = strlen(hexStr);
+    // 十六进制字符串长度必须是偶数
+    if (len % 2 != 0) return 0;
+
+    size_t byteCount = len / 2;
+    if (byteCount > maxLen) return 0;   // 缓冲区不够
+
+    for (size_t i = 0; i < byteCount; ++i) {
+        char high = hexStr[2 * i];
+        char low  = hexStr[2 * i + 1];
+
+        // 检查是否为合法的十六进制字符
+        if (!isxdigit((unsigned char)high) || !isxdigit((unsigned char)low))
+            return 0;
+
+        unsigned char h = (unsigned char)(high >= 'a' ? high - 'a' + 10 :
+                                          high >= 'A' ? high - 'A' + 10 : high - '0');
+        unsigned char l = (unsigned char)(low >= 'a' ? low - 'a' + 10 :
+                                          low >= 'A' ? low - 'A' + 10 : low - '0');
+        out[i] = (h << 4) | l;
+    }
+    return byteCount;
+}
+
 // ==================== putnvs 命令 ====================
 static int cmd_putnvs(int argc, char **argv)
 {
@@ -1283,7 +1315,7 @@ static int cmd_putnvs(int argc, char **argv)
         // 如果已有类型是 BLOB，无法自动写入（可能是 float/double 或原始二进制）
         if (pt == PT_BLOB)
         {
-            PRINT_ERROR("Key '%s' is a BLOB (float/double/bytes). Please specify type explicitly.", key);
+            PRINT_ERROR("Key '%s' is a BLOB (float/double/blob). Please specify type explicitly.", key);
             return 1;
         }
 
@@ -1508,6 +1540,18 @@ static int cmd_putnvs(int argc, char **argv)
         {
             // 字符串直接使用原值
             ok = hal.pref.putString(key, valueStr);
+        }
+        else if (strcmp(type, "blob") == 0) {
+            // 选择一个合理的最大 BLOB 长度，防止栈溢出
+            const size_t MAX_BLOB_LEN = 512;   // 可根据实际需求调整
+            uint8_t buffer[MAX_BLOB_LEN];
+
+            size_t len = parseHexToBytes(valueStr, buffer, MAX_BLOB_LEN);
+            if (len == 0) {
+                PRINT_ERROR("Invalid hex blob value: %s", valueStr);
+                return 1;
+            }
+            ok = hal.pref.putBytes(key, buffer, len);
         }
         else
         {
@@ -2028,299 +2072,890 @@ static void list_dir(const char *path)
 
     closedir(dir);
 }
+// ==================== 辅助函数 ====================
 
-// 检查路径是否有效（以 /littlefs 或 /sd 开头）
-static bool is_valid_root_path(const char *path)
+// 去除路径末尾的 '/'（根目录 "/" 除外）
+static void strip_trailing_slash(char *path) {
+    if (!path || path[0] == '\0') return;
+    size_t len = strlen(path);
+    while (len > 1 && path[len - 1] == '/') {
+        path[len - 1] = '\0';
+        len--;
+    }
+}
+
+// 递归创建目录（类似 mkdir -p）
+static int mkdir_p(const char *dir) {
+    char tmp[512];
+    snprintf(tmp, sizeof(tmp), "%s", dir);
+    strip_trailing_slash(tmp);  // 确保干净
+    size_t len = strlen(tmp);
+
+    // 去掉末尾的斜杠（如果有）之后逐级检查
+    for (size_t i = 1; i < len; i++) {  // 从 "/" 后开始
+        if (tmp[i] == '/') {
+            tmp[i] = '\0';
+            struct stat st;
+            if (stat(tmp, &st) == 0) {
+                if (!S_ISDIR(st.st_mode)) {
+                    PRINT_ERROR("Component '%s' exists but is not a directory", tmp);
+                    return -1;
+                }
+            } else {
+                if (mkdir(tmp, 0755) != 0) {
+                    PRINT_ERROR("mkdir '%s' failed: errno %d", tmp, errno);
+                    return -1;
+                }
+            }
+            tmp[i] = '/';
+        }
+    }
+    // 最后创建完整路径
+    struct stat st;
+    if (stat(tmp, &st) == 0) {
+        if (!S_ISDIR(st.st_mode)) {
+            PRINT_ERROR("'%s' exists but is not a directory", tmp);
+            return -1;
+        }
+    } else {
+        if (mkdir(tmp, 0755) != 0) {
+            PRINT_ERROR("mkdir '%s' failed: errno %d", tmp, errno);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int remove_directory_recursive(const char *path, bool verbose)
 {
-    return (strncmp(path, "/littlefs/", 10) == 0 || strncmp(path, "/sd/", 4) == 0 ||
-            strcmp(path, "/littlefs") == 0 || strcmp(path, "/sd") == 0);
+    DIR *dir = opendir(path);
+    if (!dir) return -1;
+
+    struct dirent *entry;
+    char full_path[1024];
+
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+
+        struct stat st;
+        if (stat(full_path, &st) == -1)
+        {
+            closedir(dir);
+            return -1;
+        }
+
+        if (S_ISDIR(st.st_mode))
+        {
+            if (remove_directory_recursive(full_path, verbose) != 0)
+            {
+                closedir(dir);
+                return -1;
+            }
+        }
+        else
+        {
+            if (remove(full_path) == 0)
+            {
+                if (verbose)
+                    PRINT_INFO("removed file '%s'", full_path);
+            }
+            else
+            {
+                closedir(dir);
+                return -1;
+            }
+        }
+    }
+    closedir(dir);
+
+    if (rmdir(path) == 0)
+    {
+        if (verbose)
+            PRINT_INFO("removed directory '%s'", path);
+        return 0;
+    }
+    return -1;
+}
+
+// ==================== cp 辅助函数 ====================
+
+// 复制单个文件，src -> dst，返回 0 成功
+static int cp_file(const char *src, const char *dst, bool force, bool verbose) {
+    // 检查目标是否已存在，若存在且非 force，则报错
+    struct stat st_dst;
+    if (stat(dst, &st_dst) == 0) {
+        if (!force) {
+            PRINT_ERROR("File '%s' already exists. Use -f to overwrite.", dst);
+            return -1;
+        }
+        // 删除已存在的目标文件，以便覆盖（remove 后立即创建）
+        if (remove(dst) != 0) {
+            PRINT_ERROR("Cannot remove existing file '%s'", dst);
+            return -1;
+        }
+    }
+
+    FILE *fsrc = fopen(src, "rb");
+    if (!fsrc) {
+        PRINT_ERROR("Cannot open source file: %s", src);
+        return -1;
+    }
+
+    FILE *fdst = fopen(dst, "wb");
+    if (!fdst) {
+        PRINT_ERROR("Cannot create destination file: %s", dst);
+        fclose(fsrc);
+        return -1;
+    }
+
+    const size_t buf_size = 512;
+    uint8_t buf[buf_size];
+    size_t total = 0;
+    size_t len;
+    int ret = 0;
+    while ((len = fread(buf, 1, buf_size, fsrc)) > 0) {
+        if (fwrite(buf, 1, len, fdst) != len) {
+            PRINT_ERROR("Write error to '%s'", dst);
+            ret = -1;
+            break;
+        }
+        total += len;
+    }
+    if (ferror(fsrc)) {
+        PRINT_ERROR("Read error from '%s'", src);
+        ret = -1;
+    }
+
+    fclose(fsrc);
+    fclose(fdst);
+
+    if (ret == 0 && verbose) {
+        PRINT_INFO("'%s' -> '%s' (%u bytes)", src, dst, total);
+    }
+    return ret;
+}
+
+// 递归复制目录，src_dir -> dst_dir，dst_dir 必须是不存在或允许覆盖的目录
+static int cp_dir(const char *src_dir, const char *dst_dir, bool force, bool verbose) {
+    // 确保目标目录存在（若不存在则创建）
+    struct stat st;
+    if (stat(dst_dir, &st) != 0) {
+        if (mkdir(dst_dir, 0755) != 0) {
+            PRINT_ERROR("Cannot create target directory '%s'", dst_dir);
+            return -1;
+        }
+    } else if (!S_ISDIR(st.st_mode)) {
+        PRINT_ERROR("Target '%s' exists but is not a directory", dst_dir);
+        return -1;
+    }
+
+    DIR *dir = opendir(src_dir);
+    if (!dir) {
+        PRINT_ERROR("Cannot open source directory: %s", src_dir);
+        return -1;
+    }
+
+    struct dirent *entry;
+    char src_path[512], dst_path[512];
+    int ret = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        snprintf(src_path, sizeof(src_path), "%s/%s", src_dir, entry->d_name);
+        snprintf(dst_path, sizeof(dst_path), "%s/%s", dst_dir, entry->d_name);
+
+        struct stat st_entry;
+        if (stat(src_path, &st_entry) != 0) {
+            PRINT_ERROR("Cannot stat '%s'", src_path);
+            ret = -1;
+            continue;
+        }
+
+        if (S_ISDIR(st_entry.st_mode)) {
+            if (cp_dir(src_path, dst_path, force, verbose) != 0) {
+                ret = -1;
+            }
+        } else {
+            if (cp_file(src_path, dst_path, force, verbose) != 0) {
+                ret = -1;
+            }
+        }
+    }
+    closedir(dir);
+    return ret;
+}
+
+// 候选挂载点列表（可按实际挂载情况增减）
+static const char* CANDIDATE_MOUNTS[] = {
+    "/littlefs",
+    "/sd",
+    "/sdcard",
+    "/nand",
+    "/spiffs",
+    "/ffat",
+    // 可在此添加其他可能挂载点
+};
+#define CANDIDATE_COUNT (sizeof(CANDIDATE_MOUNTS) / sizeof(CANDIDATE_MOUNTS[0]))
+
+#define MAX_MOUNT_POINTS 4
+static char mount_points[MAX_MOUNT_POINTS][64];
+static int num_mount_points = 0;
+
+static void scan_mount_points(void) {
+    num_mount_points = 0;
+    struct stat root_st;
+    bool root_valid = (stat("/", &root_st) == 0);
+
+    for (int i = 0; i < CANDIDATE_COUNT && num_mount_points < MAX_MOUNT_POINTS; i++) {
+        struct stat st;
+        if (stat(CANDIDATE_MOUNTS[i], &st) != 0 || !S_ISDIR(st.st_mode))
+            continue;
+
+        // 如果根目录不可 stat，则直接接受；否则比较设备号
+        if (!root_valid || st.st_dev != root_st.st_dev) {
+            strncpy(mount_points[num_mount_points], CANDIDATE_MOUNTS[i],
+                    sizeof(mount_points[0]) - 1);
+            mount_points[num_mount_points][sizeof(mount_points[0]) - 1] = '\0';
+            num_mount_points++;
+        }
+    }
+}
+
+// ==================== du 辅助函数 ====================
+
+// 将字节转换为人类可读字符串（结果存入 buf，buf 大小至少 16）
+static void human_readable_size(uint64_t bytes, char *buf, size_t buf_size) {
+    const char *units[] = {"B", "K", "M", "G"};
+    int unit = 0;
+    double size = (double)bytes;
+    while (size >= 1024.0 && unit < 3) {
+        size /= 1024.0;
+        unit++;
+    }
+    snprintf(buf, buf_size, "%.1f%s", size, units[unit]);
+}
+
+// 递归计算目录大小（字节），如果 verbose 且 !summarize，则打印每个子目录的大小
+// base_path: 用于显示的路径前缀（保持和传入时一致）
+// 返回总字节数，出错返回 0
+static uint64_t du_dir(const char *path, bool human, bool summarize) {
+    DIR *dir = opendir(path);
+    if (!dir) {
+        PRINT_ERROR("Cannot open directory: %s", path);
+        return 0;
+    }
+
+    struct dirent *entry;
+    char full_path[512];
+    uint64_t total = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+        struct stat st;
+        if (stat(full_path, &st) != 0)
+            continue;
+
+        if (S_ISDIR(st.st_mode)) {
+            // 递归子目录，并传入相同的 summarize 标志
+            uint64_t sub_size = du_dir(full_path, human, summarize);
+            total += sub_size;
+
+            // 非汇总模式：打印子目录的大小（这里就是 Linux du 的行为）
+            if (!summarize) {
+                char size_str[16];
+                if (human) {
+                    human_readable_size(sub_size, size_str, sizeof(size_str));
+                } else {
+                    snprintf(size_str, sizeof(size_str), "%" PRIu64, sub_size);
+                }
+                PRINT_INFO("%-8s %s", size_str, full_path);
+            }
+        } else {
+            total += st.st_size;
+            // 文件大小不单独打印（du 只显示目录累计大小）
+        }
+    }
+    closedir(dir);
+
+    // 注意：不打印 path 本身，由外部 cmd_du 决定何时打印顶层目录
+    return total;
+}
+
+// 处理转义序列：将 src 中的 \n, \t, \\, \" 等替换为实际字符，结果存入 dst，dst_size 为缓冲区大小
+static void expand_escapes(const char *src, char *dst, size_t dst_size) {
+    size_t i = 0, j = 0;
+    while (src[i] != '\0' && j < dst_size - 1) {
+        if (src[i] == '\\' && src[i + 1] != '\0') {
+            i++; // 跳过反斜杠
+            switch (src[i]) {
+                case 'n':  dst[j++] = '\n'; break;
+                case 't':  dst[j++] = '\t'; break;
+                case '\\': dst[j++] = '\\'; break;
+                case '\"': dst[j++] = '\"'; break;
+                case '\'': dst[j++] = '\''; break;
+                default:   // 非转义字符，保留反斜杠和原字符
+                    dst[j++] = '\\';
+                    dst[j++] = src[i];
+                    break;
+            }
+            i++;
+        } else {
+            dst[j++] = src[i++];
+        }
+    }
+    dst[j] = '\0';
 }
 
 // ==================== ls 命令 ====================
-// 用法：
-//   ls               - 列出根挂载点 /littlefs 和 /sd
-//   ls <path>        - 列出指定目录内容（路径必须完整）
-static int cmd_ls(int argc, char **argv)
-{
-    if (argc == 1)
-    {
-        // 无参数：列出两个挂载点
-        list_dir("/littlefs");
-        list_dir("/sd");
-        return 0;
-    }
-    else if (argc == 2)
-    {
-        const char *path = argv[1];
-        if (!is_valid_root_path(path))
-        {
-            PRINT_ERROR("Invalid path: must start with /littlefs/ or /sd/");
-            return 1;
+// 用法：ls [path1] [path2] ...
+static int cmd_ls(int argc, char **argv) {
+    if (argc == 1) {
+        scan_mount_points();
+        if (num_mount_points == 0) {
+            // 没有任何挂载点，尝试列出根目录
+            list_dir("/");
+        } else {
+            for (int i = 0; i < num_mount_points; i++) {
+                list_dir(mount_points[i]);
+            }
         }
-        list_dir(path);
         return 0;
     }
-    else
-    {
-        return 1;
+
+    for (int i = 1; i < argc; i++) {
+        strip_trailing_slash(argv[i]);
+        list_dir(argv[i]);
     }
+    return 0;
 }
 
 // ==================== echo 命令 ====================
 // 用法：
-//   echo <text>                     - 直接打印文本
-//   echo <text> > <file>            - 覆盖写入文件
-//   echo <text> >> <file>           - 追加写入文件
-static int cmd_echo(int argc, char **argv)
-{
-    if (argc < 2)
-    {
-        return 1;
-    }
-
-    // 情况1：无重定向
-    if (argc == 2)
-    {
-        PRINT_INFO("%s", argv[1]);
+//   echo [text ...]                      - 输出到串口（带换行）
+//   echo [text ...] > <file>             - 覆盖写入
+//   echo [text ...] >> <file>            - 追加写入
+static int cmd_echo(int argc, char **argv) {
+    if (argc < 2) {
+        // 无参数时只输出一个换行（与 Linux echo 一致）
+        log_printf("\n");
         return 0;
     }
 
-    // 情况2：有重定向，必须满足 argc == 4 且 argv[2] 为 ">" 或 ">>"
-    if (argc == 4 && (strcmp(argv[2], ">") == 0 || strcmp(argv[2], ">>") == 0))
-    {
-        const char *mode = (strcmp(argv[2], ">") == 0) ? "w" : "a";
-        const char *file_path = argv[3];
+    // 检查是否存在 -e 选项，并定位重定向符
+    bool enable_escapes = false;
+    int text_start = 1;
+    if (strcmp(argv[1], "-e") == 0) {
+        enable_escapes = true;
+        text_start = 2;
+    }
 
-        if (!is_valid_root_path(file_path))
-        {
-            PRINT_ERROR("Invalid file path: must start with /littlefs/ or /sd/");
+    // 查找重定向符位置
+    int redir_idx = -1;
+    const char *mode = NULL;
+    for (int i = text_start; i < argc; i++) {
+        if (strcmp(argv[i], ">") == 0) {
+            redir_idx = i;
+            mode = "w";
+            break;
+        } else if (strcmp(argv[i], ">>") == 0) {
+            redir_idx = i;
+            mode = "a";
+            break;
+        }
+    }
+
+    // 构建输出文本（将重定向前方的参数用空格连接）
+    char raw_text[512] = {0};
+    int text_end = (redir_idx > 0) ? redir_idx : argc;
+    for (int i = text_start; i < text_end; i++) {
+        if (i > text_start) strcat(raw_text, " ");
+        strcat(raw_text, argv[i]);
+    }
+
+    // 处理转义（如果启用）
+    char final_text[512];
+    if (enable_escapes) {
+        expand_escapes(raw_text, final_text, sizeof(final_text));
+    } else {
+        strncpy(final_text, raw_text, sizeof(final_text) - 1);
+        final_text[sizeof(final_text) - 1] = '\0';
+    }
+
+    // 默认追加换行（普通 echo 行为）
+    size_t len = strlen(final_text);
+    if (len + 2 < sizeof(final_text)) {
+        final_text[len] = '\n';
+        final_text[len + 1] = '\0';
+    }
+
+    if (redir_idx > 0) {
+        // 重定向到文件
+        if (redir_idx + 1 >= argc) {
+            PRINT_ERROR("Missing file operand after '%s'", argv[redir_idx]);
             return 1;
         }
+        const char *file_path = argv[redir_idx + 1];
+        char file_buf[256];
+        strncpy(file_buf, file_path, sizeof(file_buf) - 1);
+        file_buf[sizeof(file_buf) - 1] = '\0';
+        strip_trailing_slash(file_buf);
 
-        File f = hal.open(file_path, mode, true);
-        if (!f)
-        {
-            PRINT_ERROR("Failed to open file: %s", file_path);
+        FILE *f = fopen(file_buf, mode);
+        if (!f) {
+            PRINT_ERROR("Failed to open file: %s", file_buf);
             return 2;
         }
-
-        size_t written = f.print(argv[1]);
-        f.close();
-
-        if (written != strlen(argv[1]))
-        {
-            PRINT_ERROR("Write error to file: %s", file_path);
+        int written = fprintf(f, "%s", final_text);
+        fclose(f);
+        if (written < 0 || (size_t)written != strlen(final_text)) {
+            PRINT_ERROR("Write error to file: %s", file_buf);
             return 2;
         }
-
-        PRINT_SUCCESS("Written %u bytes to %s", written, file_path);
-        return 0;
+        PRINT_SUCCESS("Written %u bytes to %s", written, file_buf);
+    } else {
+        // 输出到控制台
+        log_printf("%s", final_text);
     }
-
-    return 1;
+    return 0;
 }
 
 // ==================== cat 命令 ====================
-// 用法：cat <file>
-static int cmd_cat(int argc, char **argv)
-{
-    if (argc != 2)
-    {
-        return 1;
-    }
-    const char *path = argv[1];
-    if (!is_valid_root_path(path))
-    {
-        PRINT_ERROR("Invalid path: must start with /littlefs/ or /sd/");
+// 用法：cat <file1> [file2 ...]
+static int cmd_cat(int argc, char **argv) {
+    if (argc < 2) {
         return 1;
     }
 
-    File f = hal.open(path, "r");
-    if (!f)
-    {
-        PRINT_ERROR("Cannot open file: %s", path);
-        return 2;
-    }
-
-    // 分块读取并输出
     const size_t buf_size = 512;
     uint8_t buffer[buf_size];
-    size_t total = 0;
-    while (f.available())
-    {
-        size_t len = f.read(buffer, buf_size);
-        if (len > 0)
-        {
+
+    for (int i = 1; i < argc; i++) {
+        strip_trailing_slash(argv[i]);
+        const char *path = argv[i];
+        FILE *f = fopen(path, "r");
+        if (!f) {
+            PRINT_ERROR("Cannot open file: %s", path);
+            continue;  // 继续处理下一个文件
+        }
+
+        size_t total = 0;
+        size_t len;
+        while ((len = fread(buffer, 1, buf_size, f)) > 0) {
             log_printf("%.*s", len, buffer);
             total += len;
         }
-    }
-    f.close();
+        fclose(f);
 
-    if (total == 0)
-    {
-        PRINT_WARNING("File is empty: %s", path);
+        if (total == 0) {
+            PRINT_WARNING("File is empty: %s", path);
+        }
     }
     return 0;
 }
 
 // ==================== mkdir 命令 ====================
-// 用法：mkdir <dir>
-static int cmd_mkdir(int argc, char **argv)
-{
-    if (argc != 2)
-    {
-        return 1;
+// 用法：mkdir [-p] <dir1> [dir2 ...]
+static int cmd_mkdir(int argc, char **argv) {
+    bool create_parents = false;
+    int first_dir = 1;
+
+    // 解析 -p 选项
+    if (argc >= 2 && strcmp(argv[1], "-p") == 0) {
+        create_parents = true;
+        first_dir = 2;
     }
-    const char *path = argv[1];
-    if (!is_valid_root_path(path))
-    {
-        PRINT_ERROR("Invalid path: must start with /littlefs/ or /sd/");
+
+    if (first_dir >= argc) {
+        PRINT_ERROR("Missing directory operand");
         return 1;
     }
 
-    if (hal.exists(path))
-    {
-        PRINT_ERROR("Path already exists: %s", path);
-        return 2;
-    }
+    for (int i = first_dir; i < argc; i++) {
+        strip_trailing_slash(argv[i]);
+        const char *path = argv[i];
 
-    if (hal.mkdir(path))
-    {
-        PRINT_SUCCESS("Directory created: %s", path);
-        return 0;
+        if (create_parents) {
+            if (mkdir_p(path) != 0) {
+                PRINT_ERROR("Failed to create directory (with parents): %s", path);
+                return 2;
+            }
+            PRINT_SUCCESS("Directory created: %s", path);
+        } else {
+            struct stat st;
+            if (stat(path, &st) == 0) {
+                PRINT_ERROR("Path already exists: %s", path);
+                return 2;
+            }
+            if (mkdir(path, 0755) == 0) {
+                PRINT_SUCCESS("Directory created: %s", path);
+            } else {
+                PRINT_ERROR("Failed to create directory: %s (errno: %d)", path, errno);
+                return 2;
+            }
+        }
     }
-    else
-    {
-        PRINT_ERROR("Failed to create directory: %s", path);
-        return 2;
-    }
+    return 0;
 }
 
 // ==================== rm 命令 ====================
-// 用法：
-//   rm <file>          - 删除文件
-//   rm -r <dir>        - 递归删除目录及其内容
-//   rm <empty_dir>     - 删除空目录（需要加 -r 或显式使用 rmdir，这里按 Linux 习惯，rm 默认不删除目录）
-static int cmd_rm(int argc, char **argv)
-{
+// 用法：rm [-r] [-f] [-v] <target1> [target2 ...]
+static int cmd_rm(int argc, char **argv) {
     bool recursive = false;
-    const char *path = nullptr;
+    bool force = false;
+    bool verbose = false;
+    int first_target = 1;
 
-    // 解析参数
-    if (argc == 2)
-    {
-        path = argv[1];
+    // 解析选项组合，如 -rf, -frv, -v -r -f 等
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] != '\0') {
+            for (int j = 1; argv[i][j] != '\0'; j++) {
+                switch (argv[i][j]) {
+                    case 'r': recursive = true; break;
+                    case 'f': force = true; break;
+                    case 'v': verbose = true; break;
+                    default:
+                        PRINT_ERROR("Unknown option '-%c'", argv[i][j]);
+                        return 1;
+                }
+            }
+            first_target = i + 1;
+        } else {
+            break;  // 遇到非选项参数，后面的都是目标
+        }
     }
-    else if (argc == 3 && strcmp(argv[1], "-r") == 0)
-    {
-        recursive = true;
-        path = argv[2];
-    }
-    else
-    {
+
+    if (first_target >= argc) {
+        PRINT_ERROR("Missing operand");
         return 1;
     }
 
-    if (!is_valid_root_path(path))
-    {
-        PRINT_ERROR("Invalid path: must start with /littlefs/ or /sd/");
-        return 1;
-    }
+    int ret = 0;
+    for (int i = first_target; i < argc; i++) {
+        strip_trailing_slash(argv[i]);
+        const char *path = argv[i];
 
-    // 检查路径是否存在
-    if (!hal.exists(path))
-    {
-        PRINT_ERROR("Path does not exist: %s", path);
-        return 2;
-    }
+        struct stat st;
+        if (stat(path, &st) != 0) {
+            if (!force) {
+                PRINT_ERROR("Path does not exist: %s", path);
+                ret = 2;
+            } else {
+                if (verbose) PRINT_INFO("(ignored missing) %s", path);
+            }
+            continue;
+        }
 
-    // 打开路径判断类型
-    File f = hal.open(path, "r");
-    if (!f)
-    {
-        PRINT_ERROR("Cannot access: %s", path);
-        return 2;
-    }
-    bool is_dir = f.isDirectory();
-    f.close();
-
-    if (is_dir)
-    {
-        if (recursive)
-        {
-            // 递归删除目录
-            hal.rm_rf(path);
-            PRINT_SUCCESS("Removed directory recursively: %s", path);
-            return 0;
-        }
-        else
-        {
-            PRINT_ERROR("'%s' is a directory. Use -r to remove it.", path);
-            return 2;
-        }
-    }
-    else
-    {
-        // 文件：直接删除
-        if (hal.remove(path))
-        {
-            PRINT_SUCCESS("Removed file: %s", path);
-            return 0;
-        }
-        else
-        {
-            PRINT_ERROR("Failed to remove file: %s", path);
-            return 2;
+        if (S_ISDIR(st.st_mode)) {
+            if (recursive) {
+                if (remove_directory_recursive(path, verbose) == 0) {
+                    PRINT_SUCCESS("Removed directory recursively: %s", path);
+                } else {
+                    if (!force) {
+                        PRINT_ERROR("Failed to remove directory: %s (errno: %d)", path, errno);
+                        ret = 2;
+                    } else {
+                        if (verbose) PRINT_INFO("(force) failed to remove %s, continuing", path);
+                    }
+                }
+            } else {
+                if (!force) {
+                    PRINT_ERROR("'%s' is a directory. Use -r to remove it.", path);
+                    ret = 2;
+                } else {
+                    if (verbose) PRINT_INFO("(force) skipping directory %s", path);
+                }
+            }
+        } else {
+            // 普通文件
+            if (remove(path) == 0) {
+                if (verbose) PRINT_INFO("removed file '%s'", path);
+                PRINT_SUCCESS("Removed file: %s", path);
+            } else {
+                if (!force) {
+                    PRINT_ERROR("Failed to remove file: %s (errno: %d)", path, errno);
+                    ret = 2;
+                } else {
+                    if (verbose) PRINT_INFO("(force) failed to remove %s, continuing", path);
+                }
+            }
         }
     }
+    return ret;
 }
 
 // ==================== mv 命令 ====================
 // 用法：mv <source> <dest>
-// 注意：仅支持同一文件系统内的移动/重命名，跨文件系统会报错。
-static int cmd_mv(int argc, char **argv)
-{
-    if (argc != 3)
-    {
+// 改进：若目标为已存在的目录，则将源移动进该目录。
+static int cmd_mv(int argc, char **argv) {
+    if (argc != 3) {
         return 1;
     }
 
-    const char *src = argv[1];
-    const char *dst = argv[2];
+    char src[256], dst[256];
+    strncpy(src, argv[1], sizeof(src)-1);
+    strncpy(dst, argv[2], sizeof(dst)-1);
+    src[sizeof(src)-1] = '\0';
+    dst[sizeof(dst)-1] = '\0';
+    strip_trailing_slash(src);
+    strip_trailing_slash(dst);
 
-    if (!is_valid_root_path(src) || !is_valid_root_path(dst))
-    {
-        PRINT_ERROR("Paths must start with /littlefs/ or /sd/");
-        return 1;
-    }
-
-    // 检查源是否存在
-    if (!hal.exists(src))
-    {
+    struct stat st_src;
+    if (stat(src, &st_src) != 0) {
         PRINT_ERROR("Source does not exist: %s", src);
         return 2;
     }
 
-    // 检查目标是否已存在（避免覆盖，可按需要修改）
-    if (hal.exists(dst))
-    {
-        PRINT_ERROR("Destination already exists: %s", dst);
-        return 2;
+    // 检查目标状态
+    struct stat st_dst;
+    int dst_exists = (stat(dst, &st_dst) == 0);
+
+    if (dst_exists && S_ISDIR(st_dst.st_mode)) {
+        // 目标是一个已存在的目录：移动源到该目录下，保持原名
+        const char *base = strrchr(src, '/');
+        base = base ? base + 1 : src;
+        char new_dst[512];
+        snprintf(new_dst, sizeof(new_dst), "%s/%s", dst, base);
+        // 检查新路径是否已存在
+        if (stat(new_dst, &st_dst) == 0) {
+            PRINT_ERROR("Destination already exists: %s", new_dst);
+            return 2;
+        }
+        if (rename(src, new_dst) == 0) {
+            PRINT_SUCCESS("Moved/Renamed: %s -> %s", src, new_dst);
+            return 0;
+        } else {
+            if (errno == EXDEV) {
+                PRINT_ERROR("Move failed: cross-device rename not allowed (%s -> %s)", src, new_dst);
+            } else {
+                PRINT_ERROR("Move failed: %s -> %s (errno: %d)", src, new_dst, errno);
+            }
+            return 2;
+        }
+    } else {
+        // 目标不存在或为文件（根据 Linux 行为，若目标文件存在则覆盖，这里直接允许 rename）
+        // 为防止意外覆盖，可以检查 src 和 dst 是否相同
+        if (strcmp(src, dst) == 0) {
+            PRINT_ERROR("Source and destination are the same: %s", src);
+            return 2;
+        }
+        if (rename(src, dst) == 0) {
+            PRINT_SUCCESS("Moved/Renamed: %s -> %s", src, dst);
+            return 0;
+        } else {
+            if (errno == EXDEV) {
+                PRINT_ERROR("Move failed: cross-device rename not allowed (%s -> %s)", src, dst);
+            } else {
+                PRINT_ERROR("Move failed: %s -> %s (errno: %d)", src, dst, errno);
+            }
+            return 2;
+        }
+    }
+}
+
+// ==================== cp 命令 ====================
+static int cmd_cp(int argc, char **argv) {
+    bool recursive = false;
+    bool force = false;
+    bool verbose = false;
+    int first_src = 1;
+
+    // 解析选项： -r, -f, -v 及其组合（如 -rfv, -r -f 等）
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] != '\0') {
+            for (int j = 1; argv[i][j] != '\0'; j++) {
+                switch (argv[i][j]) {
+                    case 'r': recursive = true; break;
+                    case 'f': force = true; break;
+                    case 'v': verbose = true; break;
+                    default:
+                        PRINT_ERROR("Unknown option '-%c'", argv[i][j]);
+                        return 1;
+                }
+            }
+            first_src = i + 1;  // 下一个参数才是源
+        } else {
+            break;  // 遇到非选项参数，停止解析选项
+        }
     }
 
-    // 尝试重命名/移动
-    if (hal.rename(src, dst))
-    {
-        PRINT_SUCCESS("Moved/Renamed: %s -> %s", src, dst);
+    // 至少需要两个参数：源和目标
+    if (argc - first_src < 2) {
+        PRINT_ERROR("Usage: cp [-r] [-f] [-v] <source...> <dest>");
+        return 1;
+    }
+
+    // 最后一个参数是目标
+    const char *dest = argv[argc - 1];
+    char dest_buf[512];
+    strncpy(dest_buf, dest, sizeof(dest_buf) - 1);
+    dest_buf[sizeof(dest_buf) - 1] = '\0';
+    strip_trailing_slash(dest_buf);  // 去除末尾 '/'
+
+    // 判断目标是否存在、是否为目录
+    struct stat st_dest;
+    bool dest_exists = (stat(dest_buf, &st_dest) == 0);
+    bool dest_is_dir = dest_exists && S_ISDIR(st_dest.st_mode);
+
+    // 多个源文件时，目标必须是已存在的目录
+    int num_sources = argc - 1 - first_src;
+    if (num_sources > 1 && !(dest_exists && dest_is_dir)) {
+        PRINT_ERROR("Target '%s' is not a directory (multiple sources require a directory target)", dest_buf);
+        return 1;
+    }
+
+    int ret = 0;
+    // 遍历所有源
+    for (int i = first_src; i < argc - 1; i++) {
+        char src_buf[512];
+        strncpy(src_buf, argv[i], sizeof(src_buf) - 1);
+        src_buf[sizeof(src_buf) - 1] = '\0';
+        strip_trailing_slash(src_buf);
+
+        struct stat st_src;
+        if (stat(src_buf, &st_src) != 0) {
+            PRINT_ERROR("Source '%s' does not exist", src_buf);
+            ret = 1;
+            continue;
+        }
+
+        // 构造实际目标路径
+        char actual_dst[512];
+        if (dest_is_dir) {
+            // 目标为目录：将源的文件/目录名拼接到目标路径下
+            const char *base = strrchr(src_buf, '/');
+            base = base ? base + 1 : src_buf;
+            snprintf(actual_dst, sizeof(actual_dst), "%s/%s", dest_buf, base);
+        } else {
+            // 目标非目录（且源只有一个）
+            strncpy(actual_dst, dest_buf, sizeof(actual_dst) - 1);
+            actual_dst[sizeof(actual_dst) - 1] = '\0';
+        }
+
+        if (S_ISDIR(st_src.st_mode)) {
+            if (!recursive) {
+                PRINT_ERROR("'%s' is a directory (use -r to copy recursively)", src_buf);
+                ret = 1;
+                continue;
+            }
+            if (cp_dir(src_buf, actual_dst, force, verbose) != 0) {
+                PRINT_ERROR("Failed to copy directory '%s'", src_buf);
+                ret = 1;
+            } else {
+                if (verbose || !force) // 通常 cp -v 才打印，但成功消息保留
+                    PRINT_SUCCESS("Copied directory '%s' -> '%s'", src_buf, actual_dst);
+            }
+        } else {
+            // 普通文件
+            if (cp_file(src_buf, actual_dst, force, verbose) != 0) {
+                PRINT_ERROR("Failed to copy file '%s'", src_buf);
+                ret = 1;
+            } else {
+                if (verbose)
+                    PRINT_SUCCESS("Copied file '%s' -> '%s'", src_buf, actual_dst);
+            }
+        }
+    }
+
+    return ret;
+}
+
+// ==================== du 命令 ====================
+static int cmd_du(int argc, char **argv) {
+    bool human = false;
+    bool summarize = false;
+    int first_path = 1;
+
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '-' && argv[i][1] != '\0') {
+            for (int j = 1; argv[i][j] != '\0'; j++) {
+                switch (argv[i][j]) {
+                    case 'h': human = true; break;
+                    case 's': summarize = true; break;
+                    default:
+                        PRINT_ERROR("Unknown option '-%c'", argv[i][j]);
+                        return 1;
+                }
+            }
+            first_path = i + 1;
+        } else {
+            break;
+        }
+    }
+
+    // 无参数：自动扫描挂载点，以汇总模式显示每个挂载点总大小
+    if (first_path >= argc) {
+        scan_mount_points();
+        if (num_mount_points == 0) {
+            PRINT_ERROR("No mount points found. Please specify path.");
+            return 1;
+        }
+
+        for (int i = 0; i < num_mount_points; i++) {
+            char path_buf[64];
+            strncpy(path_buf, mount_points[i], sizeof(path_buf) - 1);
+            path_buf[sizeof(path_buf) - 1] = '\0';
+            strip_trailing_slash(path_buf);
+
+            uint64_t total = du_dir(path_buf, human, true);  // 强制汇总模式
+            char size_str[16];
+            if (human) {
+                human_readable_size(total, size_str, sizeof(size_str));
+            } else {
+                snprintf(size_str, sizeof(size_str), "%" PRIu64, total);
+            }
+            PRINT_INFO("%-8s %s", size_str, path_buf);
+        }
         return 0;
     }
-    else
-    {
-        // 可能跨文件系统或权限问题
-        PRINT_ERROR("Move failed (possibly cross filesystem): %s -> %s", src, dst);
-        return 2;
+
+    // 有参数：处理每个路径
+    int ret = 0;
+    for (int i = first_path; i < argc; i++) {
+        char path_buf[256];
+        strncpy(path_buf, argv[i], sizeof(path_buf) - 1);
+        path_buf[sizeof(path_buf) - 1] = '\0';
+        strip_trailing_slash(path_buf);
+
+        struct stat st;
+        if (stat(path_buf, &st) != 0) {
+            PRINT_ERROR("Path does not exist: %s", path_buf);
+            ret = 1;
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            uint64_t total = du_dir(path_buf, human, summarize);
+
+            // 顶层目录的大小由这里统一打印（du_dir 内部只打印子目录）
+            char size_str[16];
+            if (human) {
+                human_readable_size(total, size_str, sizeof(size_str));
+            } else {
+                snprintf(size_str, sizeof(size_str), "%" PRIu64, total);
+            }
+            PRINT_INFO("%-8s %s", size_str, path_buf);
+        } else {
+            // 普通文件：直接显示大小
+            char size_str[16];
+            if (human) {
+                human_readable_size((uint64_t)st.st_size, size_str, sizeof(size_str));
+            } else {
+                snprintf(size_str, sizeof(size_str), "%" PRIu64, (uint64_t)st.st_size);
+            }
+            PRINT_INFO("%-8s %s", size_str, path_buf);
+        }
     }
+
+    return ret;
 }
 
 // 将 32 位无符号整数转换为二进制字符串（格式：每组4位用空格分隔，提高可读性）
@@ -2607,6 +3242,20 @@ static int cmd_buildfontwidthtable(int argc, char **argv)
     return 0;
 }
 
+extern void printAppList();
+
+static int cmd_applist(int argc, char **argv)
+{
+    printAppList();
+    return 0;
+}
+
+static int cmd_about(int argc, char **argv)
+{
+    assert(false);
+    return 0;
+}
+
 // 命令注册表
 // Register all console commands defined in this file
 static const char *no_info = "";
@@ -2650,6 +3299,8 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "rm", .help = "删除文件或目录", .hint = "Usage: rm [-r] <path>", .func = &cmd_rm, .argtable = NULL},
     {.command = "echo", .help = "写入或追加文件", .hint = "Usage: echo <text> [>|>> <file>]", .func = &cmd_echo, .argtable = NULL},
     {.command = "mkdir", .help = "新建文件夹", .hint = "Usage: mkdir <path>", .func = &cmd_mkdir, .argtable = NULL},
+    {.command = "cp", .help = "复制文件或文件夹", .hint = "cp [-r] [-f] [-v] <source...> <dest>", .func = &cmd_cp, .argtable = NULL},
+    {.command = "du", .help = "显示文件夹的大小", .hint = "du [-h] [-s] [<path> ...]", .func = &cmd_du, .argtable = NULL},
     {.command = "espreg", .help = "读取或写入寄存器（支持位操作）", .hint = "Usage: espreg <-r|-w> <address> [-bit <bit>] [value]\n"
                                                                             "  -r: read register or specific bit\n"
                                                                             "  -w: write register or modify specific bit\n"
@@ -2672,6 +3323,8 @@ static const esp_console_cmd_t cmds[] = {
      .argtable = NULL},
     {.command = "fontinfo", .help = "显示当前u8g2字体的详细信息", .hint = no_info, .func = &cmd_fontinfo, .argtable = NULL},
     {.command = "buildfontwidthtable", .help = "构建当前字体的宽度表并保存到文件", .hint = no_info, .func = &cmd_buildfontwidthtable, .argtable = NULL},
+    {.command = "applist", .help = "显示所有已注册的app", .hint = no_info, .func = &cmd_applist, .argtable = NULL},
+    {.command = "about", .help = "中断当前的运行", .hint = no_info, .func = &cmd_about, .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.

@@ -196,35 +196,36 @@ bool AudioGeneratorAAC::loop()
     if (ret) {
       // Error, skip the frame...
       char buff[48];
-      sprintf_P(buff, PSTR("AAC decode error %d"), ret);
-      cb.st(ret, buff);
+      log_e("AAC decode error %d", ret);
     } else {
       lastFrameEnd = buffValid - bytesLeft;
       AACFrameInfo fi;
       AACGetLastFrameInfo(hAACDecoder, &fi);
       // Track bitrate to estimate total duration (similar to MP3 implementation)
-      if (!totalSent && fi.bitRate > 0) {
-        bitrateSum += (uint64_t)fi.bitRate;
-        bitrateCount++;
+      uint32_t currentBitrate = 0;
+      if (fi.sampRateOut > 0 && lastFrameEnd > 0) {
+          // AAC-LC 每声道每帧 1024 采样点，帧长固定
+          float frameDurSec = 1024.0f / fi.sampRateOut;
+          currentBitrate = (uint32_t)((lastFrameEnd * 8) / frameDurSec);
+      }
+
+      // 用自算的码率来估算总时长
+      if (!totalSent && currentBitrate > 0) {
+          bitrateSum += currentBitrate;
+          bitrateCount++;
       }
       if (bitrateCount >= 50 && !totalSent) {
-        uint64_t currentAvgBitrate = bitrateSum / bitrateCount;
-        if (bitrateCount == 50 || bitrateCount % 50 == 0) {
-          if (currentAvgBitrate == 0) currentAvgBitrate = fi.bitRate;
-          if (currentAvgBitrate == 0) currentAvgBitrate = 128000;
-          // Estimate total duration based on file size and average bitrate
-          uint64_t total_seconds = ((uint64_t)file->getSize() * 8ULL) / currentAvgBitrate;
-          uint64_t total_ms = total_seconds * 1000ULL;
-          cb.md("tlen", false, ((String)total_ms).c_str());
-          lastAvgBitrate = currentAvgBitrate;
-        }
-        if (bitrateCount >= 400) {
-          totalSent = true;
-        }
-      }
-      if ((int)fi.sampRateOut != (int)lastRate) {
-        output->SetRate(fi.sampRateOut);
-        lastRate = fi.sampRateOut;
+          uint64_t currentAvgBitrate = bitrateSum / bitrateCount;
+          if (bitrateCount == 50 || bitrateCount % 50 == 0) {
+              if (currentAvgBitrate == 0) currentAvgBitrate = 128000;
+              uint64_t total_seconds = ((uint64_t)file->getSize() * 8ULL) / currentAvgBitrate;
+              uint64_t total_ms = total_seconds * 1000ULL;
+              cb.md("tlen", false, ((String)total_ms).c_str());
+              lastAvgBitrate = currentAvgBitrate;
+          }
+          if (bitrateCount >= 400) {
+              totalSent = true;
+          }
       }
       if (fi.nChans != lastChannels) {
         output->SetChannels(fi.nChans);

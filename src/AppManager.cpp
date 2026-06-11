@@ -10,6 +10,31 @@ void appList_push_back(AppBase *app)
     appList[tail++] = app;
 }
 
+void printAppList() {
+    log_printf("\033[96m======= App List =======\033[0m\r\n");
+    // 表头（对齐参考）
+    log_printf("%-3s %-20s | %-20s | %-5s | %-4s\r\n", 
+               "Idx", "Name", "Title", "ID", "Show");
+    log_printf("---- -------------------- | -------------------- | ----- | ----\r\n");
+
+    for (int i = 0; i < MAX_APP_COUNT; ++i) {
+        if (appList[i] != nullptr) {
+            // [%2u] 两位索引右对齐
+            // %-20.20s 名字左对齐，最多显示20个字符（超出截断，不足补空格）
+            // %-20.20s 标题同理
+            // ID:%3u   ID 右对齐3位
+            // %-3s     show 左对齐3字符
+            log_printf("[%2u] %-20.20s | %-20.20s | ID:%3u | %-3s\r\n",
+                       i,
+                       appList[i]->name,
+                       appList[i]->title,
+                       appList[i]->appID,
+                       appList[i]->_showInList ? "yes" : "no");
+        }
+    }
+    log_printf("\033[96m========================\033[0m\r\n");
+}
+
 AppBase::AppBase()
 {
     lightsleep = NULL;
@@ -130,7 +155,7 @@ void buildAppList(bool showHidden)
             appList[i]->set();
             if (appList[i]->_showInList == false)
             {
-                log_d("APP %s 已在APP列表中%s", appList[i]->title, appList[i]->_showInList ? "true" : "隐藏");
+                // log_d("APP %s 已在APP列表中%s", appList[i]->title, appList[i]->_showInList ? "true" : "隐藏");
                 continue;
             }
             if (peripherals.checkAvailable(appList[i]->peripherals_requested) != 0)
@@ -832,7 +857,7 @@ void AppManager::loadLuaApps()
 {
     if (luaLoaded == false)
     {
-        log_printf("延迟加载Lua APP列表");
+        log_printf("延迟加载Lua APP列表\n");
         searchForLuaAPP();
         luaLoaded = true;
     }

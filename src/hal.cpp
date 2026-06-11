@@ -1,5 +1,6 @@
 #include "hal.h"
 #include <LittleFS.h>
+#include "git_info.h"
 
 // 统一的文件系统接口，支持SD卡和LittleFS，路径以"/sd/"或"/littlefs/"开头来区分
 // {
@@ -1173,6 +1174,261 @@ void HAL::wait_input(uint32_t sleeptime)
         log_i("uart唤醒");
     }
 }
+/* 
+#include "protected/my_coredump.h"
+
+esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
+    if (!summary) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // 1. 查找 core dump 分区
+    const esp_partition_t *core_part = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA,
+        ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+        NULL
+    );
+    if (!core_part) {
+        log_e("Core dump partition not found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // 2. 使用内存映射代替 malloc + read（避免大量内存分配，且能自动处理超出分区的部分？不能，但更规范）
+    spi_flash_mmap_handle_t handle;
+    const void *map_ptr;
+    esp_err_t err = esp_partition_mmap(core_part, 0, core_part->size,
+                                       SPI_FLASH_MMAP_DATA, &map_ptr, &handle);
+    if (err != ESP_OK) {
+        log_e("Failed to mmap core dump partition");
+        return err;
+    }
+
+    const uint8_t *buf = (const uint8_t *)map_ptr;
+    size_t buf_size = core_part->size;
+
+    // 3. 寻找 ELF 头（跳过前导数据）
+    const uint8_t *elf_start = NULL;
+    size_t elf_offset = 0;
+    for (size_t off = 0; off < 256 && off + 4 < buf_size; off++) {
+        if (memcmp(buf + off, "\177ELF", 4) == 0) {
+            elf_start = buf + off;
+            elf_offset = off;
+            break;
+        }
+    }
+    if (!elf_start) {
+        log_e("ELF header not found");
+        spi_flash_munmap(handle);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    // 4. 安全读取 ELF 头关键字段（注意ELF头结构，偏移因32/64而异，这里按32位处理）
+    uint16_t e_phnum, e_phentsize;
+    uint32_t e_phoff;
+    memcpy(&e_phnum, elf_start + 0x2C, sizeof(e_phnum));
+    memcpy(&e_phoff, elf_start + 0x1C, sizeof(e_phoff));
+    memcpy(&e_phentsize, elf_start + 0x2A, sizeof(e_phentsize));
+    if (e_phnum == 0 || e_phnum > 100) {
+        log_e("Invalid program header count: %u", e_phnum);
+        spi_flash_munmap(handle);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    const uint8_t *phdr_start = elf_start + e_phoff;
+    size_t phdr_total_size = e_phnum * e_phentsize;
+    if (phdr_start + phdr_total_size > buf + buf_size) {
+        log_e("Program header table out of bounds");
+        spi_flash_munmap(handle);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    // 5. 解析各段
+    int flag_tcb_found = 0;
+    for (int i = 0; i < e_phnum; i++) {
+        const elf_phdr *ph = (const elf_phdr *)(phdr_start + i * e_phentsize);
+
+        if (ph->p_type == PT_NOTE) {
+            const uint8_t *note_start = elf_start + ph->p_offset;
+            size_t note_memsz = ph->p_memsz;
+            if (note_start + note_memsz > buf + buf_size) {
+                log_w("PT_NOTE[%d] exceeds buffer, truncating", i);
+                note_memsz = (buf + buf_size) - note_start;
+            }
+
+            size_t consumed = 0;
+            while (consumed + sizeof(elf_note) <= note_memsz) {
+                const elf_note *note = (const elf_note *)(note_start + consumed);
+                // 名字和描述可能超出当前剩余大小
+                if (consumed + sizeof(elf_note) + note->n_namesz + note->n_descsz > note_memsz) {
+                    log_w("Corrupted note at offset %u", consumed);
+                    break;
+                }
+                const char *nm = (const char *)(note + 1);
+                const void *desc = nm + note->n_namesz;
+
+                if (strncmp(nm, "EXTRA_INFO", note->n_namesz) == 0) {
+                    esp_core_dump_summary_parse_extra_info(summary, desc);
+                } else if (strncmp(nm, "ESP_CORE_DUMP_INFO", note->n_namesz) == 0) {
+                    app_elf_parse_version_info(summary, desc);
+                }
+
+                size_t note_total = sizeof(elf_note) + note->n_namesz + note->n_descsz;
+                consumed += (note_total + 3) & ~3; // 4字节对齐
+            }
+        }
+        else if (ph->p_type == PT_LOAD) {
+            const uint8_t *seg_start = elf_start + ph->p_offset;
+            size_t seg_memsz = ph->p_memsz;
+            if (seg_start + seg_memsz > buf + buf_size) {
+                // 数据不在此分区内，无法解析
+                log_w("PT_LOAD[%d] data not in partition, skipping", i);
+                continue;
+            }
+
+            if (!flag_tcb_found && ph->p_vaddr == summary->exc_tcb) {
+                app_elf_parse_exc_task_name(summary, seg_start);
+                flag_tcb_found = 1;
+                log_d("Found TCB segment for crashed task");
+            } else if (flag_tcb_found == 1) {
+                // 假定紧跟着的 LOAD 段是异常栈
+                esp_core_dump_summary_parse_exc_regs(summary, seg_start);
+                esp_core_dump_summary_parse_backtrace_info(
+                    &summary->exc_bt_info,
+                    (void *)ph->p_vaddr,
+                    seg_start,
+                    seg_memsz
+                );
+                log_d("Parsed exception regs and backtrace");
+                flag_tcb_found = 2;
+                break;
+            }
+        }
+    }
+
+    spi_flash_munmap(handle);
+
+    if (flag_tcb_found < 2) {
+        log_w("Incomplete core dump: TCB/stack data missing (partition too small?)");
+        return ESP_ERR_NOT_SUPPORTED;  // 明确告知调用者数据不完整
+    }
+
+    log_i("Core dump summary parsed successfully");
+    return ESP_OK;
+} */
+
+const char* get_exc_cause_name(uint32_t exc_cause) {
+    switch (exc_cause) {
+        case 0: return "IllegalInstructionCause";
+        case 1: return "SyscallCause";
+        case 2: return "InstructionFetchErrorCause";
+        case 3: return "LoadStoreErrorCause";
+        case 4: return "Level1InterruptCause";
+        case 5: return "AllocaCause";
+        case 6: return "IntegerDivideByZeroCause";
+        case 7: return "Reserved for Tensilica";
+        case 8: return "PrivilegedCause";
+        case 9: return "LoadStoreAlignmentCause";
+        case 10:
+        case 11: return "Reserved for Tensilica";
+        case 12: return "InstrPIFDataErrorCause";
+        case 13: return "LoadStorePIFDataErrorCause";
+        case 14: return "InstrPIFAddrErrorCause";
+        case 15: return "LoadStorePIFAddrErrorCause";
+        case 16: return "InstTLBMissCause";
+        case 17: return "InstTLBMultiHitCause";
+        case 18: return "InstFetchPrivilegeCause";
+        case 19: return "Reserved for Tensilica";
+        case 20: return "InstFetchProhibitedCause";
+        case 21:
+        case 22:
+        case 23: return "Reserved for Tensilica";
+        case 24: return "LoadStoreTLBMissCause";
+        case 25: return "LoadStoreTLBMultiHitCause";
+        case 26: return "LoadStorePrivilegeCause";
+        case 27: return "Reserved for Tensilica";
+        case 28: return "LoadProhibitedCause";
+        case 29: return "StoreProhibitedCause";
+        case 30:
+        case 31: return "Reserved for Tensilica";
+        case 32:
+        case 33:
+        case 34:
+        case 35:
+        case 36:
+        case 37:
+        case 38:
+        case 39: return "CoprocessornDisabled";
+        default: return "Reserved";
+    }
+}
+
+void show_check_info() {
+    // 获取核心转储摘要
+    esp_core_dump_summary_t summary;
+    esp_core_dump_get_summary(&summary);
+
+    // 1. 清屏并设置为白色背景
+    display.setDrawWindow();
+    display.fillScreen(TFT_WHITE);
+
+    // 2. 绘制黑色标题栏，白色文字（使用稍大字体）
+    display.fillRect(0, 0, 384, 24, TFT_BLACK);
+    u8g2Fonts.setForegroundColor(TFT_WHITE);
+    u8g2Fonts.setBackgroundColor(TFT_BLACK);
+    u8g2Fonts.setFont(u8g2_font_logisoso22_tf);  // 大标题字体
+    u8g2Fonts.setCursor(10, 20);                 // 左对齐，垂直居中
+    u8g2Fonts.print("Liclock CRASH!");
+
+    // 3. 切换回默认字体（12x12 等效字体），黑色文字白色背景
+    // u8g2Fonts.setFont(u8g2_font_6x12_tf);       // 宽6高12，接近12x12点阵
+    u8g2Fonts.setForegroundColor(TFT_BLACK);
+    u8g2Fonts.setBackgroundColor(TFT_WHITE);
+    u8g2Fonts.setCursor(4, 34);                 // 标题栏下方留白
+
+    // 4. 打印详细信息
+    u8g2Fonts.println("INFO:");
+    u8g2Fonts.printf("TASK \"%s\" @ 0x%08lX\n", summary.exc_task, summary.exc_pc);
+    u8g2Fonts.printf("EXCVADDR: 0x%08lX\n", summary.ex_info.exc_vaddr);
+    u8g2Fonts.printf("CAUSE: %s\n", get_exc_cause_name(summary.ex_info.exc_cause));
+
+    // 增加一个空行（通过换行或光标偏移）
+    u8g2Fonts.setCursor(u8g2Fonts.getCursorX(), u8g2Fonts.getCursorY() + 6);
+
+    // 5. 打印回溯信息
+    if (summary.exc_bt_info.depth > 0) {
+        u8g2Fonts.println("Backtrace:");
+        int addr_per_line = 8;                 // 每行显示8个地址
+        for (int i = 0; i < summary.exc_bt_info.depth; i++) {
+            u8g2Fonts.printf("0x%08lX ", summary.exc_bt_info.bt[i]);
+            if ((i + 1) % addr_per_line == 0 || i == summary.exc_bt_info.depth - 1) {
+                u8g2Fonts.println();           // 换行
+            }
+        }
+    }
+
+    // 6. 底部显示 SHA 和版本信息（避免覆盖，从坐标 Y=148 开始，屏幕高度168，底部留20像素）
+    u8g2Fonts.setCursor(4, 148);
+    u8g2Fonts.printf("SHA: %s (%s-%s)", summary.app_elf_sha256, GIT_BRANCH, GIT_COMMIT_HASH_SHORT);
+
+    // 刷新显示
+    display.display(true);
+
+    delay(1000);
+
+    // 7. 等待按键
+    hal.wait_input();
+
+    // 8. 显示重启提示并重启
+    display.fillScreen(TFT_WHITE);
+    u8g2Fonts.setFont(u8g2_font_logisoso22_tf);
+    u8g2Fonts.setForegroundColor(TFT_BLACK);
+    u8g2Fonts.setBackgroundColor(TFT_WHITE);
+    u8g2Fonts.setCursor((384 - u8g2Fonts.getUTF8Width("REBOOT...")) / 2, 84);
+    u8g2Fonts.print("REBOOT...");
+    display.display(true);
+
+    esp_restart();
+}
 
 void HAL::coredump_file()
 {
@@ -1412,7 +1668,9 @@ bool HAL::init()
     {
         if (hal.exists("/littlefs/System/start.vlbm"))
         {
+            display.setPowerMode(POWER_MODE_HPM);
             GUI::PlayLBM_V(0, 0, "/littlefs/System/start.vlbm", TFT_BLACK);
+            display.setPowerMode(POWER_MODE_LPM);
         }
     }
     if (!fast_boot)
@@ -1791,7 +2049,8 @@ void HAL::update(void)
     {
         // sprintf(buf, "电池电压极低，当前电压为：%d mV，低于自动关机电压%d mV,设备自动关机", hal.VCC, auto_sleep_mv);
         // GUI::info_msgbox("警告", buf);
-        hal.powerOff();
+        // hal.powerOff();
+        low_battery = true;
     }
     if (adc > 4300)
     {

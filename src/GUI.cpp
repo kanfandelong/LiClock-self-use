@@ -404,6 +404,14 @@ namespace GUI
         bool waitc = false;
         unsigned long wait_time = 0;
 
+        // ---------- 双缓冲相关变量 ----------
+        const int STATIC_BUF = 1;  // 静态缓冲区索引（假设有缓冲区0和1）
+        bool static_valid = false; // 静态内容是否已绘制且有效
+        int last_pageStart = -1;   // 上次绘制静态时的pageStart
+        int last_total = -1;       // 上次绘制静态时的总项目数（防止total变化）
+        int last_hasIcon = -1;     // 上次是否有图标（防止布局变化）
+        // ---------------------------------
+
         hal.hookButton(true);
         push_buffer();
         wait_time = millis();
@@ -476,50 +484,85 @@ namespace GUI
                     pageStart = selected - number_of_items + 1;
                 }
 
-                TickType_t xLastWakeTime = xTaskGetTickCount();
-                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency); // 运行周期
-                // 动画：平滑移动选框
-                const int steps = 6; // 动画帧数，越大越平滑
-                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
-                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
-                for (int step = 0; step <= steps; ++step)
+                // ---------- 如果页面内容发生变化（翻页或总项数/图标改变），重新绘制静态内容 ----------
+                if (!static_valid || pageStart != last_pageStart || total != last_total || hasIcon != last_hasIcon)
                 {
-                    // 计算当前矩形 Y 坐标（线性插值）
-                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
-                    // 绘制窗口背景和标题
+                    // 1. 完整绘制静态内容（不含选框和滚动条滑块）
                     drawWindowsWithTitle(title, start_x, start_y, w, max_h);
                     display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
-                    // 绘制项目列表
                     int max_items = min(number_of_items, total);
                     for (int i = 0; i < max_items; ++i)
                     {
                         int item_y = start_y + 15 + item_height * i;
                         if (options[i + pageStart].icon != NULL && ico_h <= 14)
                         {
-                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2, options[i + pageStart].icon, ico_w, ico_h, 0);
+                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2,
+                                                options[i + pageStart].icon, ico_w, ico_h, 0);
                         }
-                        u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
-
-                        display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
+                        u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0),
+                                           item_y + 13, options[i + pageStart].title);
                     }
-                    // 滚动条
+                    // 滚动条轨道（只画背景，不画滑块；这里简单画一个浅色矩形作为轨道，与原风格保持一致）
+                    if (total > number_of_items)
+                    {
+                        display.fillRoundRect(start_x + w - 5 + 1, start_y + 15, 3, h, 2, 1); // 轨道背景（灰色）
+                    }
+                    display.display(); // 此时显示静态内容（用户会看到一次全刷，仅翻页时发生）
+
+                    // 2. 将当前显示内容（静态）复制到静态缓冲区 STATIC_BUF
+                    display.copyBuffer(STATIC_BUF, display.current_buffer_idx);
+
+                    // 记录当前静态内容的状态
+                    last_pageStart = pageStart;
+                    last_total = total;
+                    last_hasIcon = hasIcon;
+                    static_valid = true;
+                }
+
+                // ---------- 动画：平滑移动选框，每帧只绘制动态部分 ----------
+                TickType_t xLastWakeTime = xTaskGetTickCount();
+                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency);
+                const int steps = 6;
+                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
+                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
+                for (int step = 0; step <= steps; ++step)
+                {
+                    // 计算当前选框的 Y 坐标
+                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
+
+                    // 从静态缓冲区恢复显示缓冲区（清除上一帧的动态元素）
+                    display.copyBuffer(display.current_buffer_idx, STATIC_BUF);
+
+                    // 设置绘制窗口（与静态内容一致）
+                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
+
+                    // 绘制选框矩形
+                    display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
+
+                    // 绘制滚动条滑块（动态部分）
                     if (total > number_of_items)
                     {
                         barPos = selected * (h - barHeight) / total;
                         display.fillRoundRect(start_x + w - 5 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
+
+                    // 刷新显示
                     display.display();
                     xTaskDelayUntil(&xLastWakeTime, xFrequency);
                 }
+
                 // 动画结束后更新 prev_selected
                 prev_selected = selected;
                 updated = false;
+
+                // 等待所有按钮释放（初始进入时）
                 while (!init && (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()))
                 {
                     delay(10);
                 }
                 init = true;
             }
+
             if (waitc == true)
             {
                 waitc = false;
@@ -828,7 +871,7 @@ namespace GUI
         constexpr int start_y = (MAX_Y - max_h) / 2;
         constexpr int item_width = w - 5 - 5 - 5;        // 右侧滚动条
         constexpr int number_of_items = h / item_height; // 每页显示的项目数
-        int pageStart = 0;                               // 屏幕顶部第一个
+        int pageStart = 0;
         int selected = 0;
         int total = 0;
         int barHeight;
@@ -838,48 +881,49 @@ namespace GUI
         bool waitc = false;
         bool init = false;
         unsigned long wait_time = 0;
+
         while (options[total].title != NULL)
         {
-            // 统计一共多少，顺便检查是否有图标
-            /* if (options[total].icon != NULL)
-                hasIcon = true; */
             ++total;
         }
+
         char sha_option_key[total][16];
         uint8_t temp[32];
-        char hex_hash[65]; // 64 字节的十六进制字符串 + 1 字节的 null 终止符
+        char hex_hash[65];
         barHeight = number_of_items * h / total;
+
         hal.hookButton(true);
         push_buffer();
-        // 通过sha256为每一个选项生成一个key，以便存储
+
         int i = 0;
         mbedtls_sha256_context ctx;
         while (options[i].title != NULL)
         {
             sha256(options[i].title, temp, &ctx);
-            // 将哈希值转换为十六进制字符串
             for (int j = 0; j < 32; j++)
-            {
                 sprintf(hex_hash + j * 2, "%02x", temp[j]);
-            }
-            // 截取前 15 个字符作为 key
             strncpy(sha_option_key[i], hex_hash, 15);
-            sha_option_key[i][15] = '\0'; // 确保字符串以 null 结尾
+            sha_option_key[i][15] = '\0';
             ++i;
         }
 
-        // 确保默认选中在有效范围内
         selected = constrain(default_selected, 0, total - 1);
-        int prev_selected = selected; // 用于动画起始位置
+        int prev_selected = selected;
 
-        // 计算初始页面起始位置，确保默认选中项可见
         if (total > number_of_items)
-        {
             pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
-        }
+
+        // ---------- 双缓冲相关变量 ----------
+        const int STATIC_BUF = 1;           // 静态缓冲区索引
+        bool static_valid = false;          // 静态内容是否有效
+        int last_pageStart = -1;            // 上次绘制静态时的页起始
+        int last_total = -1;                // 上次绘制静态时的总项数
+        bool option_values_changed = false; // 选项值是否变化（需要重绘静态）
+        // ---------------------------------
 
         wait_time = millis();
         goto init_draw;
+
         while (1)
         {
             if (hal.btnl.isPressing())
@@ -888,9 +932,7 @@ namespace GUI
                 if (hal.btnl.isPressing())
                 {
                     if (selected == 0)
-                    {
                         selected = total;
-                    }
                     --selected;
                     if (selected < 0)
                         selected = 0;
@@ -908,9 +950,7 @@ namespace GUI
                     if (selected > total)
                         selected = total;
                     if (selected == total)
-                    {
                         selected = 0;
-                    }
                     updated = true;
                 }
                 wait_time = millis();
@@ -930,21 +970,25 @@ namespace GUI
                     else
                     {
                         if (selected == 0)
-                        {
                             break;
-                        }
                         else
                         {
                             if (options[selected].select == false)
                                 break;
                             else
                             {
-                                // 取反bool值并保存至NVS
+                                // 切换选项值并保存到 NVS
+                                bool new_val;
                                 if (options[selected].key == nullptr)
-                                    hal.pref.putBool(sha_option_key[selected], !hal.pref.getBool(sha_option_key[selected]));
+                                    new_val = !hal.pref.getBool(sha_option_key[selected]);
                                 else
-                                    hal.pref.putBool(options[selected].key, !hal.pref.getBool(options[selected].key));
+                                    new_val = !hal.pref.getBool(options[selected].key);
+                                if (options[selected].key == nullptr)
+                                    hal.pref.putBool(sha_option_key[selected], new_val);
+                                else
+                                    hal.pref.putBool(options[selected].key, new_val);
                                 updated = true;
+                                option_values_changed = true; // 标记值改变，需要重绘静态
                             }
                         }
                     }
@@ -955,73 +999,94 @@ namespace GUI
             if (updated)
             {
             init_draw:
-                // 判断是否出界并更新页面起始位置
+                // 页面边界调整
                 if (selected < pageStart)
-                {
                     pageStart = selected;
-                }
                 else if (selected >= pageStart + number_of_items)
-                {
                     pageStart = selected - number_of_items + 1;
-                }
 
-                TickType_t xLastWakeTime = xTaskGetTickCount();
-                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency); // 运行周期
-                // 动画：平滑移动选框
-                const int steps = 6; // 动画帧数，越大越平滑
-                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
-                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
-                for (int step = 0; step <= steps; ++step)
+                // 判断是否需要重新绘制静态内容（翻页、总数变化或选项值变化）
+                if (!static_valid || pageStart != last_pageStart || total != last_total || option_values_changed)
                 {
-                    // 计算当前矩形 Y 坐标（线性插值）
-                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
-                    // 绘制窗口背景和标题
+                    // ----- 绘制静态内容（窗口、标题、所有项目文字、复选框图标、滚动条轨道）-----
                     drawWindowsWithTitle(title, start_x, start_y, w, max_h);
                     display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
-                    // 绘制项目列表
+
                     int max_items = min(number_of_items, total);
                     for (int i = 0; i < max_items; ++i)
                     {
                         int item_y = start_y + 15 + item_height * i;
-                        if (options[i + pageStart].select == true)
+                        int idx = i + pageStart;
+                        // 复选框图标
+                        if (options[idx].select == true)
                         {
                             bool option_val;
-                            if (options[i + pageStart].key == nullptr)
-                                option_val = hal.pref.getBool(sha_option_key[i + pageStart]);
+                            if (options[idx].key == nullptr)
+                                option_val = hal.pref.getBool(sha_option_key[idx]);
                             else
-                                option_val = hal.pref.getBool(options[i + pageStart].key);
-
+                                option_val = hal.pref.getBool(options[idx].key);
                             if (option_val)
-                            {
                                 display.drawXBitmap(start_x + 5, item_y + 2, select_bits, ico_w, ico_h, 0);
-                            }
                             else
-                            {
                                 display.drawXBitmap(start_x + 5, item_y + 2, no_select_bits, ico_w, ico_h, 0);
-                            }
                         }
-                        u8g2Fonts.drawUTF8(start_x + 5 + (options[i + pageStart].select ? ico_w + 2 : 0), item_y + 13, options[i + pageStart].title);
-
-                        display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
+                        // 文字
+                        int text_x = start_x + 5 + (options[idx].select ? ico_w + 2 : 0);
+                        u8g2Fonts.drawUTF8(text_x, item_y + 13, options[idx].title);
                     }
-                    // 滚动条
+
+                    // 滚动条轨道（背景）
+                    if (total > number_of_items)
+                    {
+                        display.fillRoundRect(start_x + w - 5 + 1, start_y + 15, 3, h, 2, 1); // 浅色轨道
+                    }
+
+                    display.display(); // 此时显示完整静态内容（仅翻页或值变化时闪一次）
+
+                    // 将当前显示内容复制到静态缓冲区
+                    display.copyBuffer(STATIC_BUF, display.current_buffer_idx);
+
+                    // 更新状态
+                    last_pageStart = pageStart;
+                    last_total = total;
+                    static_valid = true;
+                    option_values_changed = false;
+                }
+
+                // ----- 动画：平滑移动选框，只绘制动态部分 -----
+                TickType_t xLastWakeTime = xTaskGetTickCount();
+                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency);
+                const int steps = 6;
+                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
+                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
+                for (int step = 0; step <= steps; ++step)
+                {
+                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
+
+                    // 从静态缓冲区恢复显示缓冲区（清除上一帧的选框和滑块）
+                    display.copyBuffer(display.current_buffer_idx, STATIC_BUF);
+                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
+
+                    // 绘制选框矩形
+                    display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
+                    // 绘制滚动条滑块
                     if (total > number_of_items)
                     {
                         barPos = selected * (h - barHeight) / total;
                         display.fillRoundRect(start_x + w - 5 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
                     }
+
                     display.display();
                     xTaskDelayUntil(&xLastWakeTime, xFrequency);
                 }
-                // 动画结束后更新 prev_selected
+
                 prev_selected = selected;
                 updated = false;
                 while (!init && (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()))
-                {
                     delay(10);
-                }
                 init = true;
             }
+
             if (waitc == true)
             {
                 waitc = false;
@@ -1036,12 +1101,12 @@ namespace GUI
                 wait_time = millis();
             }
         }
-        display.setDrawWindow(); // 恢复绘制窗口
+
+        display.setDrawWindow();
         pop_buffer();
         hal.unhookButton();
         return selected;
     }
-
     /**
      * @brief  全屏英文输入
      * @param name 输入框标题

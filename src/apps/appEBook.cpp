@@ -358,38 +358,58 @@ void AppEBook::setup()
     // 如果路径不以指定前缀开头，则返回原始路径
     return path;
 } */
-int8_t getCharLength(char zf, bool rebuild = false)
+int8_t getCharLength(uint16_t codepoint, bool force_reload = false)
 {
-    // 控制字符（0-31 和 127）宽度一律为 0
-    if ((zf >= 0 && zf <= 31) || zf == 127)
-        return 0;
-
-    // 静态查找表，只构建一次
-    static int8_t widthTable[128] = {0};
-    static bool tableBuilt = false;
-
-    if (!tableBuilt || rebuild)
+    static bool isloaded = false;
+    static uint8_t *table = NULL;
+    if (!isloaded || force_reload)
     {
-        // 仅对可打印字符 32-126 进行测量
-        for (int c = 32; c <= 126; c++)
+        String font_file;
+        if (!(hal.pref.getString("ebook_font", "default") == "default"))
+            font_file = hal.pref.getString("ebook_font", "default");
+        else
+            font_file = hal.pref.getString("system_font", "default");
+        if (table != NULL)
+            free(table);
+        table = (uint8_t *)heap_caps_malloc(sizeof(uint8_t[0xFFFF]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!hal.exists(font_file + ".width_table"))
         {
-            char str[2] = {(char)c, '\0'};
-            // u8g2 的 getUTF8Width 返回的是 u8g2_uint_t，转成 int8_t
-            widthTable[c] = (int8_t)u8g2Fonts.getUTF8Width(str);
+            u8g2Fonts.setFont(font_file.c_str());
+            GUI::msgbox("提示", "正在生成字体宽度表，可能需要400秒以上,请耐心等待...");
+            u8g2Fonts.BuildfontWidthTable(table, 0xFFFF);
+            File width_table_file = hal.open(font_file + ".width_table", "w");
+            if (width_table_file)
+            {
+                width_table_file.write(table, 0xFFFF);
+                width_table_file.close();
+            }
         }
-        tableBuilt = true;
+        else
+        {
+            File width_table_file = hal.open(font_file + ".width_table", "r");
+            if (width_table_file)
+            {
+                width_table_file.read(table, 0xFFFF);
+                width_table_file.close();
+            }
+            u8g2Fonts.SetfontWidthTable(table, 0xFFFF);
+        }
+        isloaded = true;
     }
-
-    return widthTable[(unsigned char)zf];
+    if (codepoint < 0xFFFF)
+        return (int8_t)table[codepoint];
+    else
+        return 12;
 }
 
 bool AppEBook::indexcode_3()
 {
     bool mode = hal.pref.getBool("Vertical");
     // ========== 1. 获取当前字体的动态参数 ==========
-    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 1;
+    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 2;
+    // int8_t fontWidth = u8g2Fonts.getFontWidth();
     int8_t fontHeight = u8g2Fonts.getFontHeight() + 3; // 字体高度（像素）
-    int8_t spaceWidth = u8g2Fonts.getUTF8Width(" ");   // 空格宽度（像素）
+    int8_t spaceWidth = getCharLength(' ', true);      // 空格宽度（像素）
     if (fontHeight <= 0)
         fontHeight = 14; // 防止异常
     if (spaceWidth <= 0)
@@ -440,6 +460,7 @@ bool AppEBook::indexcode_3()
 
     while (txtFile.available())
     {
+        assert(line < (maxline + 1));
         if (line_old != line) // 行首4个空格检测状态重置
         {
             line_old = line;
@@ -475,8 +496,8 @@ bool AppEBook::indexcode_3()
             }
         }
 
-        c = txtFile.read();                  // 读取一个字节
-        while (c == '\n' && line <= maxline) // 检查换行符,并将多个连续空白的换行合并成一个
+        c = txtFile.read();                 // 读取一个字节
+        while (c == '\n' && line < maxline) // 检查换行符,并将多个连续空白的换行合并成一个
         {
             // 检测到首行并且为空白则不需要插入换行
             if (line == 0) // 等于首行，并且首行不为空，才插入换行
@@ -514,41 +535,41 @@ bool AppEBook::indexcode_3()
         else
             txt[line] += c;
 
-        // 检查字符的格式 + 数据处理 + 长度计算
         boolean asciiState = 0;
-        byte a = B11100000;
-        byte b = c & a;
-
-        if (b == B11100000) // 中文等 3个字节
-        {
-            ch_count++;
-            c = txtFile.read();
-            txt[line] += c;
-            c = txtFile.read();
-            txt[line] += c;
-        }
-        else if (b == B11000000) // ascii扩展 2个字节
-        {
-            en_count += fontWidth;
-            c = txtFile.read();
-            txt[line] += c;
-        }
-        else if (c == '\t') // 水平制表符，代替两个中文位置，12*2
-        {
-            if (txt[line] == "    ")
-                en_count += spaceWidth * 4; // 行首，因为后面会检测4个空格再加4所以这里是20
-            else
-                en_count += fontWidth * 2; // 非行首
-        }
-        else if (c >= 0 && c <= 255)
-        {
-            en_count += getCharLength(c) + 1; // getCharLength=获取ascii字符的像素长度
+        if ((c & 0x80) == 0)
+        { // 单字节 ASCII
+            en_count += getCharLength(c);
             asciiState = 1;
         }
+        else if ((c & 0xE0) == 0xC0)
+        { // 双字节 UTF-8
+            char c2 = txtFile.read();
+            txt[line] += c2;
+            uint16_t cp = ((c & 0x1F) << 6) | (c2 & 0x3F);
+            en_count += getCharLength(cp);
+            asciiState = 1;
+        }
+        else if ((c & 0xF0) == 0xE0)
+        { // 三字节（中文）
+            char c2 = txtFile.read();
+            txt[line] += c2;
+            char c3 = txtFile.read();
+            txt[line] += c3;
+            uint16_t cp = ((c & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+            ch_count += getCharLength(cp);
+        }
+        else if (c == '\t')
+        {
+            uint8_t spaceW = getCharLength(' ');
+            if (txt[line] == "    ")
+                en_count += spaceW * 4;
+            else
+                en_count += spaceW * 4;
+        }
 
-        uint16_t StringLength = en_count + (ch_count * fontWidth); // 一个中文12个像素长度
+        uint16_t StringLength = en_count + ch_count;
 
-        if (StringLength >= textWidth - fontWidth * 2 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
+        if (StringLength >= textWidth - (fontWidth * 2) && hskgState) // 检测到行首的4个空格预计的长度再加长一点
         {
             if (txt[line][0] == ' ' && txt[line][1] == ' ' &&
                 txt[line][2] == ' ' && txt[line][3] == ' ')
@@ -558,33 +579,42 @@ bool AppEBook::indexcode_3()
             hskgState = 0;
         }
 
-        if (StringLength >= textWidth - fontWidth - 1) // 283个像素检查是否已填满屏幕 ，填满一行
+        if (StringLength >= textWidth - fontWidth - 3)
         {
             if (asciiState == 0)
             {
-                line++;
-                en_count = 0;
-                ch_count = 0;
-            }
-            else if (StringLength >= textWidth - (fontWidth / 3) * 2)
-            {
-                char t = txtFile.read();
-                txtFile.seek(-1, SeekCur); // 往回移
-                int8_t cz = (mode ? 168 : 378) - StringLength;
-                int8_t t_length = getCharLength(t);
-                byte a = B11100000;
-                byte b = t & a;
-                if (b == B11100000 || b == B11000000) // 中文 ascii扩展
+                if (line < maxline) // ← 增加边界保护
                 {
                     line++;
                     en_count = 0;
                     ch_count = 0;
                 }
+            }
+            else if (StringLength >= textWidth - (fontWidth / 3) * 2)
+            {
+                char t = txtFile.read();
+                txtFile.seek(-1, SeekCur);
+                int8_t cz = textWidth - 5 - StringLength;
+                int8_t t_length = getCharLength(t);
+                byte a = B11100000;
+                byte b = t & a;
+                if (b == B11100000 || b == B11000000)
+                {
+                    if (line < maxline) // ← 增加边界保护
+                    {
+                        line++;
+                        en_count = 0;
+                        ch_count = 0;
+                    }
+                }
                 else if (t_length > cz)
                 {
-                    line++;
-                    en_count = 0;
-                    ch_count = 0;
+                    if (line < maxline) // ← 增加边界保护
+                    {
+                        line++;
+                        en_count = 0;
+                        ch_count = 0;
+                    }
                 }
             }
         }
@@ -1166,7 +1196,8 @@ bool AppEBook::draw_page3()
 {
     bool mode = hal.pref.getBool("Vertical");
     // ========== 1. 获取当前字体的动态参数 ==========
-    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 1;
+    int8_t fontWidth = u8g2Fonts.getUTF8Width("中") + 2;
+    // int8_t fontWidth = u8g2Fonts.getFontWidth();
     int8_t fontHeight = u8g2Fonts.getFontHeight() + 3; // 字体高度（像素）
     int8_t spaceWidth = u8g2Fonts.getUTF8Width(" ");   // 空格宽度（像素）
     if (fontHeight <= 0)
@@ -1175,8 +1206,8 @@ bool AppEBook::draw_page3()
         spaceWidth = fontHeight / 2; // 保底
 
     // 根据屏幕方向和字体高度计算每页最大行数
-    const int screenHeight = mode ? 384 : 168;   // 竖屏 384，横屏 168
-    int maxline = screenHeight / fontHeight; // 动态行数
+    const int screenHeight = mode ? 384 : 168; // 竖屏 384，横屏 168
+    int maxline = screenHeight / fontHeight;   // 动态行数
     if (maxline < 1)
         maxline = 1;
 
@@ -1185,7 +1216,7 @@ bool AppEBook::draw_page3()
     const int textWidthVert = 165;
     int textWidth = mode ? textWidthVert : textWidthHoriz;
 
-    // log_i("fontHeight: %d, fontWidth: %d, spaceWidth: %d, maxline: %d, textWidth: %d", fontHeight, fontWidth, spaceWidth, maxline, textWidth);
+    log_i("fontHeight: %d, fontWidth: %d, spaceWidth: %d, maxline: %d, textWidth: %d", fontHeight, fontWidth, spaceWidth, maxline, textWidth);
 
     // ========== 2. 初始化变量 ==========
     String txt[maxline + 1]; // 动态行缓冲
@@ -1261,37 +1292,38 @@ bool AppEBook::draw_page3()
             txt[line] += c;
         // 检查字符的格式 + 数据处理 + 长度计算
         boolean asciiState = 0;
-        byte a = B11100000;
-        byte b = c & a;
-
-        if (b == B11100000) // 中文等 3个字节
-        {
-            ch_count++;
-            c = txtFile.read();
-            txt[line] += c;
-            c = txtFile.read();
-            txt[line] += c;
-        }
-        else if (b == B11000000) // ascii扩展 2个字节
-        {
-            en_count += fontWidth;
-            c = txtFile.read();
-            txt[line] += c;
-        }
-        else if (c == '\t') // 水平制表符，代替两个中文位置，12*2
-        {
-            if (txt[line] == "    ")
-                en_count += spaceWidth * 4; // 行首，因为后面会检测4个空格再加4所以这里是20
-            else
-                en_count += fontWidth * 2; // 非行首
-        }
-        else if (c >= 0 && c <= 255)
-        {
-            en_count += getCharLength(c) + 1;
+        if ((c & 0x80) == 0)
+        { // 单字节 ASCII
+            en_count += getCharLength(c);
             asciiState = 1;
         }
+        else if ((c & 0xE0) == 0xC0)
+        { // 双字节 UTF-8
+            char c2 = txtFile.read();
+            txt[line] += c2;
+            uint16_t cp = ((c & 0x1F) << 6) | (c2 & 0x3F);
+            en_count += getCharLength(cp);
+            asciiState = 1;
+        }
+        else if ((c & 0xF0) == 0xE0)
+        { // 三字节（中文）
+            char c2 = txtFile.read();
+            txt[line] += c2;
+            char c3 = txtFile.read();
+            txt[line] += c3;
+            uint16_t cp = ((c & 0x0F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+            ch_count += getCharLength(cp);
+        }
+        else if (c == '\t')
+        {
+            uint8_t spaceW = getCharLength(' ');
+            if (txt[line] == "    ")
+                en_count += spaceW * 4;
+            else
+                en_count += spaceW * 4;
+        }
 
-        uint16_t StringLength = en_count + (ch_count * fontWidth);
+        uint16_t StringLength = en_count + ch_count;
 
         if (StringLength >= textWidth - fontWidth * 2 && hskgState) // 检测到行首的4个空格预计的长度再加长一点
         {
@@ -1312,8 +1344,8 @@ bool AppEBook::draw_page3()
           log_print("预计像素长度:"); log_println(StringLength);
           log_print("实际像素长度:"); log_printf(u8g2Fonts.getUTF8Width(txt[line].c_str()));
           }*/
-
-        if (StringLength >= textWidth - fontWidth - 1) // 检查是否已填满屏幕 283
+        // log_i("当前 StringLength: %d, textWidth: %d", StringLength, textWidth - fontWidth - 3);
+        if (StringLength >= textWidth - fontWidth - 3)
         {
             // log_println("");
             // log_print("行"); log_print(line); log_print(" 预计像素长度:"); log_println(StringLength);
@@ -1328,7 +1360,7 @@ bool AppEBook::draw_page3()
             {
                 char t = txtFile.read();
                 txtFile.seek(-1, SeekCur); // 往回移
-                int8_t cz = (mode ? 168 : 378) - StringLength;
+                int8_t cz = textWidth - 5 - StringLength;
                 int8_t t_length = getCharLength(t);
                 /*log_print("字符t:"); log_println(t);
                   log_print("字符t:"); log_println(t, HEX);
@@ -1403,7 +1435,7 @@ bool AppEBook::draw_page3()
         // txt[i].replace(String("—"), "--");
         u8g2Fonts.setCursor(4 + offset, i * fontHeight + (fontHeight - 1));
         u8g2Fonts.print(txt[i]);
-        // log_i("%s", txt[i].c_str());
+        log_i("%s", txt[i].c_str());
     }
     display.swapBuffer(0);
 
