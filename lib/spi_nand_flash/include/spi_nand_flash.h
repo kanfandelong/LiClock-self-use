@@ -15,6 +15,9 @@
 #include "driver/spi_master.h"
 #endif
 
+#define FF_USE_TRIM 1
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

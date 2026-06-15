@@ -69,7 +69,7 @@ bool NANDFS::_initHardware()
     bus_cfg.max_transfer_sz = 4096 * 2;
 
     // 使用默认 SPI 主机 (可改为配置参数，这里固定使用 SPI2_HOST)
-    esp_err_t ret = spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
+    esp_err_t ret = spi_bus_initialize(SPI3_HOST, &bus_cfg, SPI_DMA_CH_AUTO);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "SPI bus init failed: %s", esp_err_to_name(ret));
         return false;
@@ -83,7 +83,7 @@ bool NANDFS::_initHardware()
     dev_cfg.queue_size = 10;
     dev_cfg.flags = SPI_DEVICE_HALFDUPLEX;
 
-    ret = spi_bus_add_device(SPI2_HOST, &dev_cfg, &_spi);
+    ret = spi_bus_add_device(SPI3_HOST, &dev_cfg, &_spi);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "SPI device add failed: %s", esp_err_to_name(ret));
         spi_bus_free(SPI2_HOST);
@@ -100,7 +100,7 @@ bool NANDFS::_initHardware()
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "NAND device init failed: %s", esp_err_to_name(ret));
         spi_bus_remove_device(_spi);
-        spi_bus_free(SPI2_HOST);
+        spi_bus_free(SPI3_HOST);
         _spi = nullptr;
         return false;
     }
@@ -118,7 +118,7 @@ void NANDFS::_deinitHardware()
     if (_spi) {
         spi_bus_remove_device(_spi);
         _spi = nullptr;
-        spi_bus_free(SPI2_HOST);
+        spi_bus_free(SPI3_HOST);
     }
     if (_pin_power >= 0) {
         gpio_hold_dis((gpio_num_t)_pin_power);
