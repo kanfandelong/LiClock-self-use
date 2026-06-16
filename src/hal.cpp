@@ -1174,149 +1174,8 @@ void HAL::wait_input(uint32_t sleeptime)
         log_i("uart唤醒");
     }
 }
-/* 
-#include "protected/my_coredump.h"
 
-esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
-    if (!summary) {
-        return ESP_ERR_INVALID_ARG;
-    }
-
-    // 1. 查找 core dump 分区
-    const esp_partition_t *core_part = esp_partition_find_first(
-        ESP_PARTITION_TYPE_DATA,
-        ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
-        NULL
-    );
-    if (!core_part) {
-        log_e("Core dump partition not found");
-        return ESP_ERR_NOT_FOUND;
-    }
-
-    // 2. 使用内存映射代替 malloc + read（避免大量内存分配，且能自动处理超出分区的部分？不能，但更规范）
-    spi_flash_mmap_handle_t handle;
-    const void *map_ptr;
-    esp_err_t err = esp_partition_mmap(core_part, 0, core_part->size,
-                                       SPI_FLASH_MMAP_DATA, &map_ptr, &handle);
-    if (err != ESP_OK) {
-        log_e("Failed to mmap core dump partition");
-        return err;
-    }
-
-    const uint8_t *buf = (const uint8_t *)map_ptr;
-    size_t buf_size = core_part->size;
-
-    // 3. 寻找 ELF 头（跳过前导数据）
-    const uint8_t *elf_start = NULL;
-    size_t elf_offset = 0;
-    for (size_t off = 0; off < 256 && off + 4 < buf_size; off++) {
-        if (memcmp(buf + off, "\177ELF", 4) == 0) {
-            elf_start = buf + off;
-            elf_offset = off;
-            break;
-        }
-    }
-    if (!elf_start) {
-        log_e("ELF header not found");
-        spi_flash_munmap(handle);
-        return ESP_ERR_INVALID_RESPONSE;
-    }
-
-    // 4. 安全读取 ELF 头关键字段（注意ELF头结构，偏移因32/64而异，这里按32位处理）
-    uint16_t e_phnum, e_phentsize;
-    uint32_t e_phoff;
-    memcpy(&e_phnum, elf_start + 0x2C, sizeof(e_phnum));
-    memcpy(&e_phoff, elf_start + 0x1C, sizeof(e_phoff));
-    memcpy(&e_phentsize, elf_start + 0x2A, sizeof(e_phentsize));
-    if (e_phnum == 0 || e_phnum > 100) {
-        log_e("Invalid program header count: %u", e_phnum);
-        spi_flash_munmap(handle);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    const uint8_t *phdr_start = elf_start + e_phoff;
-    size_t phdr_total_size = e_phnum * e_phentsize;
-    if (phdr_start + phdr_total_size > buf + buf_size) {
-        log_e("Program header table out of bounds");
-        spi_flash_munmap(handle);
-        return ESP_ERR_INVALID_SIZE;
-    }
-
-    // 5. 解析各段
-    int flag_tcb_found = 0;
-    for (int i = 0; i < e_phnum; i++) {
-        const elf_phdr *ph = (const elf_phdr *)(phdr_start + i * e_phentsize);
-
-        if (ph->p_type == PT_NOTE) {
-            const uint8_t *note_start = elf_start + ph->p_offset;
-            size_t note_memsz = ph->p_memsz;
-            if (note_start + note_memsz > buf + buf_size) {
-                log_w("PT_NOTE[%d] exceeds buffer, truncating", i);
-                note_memsz = (buf + buf_size) - note_start;
-            }
-
-            size_t consumed = 0;
-            while (consumed + sizeof(elf_note) <= note_memsz) {
-                const elf_note *note = (const elf_note *)(note_start + consumed);
-                // 名字和描述可能超出当前剩余大小
-                if (consumed + sizeof(elf_note) + note->n_namesz + note->n_descsz > note_memsz) {
-                    log_w("Corrupted note at offset %u", consumed);
-                    break;
-                }
-                const char *nm = (const char *)(note + 1);
-                const void *desc = nm + note->n_namesz;
-
-                if (strncmp(nm, "EXTRA_INFO", note->n_namesz) == 0) {
-                    esp_core_dump_summary_parse_extra_info(summary, desc);
-                } else if (strncmp(nm, "ESP_CORE_DUMP_INFO", note->n_namesz) == 0) {
-                    app_elf_parse_version_info(summary, desc);
-                }
-
-                size_t note_total = sizeof(elf_note) + note->n_namesz + note->n_descsz;
-                consumed += (note_total + 3) & ~3; // 4字节对齐
-            }
-        }
-        else if (ph->p_type == PT_LOAD) {
-            const uint8_t *seg_start = elf_start + ph->p_offset;
-            size_t seg_memsz = ph->p_memsz;
-            if (seg_start + seg_memsz > buf + buf_size) {
-                // 数据不在此分区内，无法解析
-                log_w("PT_LOAD[%d] data not in partition, skipping", i);
-                continue;
-            }
-
-            if (!flag_tcb_found && ph->p_vaddr == summary->exc_tcb) {
-                app_elf_parse_exc_task_name(summary, seg_start);
-                flag_tcb_found = 1;
-                log_d("Found TCB segment for crashed task");
-            } else if (flag_tcb_found == 1) {
-                // 假定紧跟着的 LOAD 段是异常栈
-                esp_core_dump_summary_parse_exc_regs(summary, seg_start);
-                esp_core_dump_summary_parse_backtrace_info(
-                    &summary->exc_bt_info,
-                    (void *)ph->p_vaddr,
-                    seg_start,
-                    seg_memsz
-                );
-                log_d("Parsed exception regs and backtrace");
-                flag_tcb_found = 2;
-                break;
-            }
-        }
-    }
-
-    spi_flash_munmap(handle);
-
-    if (flag_tcb_found < 2) {
-        log_w("Incomplete core dump: TCB/stack data missing (partition too small?)");
-        return ESP_ERR_NOT_SUPPORTED;  // 明确告知调用者数据不完整
-    }
-
-    log_i("Core dump summary parsed successfully");
-    return ESP_OK;
-} */
-
-const char* get_exc_cause_name(uint32_t exc_cause) {
+/* const char* get_exc_cause_name(uint32_t exc_cause) {
     switch (exc_cause) {
         case 0: return "IllegalInstructionCause";
         case 1: return "SyscallCause";
@@ -1428,7 +1287,7 @@ void show_check_info() {
     display.display(true);
 
     esp_restart();
-}
+} */
 
 void HAL::coredump_file()
 {

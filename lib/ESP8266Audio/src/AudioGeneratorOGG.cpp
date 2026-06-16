@@ -20,7 +20,58 @@
 
 #include "AudioGeneratorOGG.h"
 
-#define OGG_BUFF_BYTES 4096   // Buffer size in bytes (2048 PCM samples = 1024 stereo frames)
+#define OGG_BUFF_BYTES 4096   // Buffer size in bytes (2048 PCM samples)
+#define MAX_CHANNELS    8     // 最大支持的声道数（超过则只处理前 MAX_CHANNELS 个）
+
+// 定点下混系数 (Q15 格式：1.0 = 32768)
+static const int16_t COEF_MAIN_Q15     = 32768;  // 1.0
+static const int16_t COEF_CENTER_Q15   = 23170;  // 0.707
+static const int16_t COEF_SURROUND_Q15 = 23170;  // 0.707
+static const int16_t COEF_LFE_Q15      = 16384;  // 0.5
+
+// 定点饱和加法宏
+#define SATURATE_ADD(x, y) ( (int32_t)x + (int32_t)y > 32767 ? 32767 : ( (int32_t)x + (int32_t)y < -32768 ? -32768 : (x + y) ) )
+
+// 定点下混函数（无浮点）
+static void downmixStereo_fixed(int16_t *outL, int16_t *outR,
+                                const int16_t *samples, int channels) {
+    if (channels == 1) {
+        *outL = *outR = samples[0];
+        return;
+    }
+    if (channels == 2) {
+        *outL = samples[0];
+        *outR = samples[1];
+        return;
+    }
+
+    int32_t left = 0, right = 0;
+    int ch = (channels > MAX_CHANNELS) ? MAX_CHANNELS : channels;
+
+    for (int i = 0; i < ch; i++) {
+        int32_t s = samples[i];
+        switch (i) {
+            case 0: left  += (s * COEF_MAIN_Q15) >> 15; break;      // FL
+            case 1: right += (s * COEF_MAIN_Q15) >> 15; break;      // FR
+            case 2: left  += (s * COEF_CENTER_Q15) >> 15;           // FC
+                    right += (s * COEF_CENTER_Q15) >> 15; break;
+            case 3: left  += (s * COEF_LFE_Q15) >> 15;              // LFE
+                    right += (s * COEF_LFE_Q15) >> 15; break;
+            case 4: left  += (s * COEF_SURROUND_Q15) >> 15; break;  // BL
+            case 5: right += (s * COEF_SURROUND_Q15) >> 15; break;  // BR
+            case 6: left  += (s * COEF_SURROUND_Q15) >> 15; break;  // SL
+            case 7: right += (s * COEF_SURROUND_Q15) >> 15; break;  // SR
+            default:
+                left  += s >> 1;
+                right += s >> 1;
+                break;
+        }
+    }
+
+    // 饱和截断
+    *outL = left > 32767 ? 32767 : (left < -32768 ? -32768 : (int16_t)left);
+    *outR = right > 32767 ? 32767 : (right < -32768 ? -32768 : (int16_t)right);
+}
 
 AudioGeneratorOGG::AudioGeneratorOGG()
 {
@@ -125,56 +176,56 @@ bool AudioGeneratorOGG::loop()
 {
   if (!running) goto done;
 
-  // Try to consume the last sample first
+  // 尝试消费上一次剩余的样本（或静音初始化）
   if (!output->ConsumeSample(lastSample)) goto done;
 
   do {
-    if (buffPtr >= buffLen) {
-      // Buffer exhausted, decode more data
+    // 判断缓冲区是否足够取出一帧（channels 个样本）
+    int samples_needed = channels;
+    if (buffPtr + samples_needed > buffLen) {
+      // 缓冲区不足一帧，解码更多数据
       long ret = ov_read(vf, (char *)buff, OGG_BUFF_BYTES, &current_section);
       if (ret == OV_HOLE) {
-        // Hole in data, skip and continue
-        continue;
+        continue;  // 数据空洞，跳过
       } else if (ret < 0) {
-        // Error, stop
         running = false;
         goto done;
       } else if (ret == 0) {
-        // EOF
-        running = false;
+        running = false;  // EOF
         goto done;
       }
-      // ret is the number of bytes of PCM data (interleaved 16-bit samples)
-      buffLen = ret / sizeof(int16_t);  // Number of int16_t values
+      buffLen = ret / sizeof(int16_t);
       buffPtr = 0;
-    }
-
-    // We have buffered samples, feed them to output
-    if (buffPtr + 1 < buffLen) {
-      #ifdef CONFIG_DAC_32bit
-      lastSample[AudioOutput::LEFTCHANNEL]  = ((int32_t)buff[buffPtr]) << 16;
-      #else
-      lastSample[AudioOutput::LEFTCHANNEL]  = buff[buffPtr] & 0xffff;
-      #endif
-      buffPtr++;
-
-      if (channels == 2) {
-        #ifdef CONFIG_DAC_32bit
-        lastSample[AudioOutput::RIGHTCHANNEL] = ((int32_t)buff[buffPtr]) << 16;
-        #else
-        lastSample[AudioOutput::RIGHTCHANNEL] = buff[buffPtr] & 0xffff;
-        #endif
-        buffPtr++;
-      } else {
-        // Mono: duplicate left channel data
-        lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
-        // If ov_read returned mono interleaved (which shouldn't happen
-        // for Vorbis with channels==1, but just in case)
+      if (buffLen < samples_needed) {
+        running = false;  // 末尾不足一帧
+        goto done;
       }
-    } else {
-      // Not enough data for a full stereo frame, need more
-      buffPtr = buffLen; // Force reload on next iteration
     }
+
+    // 从缓冲区提取一帧原始样本
+    int16_t frame[MAX_CHANNELS];
+    int ch = (channels > MAX_CHANNELS) ? MAX_CHANNELS : channels;
+    for (int i = 0; i < ch; i++) {
+      frame[i] = buff[buffPtr++];
+    }
+    if (channels > MAX_CHANNELS) {
+      buffPtr += (channels - MAX_CHANNELS);
+    }
+
+    // 下混为立体声
+    int16_t left, right;
+    downmixStereo_fixed(&left, &right, frame, ch);
+
+    // 填充 lastSample（兼容 16/32 位 DAC）
+    #ifdef CONFIG_DAC_32bit
+    lastSample[AudioOutput::LEFTCHANNEL]  = ((int32_t)left) << 16;
+    lastSample[AudioOutput::RIGHTCHANNEL] = ((int32_t)right) << 16;
+    #else
+    lastSample[AudioOutput::LEFTCHANNEL]  = left;
+    lastSample[AudioOutput::RIGHTCHANNEL] = right;
+    #endif
+
+    // ★关键修复：立即尝试消费此样本，若输出忙则退出循环，下次再试
   } while (running && output->ConsumeSample(lastSample));
 
 done:
