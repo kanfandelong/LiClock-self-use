@@ -1366,6 +1366,7 @@ bool HAL::init()
           "          Powered by 看番の龙         \n"
           "       github.com/kanfandelong       \n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
+    log_i("构建分支:%s 构建提交:%s", GIT_BRANCH, GIT_COMMIT_HASH_SHORT);
     sprintf(_tz, "%s", hal.pref.getString("TZ", String("CST-8")).c_str());
     log_i("TZ: %s", _tz);
     setenv("TZ", _tz, 1); // 设置时区为东八区
@@ -1512,7 +1513,7 @@ bool HAL::init()
         if (LittleFS.exists("/System/log.txt"))
         {
             File log_file = LittleFS.open("/System/log.txt", "r");
-            if (log_file.size() > 1024 * 100)
+            if (log_file.size() > 1024 * pref.getInt("log_size_max", 512))
             {
                 log_file.close();
                 LittleFS.remove("/System/log.txt");
@@ -1523,11 +1524,12 @@ bool HAL::init()
     // test_littlefs_size(true);
     esp_reset_reason_t reset_reason = esp_reset_reason();
     esp_sleep_wakeup_cause_t sleep_wakeup_cause = esp_sleep_get_wakeup_cause();
-    if (reset_reason == ESP_RST_POWERON)
+    if (reset_reason != ESP_RST_DEEPSLEEP && reset_reason != ESP_RST_EXT && reset_reason != ESP_RST_PANIC)
     {
         if (hal.exists("/littlefs/System/start.vlbm"))
         {
             display.setPowerMode(POWER_MODE_HPM);
+            setCpuFrequencyMhz(240);
             GUI::PlayLBM_V(0, 0, "/littlefs/System/start.vlbm", TFT_BLACK);
             display.setPowerMode(POWER_MODE_LPM);
         }
@@ -1569,7 +1571,8 @@ bool HAL::init()
         u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
 
     peripherals.init();
-    weather.begin();
+    weather = new Weather();
+    weather->begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
     ttf.setFramebuffer(296, 128, 1);

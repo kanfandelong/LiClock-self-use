@@ -67,7 +67,7 @@ public:
     uint32_t alertPubTime = 0;
     time_t lastupdate = 0;
 };
-extern Weather weather;
+extern Weather *weather;
 
 #endif
 /*

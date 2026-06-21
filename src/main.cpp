@@ -44,7 +44,7 @@ void setup()
     }
 
     esp_reset_reason_t reset_reason = esp_reset_reason();
-    if (reset_reason == ESP_RST_POWERON)
+    if ((reset_reason == ESP_RST_POWERON) || (reset_reason == ESP_RST_WDT))
     {
         if (hal.pref.getBool(set_rtc_in_rst))
         {

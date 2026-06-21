@@ -43,13 +43,13 @@ void AppWarning::setup()
         return;
     }
     display.clearScreen();
-    if (weather.hasAlert)
+    if (weather->hasAlert)
     {
-        GUI::drawWindowsWithTitle(weather.alertTitle, 0, 0, MAX_X, MAX_Y);
+        GUI::drawWindowsWithTitle(weather->alertTitle, 0, 0, MAX_X, MAX_Y);
         u8g2Fonts.setBackgroundColor(1);
         u8g2Fonts.setForegroundColor(0);
         u8g2Fonts.setCursor(18 + 24, 31);
-        char *str = weather.alert;
+        char *str = weather->alert;
         while (*str)
         {
             if (u8g2Fonts.getCursorX() >= MAX_X - 16)

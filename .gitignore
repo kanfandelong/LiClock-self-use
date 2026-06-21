@@ -6,3 +6,5 @@ elf_versions/*
 elf_versions/elf_database.json
 .cache
 .deepseek
+include/git_info.h
+data/*

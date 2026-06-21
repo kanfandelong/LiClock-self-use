@@ -1,5 +1,6 @@
 #pragma once
 
+#include "git_info.h"
 #include <Arduino.h>
 #include <Fonts/Picopixel.h>
 #include <U8g2_for_Adafruit_GFX.h>
@@ -79,6 +80,10 @@ extern "C" {
 #define PIN_DAC_FMT 3
 #define PIN_DAC_XSMT 46
 
+#define PIN_MIC_VCC PIN_RTC_IRQ
+#define PIN_MIC_DATA GPIO_NUM_0
+#define PIN_MIC_CLK GPIO_NUM_41
+
 #define PIN_BUZZER 42
 #define PIN_SDA 1
 #define PIN_SCL 2
@@ -115,7 +120,7 @@ extern HardwareSerial *uart;
 
 extern AsyncWebServer server;
 extern float rain_data_raw[];
-extern int ydata[];
+extern int *ydata;
 extern const ico_desc weather_icons_day[];
 extern const ico_desc weather_frames[4];
 extern const ico_desc weather_icons_night[];

@@ -1,7 +1,7 @@
 #include <A_Config.h>
 
 float rain_data_raw[SAMPLE_COUNT];
-int ydata[SCREEN_WIDTH + PX_PER_SAMPLE];
+int *ydata;
 
 // 余弦
 float cosineInterpolation(float point)
@@ -24,7 +24,9 @@ float cosineInterpolation(float point)
 // 对降水数据进行插值
 void processRain(float max = 300.0)
 {
-    float factor = (float)(SAMPLE_COUNT/SAMPLE_STEP - 2) / (float)(SCREEN_WIDTH);
+    if (ydata == nullptr)
+        ydata = (int *)ps_malloc(sizeof(int[SCREEN_WIDTH + PX_PER_SAMPLE]));
+    float factor = (float)(SAMPLE_COUNT / SAMPLE_STEP - 2) / (float)(SCREEN_WIDTH);
     int i;
     for (i = 0; i < SCREEN_WIDTH + PX_PER_SAMPLE; i++)
     {

@@ -1147,6 +1147,68 @@ static int cmd_taskload(int argc, char **argv)
 #endif
 }
 
+static int cmd_taskctrl(int argc, char **argv)
+{
+#if (INCLUDE_vTaskSuspend == 1 && configUSE_TRACE_FACILITY == 1)
+    if (argc < 3)
+    {
+        return 1;
+    }
+
+    const char *action = argv[1];
+    const char *task_name = argv[2];
+
+    // 1. 保护系统关键任务（禁止操作 IDLE）
+    if (strcmp(task_name, "IDLE") == 0)
+    {
+        PRINT_ERROR("Cannot control IDLE task (system critical).");
+        return 2;
+    }
+
+    // 2. 通过任务名获取句柄
+    TaskHandle_t handle = xTaskGetHandle(task_name);
+    if (handle == NULL)
+    {
+        PRINT_ERROR("Task '%s' not found.", task_name);
+        return 1;
+    }
+
+    // 3. 执行动作
+    if (strcmp(action, "down") == 0)
+    {
+        // 防止挂起当前任务（会导致命令卡死且无法恢复）
+#if (INCLUDE_xTaskGetCurrentTaskHandle == 1)
+        if (handle == xTaskGetCurrentTaskHandle())
+        {
+            PRINT_ERROR("Cannot suspend the current command task (would hang forever).");
+            return 2;
+        }
+#endif
+        vTaskSuspend(handle);
+        PRINT_INFO("Task '%s' suspended.", task_name);
+    }
+    else if (strcmp(action, "up") == 0)
+    {
+        vTaskResume(handle);
+        PRINT_INFO("Task '%s' resumed.", task_name);
+    }
+    else if (strcmp(action, "del") == 0)
+    {
+        vTaskDelete(handle);
+        PRINT_INFO("Task '%s' delete.", task_name);
+    }
+    else
+    {
+        return 1;
+    }
+
+    return 0;
+#else
+    PRINT_ERROR("Requires INCLUDE_vTaskSuspend and configUSE_TRACE_FACILITY to be 1.");
+    return 2;
+#endif
+}
+
 static int cmd_bootapp_clock(int argc, char **argv)
 {
     hal.pref.putString(SETTINGS_PARAM_HOME_APP, "clock");
@@ -3282,6 +3344,7 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "taskstats", .help = "打印各任务CPU占用率（需configGENERATE_RUN_TIME_STATS=1）", .hint = no_info, .func = &cmd_taskstats, .argtable = NULL},
     {.command = "tasklist", .help = "打印任务列表及栈信息（vTaskList）", .hint = no_info, .func = &cmd_tasklist, .argtable = NULL},
     {.command = "taskload", .help = "显示最近N秒的CPU占用率(默认2秒)", .hint = "Usage: taskload [seconds]", .func = &cmd_taskload, .argtable = NULL},
+    {.command = "taskctrl", .help = "任务控制", .hint = "Usage: taskctrl <down|up|del> <task_name>", .func = &cmd_taskctrl, .argtable = NULL},
     {.command = "bootapp_clock", .help = "设置默认启动应用为clock", .hint = no_info, .func = &cmd_bootapp_clock, .argtable = NULL},
     {.command = "lightsleep", .help = "进入轻睡眠模式，可选超时", .hint = "Usage: lightsleep [timeout]", .func = &cmd_lightsleep, .argtable = NULL},
     {.command = "fserverbegin", .help = "启动文件服务器", .hint = no_info, .func = &cmd_fserverbegin, .argtable = NULL},

@@ -69,9 +69,9 @@ private:
         uint16_t rainmax = 0;
         for (int i = 0; i < SAMPLE_COUNT; ++i)
         {
-            if (weather.hour24[i + hal.global_hour_offset].rain > rainmax)
-                rainmax = weather.hour24[i + hal.global_hour_offset].rain;
-            rain_data_raw[i] = weather.hour24[i + hal.global_hour_offset].rain;
+            if (weather->hour24[i + hal.global_hour_offset].rain > rainmax)
+                rainmax = weather->hour24[i + hal.global_hour_offset].rain;
+            rain_data_raw[i] = weather->hour24[i + hal.global_hour_offset].rain;
         }
         if (rainmax < 500)
             rainmax = 500;
@@ -93,19 +93,19 @@ private:
             }
         }
         // 绘制天气图标
-        const void *last_symb = weather_icons_day[weather.hour24[hal.global_hour_offset].weathernum].data;
+        const void *last_symb = weather_icons_day[weather->hour24[hal.global_hour_offset].weathernum].data;
         int i = 0;
-        if ((last_symb == weather_icons_day[weather.hour24[1 + hal.global_hour_offset].weathernum].data) || (minute_shift < 10))
+        if ((last_symb == weather_icons_day[weather->hour24[1 + hal.global_hour_offset].weathernum].data) || (minute_shift < 10))
         {
-            drawWeatherIcon(0, weather.hour24[hal.global_hour_offset].weathernum); // 特殊处理，第一个图标放在屏幕最左侧防止看不到
+            drawWeatherIcon(0, weather->hour24[hal.global_hour_offset].weathernum); // 特殊处理，第一个图标放在屏幕最左侧防止看不到
             i = 1;
         }
         for (; i < SAMPLE_COUNT; ++i)
         {
-            if (weather_icons_day[weather.hour24[i + hal.global_hour_offset].weathernum].data != last_symb)
+            if (weather_icons_day[weather->hour24[i + hal.global_hour_offset].weathernum].data != last_symb)
             {
-                last_symb = weather_icons_day[weather.hour24[i + hal.global_hour_offset].weathernum].data;
-                drawWeatherIcon(i * PX_PER_SAMPLE - minute_shift, weather.hour24[i + hal.global_hour_offset].weathernum);
+                last_symb = weather_icons_day[weather->hour24[i + hal.global_hour_offset].weathernum].data;
+                drawWeatherIcon(i * PX_PER_SAMPLE - minute_shift, weather->hour24[i + hal.global_hour_offset].weathernum);
             }
         }
     }
@@ -126,9 +126,9 @@ private:
         u8g2Fonts.printf("%02d月%02d日 星期%s", month, date, dayOfWeek[day]);
         display.drawFastHLine(5, 45, 89, TFT_BLACK);
         u8g2Fonts.setCursor(2 + 24, 43 + 14);
-        GUI::autoIndentDraw(weather.desc1, 88);
+        GUI::autoIndentDraw(weather->desc1, 88);
         u8g2Fonts.setCursor(100, 12);
-        u8g2Fonts.print(weather.desc2);
+        u8g2Fonts.print(weather->desc2);
     }
     void drawTemp(int max, int min, int x)
     {
@@ -149,20 +149,20 @@ private:
         display.drawXBitmap(96 + 150, 2, weather_frames[3].data, weather_frames[3].width, weather_frames[3].height, TFT_BLACK);
         display.setFont(&FreeSans9pt7b);
         display.setCursor(96 + 12, 54);
-        display.print(weather.realtime.temperature / 10);
-        if (weather.realtime.humidity == 100)
+        display.print(weather->realtime.temperature / 10);
+        if (weather->realtime.humidity == 100)
             display.setCursor(96 + 8, 75);
-        else if (weather.realtime.humidity == 0)
+        else if (weather->realtime.humidity == 0)
             display.setCursor(96 + 16, 75);
         else
             display.setCursor(96 + 12, 75);
-        display.print(weather.realtime.humidity);
-        drawWeatherIcon(96 + 50 + 12, weather.five_days[0].weathernum, 35);
-        drawWeatherIcon(96 + 100 + 12, weather.five_days[1].weathernum, 35);
-        drawWeatherIcon(96 + 150 + 12, weather.five_days[2].weathernum, 35);
-        drawTemp(weather.five_days[0].max / 10, weather.five_days[0].min / 10, 50);
-        drawTemp(weather.five_days[1].max / 10, weather.five_days[1].min / 10, 100);
-        drawTemp(weather.five_days[2].max / 10, weather.five_days[2].min / 10, 150);
+        display.print(weather->realtime.humidity);
+        drawWeatherIcon(96 + 50 + 12, weather->five_days[0].weathernum, 35);
+        drawWeatherIcon(96 + 100 + 12, weather->five_days[1].weathernum, 35);
+        drawWeatherIcon(96 + 150 + 12, weather->five_days[2].weathernum, 35);
+        drawTemp(weather->five_days[0].max / 10, weather->five_days[0].min / 10, 50);
+        drawTemp(weather->five_days[1].max / 10, weather->five_days[1].min / 10, 100);
+        drawTemp(weather->five_days[2].max / 10, weather->five_days[2].min / 10, 150);
     }
     // 绘制全部内容
     void drawLayout()
@@ -227,15 +227,15 @@ void AppClock::setup()
         NTPSync();
         hal.getTime();
     }
-    if (hal.now < weather.lastupdate || hal.now - weather.lastupdate > 60 * atoi(config[PARAM_FULLUPDATE].as<const char *>()))
+    if (hal.now < weather->lastupdate || hal.now - weather->lastupdate > 60 * atoi(config[PARAM_FULLUPDATE].as<const char *>()))
     {
         GUI::info_msgbox("提示", "正在更新天气数据...");
         hal.autoConnectWiFi();
-        weather.refresh();
+        weather->refresh();
     }
-    if (weather.hasAlert && weather.alertPubTime != last_alertPubTime)
+    if (weather->hasAlert && weather->alertPubTime != last_alertPubTime)
     {
-        last_alertPubTime = weather.alertPubTime;
+        last_alertPubTime = weather->alertPubTime;
         appManager.gotoApp("warning");
         force_full_update = true;
         return;

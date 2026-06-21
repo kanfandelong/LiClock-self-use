@@ -1,6 +1,6 @@
 #include <A_Config.h>
 // 之前写的程序，一次获取，内存不足可尝试分批
-Weather weather;
+Weather *weather = nullptr;
 #define WEATHER_TYPE_COUNT 20
 const char *weather_codes[WEATHER_TYPE_COUNT] =
     {

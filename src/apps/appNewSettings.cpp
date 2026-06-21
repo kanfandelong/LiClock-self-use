@@ -1350,7 +1350,7 @@ void AppSettings::menu_system()
             // 立即更新天气
             {
                 GUI::info_msgbox("提示", "正在联网更新天气信息...");
-                int res = weather.refresh();
+                int res = weather->refresh();
                 if (res == 0)
                 {
                     GUI::msgbox("更新完成", "已将天气信息保存至/littlefs/System/weather.bin");

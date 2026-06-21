@@ -31,7 +31,7 @@ class AudioOutput
     virtual ~AudioOutput() {};
     virtual bool SetRate(int hz) { hertz = hz; return true; }
     virtual bool SetBitsPerSample(int bits) { bps = bits; return true; }
-    virtual int GetRate() { return hertz; }
+    virtual uint32_t GetRate() { return hertz; }
     virtual int GetBitsPerSample() { return bps; }
     virtual uint64_t GetPlaytimeMs() { return (playedSampleFrames * 1000) / hertz; }
     virtual bool SetChannels(int chan) { channels = chan; return true; }

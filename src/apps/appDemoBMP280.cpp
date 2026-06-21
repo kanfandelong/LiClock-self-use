@@ -28,8 +28,8 @@ void AppDemoBMP280::setup()
     xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
     if (peripherals.bmp.takeForcedMeasurement())
     {
-        log_printf("气压: %g Pa\n", weather.realtime.pressure);
-        sprintf(buf, "气压: %g Pa\n温度: %g ℃\n海拔: %g m", peripherals.bmp.readPressure(), peripherals.bmp.readTemperature(), peripherals.bmp.readAltitude(weather.realtime.pressure / 100));
+        log_printf("气压: %g Pa\n", weather->realtime.pressure);
+        sprintf(buf, "气压: %g Pa\n温度: %g ℃\n海拔: %g m", peripherals.bmp.readPressure(), peripherals.bmp.readTemperature(), peripherals.bmp.readAltitude(weather->realtime.pressure / 100));
         xSemaphoreGive(peripherals.i2cMutex);
     }
     else

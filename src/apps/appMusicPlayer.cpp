@@ -1185,6 +1185,28 @@ int countLyricLines(const char *path)
     return count;
 }
 
+String stripWordTimestamps(const String &input) {
+    String output;
+    output.reserve(input.length());
+    for (size_t i = 0; i < input.length(); ) {
+        if (input[i] == '[') {
+            size_t end = input.indexOf(']', i);
+            if (end != -1) {
+                String inside = input.substring(i + 1, end);
+                // 若括号内含有 ':' 或 '.'，视为时间戳并删除
+                if (inside.indexOf(':') != -1 || inside.indexOf('.') != -1) {
+                    i = end + 1;  // 跳过此时间戳
+                    continue;
+                }
+            }
+        }
+        output += input[i];
+        ++i;
+    }
+    output.trim();
+    return output;
+}
+
 /**
  * @brief 加载并解析歌词文件
  * @param path 音乐文件路径（用于生成歌词文件路径）
@@ -1288,8 +1310,8 @@ void AppMusicPlayer::loadLyrics(const char *path)
             {
                 timeStr = line.substring(1, closeBracket);
                 text = line.substring(closeBracket + 1);
-
-                // 去除两端空白并检查是否有实际歌词文本，若无则视为元数据行跳过
+                text.trim();
+                text = stripWordTimestamps(text); // 去除逐字时间戳
                 text.trim();
                 if (text.length() == 0)
                     continue;
@@ -2730,7 +2752,6 @@ void AppMusicPlayer::show_display_vlbm()
     if (info.tlen != 0 && play_time > info.tlen)
         play_time = info.tlen;
 
-
     // +++ 在函数入口立即记录开始时间（所有路径均会执行）+++
     d_time.start = micros();
 
@@ -3036,7 +3057,6 @@ void AppMusicPlayer::show_display_vlbm()
                 xFrequency = max_ticks;
         }
     }
-
 }
 
 /**
