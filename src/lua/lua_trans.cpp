@@ -162,11 +162,6 @@ void openLua()
     lua_setglobal(L, "pinMode");
 }
 
-// 兼容旧调用：无参数版本
-void lua_execute(const char *filename) {
-    lua_execute(filename, 0, NULL);
-}
-
 // 带参数版本（arg[0]=文件名，arg[1..]为传入参数）
 void lua_execute(const char *filename, int argc, const char **argv)
 {
@@ -240,6 +235,11 @@ void lua_execute(const char *filename, int argc, const char **argv)
         // 注意：如果 full_err 仍是原始错误，原始错误仍在栈顶，同样弹出
         lua_pop(L, 1); // 弹出错误信息
     }
+}
+
+// 兼容旧调用：无参数版本
+void lua_execute(const char *filename) {
+    lua_execute(filename, 0, NULL);
 }
 
 void closeLua()
