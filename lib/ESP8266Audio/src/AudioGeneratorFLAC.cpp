@@ -471,12 +471,18 @@ void AudioGeneratorFLAC::fillTask(void *param)
 void AudioGeneratorFLAC::start_fillTask()
 {
   log_i("初始化环形缓冲区");
-  ringBufferStorage = (uint8_t *)heap_caps_malloc(RINGBUF_SIZE, MALLOC_CAP_SPIRAM);
+  size_t RINGBUF = RINGBUF_SIZE;
+  ringBufferStorage = (uint8_t *)heap_caps_malloc(RINGBUF, MALLOC_CAP_SPIRAM);
   if (!ringBufferStorage)
   {
-    log_e("Failed to allocate PSRAM for ring buffer");
-    en_ringbuff = false;
-    return;
+    RINGBUF = RINGBUF_SIZE / 2;
+    ringBufferStorage = (uint8_t *)heap_caps_malloc(RINGBUF, MALLOC_CAP_SPIRAM);
+    if (!ringBufferStorage)
+    {
+      log_e("Failed to allocate PSRAM for ring buffer");
+      en_ringbuff = false;
+      return;
+    }
   }
 
   tempBuffer = (uint8_t *)heap_caps_malloc(TEMPBUF_SIZE, MALLOC_CAP_SPIRAM);
@@ -488,7 +494,7 @@ void AudioGeneratorFLAC::start_fillTask()
     return;
   }
 
-  ringBuf = xRingbufferCreateStatic(RINGBUF_SIZE, RINGBUF_TYPE_BYTEBUF, ringBufferStorage, &StaticRingbuffer);
+  ringBuf = xRingbufferCreateStatic(RINGBUF, RINGBUF_TYPE_BYTEBUF, ringBufferStorage, &StaticRingbuffer);
   if (!ringBuf)
   {
     heap_caps_free(ringBufferStorage);

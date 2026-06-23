@@ -18,6 +18,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef no_dac_en
+
 #include <Arduino.h>
 #ifdef ESP32
   #include "driver/i2s.h"
@@ -113,7 +115,7 @@ bool AudioOutputI2SNoDAC::ConsumeSample(int16_t sample[2])
 {
   int16_t ms[2];
   #ifdef CONFIG_DAC_32bit
-  int samp_32[2];
+  int32_t samp_32[2];
   samp_32[0] = sample[0];
   samp_32[1] = sample[1];
   MakeSampleStereo16( samp_32 );
@@ -149,3 +151,5 @@ bool AudioOutputI2SNoDAC::ConsumeSample(int16_t sample[2])
 #endif
   return true;
 }
+
+#endif

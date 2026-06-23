@@ -62,7 +62,10 @@ esp_err_t esp_vfs_fat_nand_mount(const char *base_path, spi_nand_flash_device_t 
             sector_size,
             mount_config->allocation_unit_size);
         ESP_LOGI(TAG, "Formatting FATFS partition, allocation unit size=%d", alloc_unit_size);
-#ifdef MKFS_PARM
+#if FF_DEFINED == 86604
+        const MKFS_PARM opt = {(BYTE)FM_ANY, 0, 0, 0, alloc_unit_size};
+        fresult = f_mkfs(drv, &opt, workbuf, workbuf_size);
+#elif FF_DEFINED == 80286
         const MKFS_PARM opt = {(BYTE)FM_ANY, 0, 0, 0, alloc_unit_size};
         fresult = f_mkfs(drv, &opt, workbuf, workbuf_size);
 #else

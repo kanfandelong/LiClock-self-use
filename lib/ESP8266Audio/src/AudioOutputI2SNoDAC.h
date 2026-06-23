@@ -17,6 +17,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#ifdef no_dac_en
 
 #pragma once
 
@@ -36,7 +37,7 @@ class AudioOutputI2SNoDAC : public AudioOutputI2S
 #endif
 
     virtual ~AudioOutputI2SNoDAC() override;
-    virtual bool begin() override { return AudioOutputI2S::begin(false); }
+    virtual bool begin() override { return AudioOutputI2S::begin(); }
     #ifdef CONFIG_DAC_32bit
     virtual bool ConsumeSample(int32_t sample[2]) override;
     #else
@@ -54,3 +55,5 @@ class AudioOutputI2SNoDAC : public AudioOutputI2S
     fixed24p8_t lastSamp; // Last sample value
     fixed24p8_t cumErr;   // Running cumulative error since time began
 };
+
+#endif

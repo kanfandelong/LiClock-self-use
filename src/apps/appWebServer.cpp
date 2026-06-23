@@ -46,6 +46,7 @@ void AppWebserver::setup()
         u8g2Fonts.printf("将连接WiFi并启动HTTP服务器\n");
         display.display();
         hal.autoConnectWiFi();
+        WiFi.setSleep(WIFI_PS_NONE);
         beginWebServer();
         u8g2Fonts.printf("请在浏览器中打开以下网址访问\n");
         u8g2Fonts.printf("http://%s\n", WiFi.localIP().toString().c_str());

@@ -725,8 +725,8 @@ bool HAL::cheak_firmware_update()
         // 计算动态缓冲区大小（考虑CRLF可能被替换为LF）
         size_t file_size = CAcert.size();
         // 假设每个CRLF可能被替换为LF，最大需要file_size * 2的空间（极端情况）
-        ca_cert = new (std::nothrow) char[file_size + 1]; // +1为终止符
-                                                          // 读取证书内容并替换CRLF为LF
+        ca_cert = new char[file_size + 1]; // +1为终止符
+                                           // 读取证书内容并替换CRLF为LF
         size_t index = 0;
         while (CAcert.available())
         {
@@ -790,10 +790,12 @@ run:
         }
         log_e("无法获取固件更新状态,http code:%d", httpCode);
         http.end();
+        delete[] ca_cert;
         return false;
     }
     http.end();
     log_i("结束固件更新状态检查");
+    delete[] ca_cert;
     return true;
 }
 
@@ -1138,6 +1140,7 @@ void HAL::ReqWiFiConfig()
     }
 } */
 #include "driver/uart.h"
+#include "driver/uart_wakeup.h"
 void HAL::wait_input(uint32_t sleeptime)
 {
     if (hal.can_light_sleep)
@@ -1146,19 +1149,24 @@ void HAL::wait_input(uint32_t sleeptime)
             esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
         else
             esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
-        uart_set_wakeup_threshold(0, 3);
-        esp_sleep_enable_uart_wakeup(0);
+        uart_wakeup_cfg_t uart_wakeup_cfg = {};
+        uart_wakeup_cfg.wakeup_mode = UART_WK_MODE_ACTIVE_THRESH;
+        uart_wakeup_cfg.rx_edge_threshold = 3;
+        uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg);
+        esp_sleep_enable_uart_wakeup(UART_NUM_0);
         if (hal.btn_activelow)
         {
             gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
-            esp_sleep_enable_gpio_wakeup();
-            esp_sleep_enable_ext0_wakeup((gpio_num_t)PIN_BUTTONL, 0);
-            esp_sleep_enable_ext1_wakeup((1LL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_LOW);
+            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_LOW_LEVEL);
+            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_LOW_LEVEL);
         }
         else
         {
-            esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
+            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL);
+            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL);
+            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL);
         }
+        esp_sleep_enable_gpio_wakeup();
         log_i("进入lightsleep");
         esp_light_sleep_start();
     }
@@ -1175,7 +1183,7 @@ void HAL::wait_input(uint32_t sleeptime)
     }
 }
 
-/* const char* get_exc_cause_name(uint32_t exc_cause) {
+const char* get_exc_cause_name(uint32_t exc_cause) {
     switch (exc_cause) {
         case 0: return "IllegalInstructionCause";
         case 1: return "SyscallCause";
@@ -1287,7 +1295,7 @@ void show_check_info() {
     display.display(true);
 
     esp_restart();
-} */
+}
 
 void HAL::coredump_file()
 {
@@ -1332,9 +1340,22 @@ void HAL::coredump_file()
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
             GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
+            // show_check_info();
         else
             GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
     }
+}
+
+// 定义关机处理函数
+static void shutdown_handler(void) {
+    log_i("正在终止应用程序...");
+    log_system_deinit();
+    peripherals.sleep();
+    LittleFS.end();
+    hal.pref.end();
+    ledcDetach(PIN_BUZZER);
+    pinMode(PIN_BUZZER, OUTPUT);
+    digitalWrite(PIN_BUZZER, 0);  
 }
 
 static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
@@ -1366,11 +1387,12 @@ bool HAL::init()
           "          Powered by 看番の龙         \n"
           "       github.com/kanfandelong       \n");
     log_i("系统初始化，固件版本:%s  构建日期:%s %s 构建主机: GNU/Linux 6.6.87.2 Ubuntu24.04 x86_64", code_version, __DATE__, __TIME__);
-    log_i("构建分支:%s 构建提交:%s", GIT_BRANCH, GIT_COMMIT_HASH_SHORT);
+    log_i("IDF:%s Arduino:%s 构建分支:%s 构建提交:%s", esp_get_idf_version(), ESP_ARDUINO_VERSION_STR, GIT_BRANCH, GIT_COMMIT_HASH_SHORT);
     sprintf(_tz, "%s", hal.pref.getString("TZ", String("CST-8")).c_str());
     log_i("TZ: %s", _tz);
     setenv("TZ", _tz, 1); // 设置时区为东八区
     tzset();
+    esp_register_shutdown_handler(shutdown_handler);
     // 读取时钟偏移
 
     if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 1 || pref.getBool("switch_btn"))
@@ -1414,7 +1436,6 @@ bool HAL::init()
     //     btnc._buttonPressed = 0;
     //     btn_activelow = true;
     // }
-    esp_task_wdt_init(portMAX_DELAY, false);
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SCL, OUTPUT | PULLUP);
@@ -1693,7 +1714,7 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     log_i("IP:%s", WiFi.localIP().toString().c_str());
     log_i("MAC:%s", WiFi.macAddress().c_str());
     log_i("信号强度:%d", WiFi.RSSI());
-    sntp_stop();
+    esp_sntp_stop();
     return true;
 }
 
@@ -1716,10 +1737,19 @@ void HAL::searchWiFi()
 extern RTC_DATA_ATTR bool ebook_run;
 void HAL::set_sleep_set_gpio_interrupt()
 {
+    rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
+    rtc_gpio_init((gpio_num_t)PIN_BUTTONL);
+    rtc_gpio_init((gpio_num_t)PIN_BUTTONR);
     if (hal.btn_activelow)
     {
         esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0);
         esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW);
+        rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONC);
+        rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONL);
+        rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONR);
+        rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONC);
+        rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONL);
+        rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONR);
     }
     else
     {
@@ -1732,6 +1762,12 @@ void HAL::set_sleep_set_gpio_interrupt()
         {
             esp_sleep_enable_ext1_wakeup((1ULL << PIN_BUTTONC) | (1ULL << PIN_BUTTONL) | (1ULL << PIN_BUTTONR), ESP_EXT1_WAKEUP_ANY_HIGH);
         }
+        rtc_gpio_pullup_dis((gpio_num_t)PIN_BUTTONC);
+        rtc_gpio_pullup_dis((gpio_num_t)PIN_BUTTONL);
+        rtc_gpio_pullup_dis((gpio_num_t)PIN_BUTTONR);
+        rtc_gpio_pulldown_en((gpio_num_t)PIN_BUTTONC);
+        rtc_gpio_pulldown_en((gpio_num_t)PIN_BUTTONL);
+        rtc_gpio_pulldown_en((gpio_num_t)PIN_BUTTONR);
     }
 }
 void printDisplayVertical()
@@ -1805,7 +1841,8 @@ static void pre_sleep()
     // hal.pref.end();
     // printDisplayVertical();
     delay(10);
-    ledcDetachPin(PIN_BUZZER);
+    ledcDetach(PIN_BUZZER);
+    pinMode(PIN_BUZZER, OUTPUT);
     digitalWrite(PIN_BUZZER, 0);
 }
 static void wait_display()
@@ -1846,7 +1883,7 @@ void HAL::goSleep(uint32_t sec)
         display.begin();
         LittleFS.begin(false);
         peripherals.wakeup();
-        ledcAttachPin(PIN_BUZZER, 0);
+        ledcAttach(PIN_BUZZER, 20000, 10);
     }
     else
     {

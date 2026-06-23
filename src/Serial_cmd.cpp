@@ -1,6 +1,6 @@
 #include "Serial_cmd.h"
 #include <nvs_flash.h>
-#include "chip-debug-report.h"
+#include "my_chip-debug-report.h"
 #include <cstring>
 
 // Forward declaration for custom hint lookup
@@ -162,6 +162,7 @@ void CMD::begin()
     esp_console_config_t console_config = {
         .max_cmdline_length = 8192,
         .max_cmdline_args = 32,
+        .heap_alloc_caps = MALLOC_CAP_SPIRAM,
         .hint_color = 39,
         .hint_bold = 0};
     esp_console_init(&console_config);
@@ -3304,6 +3305,25 @@ static int cmd_buildfontwidthtable(int argc, char **argv)
     return 0;
 }
 
+extern void lua_execute(const char *filename, int argc, const char **argv);
+
+static int cmd_luarun(int argc, char **argv)
+{
+    // 至少需要一个参数：文件名
+    if (argc < 2) {
+        return 1;   // 返回 1 触发帮助信息
+    }
+
+    const char *filename = argv[1];
+    
+    // 将命令行参数（跳过文件名本身）传递给 Lua
+    // argc - 2 是实际参数个数，argv + 2 是参数数组起始位置
+    lua_execute(filename, argc - 2, (const char **)(argv + 2));
+
+    // 注意：lua_execute 内部已打印错误，这里直接返回成功
+    return 0;
+}
+
 extern void printAppList();
 
 static int cmd_applist(int argc, char **argv)
@@ -3386,6 +3406,11 @@ static const esp_console_cmd_t cmds[] = {
      .argtable = NULL},
     {.command = "fontinfo", .help = "显示当前u8g2字体的详细信息", .hint = no_info, .func = &cmd_fontinfo, .argtable = NULL},
     {.command = "buildfontwidthtable", .help = "构建当前字体的宽度表并保存到文件", .hint = no_info, .func = &cmd_buildfontwidthtable, .argtable = NULL},
+    {.command = "luarun",
+     .help = "执行 Lua 脚本文件，支持传递参数",
+     .hint = "Usage: luarun <filename> [arg1] [arg2] ...",
+     .func = &cmd_luarun,
+     .argtable = NULL},
     {.command = "applist", .help = "显示所有已注册的app", .hint = no_info, .func = &cmd_applist, .argtable = NULL},
     {.command = "about", .help = "中断当前的运行", .hint = no_info, .func = &cmd_about, .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};

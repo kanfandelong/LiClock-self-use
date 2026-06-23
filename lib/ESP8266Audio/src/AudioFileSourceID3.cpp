@@ -252,7 +252,7 @@ uint32_t AudioFileSourceID3::read(void *data, uint32_t len)
         uint8_t sink[256];
         while (remain > 0)
         {
-            uint32_t chunk = std::min(remain, sizeof(sink));
+            uint32_t chunk = std::min<uint32_t>(remain, sizeof(sink));
             uint32_t bytesRead = src->read(sink, chunk);
             if (bytesRead == 0)
                 break; // EOF

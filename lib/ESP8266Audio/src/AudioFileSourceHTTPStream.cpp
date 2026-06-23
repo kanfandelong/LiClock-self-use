@@ -42,7 +42,7 @@ bool AudioFileSourceHTTPStream::open(const char *url)
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(60000);
   http.setReuse(false);
-  String urlStr = String(url);
+/*   String urlStr = String(url);
   bool isHttps = urlStr.startsWith("https://");
 
   if (isHttps)
@@ -50,8 +50,8 @@ bool AudioFileSourceHTTPStream::open(const char *url)
     _client.setInsecure();
     http.begin(_client, url);
   }
-  else
-    http.begin(client, url);
+  else */
+  http.begin(client, url);
 
   http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
   http.addHeader("Accept", "*/*");
@@ -61,7 +61,7 @@ bool AudioFileSourceHTTPStream::open(const char *url)
   if (code != HTTP_CODE_OK)
   {
     http.end();
-    cb.st(STATUS_HTTPFAIL, PSTR("Can't open HTTP request"));
+    log_e("Can't open HTTP request");
     return false;
   }
   size = http.getSize();

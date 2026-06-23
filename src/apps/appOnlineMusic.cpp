@@ -739,11 +739,11 @@ void AppOnlineMusic::setup()
     GUI::info_msgbox("提示", "WIFI连接成功");
 
     // ---- 初始化音频输出 ----
-    i2sOut = new AudioOutputI2S(0, 0, 8, true);
+    i2sOut = new AudioOutputI2S(0, 8);
     i2sOut->SetGain(currentVolume / 21.0f);
     i2sOut->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
     i2sOut->SetMclk(false);
-    i2sOut->Set_bits_per_chan(I2S_BITS_PER_CHAN_32BIT);
+    i2sOut->SetBitsPerChan(I2S_SLOT_BIT_WIDTH_32BIT);
     i2sOut->set_ConsumeSample_CB(GetSampleCB);
     digitalWrite(PIN_DAC_EN, 1);
     hal.cheak_freq(240);

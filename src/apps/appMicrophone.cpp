@@ -1,5 +1,6 @@
 #include "AppManager.h"
-#include <driver/i2s.h>
+#include "driver/i2s_std.h"
+#include "driver/i2s_pdm.h"
 
 class AppMicrophone : public AppBase
 {
@@ -80,84 +81,69 @@ void AppMicrophone::setup()
     digitalWrite(PIN_DAC_XSMT, HIGH);
     delay(10);
 
-    // ────────── 2. PDM 麦克风：I2S0 接收 ──────────
-    i2s_config_t i2s_rx_config = {
-        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM),
-        .sample_rate          = 48000,
-        .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-        .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
-        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count        = 4,
-        .dma_buf_len          = 256,
-        .use_apll             = false,
+    // ────────── 2. 【新 API】I2S0 RX：PDM 数字麦克风 ──────────
+    i2s_chan_handle_t rx_handle = NULL;
+    
+    i2s_chan_config_t rx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    ESP_ERROR_CHECK(i2s_new_channel(&rx_chan_cfg, NULL, &rx_handle));
+
+    i2s_pdm_rx_config_t pdm_rx_cfg = {
+        .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG(48000), // 48kHz 采样率
+        .slot_cfg = I2S_PDM_RX_SLOT_PCM_FMT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .gpio_cfg = {
+            .clk = PIN_MIC_CLK,
+            .din = PIN_MIC_DATA,
+            .invert_flags = {
+                .clk_inv = false,
+            },
+        },
     };
+    ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_handle, &pdm_rx_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
 
-    i2s_pin_config_t mic_pins = {
-        .mck_io_num   = I2S_PIN_NO_CHANGE,
-        .bck_io_num   = I2S_PIN_NO_CHANGE,
-        .ws_io_num    = PIN_MIC_CLK,
-        .data_out_num = I2S_PIN_NO_CHANGE,
-        .data_in_num  = PIN_MIC_DATA,
+    // ────────── 3. 【新 API】I2S1 TX：外置 DAC ──────────
+    i2s_chan_handle_t tx_handle = NULL;
+
+    i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_1, I2S_ROLE_MASTER);
+    ESP_ERROR_CHECK(i2s_new_channel(&tx_chan_cfg, &tx_handle, NULL));
+
+    i2s_std_config_t std_tx_cfg = {
+        .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(48000), 
+        .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_STEREO),
+        .gpio_cfg = {
+            .mclk = (gpio_num_t)PIN_I2S_MCLK,
+            .bclk = (gpio_num_t)PIN_I2S_BCLK,
+            .ws   = (gpio_num_t)PIN_I2S_LRCK,
+            .dout = (gpio_num_t)PIN_I2S_DOUT,
+            .din  = (gpio_num_t)I2S_GPIO_UNUSED,
+            .invert_flags = {
+                .mclk_inv = false,
+                .bclk_inv = false,
+                .ws_inv   = false,
+            },
+        },
     };
-
-    esp_err_t err = i2s_driver_install(I2S_NUM_0, &i2s_rx_config, 0, NULL);
-    if (err != ESP_OK) {
-        log_e("I2S0 驱动安装失败");
-        return;
-    }
-    i2s_set_pin(I2S_NUM_0, &mic_pins);
-    i2s_set_pdm_rx_down_sample(I2S_NUM_0, I2S_PDM_DSR_8S);
-
-    // ────────── 3. I2S DAC：I2S1 发送 ──────────
-    i2s_config_t i2s_tx_config = {
-        .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate          = 48000,
-        .bits_per_sample      = I2S_BITS_PER_SAMPLE_32BIT,
-        .channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT,
-        .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-        .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count        = 4,
-        .dma_buf_len          = 256,
-        .use_apll             = false,
-        .bits_per_chan        = I2S_BITS_PER_CHAN_32BIT,
-    };
-
-    i2s_pin_config_t dac_pins = {
-        .mck_io_num   = PIN_I2S_MCLK,
-        .bck_io_num   = PIN_I2S_BCLK,
-        .ws_io_num    = PIN_I2S_LRCK,
-        .data_out_num = PIN_I2S_DOUT,
-        .data_in_num  = I2S_PIN_NO_CHANGE,
-    };
-
-    err = i2s_driver_install(I2S_NUM_1, &i2s_tx_config, 0, NULL);
-    if (err != ESP_OK) {
-        log_e("I2S1 驱动安装失败");
-        return;
-    }
-    i2s_set_pin(I2S_NUM_1, &dac_pins);
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle, &std_tx_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
 
     // ────────── 注册按键回调 ──────────
     hal.btnl.attachClick(onBtnL_Click, this);
     hal.btnl.attachLongPressStart(onBtnL_LongPressStart, this);
     hal.btnr.attachClick(onBtnR_Click, this);
     hal.btnr.attachLongPressStart(onBtnR_LongPressStart, this);
-    // 注意：中间键未使用，如需也可注册
 
     log_i("麦克风 + DAC 已启动，实时监听中...");
 
-    // ────────── 4. 音频环回主循环（含音量和退出控制）──────────
+    // ────────── 4. 音频环回主循环 ──────────
     const int buffer_samples = 256;
     int16_t rx_buffer[buffer_samples];
     int32_t tx_buffer[buffer_samples * 2];
-    size_t bytes_read, bytes_written;
+    size_t bytes_read = 0, bytes_written = 0;
 
     while (true) {
         // 检查按键标志
         if (flag_btnl_click) {
             flag_btnl_click = false;
-            // 降低音量
             _gain -= _volume_step;
             if (_gain < _gain_min) _gain = _gain_min;
             log_i("音量降低，当前增益：%.2f", _gain);
@@ -165,7 +151,6 @@ void AppMicrophone::setup()
 
         if (flag_btnr_click) {
             flag_btnr_click = false;
-            // 增加音量
             _gain += _volume_step;
             if (_gain > _gain_max) _gain = _gain_max;
             log_i("音量增加，当前增益：%.2f", _gain);
@@ -174,12 +159,14 @@ void AppMicrophone::setup()
         if (flag_btnl_long) {
             flag_btnl_long = false;
             log_i("长按左键，退出麦克风");
-            break;  // 跳出循环，准备退出
+            break;  // 退出循环
         }
 
-        // 读取麦克风数据
-        err = i2s_read(I2S_NUM_0, rx_buffer, sizeof(rx_buffer), &bytes_read, portMAX_DELAY);
-        if (err == ESP_OK) {
+        // ★★★ 关键修改：改用 i2s_channel_read 读取数据 ★★★
+        // 这里的 1000 是超时时间(ms)。如果你没吹气，麦克风也会输出底噪，bytes_read 不会一直为0
+        esp_err_t err = i2s_channel_read(rx_handle, rx_buffer, sizeof(rx_buffer), &bytes_read, 1000);
+        
+        if (err == ESP_OK && bytes_read > 0) {
             int samples = bytes_read / sizeof(int16_t);
             // 应用增益并复制为立体声
             for (int i = 0; i < samples; i++) {
@@ -192,16 +179,29 @@ void AppMicrophone::setup()
                 tx_buffer[i * 2]     = scaled << 16;   // 左声道
                 tx_buffer[i * 2 + 1] = scaled << 16;   // 右声道
             }
-            i2s_write(I2S_NUM_1, tx_buffer, samples * 4 * 2, &bytes_written, portMAX_DELAY);
+            
+            // ★★★ 关键修改：改用 i2s_channel_write 写入数据 ★★★
+            err = i2s_channel_write(tx_handle, tx_buffer, samples * 4 * 2, &bytes_written, 1000);
+            if (err != ESP_OK) {
+                log_e("写入超时");
+            } else {
+                // 打印当前实际读取的第一个样本，会随着声音实时变化，不再是 -23131
+                // log_i("样本: %d", rx_buffer[0]); 
+            }
+        } else {
+            // 如果bytes_read始终为0，说明麦克风硬件时钟没有收到数据
+            log_e("读取超时或无数据，bytes_read = %d", bytes_read);
         }
         delay(1); // 防止看门狗
     }
 
-    // ────────── 5. 退出清理 ──────────
-    i2s_driver_uninstall(I2S_NUM_0);
-    i2s_driver_uninstall(I2S_NUM_1);
+    // ────────── 5. 退出清理（新 API 专用） ──────────
+    i2s_channel_disable(rx_handle);
+    i2s_channel_disable(tx_handle);
+    i2s_del_channel(rx_handle);
+    i2s_del_channel(tx_handle);
 
-    // 关闭外设电源（可选，根据实际硬件）
+    // 关闭外设电源
     digitalWrite(PIN_DAC_XSMT, LOW);
     digitalWrite(PIN_DAC_EN, LOW);
     digitalWrite(PIN_MIC_VCC, LOW);

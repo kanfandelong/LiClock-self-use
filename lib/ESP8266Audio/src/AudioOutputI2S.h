@@ -1,32 +1,9 @@
-/*
-  AudioOutputI2S
-  Base class for an I2S output port
-  
-  Copyright (C) 2017  Earle F. Philhower, III
-
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 #pragma once
 
 #include "AudioOutput.h"
+#include "driver/i2s_std.h"
+#include "hal/i2s_types.h"
 
-#include "driver/i2s.h"
-#if defined(ARDUINO_ARCH_RP2040)
-#include <Arduino.h>
-#include <I2S.h>
-#endif
 #ifdef CONFIG_DAC_32bit
 typedef void (*SampleCB)(int32_t sample[2]);
 #else
@@ -35,66 +12,50 @@ typedef void (*SampleCB)(int16_t sample[2]);
 
 class AudioOutputI2S : public AudioOutput
 {
-  public:
-#if defined(ESP32) || defined(ESP8266)
-    AudioOutputI2S(int port=0, int output_mode=EXTERNAL_I2S, int dma_buf_count = 8, int use_apll=APLL_DISABLE);
-    enum : int { APLL_AUTO = -1, APLL_ENABLE = 1, APLL_DISABLE = 0 };
-    enum : int { EXTERNAL_I2S = 0, INTERNAL_DAC = 1, INTERNAL_PDM = 2 };
-#elif defined(ARDUINO_ARCH_RP2040)
-    AudioOutputI2S(long sampleRate = 44100, pin_size_t sck = 26, pin_size_t data = 28);
-#endif
-    bool SetPinout(int bclkPin, int wclkPin, int doutPin);
-    bool SetPinout(int bclkPin, int wclkPin, int doutPin, int mclkPin);
+public:
+    AudioOutputI2S(int port = I2S_NUM_0, int dma_buf_count = 8);
     virtual ~AudioOutputI2S() override;
+
+    bool SetPinout(int bclk, int wclk, int dout);
+    bool SetPinout(int bclk, int wclk, int dout, int mclk);
+
     virtual bool SetRate(int hz) override;
     virtual bool SetBitsPerSample(int bits) override;
     virtual bool SetChannels(int channels) override;
-    virtual bool begin() override { return begin(true); }
-    #ifdef CONFIG_DAC_32bit
+    bool SetOutputModeMono(bool mono);
+    bool SetLsbJustified(bool lsbJustified);
+    bool SetMclk(bool enabled);
+    bool SetBitsPerChan(i2s_slot_bit_width_t bitsPerChan);   // 修正类型
+    bool set_ConsumeSample_CB(SampleCB fn);
+    bool SwapClocks(bool swap_clocks);
+    bool SetTimeout(uint32_t timeout_ms);                    // 改为毫秒
+
+    virtual bool begin() override;
+#ifdef CONFIG_DAC_32bit
     virtual bool ConsumeSample(int32_t sample[2]) override;
-    #else
+#else
     virtual bool ConsumeSample(int16_t sample[2]) override;
-    #endif
+#endif
     virtual void flush() override;
     virtual bool stop() override;
-    
-    bool begin(bool txDAC);
-    bool SetOutputModeMono(bool mono);  // Force mono output no matter the input
-    bool SetLsbJustified(bool lsbJustified);  // Allow supporting non-I2S chips, e.g. PT8211 
-    bool SetMclk(bool enabled);  // Enable MCLK output (if supported)
-    bool Set_bits_per_chan(i2s_bits_per_chan_t _i2s_per_chan);
-    bool set_ConsumeSample_CB(SampleCB fn);
-    bool SwapClocks(bool swap_clocks);  // Swap BCLK and WCLK
-    bool SetTimeout(TickType_t _timeout) {
-      timeout = _timeout;      
-      return true;
-    }
 
-  protected:
-    bool SetPinout();
+protected:
     virtual int AdjustI2SRate(int hz) { return hz; }
-    SampleCB ConsumeSampleCB = NULL;
-    uint8_t portNo;
-    int output_mode;
+
+    i2s_chan_handle_t tx_handle = nullptr;
+    SampleCB ConsumeSampleCB = nullptr;
+
+    int portNo;
     bool mono;
-    int lsb_justified;
-    bool i2sOn;
-    int dma_buf_count;
-    int use_apll;
+    bool lsb_justified;
     bool use_mclk;
     bool swap_clocks;
-    i2s_bits_per_chan_t bits_per_chan;
-    TickType_t timeout;
-    // We can restore the old values and free up these pins when in NoDAC mode
-    uint32_t orig_bck;
-    uint32_t orig_ws;
+    int dma_buf_count;
+    i2s_slot_bit_width_t bits_per_chan;   // 修正
+    uint32_t timeout_ms;                  // 单位：毫秒
 
     uint8_t bclkPin;
     uint8_t wclkPin;
     uint8_t doutPin;
     uint8_t mclkPin;
-
-#if defined(ARDUINO_ARCH_RP2040)
-    I2S i2s;
-#endif
 };

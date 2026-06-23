@@ -162,15 +162,105 @@ void openLua()
     lua_setglobal(L, "pinMode");
 }
 
-void lua_execute(const char *filename)
+// 自定义错误处理函数（在 Lua 栈顶压入带堆栈的错误信息）
+static int traceback_error_handler(lua_State *L) {
+    // 调用 debug.traceback，传入当前错误对象和消息级别（2 表示省略本函数）
+    lua_getglobal(L, "debug");
+    if (!lua_istable(L, -1)) {
+        // 如果 debug 表不存在（嵌入式裁剪版可能没有），则直接返回原始错误
+        lua_pop(L, 1);
+        lua_pushstring(L, "（无 debug 库）");
+        lua_insert(L, 1);  // 将错误信息移到栈底，保持兼容
+        return 1;
+    }
+    lua_getfield(L, -1, "traceback");
+    if (!lua_isfunction(L, -1)) {
+        // 没有 traceback 函数，同样回退
+        lua_pop(L, 2);
+        lua_pushstring(L, "（无 traceback 函数）");
+        lua_insert(L, 1);
+        return 1;
+    }
+    // 将错误对象（位于栈顶）作为参数传给 traceback
+    lua_pushvalue(L, 1);          // 复制原始错误
+    lua_pushinteger(L, 2);        // 跳过本函数和 lua_pcall 的帧
+    lua_call(L, 2, 1);            // 调用 traceback(error, 2)
+    // 现在栈顶是生成的完整堆栈字符串，将其替换掉原始错误
+    lua_replace(L, 1);
+    lua_pop(L, 1);                // 移除 debug 表
+    return 1;                     // 返回堆栈信息
+}
+
+// argc: 参数个数 (与命令行一致，传入的文件名不算在内，但 Lua 标准会让 arg[0]=文件名)
+// argv: 参数字符串数组
+void lua_execute(const char *filename, int argc, const char **argv)
 {
-    if (luaL_dofile(L, filename))
-    {
+    // 1. 加载 Lua 文件
+    if (luaL_loadfile(L, filename) != LUA_OK) {
+        lua_printf("加载文件错误: %s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+        return;
+    }
+
+    // 2. 构造全局 'arg' 表（模拟标准 Lua 解释器行为）
+    lua_newtable(L);  // 创建表
+    
+    // 设置 arg[0] = 脚本文件名
+    lua_pushinteger(L, 0);
+    lua_pushstring(L, filename);
+    lua_settable(L, -3);
+    
+    // 设置 arg[1] 到 arg[argc]（命令行传入的参数）
+    for (int i = 0; i < argc; i++) {
+        lua_pushinteger(L, i + 1);
+        lua_pushstring(L, argv[i]);
+        lua_settable(L, -3);
+    }
+    
+    lua_setglobal(L, "arg");  // 将表赋给全局变量 arg
+
+    // 3. 压入错误处理函数（你之前实现的 debug.traceback）
+    lua_getglobal(L, "debug");
+    lua_getfield(L, -1, "traceback");
+    lua_remove(L, -2); // 移除 debug 表
+
+    // 4. 执行
+    if (lua_pcall(L, 0, 0, -2) != LUA_OK) {
         lua_printf("运行错误: %s", lua_tostring(L, -1));
         lua_pop(L, 1);
     }
-    // luaL_dostring(L, "display.clearScreen()\ndisplay.display()\nprint(\"lua_execute\")\nbuzzer.append(1000, 100)\n");
+
+    // 5. 清理
+    lua_pop(L, 1); // 弹出 traceback 函数
 }
+
+void lua_execute(const char *filename)
+{
+    // 1. 加载 Lua 文件（仅加载，不执行）
+    if (luaL_loadfile(L, filename) != LUA_OK) {
+        lua_printf("加载文件失败: %s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+        return;
+    }
+
+    // 2. 压入自定义错误处理函数（使用上面的 C 函数）
+    lua_pushcfunction(L, traceback_error_handler);
+
+    // 3. 执行代码块，错误处理函数位于栈底（索引 -2）
+    //    参数：0 个参数，0 个返回值，错误处理函数在栈中的索引
+    int status = lua_pcall(L, 0, 0, -2);
+
+    // 4. 处理执行结果
+    if (status != LUA_OK) {
+        // 此时错误信息（已包含堆栈）位于栈顶，由错误处理函数生成
+        lua_printf("(E): %s", lua_tostring(L, -1));
+        lua_pop(L, 1);   // 弹出错误信息
+    }
+
+    // 5. 弹出错误处理函数（无论是否出错，都需要清理）
+    lua_pop(L, 1);       // 弹出 traceback 处理函数
+}
+
 void closeLua()
 {
     if (L)

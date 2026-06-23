@@ -127,7 +127,6 @@ public:
     AudioGeneratorM4A *m4a_generator = nullptr;
     AudioOutput *output = nullptr;
     AudioOutputI2S *i2s_output = nullptr; // I2S输出
-    AudioOutputI2SNoDAC *noDAC = nullptr; // I2S输出
 
     AppMusicPlayer()
     {
@@ -216,7 +215,6 @@ public:
     // 音频相关设置
     tag_info info; // 歌曲ID3信息
     generator_t play_generator = UNKONWN_Generator;
-    bool nodac = false;       // 无DAC标志
     bool in_littlefs = false; // 文件是否位于LittleFS
     bool bits_per_chan = false;
     float gain = 0.3;                 // 音频输出增益（音量）
@@ -224,7 +222,6 @@ public:
     float VOLUME_DB_MIN = -60.0f;     // 最小分贝值
     float VOLUME_DB_MAX = 14.0f;      // 最大分贝值（0 dB 对应原声，增益 1.0）
     float VOLUME_STEP_PERCENT = 2.0f; // 每次按键增减的百分比
-    int apll = 0;
 
     // 低功耗/标志
     bool need_deep_sleep = false; // 是否需要进入deepsleep
@@ -757,7 +754,6 @@ void delete_output()
         app.output = nullptr;
     }
     app.i2s_output = nullptr;
-    app.noDAC = nullptr;
 }
 /**
  * @brief 音频解码任务主循环函数
@@ -820,9 +816,9 @@ void AppMusicPlayer::computePathHash(const char *path, uint8_t *hashOut)
 {
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
-    mbedtls_sha256_starts_ret(&ctx, 0); // 0 = SHA‑256
-    mbedtls_sha256_update_ret(&ctx, (const unsigned char *)path, strlen(path));
-    mbedtls_sha256_finish_ret(&ctx, hashOut);
+    mbedtls_sha256_starts(&ctx, 0); // 0 = SHA‑256
+    mbedtls_sha256_update(&ctx, (const unsigned char *)path, strlen(path));
+    mbedtls_sha256_finish(&ctx, hashOut);
     mbedtls_sha256_free(&ctx);
 }
 
@@ -1185,17 +1181,22 @@ int countLyricLines(const char *path)
     return count;
 }
 
-String stripWordTimestamps(const String &input) {
+String stripWordTimestamps(const String &input)
+{
     String output;
     output.reserve(input.length());
-    for (size_t i = 0; i < input.length(); ) {
-        if (input[i] == '[') {
+    for (size_t i = 0; i < input.length();)
+    {
+        if (input[i] == '[')
+        {
             size_t end = input.indexOf(']', i);
-            if (end != -1) {
+            if (end != -1)
+            {
                 String inside = input.substring(i + 1, end);
                 // 若括号内含有 ':' 或 '.'，视为时间戳并删除
-                if (inside.indexOf(':') != -1 || inside.indexOf('.') != -1) {
-                    i = end + 1;  // 跳过此时间戳
+                if (inside.indexOf(':') != -1 || inside.indexOf('.') != -1)
+                {
+                    i = end + 1; // 跳过此时间戳
                     continue;
                 }
             }
@@ -2440,10 +2441,8 @@ static const menu_select menu_set_player[] =
     {
         {false, "< 返回", nullptr},
         {false, "歌词显示补偿", nullptr},
-        {true, "使用I2S输出", "USE_I2S"},
         {true, "32bit通道宽度", "bits_per_chan"},
         {true, "使用蜂鸣器输出", nullptr},
-        {true, "audio_pll", nullptr},
         {false, "重启间隔", nullptr},
         {false, "FFT平滑控制", nullptr},
         {false, "FFT参数1", nullptr},
@@ -2567,7 +2566,7 @@ void AppMusicPlayer::player_menu()
             float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
             gain = powf(10.0f, db / 20.0f);
 
-            if (!nodac)
+            if (output)
                 output->SetGain(gain);
         }
         break;
@@ -2605,35 +2604,35 @@ void AppMusicPlayer::player_set_menu()
             _lrcoffset = GUI::msgbox_number("单位ms", 4, _lrcoffset);
             hal.pref.putInt("_lrcoffset", _lrcoffset);
             break;
-        case 6:
+        case 4:
             _count = GUI::msgbox_number("重启间隔 0-999", 3, _count);
             hal.pref.putInt("rst_count", _count);
             break;
-        case 7:
+        case 5:
             smoothingFactor = (float)GUI::msgbox_number("平滑控制 0-100", 3, (int)(smoothingFactor * 100.0f)) / 100.0f;
             hal.pref.putFloat("fft_smooth_val", smoothingFactor);
             break;
-        case 8:
+        case 6:
             FFT_A_spectrum_smoothness = (float)GUI::msgbox_number("FFT参数1", 4, (int)(FFT_A_spectrum_smoothness));
             break;
-        case 9:
+        case 7:
             FFT_A_amplitude = (float)GUI::msgbox_number("FFT参数2", 3, (int)(FFT_A_amplitude));
             break;
-        case 10:
+        case 8:
             fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0f)) / 100.0f;
             hal.pref.putFloat("fft_gain", fft_gain);
             break;
-        case 12:
+        case 10:
             xFrequency = pdMS_TO_TICKS(GUI::msgbox_number("xFrequency", 2, xFrequency));
             hal.pref.putInt("xFrequency", (int)xFrequency);
             break;
-        case 13:
+        case 11:
             hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 4, hal.pref.getUInt("fft_samples", 256)));
             break;
-        case 14:
+        case 12:
             hal.pref.putUChar("col_per_frame", GUI::msgbox_number("音频波形滚动速度", 1, hal.pref.getUChar("col_per_frame", 1)));
             break;
-        case 15:
+        case 13:
             GUI::info_msgbox("提示", "正在搜索网络歌词...");
             hal.autoConnectWiFi(false);
             attemptNetworkLyrics();
@@ -4484,37 +4483,21 @@ bool AppMusicPlayer::player_set()
         fft_gain = hal.pref.getFloat("fft_gain", 1.2f);
     app.play_time_start = millis();                           // 提前重置一次`,确保歌词正常显示
     memset(ring_buffer, 0, sizeof(float) * RING_BUFFER_SIZE); // 清环形缓冲区
-    if (nodac)
+    delete_output();
+    i2s_output = new AudioOutputI2S(0, hal.pref.getInt("dma_buf_count", 8));
+    output = i2s_output;
+    i2s_output->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
+    i2s_output->SetMclk(false);
+    i2s_output->set_ConsumeSample_CB(GetSampleCB);
+    if (bits_per_chan)
     {
-        delete_output();
-        noDAC = new AudioOutputI2SNoDAC(0);
-        output = noDAC;
-        noDAC->SetGain(gain);
-        delete_generator();
-        return generator_set(music_file, in, output);
+        i2s_output->SetBitsPerChan(I2S_SLOT_BIT_WIDTH_32BIT);
+        i2s_output->SetBitsPerSample(32);
     }
-    else
-    {
-        delete_output();
-        if (hal.pref.getBool("USE_I2S", true))
-        {
-            i2s_output = new AudioOutputI2S(0, 0, hal.pref.getInt("dma_buf_count", 8), apll);
-            output = i2s_output;
-            i2s_output->SetPinout(PIN_I2S_BCLK, PIN_I2S_LRCK, PIN_I2S_DOUT);
-            i2s_output->SetMclk(false);
-            i2s_output->set_ConsumeSample_CB(GetSampleCB);
-            if (bits_per_chan)
-                i2s_output->Set_bits_per_chan(I2S_BITS_PER_CHAN_32BIT);
-        }
-        else
-        {
-            i2s_output = new AudioOutputI2S(0, 1, 8, apll);
-            output = i2s_output;
-        }
-        output->SetGain(gain);
-        delete_generator();
-        return generator_set(music_file, in, output);
-    }
+
+    output->SetGain(gain);
+    delete_generator();
+    return generator_set(music_file, in, output);
 }
 
 // 初始化曲线缩放数组
@@ -4554,7 +4537,7 @@ void initCurveScaling()
     esp_err_t ret = dsps_fft2r_init_fc32(NULL, app.SAMPLES);
     if (ret != ESP_OK)
     {
-        log_e("DSP", "FFT init failed: %d", ret);
+        log_e("FFT init failed: %d", ret);
     }
     dsps_wind_hann_f32(app.wind, app.SAMPLES); // 计算窗系数
 }
@@ -4618,12 +4601,9 @@ void AppMusicPlayer::setup()
     ring_buffer = (float *)ps_malloc(sizeof(float[RING_BUFFER_SIZE]));
     if (ring_buffer)
         memset(ring_buffer, 0, sizeof(float) * RING_BUFFER_SIZE);
-
-    nodac = hal.pref.getBool(hal.get_char_sha_key("使用蜂鸣器输出"), false);
     _count = hal.pref.getInt("rst_count", -1);
     gain = hal.pref.getFloat("gain", 0.3f);
     _lrcoffset = hal.pref.getInt("_lrcoffset", -50);
-    apll = hal.pref.getBool(hal.get_char_sha_key("audio_pll"), true);
     bits_per_chan = hal.pref.getBool("bits_per_chan", true);
     display_debug_mode = hal.pref.getBool("music_debug", true);
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
@@ -4742,7 +4722,7 @@ void AppMusicPlayer::setup()
             volume_percent += VOLUME_STEP_PERCENT;
             float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
             gain = powf(10.0f, db / 20.0f);
-            if (!nodac)
+            if (output)
                 output->SetGain(gain);
             show_display();
         }
@@ -4760,7 +4740,7 @@ void AppMusicPlayer::setup()
             volume_percent -= VOLUME_STEP_PERCENT;
             float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
             gain = powf(10.0f, db / 20.0f);
-            if (!nodac)
+            if (output)
                 output->SetGain(gain);
             show_display();
         }

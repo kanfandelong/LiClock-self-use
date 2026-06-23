@@ -5,6 +5,7 @@
 #include <Fonts/Picopixel.h>
 #include <U8g2_for_Adafruit_GFX.h>
 #include <WiFi.h>
+#include "WiFiClientSecure.h"
 #include <DNSServer.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>

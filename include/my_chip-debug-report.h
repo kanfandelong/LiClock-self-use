@@ -3,8 +3,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#ifndef __CHIP_DEBUG_REPORT_H__
-#define __CHIP_DEBUG_REPORT_H__
+#ifndef __MY_CHIP_DEBUG_REPORT_H__
+#define __MY_CHIP_DEBUG_REPORT_H__
 #include "esp_heap_caps.h"
 #include "esp_chip_info.h"
 #include "esp_idf_version.h"
@@ -24,7 +24,7 @@
 #include "esp_bit_defs.h"
 
 // #include "Arduino.h"
-// #include "esp32-hal-periman.h"
+#include "esp32-hal-periman.h"
 
 #include "A_Config.h"
 
@@ -43,7 +43,5 @@ void printPartitionsInfo(void);
 void printSoftwareInfo(void);
 void printBoardInfo(void);
 void printPerimanInfo(void);
-void printBeforeSetupInfo(void);
-void printAfterSetupInfo(void);
 
 #endif /* __CHIP_DEBUG_REPORT_H__ */
