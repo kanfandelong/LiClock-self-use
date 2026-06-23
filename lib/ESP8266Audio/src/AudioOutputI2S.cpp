@@ -12,9 +12,11 @@ AudioOutputI2S::AudioOutputI2S(int port, int dma_buf_count)
 #ifdef CONFIG_DAC_32bit
     bps = 32;                           // 基类成员
     bits_per_chan = I2S_SLOT_BIT_WIDTH_32BIT;
+    bits_data = I2S_DATA_BIT_WIDTH_32BIT;
 #else
     bps = 16;
-    bits_per_chan = I2S_SLOT_BIT_WIDTH_AUTO;
+    bits_per_chan = I2S_SLOT_BIT_WIDTH_16BIT;
+    bits_data = I2S_DATA_BIT_WIDTH_16BIT;
 #endif
 
     channels = 2;                        // 基类成员
@@ -23,7 +25,6 @@ AudioOutputI2S::AudioOutputI2S(int port, int dma_buf_count)
     wclkPin = 25;
     doutPin = 21;
     mclkPin = 0;
-    bits_per_chan = I2S_SLOT_BIT_WIDTH_AUTO;   // 自动跟随数据位宽
     timeout_ms = 100;                           // 100ms 超时
     tx_handle = nullptr;
     playedSampleFrames = 0; 
@@ -40,6 +41,26 @@ bool AudioOutputI2S::SetPinout(int bclk, int wclk, int dout)
     bclkPin = bclk;
     wclkPin = wclk;
     doutPin = dout;
+
+    if (tx_handle) {
+        if (i2s_channel_disable(tx_handle) != ESP_OK) return false;
+
+        i2s_std_gpio_config_t gpio_cfg = {};
+        gpio_cfg.mclk = use_mclk ? (gpio_num_t)mclkPin : I2S_GPIO_UNUSED;
+        gpio_cfg.bclk = swap_clocks ? (gpio_num_t)wclkPin : (gpio_num_t)bclkPin;
+        gpio_cfg.ws   = swap_clocks ? (gpio_num_t)bclkPin : (gpio_num_t)wclkPin;
+        gpio_cfg.dout = (gpio_num_t)doutPin;
+        gpio_cfg.din  = I2S_GPIO_UNUSED;
+        gpio_cfg.invert_flags.mclk_inv = false;
+        gpio_cfg.invert_flags.bclk_inv = false;
+        gpio_cfg.invert_flags.ws_inv   = false;
+
+        if (i2s_channel_reconfig_std_gpio(tx_handle, &gpio_cfg) != ESP_OK) {
+            i2s_channel_enable(tx_handle);
+            return false;
+        }
+        return i2s_channel_enable(tx_handle) == ESP_OK;
+    }
     return true;
 }
 
@@ -53,14 +74,16 @@ bool AudioOutputI2S::SetRate(int hz)
 {
     this->hertz = hz;
     if (tx_handle) {
-        i2s_channel_disable(tx_handle);
+        if (i2s_channel_disable(tx_handle) != ESP_OK) return false;
         i2s_std_clk_config_t clk_cfg = {
             .sample_rate_hz = (uint32_t)AdjustI2SRate(hz),
             .clk_src = I2S_CLK_SRC_DEFAULT,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
         };
-        if (i2s_channel_reconfig_std_clock(tx_handle, &clk_cfg) != ESP_OK)
+        if (i2s_channel_reconfig_std_clock(tx_handle, &clk_cfg) != ESP_OK) {
+            i2s_channel_enable(tx_handle);
             return false;
+        }
         return i2s_channel_enable(tx_handle) == ESP_OK;
     }
     return true;
@@ -89,18 +112,80 @@ bool AudioOutputI2S::SetOutputModeMono(bool mono)
 bool AudioOutputI2S::SetLsbJustified(bool lsbJustified)
 {
     this->lsb_justified = lsbJustified;
+
+    if (tx_handle) {
+        if (i2s_channel_disable(tx_handle) != ESP_OK) return false;
+
+        // 构造 slot 配置（同上）
+        i2s_slot_bit_width_t slot_width;
+        if (bits_per_chan == I2S_SLOT_BIT_WIDTH_AUTO) {
+            switch (bps) {
+                case 8:  slot_width = I2S_SLOT_BIT_WIDTH_8BIT;  break;
+                case 16: slot_width = I2S_SLOT_BIT_WIDTH_16BIT; break;
+                case 24: slot_width = I2S_SLOT_BIT_WIDTH_24BIT; break;
+                case 32: slot_width = I2S_SLOT_BIT_WIDTH_32BIT; break;
+                default: slot_width = I2S_SLOT_BIT_WIDTH_16BIT; break;
+            }
+        } else {
+            slot_width = bits_per_chan;
+        }
+
+        i2s_std_slot_config_t slot_cfg = {};
+        slot_cfg.data_bit_width = bits_data;
+        slot_cfg.slot_bit_width = slot_width;
+        slot_cfg.slot_mode = (channels == 1) ? I2S_SLOT_MODE_MONO : I2S_SLOT_MODE_STEREO;
+        slot_cfg.slot_mask = (channels == 1) ? I2S_STD_SLOT_LEFT : I2S_STD_SLOT_BOTH;
+        slot_cfg.ws_width = slot_width;
+        slot_cfg.ws_pol = false;
+        slot_cfg.bit_shift = !lsb_justified;
+        slot_cfg.left_align = lsb_justified;
+        slot_cfg.big_endian = false;
+        slot_cfg.bit_order_lsb = false;
+
+        if (i2s_channel_reconfig_std_slot(tx_handle, &slot_cfg) != ESP_OK) {
+            i2s_channel_enable(tx_handle);
+            return false;
+        }
+        return i2s_channel_enable(tx_handle) == ESP_OK;
+    }
     return true;
 }
 
 bool AudioOutputI2S::SetMclk(bool enabled)
 {
     use_mclk = enabled;
+
+    if (tx_handle) {
+        if (i2s_channel_disable(tx_handle) != ESP_OK) return false;
+
+        i2s_std_gpio_config_t gpio_cfg = {};
+        gpio_cfg.mclk = use_mclk ? (gpio_num_t)mclkPin : I2S_GPIO_UNUSED;
+        gpio_cfg.bclk = swap_clocks ? (gpio_num_t)wclkPin : (gpio_num_t)bclkPin;
+        gpio_cfg.ws   = swap_clocks ? (gpio_num_t)bclkPin : (gpio_num_t)wclkPin;
+        gpio_cfg.dout = (gpio_num_t)doutPin;
+        gpio_cfg.din  = I2S_GPIO_UNUSED;
+        gpio_cfg.invert_flags.mclk_inv = false;
+        gpio_cfg.invert_flags.bclk_inv = false;
+        gpio_cfg.invert_flags.ws_inv   = false;
+
+        if (i2s_channel_reconfig_std_gpio(tx_handle, &gpio_cfg) != ESP_OK) {
+            i2s_channel_enable(tx_handle);
+            return false;
+        }
+        return i2s_channel_enable(tx_handle) == ESP_OK;
+    }
     return true;
 }
 
 bool AudioOutputI2S::SetBitsPerChan(i2s_slot_bit_width_t bitsPerChan)
 {
     bits_per_chan = bitsPerChan;
+    return true;
+}
+
+bool AudioOutputI2S::SetBitsdata(i2s_data_bit_width_t data_bit_width)
+{
+    bits_data = data_bit_width;
     return true;
 }
 
@@ -115,7 +200,26 @@ bool AudioOutputI2S::set_ConsumeSample_CB(SampleCB fn)
 
 bool AudioOutputI2S::SwapClocks(bool swap_clocks)
 {
-    if (tx_handle) return false;  // 运行中不允许交换
+    if (tx_handle) {
+        if (i2s_channel_disable(tx_handle) != ESP_OK) return false;
+        this->swap_clocks = swap_clocks;
+
+        i2s_std_gpio_config_t gpio_cfg = {};
+        gpio_cfg.mclk = use_mclk ? (gpio_num_t)mclkPin : I2S_GPIO_UNUSED;
+        gpio_cfg.bclk = swap_clocks ? (gpio_num_t)wclkPin : (gpio_num_t)bclkPin;
+        gpio_cfg.ws   = swap_clocks ? (gpio_num_t)bclkPin : (gpio_num_t)wclkPin;
+        gpio_cfg.dout = (gpio_num_t)doutPin;
+        gpio_cfg.din  = I2S_GPIO_UNUSED;
+        gpio_cfg.invert_flags.mclk_inv = false;
+        gpio_cfg.invert_flags.bclk_inv = false;
+        gpio_cfg.invert_flags.ws_inv   = false;
+
+        if (i2s_channel_reconfig_std_gpio(tx_handle, &gpio_cfg) != ESP_OK) {
+            i2s_channel_enable(tx_handle);
+            return false;
+        }
+        return i2s_channel_enable(tx_handle) == ESP_OK;
+    }
     this->swap_clocks = swap_clocks;
     return true;
 }
@@ -134,8 +238,8 @@ bool AudioOutputI2S::begin()
     i2s_chan_config_t chan_cfg = {
         .id = (i2s_port_t)portNo,
         .role = I2S_ROLE_MASTER,
-        .dma_desc_num = dma_buf_count,
-        .dma_frame_num = DMA_FRAME_NUM,
+        .dma_desc_num = (uint32_t)dma_buf_count,
+        .dma_frame_num = (uint32_t)DMA_FRAME_NUM,
         .auto_clear = true,
     };
     if (i2s_new_channel(&chan_cfg, &tx_handle, nullptr) != ESP_OK)
@@ -159,7 +263,7 @@ bool AudioOutputI2S::begin()
     }
 
     // 槽位配置
-    std_cfg.slot_cfg.data_bit_width = (i2s_data_bit_width_t)bps;
+    std_cfg.slot_cfg.data_bit_width = bits_data;
     std_cfg.slot_cfg.slot_bit_width = slot_width;
     std_cfg.slot_cfg.slot_mode    = (channels == 1) ? I2S_SLOT_MODE_MONO : I2S_SLOT_MODE_STEREO;
     std_cfg.slot_cfg.slot_mask    = (channels == 1) ? I2S_STD_SLOT_LEFT : I2S_STD_SLOT_BOTH;

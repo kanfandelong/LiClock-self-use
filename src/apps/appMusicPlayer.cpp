@@ -577,7 +577,8 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
         if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 ||
             strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 ||
-            strcmp(src, "M4ATAG") == 0 || strcmp(src, "OGGTAG") == 0)
+            strcmp(src, "M4ATAG") == 0 || strcmp(src, "OGGTAG") == 0 || 
+            strcmp(src, "WAVINFO") == 0)
         {
             app.info.tlen = newLen;
             id3_tlen_received = true;
@@ -4414,6 +4415,7 @@ bool AppMusicPlayer::generator_set(const char *path, AudioFileSource *source, Au
         break;
     case WAV_Generator:
         wav_generator = new AudioGeneratorWAV();
+        wav_generator->RegisterMetadataCB(MDCallback, (void *)"WAVINFO");
         generator = wav_generator;
         break;
     case OPUS_Generator:
@@ -4492,7 +4494,6 @@ bool AppMusicPlayer::player_set()
     if (bits_per_chan)
     {
         i2s_output->SetBitsPerChan(I2S_SLOT_BIT_WIDTH_32BIT);
-        i2s_output->SetBitsPerSample(32);
     }
 
     output->SetGain(gain);

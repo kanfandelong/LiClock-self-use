@@ -25,7 +25,7 @@ AudioGeneratorWAV::AudioGeneratorWAV()
     running = false;
     file = NULL;
     output = NULL;
-    buffSize = 128;
+    buffSize = 4096;
     buff = NULL;
     buffPtr = 0;
     buffLen = 0;
@@ -100,21 +100,21 @@ bool AudioGeneratorWAV::loop()
     {
         if (bitsPerSample == 8)
         {
-            uint8_t u8s; // For read u8 sample
+            int8_t u8s; // For read u8 sample
             if (!GetBufferedData(1, &u8s))
             {
                 stop();
             }
-            // Upsample from unsigned 8 bits to signed 16 bits
-            lastSample[AudioOutput::LEFTCHANNEL] = ((int16_t)u8s - 128) << 8;
+            int32_t sampleL = u8s << 24;
+            lastSample[AudioOutput::LEFTCHANNEL] = sampleL;
             if (channels == 2)
             {
                 if (!GetBufferedData(1, &u8s))
                 {
                     stop();
                 }
-                // Upsample from unsigned 8 bits to signed 16 bits
-                lastSample[AudioOutput::RIGHTCHANNEL] = ((int16_t)u8s - 128) << 8;
+                int32_t sampleR = u8s << 24;
+                lastSample[AudioOutput::RIGHTCHANNEL] = sampleR;
             }
             else
             {
@@ -123,37 +123,56 @@ bool AudioGeneratorWAV::loop()
         }
         else if (bitsPerSample == 16)
         {
-            if (!GetBufferedData(2, &lastSample[AudioOutput::LEFTCHANNEL]))
+            int16_t sample[2];
+            if (!GetBufferedData(2, &sample[AudioOutput::LEFTCHANNEL]))
             {
                 stop();
             }
             if (channels == 2)
             {
-                if (!GetBufferedData(2, &lastSample[AudioOutput::RIGHTCHANNEL]))
+                if (!GetBufferedData(2, &sample[AudioOutput::RIGHTCHANNEL]))
                 {
                     stop();
                 }
             }
             else
             {
-                lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
+                sample[AudioOutput::RIGHTCHANNEL] = sample[AudioOutput::LEFTCHANNEL];
             }
+            lastSample[AudioOutput::LEFTCHANNEL] = sample[AudioOutput::LEFTCHANNEL] << 16;
+            lastSample[AudioOutput::RIGHTCHANNEL] = sample[AudioOutput::RIGHTCHANNEL] << 16;
         }
         else if (bitsPerSample == 24)
         {
-            if (!GetBufferedData(3, &lastSample[AudioOutput::LEFTCHANNEL]))
+            uint8_t b[3]; // 临时存储 3 字节小端数据
+
+            // ---- 读取左声道 ----
+            if (!GetBufferedData(3, b))
             {
                 stop();
             }
+            int32_t sampleL = (int32_t)(b[0] | (b[1] << 8) | (b[2] << 16));
+            // 24位有符号数符号扩展：如果最高位（bit23）为1，则扩展高8位为全1
+            if (sampleL & 0x800000)
+                sampleL |= 0xFF000000;
+            // 左对齐：左移8位，使24位数据占据高24位
+            lastSample[AudioOutput::LEFTCHANNEL] = sampleL << 8;
+
+            // ---- 读取右声道 ----
             if (channels == 2)
             {
-                if (!GetBufferedData(3, &lastSample[AudioOutput::RIGHTCHANNEL]))
+                if (!GetBufferedData(3, b))
                 {
                     stop();
                 }
+                int32_t sampleR = (int32_t)(b[0] | (b[1] << 8) | (b[2] << 16));
+                if (sampleR & 0x800000)
+                    sampleR |= 0xFF000000;
+                lastSample[AudioOutput::RIGHTCHANNEL] = sampleR << 8;
             }
             else
             {
+                // 单声道：左右相同
                 lastSample[AudioOutput::RIGHTCHANNEL] = lastSample[AudioOutput::LEFTCHANNEL];
             }
         }
@@ -184,16 +203,39 @@ done:
     return running;
 }
 
+static const char *MapWavTagToFlac(uint32_t id)
+{
+    switch (id)
+    {
+    case 0x54524149:
+        return "ARTIST"; // "IART"
+    case 0x4d414e49:
+        return "TITLE"; // "INAM"
+    case 0x44525049:
+        return "ALBUM"; // "IPRD"
+    case 0x544d4349:
+        return "COMMENT"; // "ICMT"
+    case 0x504f4349:
+        return "COPYRIGHT"; // "ICOP"
+    case 0x44524349:
+        return "DATE"; // "ICRD"
+    case 0x524e4749:
+        return "GENRE"; // "IGNR"
+    case 0x4b525449:
+        return "TRACKNUMBER"; // "ITRK"
+    default:
+        return nullptr; // 不识别则忽略
+    }
+}
+
 bool AudioGeneratorWAV::ReadWAVInfo()
 {
     uint32_t u32;
     uint16_t u16;
     int toSkip;
+    uint16_t audioFormat;
 
-    // WAV specification document:
-    // https://www.aelius.com/njh/wavemetatools/doc/riffmci.pdf
-
-    // Header == "RIFF"
+    // ---- RIFF 头部校验 (省略，与原代码相同) ----
     if (!ReadU32(&u32))
     {
         log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
@@ -224,162 +266,193 @@ bool AudioGeneratorWAV::ReadWAVInfo()
         return false;
     }
 
-    // there might be JUNK or PAD - ignore it by continuing reading until we get to "fmt "
+    // ---- 查找 "fmt " ----
     while (1)
     {
         if (!ReadU32(&u32))
-        {
-            log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
             return false;
-        };
         if (u32 == 0x20746d66)
-        {
-            break; // 'fmt '
-        }
+            break;
     };
 
-    // subchunk size
-    if (!ReadU32(&u32))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
+    // ---- 读取 fmt chunk ----
+    uint32_t fmtChunkSize;
+    if (!ReadU32(&fmtChunkSize))
         return false;
-    };
-    if (u32 == 16)
+
+    // 读取标准字段（16 字节）
+    if (!ReadU16(&audioFormat))
+        return false;
+    if (!ReadU16(&channels))
+        return false;
+    if ((channels < 1) || (channels > 2))
     {
-        toSkip = 0;
+        log_printf("Only mono/stereo supported\n");
+        return false;
     }
-    else if (u32 == 18)
+    if (!ReadU32(&sampleRate))
+        return false;
+    if (!ReadU32(&u32))
+        return false; // byteRate
+    if (!ReadU16(&u16))
+        return false; // blockAlign
+    if (!ReadU16(&bitsPerSample))
+        return false;
+
+    // ---- 处理扩展格式 ----
+    if (audioFormat == 1)
     {
-        toSkip = 18 - 16;
+        toSkip = fmtChunkSize - 16;
+        while (toSkip--)
+        {
+            uint8_t ign;
+            ReadU8(&ign);
+        }
     }
-    else if (u32 == 40)
+    else if (audioFormat == 0xFFFE)
     {
-        toSkip = 40 - 16;
+        uint16_t cbSize;
+        if (!ReadU16(&cbSize))
+            return false;
+        if (cbSize < 22)
+            return false;
+        uint16_t validBits;
+        if (!ReadU16(&validBits))
+            return false;
+        uint32_t channelMask;
+        if (!ReadU32(&channelMask))
+            return false;
+        uint8_t guid[16];
+        for (int i = 0; i < 16; i++)
+            ReadU8(&guid[i]);
+        uint32_t subFormat;
+        memcpy(&subFormat, guid, 4);
+        if (subFormat != 0x00000001)
+        {
+            log_printf("Not PCM subformat\n");
+            return false;
+        }
+        int remaining = cbSize - 22;
+        while (remaining--)
+        {
+            uint8_t ign;
+            ReadU8(&ign);
+        }
     }
     else
     {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, appears not to be standard PCM \n");
+        log_printf("Unsupported audio format 0x%04X\n", audioFormat);
         return false;
-    } // we only do standard PCM
-
-    // AudioFormat
-    if (!ReadU16(&u16))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-        return false;
-    };
-    if (u16 != 1)
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, AudioFormat appears not to be standard PCM \n");
-        return false;
-    } // we only do standard PCM
-
-    // NumChannels
-    if (!ReadU16(&channels))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-        return false;
-    };
-    if ((channels < 1) || (channels > 2))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, only mono and stereo are supported \n");
-        return false;
-    } // Mono or stereo support only
-
-    // SampleRate
-    if (!ReadU32(&sampleRate))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-        return false;
-    };
-    if (sampleRate < 1)
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, unknown sample rate \n");
-        return false;
-    } // Weird rate, punt.  Will need to check w/DAC to see if supported
-
-    // Ignore byterate and blockalign
-    if (!ReadU32(&u32))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-        return false;
-    };
-    if (!ReadU16(&u16))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-        return false;
-    };
-
-    // Bits per sample
-    if (!ReadU16(&bitsPerSample))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-        return false;
-    };
-    if ((bitsPerSample != 8) && (bitsPerSample != 16) && (bitsPerSample != 24) && (bitsPerSample != 32))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, only 8 or 16 bits is supported \n");
-        return false;
-    } // Only 8 or 16 bits
-
-    // Skip any extra header
-    while (toSkip)
-    {
-        uint8_t ign;
-        if (!ReadU8(&ign))
-        {
-            log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-            return false;
-        };
-        toSkip--;
     }
 
-    // look for data subchunk
+    // ---- 位深检查（允许 8/16/24/32） ----
+    if ((bitsPerSample != 8) && (bitsPerSample != 16) && (bitsPerSample != 24) && (bitsPerSample != 32))
+    {
+        log_printf("Unsupported bits per sample\n");
+        return false;
+    }
+
+    // ===== 查找 "data" 并解析 LIST =====
     do
     {
-        // id == "data"
         if (!ReadU32(&u32))
-        {
-            log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
             return false;
-        };
         if (u32 == 0x61746164)
-        {
             break; // "data"
+
+        uint32_t chunkSize;
+        if (!ReadU32(&chunkSize))
+            return false;
+
+        if (u32 == 0x5453494c)
+        { // "LIST"
+            uint32_t listType;
+            if (!ReadU32(&listType))
+                return false;
+            uint32_t bytesLeft = chunkSize - 4;
+
+            if (listType == 0x4f464e49)
+            { // "INFO"
+                while (bytesLeft > 8)
+                {
+                    uint32_t subId, subSize;
+                    if (!ReadU32(&subId))
+                        break;
+                    if (!ReadU32(&subSize))
+                        break;
+                    bytesLeft -= 8;
+                    if (bytesLeft < subSize)
+                    {
+                        if (bytesLeft > 0)
+                            file->seek(bytesLeft, SEEK_CUR);
+                        bytesLeft = 0;
+                        break;
+                    }
+                    char *dataBuf = (char *)malloc(subSize + 1);
+                    if (dataBuf)
+                    {
+                        if (file->read((uint8_t *)dataBuf, subSize) == subSize)
+                        {
+                            dataBuf[subSize] = '\0';
+                            const char *flacKey = MapWavTagToFlac(subId);
+                            if (flacKey)
+                            {
+                                cb.md(flacKey, false, dataBuf);
+                            }
+                        }
+                        free(dataBuf);
+                    }
+                    else
+                    {
+                        file->seek(subSize, SEEK_CUR);
+                    }
+                    bytesLeft -= subSize;
+                    // 处理奇数字节填充
+                    if (subSize % 2 == 1 && bytesLeft > 0)
+                    {
+                        uint8_t pad;
+                        file->read(&pad, 1);
+                        bytesLeft--;
+                    }
+                }
+                if (bytesLeft > 0)
+                    file->seek(bytesLeft, SEEK_CUR);
+            }
+            else
+            {
+                file->seek(bytesLeft, SEEK_CUR);
+            }
         }
-        // Skip size, read until end of chunk
-        if (!ReadU32(&u32))
+        else
         {
-            log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
-            return false;
-        };
-        if (!file->seek(u32, SEEK_CUR))
-        {
-            log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data, seek failed\n");
-            return false;
+            // 其他块直接跳过
+            file->seek(chunkSize, SEEK_CUR);
         }
     } while (1);
-    if (!file->isOpen())
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, file is not open\n");
-        return false;
-    };
 
-    // Skip size, read until end of file...
+    // ---- 读取 data 块大小 ----
     if (!ReadU32(&u32))
-    {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: failed to read WAV data\n");
         return false;
-    };
     availBytes = u32;
 
-    // Now set up the buffer or fail
-    buff = reinterpret_cast<uint8_t *>(malloc(buffSize));
-    if (!buff)
+    // ===== 计算并回调总时长 =====
+    uint32_t blockAlign = channels * (bitsPerSample / 8);
+    if (blockAlign > 0 && sampleRate > 0 && availBytes >= blockAlign)
     {
-        log_printf("AudioGeneratorWAV::ReadWAVInfo: cannot read WAV, failed to set up buffer \n");
+        output->SetRate(sampleRate);
+        output->SetBitsPerSample(bitsPerSample);
+        output->SetChannels(channels);
+        uint64_t totalSamples = availBytes / blockAlign;
+        uint64_t totalMs = totalSamples * 1000 / sampleRate;
+        char msStr[32];
+        sprintf(msStr, "%llu", totalMs);
+        cb.md("tlen", false, msStr);
+    }
+
+    // ---- 分配缓冲区 ----
+    buff = (uint8_t *)malloc(buffSize);
+    if (!buff)
         return false;
-    };
     buffPtr = 0;
     buffLen = 0;
 

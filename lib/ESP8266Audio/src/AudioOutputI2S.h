@@ -26,6 +26,7 @@ public:
     bool SetLsbJustified(bool lsbJustified);
     bool SetMclk(bool enabled);
     bool SetBitsPerChan(i2s_slot_bit_width_t bitsPerChan);   // 修正类型
+    bool SetBitsdata(i2s_data_bit_width_t data_bit_width);
     bool set_ConsumeSample_CB(SampleCB fn);
     bool SwapClocks(bool swap_clocks);
     bool SetTimeout(uint32_t timeout_ms);                    // 改为毫秒
@@ -52,6 +53,7 @@ protected:
     bool swap_clocks;
     int dma_buf_count;
     i2s_slot_bit_width_t bits_per_chan;   // 修正
+    i2s_data_bit_width_t bits_data;
     uint32_t timeout_ms;                  // 单位：毫秒
 
     uint8_t bclkPin;
