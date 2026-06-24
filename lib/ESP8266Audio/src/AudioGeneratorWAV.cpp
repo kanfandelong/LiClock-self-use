@@ -100,21 +100,21 @@ bool AudioGeneratorWAV::loop()
     {
         if (bitsPerSample == 8)
         {
-            int8_t u8s; // For read u8 sample
+            uint8_t u8s; // For read u8 sample
             if (!GetBufferedData(1, &u8s))
             {
                 stop();
             }
-            int32_t sampleL = u8s << 24;
-            lastSample[AudioOutput::LEFTCHANNEL] = sampleL;
+            // Upsample from unsigned 8 bits to signed 16 bits
+            lastSample[AudioOutput::LEFTCHANNEL] = ((int16_t)u8s - 128) << 24;
             if (channels == 2)
             {
                 if (!GetBufferedData(1, &u8s))
                 {
                     stop();
                 }
-                int32_t sampleR = u8s << 24;
-                lastSample[AudioOutput::RIGHTCHANNEL] = sampleR;
+                // Upsample from unsigned 8 bits to signed 16 bits
+                lastSample[AudioOutput::RIGHTCHANNEL] = ((int16_t)u8s - 128) << 24;
             }
             else
             {

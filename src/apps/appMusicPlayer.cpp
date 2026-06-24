@@ -577,7 +577,7 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
         unsigned long newLen = strtoul(outputString.c_str(), nullptr, 10);
         if (strcmp(src, "ID3TAG") == 0 || strcmp(src, "FLACTAG") == 0 ||
             strcmp(src, "OPUSTAG") == 0 || strcmp(src, "AACINFO") == 0 ||
-            strcmp(src, "M4ATAG") == 0 || strcmp(src, "OGGTAG") == 0 || 
+            strcmp(src, "M4ATAG") == 0 || strcmp(src, "OGGTAG") == 0 ||
             strcmp(src, "WAVINFO") == 0)
         {
             app.info.tlen = newLen;
@@ -1262,7 +1262,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
         log_e("歌词文件打开发生意外错误,中止加载操作");
         return;
     }
-    log_i("开始加载歌词，歌词行数：%d", totalLyricLines);
+    log_i("开始加载歌词，预估歌词行数：%d", totalLyricLines);
 
     bool debug = hal.pref.getBool("lrc_debug");
 
@@ -1354,11 +1354,11 @@ void AppMusicPlayer::loadLyrics(const char *path)
         }
     }
     file.close();
-    lrcisload = true;
     currentLyricIndex = 0;
     lastLyricIndex = 0;
-    log_i("歌词加载完成，所有操作耗时：%lums", millis() - loadlrcbegin);
-
+    log_i("歌词加载完成，所有操作耗时：%lums,实际加载的歌词行数:%ld", millis() - loadlrcbegin, index);
+    if (index > 0)
+        lrcisload = true;
     // 清空歌词滚动数据
     scrollOffset = 0;
     for (uint8_t i = 0; i < 3; i++)
@@ -1371,21 +1371,21 @@ void AppMusicPlayer::loadLyrics(const char *path)
     newLyricIndex = 0;
 
     sprintf(currentLyric[0], "---");
-    if (totalLyricLines > 0)
+    if (index > 0)
         strncpy(currentLyric[1], lyricArray[0].text, 127);
     currentLyric[1][127] = '\0';
-    if (totalLyricLines > 1)
+    if (index > 1)
         strncpy(currentLyric[2], lyricArray[1].text, 127);
     currentLyric[2][127] = '\0';
 
     newLyrics[0] = "---";
     oldLyrics[0] = "---";
-    if (totalLyricLines > 0)
+    if (index > 0)
         newLyrics[1] = lyricArray[0].text;
     oldLyrics[1] = "---";
-    if (totalLyricLines > 1)
+    if (index > 1)
         newLyrics[2] = lyricArray[1].text;
-    if (totalLyricLines > 0)
+    if (index > 0)
         oldLyrics[2] = lyricArray[0].text;
 
     scrolling = false;
