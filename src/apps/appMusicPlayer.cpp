@@ -1,6 +1,5 @@
 #include "AppManager.h"
 #include "ESP8266Audio.h"
-#include <arduinoFFT.h>
 #include "esp_dsp.h"
 #include <mbedtls/sha256.h>
 #include <cstdio>
@@ -270,7 +269,6 @@ public:
     float FFT_A_spectrum_smoothness = 2000.0f;
     float FFT_A_amplitude = 40.0f;
     float fft_gain = 1.0;
-    ArduinoFFT<float> FFT = ArduinoFFT<float>();
     static const size_t RING_BUFFER_SIZE = 8192; // 足够容纳 96kHz 下 40ms 的数据
     float *ring_buffer = nullptr;
     uint32_t write_index = 0; // 写指针（中断中更新）
@@ -4502,7 +4500,7 @@ bool AppMusicPlayer::player_set()
 }
 
 // 初始化曲线缩放数组
-void initCurveScaling()
+static void initCurveScaling()
 {
     const int lowFreqCount = hal.pref.getInt("low_freq_count", 5);   // 低频点数量
     const int transitionCount = hal.pref.getInt("trans_cnt", 70);    // 过渡区数量
