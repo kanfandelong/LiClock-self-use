@@ -584,6 +584,7 @@ namespace GUI
         return selected;
     }
 
+    //此菜单重载暂不可用
     int menu(const char *title, const menu_item_mix options[], int16_t ico_w, int16_t ico_h, int default_selected)
     {
         // 动态窗口尺寸：留边距 20px

@@ -2863,7 +2863,7 @@ void AppMusicPlayer::show_display_vlbm()
         h = header.h;
         uint8_t gray_level = header.gray;
         frame_time_ms = header.frametime;
-        log_i("VLBM: %ux%u, gray=%d, frametime=%ums", w, h, gray_level, frame_time_ms);
+        // log_i("VLBM: %ux%u, gray=%d, frametime=%ums", w, h, gray_level, frame_time_ms);
 
         if (gray_level != 2)
         {

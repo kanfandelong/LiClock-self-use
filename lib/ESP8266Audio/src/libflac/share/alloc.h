@@ -79,7 +79,7 @@ static inline void *safe_malloc_(size_t size)
 #ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
 	void *p = heap_caps_malloc(size, FLAC__ESP32_HEAP_CAPS_FLAGS);
 	if(!p)
-		p = malloc(size); /* fallback to default allocation when internal heap is exhausted */
+		p = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); /* fallback to default allocation when internal heap is exhausted */
 	return p;
 #else
 	return malloc(size);
@@ -99,7 +99,7 @@ static inline void *safe_calloc_(size_t nmemb, size_t size)
 		memset(p, 0, total);
 		return p;
 	}
-	return calloc(nmemb, size); /* fallback to default allocation when internal heap is exhausted */
+	return heap_caps_calloc(nmemb, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); /* fallback to default allocation when internal heap is exhausted */
 #else
 	return calloc(nmemb, size);
 #endif
@@ -183,7 +183,7 @@ static inline void *safe_realloc_(void *ptr, size_t size)
 #ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
 	void *newptr = heap_caps_realloc(ptr, size, FLAC__ESP32_HEAP_CAPS_FLAGS);
 	if(!newptr && size > 0) {
-		newptr = realloc(ptr, size); /* fallback to default allocation when internal heap is exhausted */
+		newptr = heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); /* fallback to default allocation when internal heap is exhausted */
 		if(!newptr)
 			free(oldptr);
 	}

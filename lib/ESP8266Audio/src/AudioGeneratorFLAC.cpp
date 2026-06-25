@@ -69,9 +69,10 @@ bool AudioGeneratorFLAC::begin(AudioFileSource *source, AudioOutput *output)
   (void)FLAC__stream_decoder_set_md5_checking(flac, false);
   // Request only the metadata types we need (stream info and Vorbis comments).
   // Skipping picture metadata avoids large memory allocations on constrained devices.
-  // FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_STREAMINFO);
-  // FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_VORBIS_COMMENT);
-  FLAC__stream_decoder_set_metadata_respond_all(flac);
+  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_STREAMINFO);
+  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_SEEKTABLE);
+  FLAC__stream_decoder_set_metadata_respond(flac, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+  // FLAC__stream_decoder_set_metadata_respond_all(flac);
 
   FLAC__StreamDecoderInitStatus ret = FLAC__stream_decoder_init_stream(
       flac,
