@@ -27,12 +27,14 @@ AudioFileSourceHTTPStream::AudioFileSourceHTTPStream()
   pos = 0;
   reconnectTries = 0;
   saveURL[0] = 0;
+  customHeaderCount = 0;
 }
 
 AudioFileSourceHTTPStream::AudioFileSourceHTTPStream(const char *url)
 {
   saveURL[0] = 0;
   reconnectTries = 0;
+  customHeaderCount = 0;
   open(url);
 }
 
@@ -42,7 +44,7 @@ bool AudioFileSourceHTTPStream::open(const char *url)
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(60000);
   http.setReuse(false);
-/*   String urlStr = String(url);
+  String urlStr = String(url);
   bool isHttps = urlStr.startsWith("https://");
 
   if (isHttps)
@@ -50,12 +52,17 @@ bool AudioFileSourceHTTPStream::open(const char *url)
     _client.setInsecure();
     http.begin(_client, url);
   }
-  else */
-  http.begin(client, url);
+  else
+  {
+    http.begin(client, url);
+  }
 
   http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
   http.addHeader("Accept", "*/*");
   http.addHeader("Connection", "keep-alive");
+
+  // 应用自定义请求头
+  applyCustomHeaders();
   
   int code = http.GET();
   if (code != HTTP_CODE_OK)
@@ -153,6 +160,7 @@ retry:
     len = avail;
 
   int read = stream->read(reinterpret_cast<uint8_t *>(data), len);
+  if (read < 0) read = 0;
   pos += read;
   return read;
 }
@@ -184,6 +192,22 @@ uint32_t AudioFileSourceHTTPStream::getSize()
 uint32_t AudioFileSourceHTTPStream::getPos()
 {
   return pos;
+}
+
+void AudioFileSourceHTTPStream::addCustomHeader(const char *name, const char *value)
+{
+  if (customHeaderCount < 4) {
+    customHeaders[customHeaderCount].name = name;
+    customHeaders[customHeaderCount].value = value;
+    customHeaderCount++;
+  }
+}
+
+void AudioFileSourceHTTPStream::applyCustomHeaders()
+{
+  for (int i = 0; i < customHeaderCount; i++) {
+    http.addHeader(customHeaders[i].name, customHeaders[i].value);
+  }
 }
 
 #endif

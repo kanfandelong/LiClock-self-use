@@ -2,6 +2,7 @@
 
 #include "AppManager.h"
 #include "ESP8266Audio.h"
+#include "AudioFileSourceBuffer.h"
 #include "WiFi.h"
 #include "HTTPClient.h"
 #include <ArduinoJson.h>
@@ -48,6 +49,15 @@ static const uint8_t play_bits[] = {
 #define MAX_ONLINE_SONGS 1024
 #define MAX_PLAYLISTS 20
 
+// ==================== 代理服务器配置 ====================
+// 修改为你的 Meting Proxy 服务器地址
+// 编译后 ESP32 将通过此代理获取歌单、音频、歌词
+#define METING_PROXY_BASE "http://metingproxy.ysnb.com.cn"
+
+// 代理认证头 (config.yaml 中 auth.header_name / auth.secret)
+#define PROXY_AUTH_HEADER  "X-Auth-Key"
+#define PROXY_AUTH_SECRET  "LiClock-Self-Use"
+
 // ==================== 数据结构 ====================
 
 typedef struct
@@ -77,6 +87,9 @@ typedef struct
 
 // 音频对象(全局以便 task 和回调访问)
 AudioFileSourceHTTPStream *httpStream = nullptr;
+AudioFileSourceBuffer *bufferedStream = nullptr;
+void *psramBuffer = nullptr;
+#define STREAM_BUF_SIZE (300 * 1024)   // 300KB PSRAM 缓冲区
 AudioGeneratorMP3 *mp3 = nullptr;
 AudioOutputI2S *i2sOut = nullptr;
 
@@ -286,7 +299,6 @@ public:
     void loadOnlinePlaylist(const char *url);
     bool loadPlaylistCache(int playlistIdx);
     void savePlaylistCache(int playlistIdx);
-    String resolveRedirect(const String &url, int maxRedirects = 5);
     void playSong(int index);
     void stopSong();
     void beginPlayerTask();
@@ -296,6 +308,8 @@ public:
     void playNext();
     void playPrevious();
 };
+
+static void cleanProxyPort(char *url);
 
 static AppOnlineMusic onlineMusicApp;
 
@@ -370,10 +384,16 @@ void AppOnlineMusic::loadLyrics(const char *path)
 
     // 简单 LRC 文件加载
     if (!path || !hal.exists(path))
+    {
+        // 无歌词文件，正常情况（纯音乐或首次播放未缓存）
         return;
+    }
 
     File file = hal.open(path, "r");
-    if (!file) return;
+    if (!file) {
+        log_w("歌词文件打开失败: %s", path);
+        return;
+    }
 
     // 先统计行数
     int count = 0;
@@ -622,7 +642,7 @@ void AppOnlineMusic::beginPlayerTask()
 {
     _play_end = false;
     uint8_t core = xPortGetCoreID();
-    uint32_t stackSize = 8192;
+    uint32_t stackSize = 12288;
     if (core == 0)
         xTaskCreatePinnedToCore(player_loop, "online_play", stackSize, NULL, 8, &player_loop_task_handle, 1);
     else
@@ -774,9 +794,9 @@ void AppOnlineMusic::setup()
     if (playlistCount == 0)
     {
         playlistNames[0] = "网易云音乐";
-        playlistUrls[0] = "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=7031310463";
+        playlistUrls[0] = METING_PROXY_BASE "/api/playlist?id=7031310463";
         playlistNames[1] = "本地api测试";
-        playlistUrls[1] = hal.pref.getString("test_url", "https://meting.xcnahida.cn/meting/api?server=netease&type=url&id=2125045481");
+        playlistUrls[1] = hal.pref.getString("test_url", METING_PROXY_BASE "/api/playlist?id=7031310463");
         playlistCount = 2;
         savePlaylists();
     }
@@ -1035,7 +1055,7 @@ void AppOnlineMusic::addPlaylist()
 
     char urlBuf[256];
     snprintf(urlBuf, sizeof(urlBuf),
-             "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%lld",
+             METING_PROXY_BASE "/api/playlist?id=%lld",
              playlistId);
 
     char nameBuf[64];
@@ -1092,7 +1112,7 @@ void AppOnlineMusic::editPlaylist()
 
             char urlBuf[256];
             snprintf(urlBuf, sizeof(urlBuf),
-                     "https://meting.xcnahida.cn/meting/api?server=netease&type=playlist&id=%lld",
+                     METING_PROXY_BASE "/api/playlist?id=%lld",
                      playlistId);
             playlistUrls[idx] = urlBuf;
 
@@ -1173,7 +1193,12 @@ void AppOnlineMusic::loadPlaylists()
     {
         if (!doc[i].containsKey("name") || !doc[i].containsKey("url")) break;
         playlistNames[i] = doc[i]["name"].as<String>();
-        playlistUrls[i] = doc[i]["url"].as<String>();
+        String urlStr = doc[i]["url"].as<String>();
+        // 自动迁移已保存的 HTTPS URL → HTTP
+        if (urlStr.startsWith("https://")) {
+            urlStr = "http://" + urlStr.substring(8);
+        }
+        playlistUrls[i] = urlStr;
         playlistCount++;
     }
 }
@@ -1204,8 +1229,26 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     }
 
     HTTPClient http;
-    http.begin(url);
+    bool isHttps = (strncmp(url, "https://", 8) == 0);
+    if (isHttps) {
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+        NetworkClientSecure sslClient;
+#else
+        WiFiClientSecure sslClient;
+#endif
+        sslClient.setInsecure();
+        http.begin(sslClient, url);
+    } else {
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+        NetworkClient plainClient;
+#else
+        WiFiClient plainClient;
+#endif
+        http.begin(plainClient, url);
+    }
     http.setTimeout(60000);
+    http.addHeader(PROXY_AUTH_HEADER, PROXY_AUTH_SECRET);
+    http.addHeader("Connection", "close");
 
     int code = http.GET();
     if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT)
@@ -1219,7 +1262,8 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
     int contentLen = http.getSize();
     log_i("Playlist data size: %d bytes", contentLen);
 
-    size_t rawBufferSize = (contentLen > 0) ? (size_t)contentLen : 65536;
+    // Content-Length 未知时(如 chunked transfer)使用 512KB 大缓冲区
+    size_t rawBufferSize = (contentLen > 0) ? (size_t)contentLen : 524288;
     char *rawData = nullptr;
     if (psramFound())
         rawData = (char *)ps_malloc(rawBufferSize + 1024);
@@ -1235,20 +1279,44 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
 
     WiFiClient *streamPtr = http.getStreamPtr();
     size_t readLen = 0;
-    while (streamPtr->connected() || streamPtr->available())
+    size_t expectedLen = (contentLen > 0) ? (size_t)contentLen : rawBufferSize;
+    unsigned long startMs = millis();
+
+    // 读取完整响应: 已知长度按 Content-Length 读，未知则读到流关闭
+    while (readLen < expectedLen)
     {
-        if (readLen > rawBufferSize) break;
-        size_t bytesRead = streamPtr->readBytes(rawData + readLen, rawBufferSize - readLen);
-        if (bytesRead == 0) break;
-        readLen += bytesRead;
+        size_t remaining = rawBufferSize - readLen;
+        if (remaining == 0) break;
+
+        int avail = streamPtr->available();
+        if (avail <= 0)
+        {
+            // 流已关闭则结束，否则短暂等待数据到达
+            if (!streamPtr->connected()) break;
+            if ((millis() - startMs) > 10000) {
+                log_w("Stream read timeout after %d bytes", readLen);
+                break;
+            }
+            delay(1);
+            continue;
+        }
+
+        size_t toRead = (remaining < (size_t)avail) ? remaining : avail;
+        if (toRead > 4096) toRead = 4096;
+        size_t bytesRead = streamPtr->readBytes(rawData + readLen, toRead);
+        if (bytesRead > 0) {
+            readLen += bytesRead;
+            startMs = millis();
+        }
     }
     rawData[readLen] = '\0';
     http.end();
+    log_i("Actually read %d bytes", readLen);
 
-    size_t jsonCapacity = 131072;
-    if (contentLen > 0) jsonCapacity = (size_t)(contentLen * 2.5);
+    // 按实际读取长度计算 JSON 容量 (ArduinoJson 约需 2.5x)
+    size_t jsonCapacity = (size_t)(readLen * 2.5);
     if (jsonCapacity < 16384) jsonCapacity = 16384;
-    if (jsonCapacity > 524288) jsonCapacity = 524288;
+    if (jsonCapacity > 1048576) jsonCapacity = 1048576;
 
     DynamicJsonDocument doc(jsonCapacity);
     DeserializationError error = deserializeJson(doc, rawData);
@@ -1270,8 +1338,11 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
         songs = nullptr;
     }
     songs = (onlinesong *)ps_malloc(sizeof(onlinesong) * totalItems);
+    if (songs) memset(songs, 0, sizeof(onlinesong) * totalItems);
     songs_size = totalItems;
 
+    // 使用独立写入索引，确保有效歌曲连续存放
+    int writeIdx = 0;
     for (int i = 0; i < totalItems; i++)
     {
         JsonObject obj = jsonArray[i];
@@ -1285,16 +1356,18 @@ void AppOnlineMusic::loadOnlinePlaylist(const char *url)
             if (songUrl.length() > 10)
             {
                 songUrl.replace("\\/", "/");
-                songs[i].url = strdup(songUrl.c_str());
-                songs[i].title = strdup(songTitle.isEmpty() ? "未知曲目" : songTitle.c_str());
-                songs[i].author = strdup(songAuthor.c_str());
+                songs[writeIdx].url = strdup(songUrl.c_str());
+                cleanProxyPort(songs[writeIdx].url);
+                songs[writeIdx].title = strdup(songTitle.isEmpty() ? "未知曲目" : songTitle.c_str());
+                songs[writeIdx].author = strdup(songAuthor.c_str());
                 // 尝试解析 duration
                 if (obj.containsKey("interval"))
-                    songs[i].duration = obj["interval"].as<unsigned long>();
+                    songs[writeIdx].duration = obj["interval"].as<unsigned long>();
                 else if (obj.containsKey("duration"))
-                    songs[i].duration = obj["duration"].as<unsigned long>() / 1000;
+                    songs[writeIdx].duration = obj["duration"].as<unsigned long>() / 1000;
                 else
-                    songs[i].duration = 0;
+                    songs[writeIdx].duration = 0;
+                writeIdx++;
                 onlineSongCount++;
             }
         }
@@ -1317,7 +1390,11 @@ bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
     String content = file.readString();
     file.close();
 
-    DynamicJsonDocument doc(16384);
+    // 按文件大小动态分配 JSON 容量 (每首歌约需 300 字节)
+    size_t jsonCapacity = content.length() * 2 + 4096;
+    if (jsonCapacity < 16384) jsonCapacity = 16384;
+    if (jsonCapacity > 1048576) jsonCapacity = 1048576;
+    DynamicJsonDocument doc(jsonCapacity);
     DeserializationError error = deserializeJson(doc, content);
     if (error) return false;
 
@@ -1331,12 +1408,15 @@ bool AppOnlineMusic::loadPlaylistCache(int playlistIdx)
     }
     JsonArray songArr = doc["songs"];
     songs = (onlinesong *)ps_malloc(sizeof(onlinesong) * (onlineSongCount + 1));
+    if (songs) memset(songs, 0, sizeof(onlinesong) * (onlineSongCount + 1));
     songs_size = onlineSongCount;
     for (int i = 0; i < onlineSongCount && i < (int)songArr.size(); i++)
     {
-        songs[i].title = strdup(songArr[i]["title"].as<const char *>());
-        songs[i].author = strdup(songArr[i]["author"].as<const char *>());
-        songs[i].url = strdup(songArr[i]["url"].as<const char *>());
+        songs[i].title = strdup(songArr[i]["title"].as<const char *>() ?: "");
+        songs[i].author = strdup(songArr[i]["author"].as<const char *>() ?: "");
+        songs[i].url = strdup(songArr[i]["url"].as<const char *>() ?: "");
+        // 清理旧缓存中可能残留的代理端口
+        cleanProxyPort(songs[i].url);
         songs[i].duration = songArr[i]["duration"] | 0;
     }
     doc.clear();
@@ -1351,15 +1431,19 @@ void AppOnlineMusic::savePlaylistCache(int playlistIdx)
     File file = hal.open(path, FILE_WRITE);
     if (!file) return;
 
-    DynamicJsonDocument doc(16384);
+    // 每首歌约需 300 字节 JSON 空间
+    size_t jsonCapacity = onlineSongCount * 512 + 4096;
+    if (jsonCapacity < 16384) jsonCapacity = 16384;
+    if (jsonCapacity > 1048576) jsonCapacity = 1048576;
+    DynamicJsonDocument doc(jsonCapacity);
     doc["count"] = onlineSongCount;
     JsonArray song = doc.createNestedArray("songs");
     for (int i = 0; i < onlineSongCount; i++)
     {
         JsonObject obj = song.createNestedObject();
-        obj["title"] = songs[i].title;
-        obj["author"] = songs[i].author;
-        obj["url"] = songs[i].url;
+        obj["title"] = songs[i].title ? songs[i].title : "";
+        obj["author"] = songs[i].author ? songs[i].author : "";
+        obj["url"] = songs[i].url ? songs[i].url : "";
         obj["duration"] = songs[i].duration;
     }
     serializeJson(doc, file);
@@ -1368,6 +1452,24 @@ void AppOnlineMusic::savePlaylistCache(int playlistIdx)
 }
 
 // ==================== 歌词文件获取(从API尝试) ====================
+
+// 清理旧缓存中可能残留的代理内网端口 (如 :5190)
+static void cleanProxyPort(char *url)
+{
+    if (!url) return;
+    // 查找代理域名后的 ":端口"
+    char *p = strstr(url, "metingproxy");
+    if (!p) return;
+    p = strchr(p, ':');
+    if (!p) return;
+    // 确保是端口号 (后面是数字)
+    if (p[1] >= '0' && p[1] <= '9')
+    {
+        char *slash = strchr(p, '/');
+        size_t portLen = slash ? (size_t)(slash - p) : strlen(p);
+        memmove(p, slash ? slash : (p + portLen), strlen(slash ? slash : "") + 1);
+    }
+}
 
 // 根据歌曲URL获取歌曲ID，用于构造歌词API请求
 static String getSongIdFromUrl(const String &url)
@@ -1382,11 +1484,28 @@ static String getSongIdFromUrl(const String &url)
 static void fetchAndSaveLyrics(const String &songId, const String &savePath)
 {
     if (songId.isEmpty()) return;
-    String lyricUrl = "https://meting.xcnahida.cn/meting/api?server=netease&type=lyric&id=" + songId;
+    String lyricUrl = METING_PROXY_BASE "/api/lyric?id=" + songId;
 
     HTTPClient http;
-    http.begin(lyricUrl);
+    bool isHttps2 = (lyricUrl.startsWith("https://"));
+    if (isHttps2) {
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+        NetworkClientSecure sslClient2;
+#else
+        WiFiClientSecure sslClient2;
+#endif
+        sslClient2.setInsecure();
+        http.begin(sslClient2, lyricUrl);
+    } else {
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+        NetworkClient plainClient2;
+#else
+        WiFiClient plainClient2;
+#endif
+        http.begin(plainClient2, lyricUrl);
+    }
     http.setTimeout(10000);
+    http.addHeader(PROXY_AUTH_HEADER, PROXY_AUTH_SECRET);
     int code = http.GET();
     if (code != HTTP_CODE_OK)
     {
@@ -1429,48 +1548,16 @@ static void fetchAndSaveLyrics(const String &songId, const String &savePath)
         {
             f.print(lrcText);
             f.close();
-            log_i("歌词已保存: %s", savePath.c_str());
+            log_i("歌词已保存: %s (%d 字节)", savePath.c_str(), lrcText.length());
+        }
+        else
+        {
+            log_w("歌词文件写入失败: %s", savePath.c_str());
         }
     }
 }
 
 // ==================== 播放控制 ====================
-
-String AppOnlineMusic::resolveRedirect(const String &url, int maxRedirects)
-{
-    String currentUrl = url;
-    HTTPClient http;
-    WiFiClient client;
-
-    for (int i = 0; i < maxRedirects; i++)
-    {
-        http.begin(client, currentUrl);
-        http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-        http.setReuse(false);
-        const char *headerKeys[] = {"Location"};
-        http.collectHeaders(headerKeys, 1);
-
-        int code = http.GET();
-        if (code == HTTP_CODE_OK || code == HTTP_CODE_PARTIAL_CONTENT)
-        {
-            http.end();
-            return currentUrl;
-        }
-        else if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308)
-        {
-            String location = http.header("Location");
-            http.end();
-            if (location.length() == 0) return url;
-            currentUrl = location;
-        }
-        else
-        {
-            http.end();
-            return url;
-        }
-    }
-    return currentUrl;
-}
 
 void AppOnlineMusic::playSong(int index)
 {
@@ -1501,14 +1588,30 @@ void AppOnlineMusic::playSong(int index)
     }
     loadLyrics(lrcPath.c_str());
 
-    httpStream = new AudioFileSourceHTTPStream(currentSongUrl.c_str());
+    httpStream = new AudioFileSourceHTTPStream();
+    httpStream->addCustomHeader(PROXY_AUTH_HEADER, PROXY_AUTH_SECRET);
+    httpStream->open(currentSongUrl.c_str());
     httpStream->RegisterMetadataCB(MDCallback, (void *)"ICY");
+
+    // 分配 PSRAM 缓冲区并创建缓冲流，防止网络波动导致卡顿
+    if (psramFound()) {
+        psramBuffer = ps_malloc(STREAM_BUF_SIZE);
+    }
+    if (psramBuffer) {
+        log_i("PSRAM buffer allocated: %d bytes at %p", STREAM_BUF_SIZE, psramBuffer);
+        bufferedStream = new AudioFileSourceBuffer(httpStream, psramBuffer, STREAM_BUF_SIZE);
+    } else {
+        log_w("PSRAM buffer unavailable, streaming directly");
+    }
+
     mp3 = new AudioGeneratorMP3();
     mp3->RegisterStatusCB(StatusCallback, (void *)"mp3");
 
+    AudioFileSource *source = bufferedStream ? (AudioFileSource *)bufferedStream : (AudioFileSource *)httpStream;
+
     if (httpStream->isOpen())
     {
-        bool success = mp3->begin(httpStream, i2sOut);
+        bool success = mp3->begin(source, i2sOut);
         if (success)
         {
             isPlaying = true;
@@ -1522,6 +1625,8 @@ void AppOnlineMusic::playSong(int index)
         {
             log_e("Failed to start playback");
             delete mp3; mp3 = nullptr;
+            if (bufferedStream) { delete bufferedStream; bufferedStream = nullptr; }
+            if (psramBuffer) { free(psramBuffer); psramBuffer = nullptr; }
             delete httpStream; httpStream = nullptr;
             GUI::msgbox("错误", "播放连接失败");
         }
@@ -1529,6 +1634,8 @@ void AppOnlineMusic::playSong(int index)
     else
     {
         log_e("Failed to open audio stream");
+        if (bufferedStream) { delete bufferedStream; bufferedStream = nullptr; }
+        if (psramBuffer) { free(psramBuffer); psramBuffer = nullptr; }
         delete httpStream; httpStream = nullptr;
         GUI::msgbox("错误", "无法打开音频流");
     }
@@ -1545,6 +1652,16 @@ void AppOnlineMusic::stopSong()
         delete mp3;
         mp3 = nullptr;
     }
+    if (bufferedStream)
+    {
+        delete bufferedStream;
+        bufferedStream = nullptr;
+    }
+    if (psramBuffer)
+    {
+        free(psramBuffer);
+        psramBuffer = nullptr;
+    }
     if (httpStream)
     {
         httpStream->close();
@@ -1557,66 +1674,50 @@ void AppOnlineMusic::stopSong()
 
 void AppOnlineMusic::showPlaylist(int page)
 {
-    const int ITEMS_PER_PAGE = 8;
-    int totalPages = (onlineSongCount + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
-    if (totalPages < 1) totalPages = 1;
-    if (page > totalPages) page = totalPages;
-    if (page < 1) page = 1;
+    if (onlineSongCount <= 0) return;
+    if (!songs) return;
 
-    int selected = 0;
-    bool end = false;
+    // 分配完整菜单 (返回 + 所有歌曲 + NULL终止符)
+    int totalItems = onlineSongCount + 2;
+    menu_item *items = (menu_item *)ps_malloc(sizeof(menu_item) * totalItems);
+    if (!items) return;
+    String *displayNames = new String[onlineSongCount];
+    if (!displayNames) { free(items); return; }
 
-    while (!end)
+    items[0].icon = NULL;
+    items[0].title = "返回";
+
+    for (int i = 0; i < onlineSongCount; i++)
     {
-        int startIdx = (page - 1) * ITEMS_PER_PAGE;
-        int endIdx = min(startIdx + ITEMS_PER_PAGE, onlineSongCount);
-
-        static menu_item items[10];
-        for (int i = 0; i < 10; i++) items[i].icon = NULL;
-        items[0].title = "返回";
-
-        static String displayNames[9];
-        for (int i = startIdx; i < endIdx; i++)
-        {
-            String display;
-            if (songs[i].author && strlen(songs[i].author) > 0)
-                display = String(songs[i].title) + " - " + String(songs[i].author);
-            else
-                display = String(songs[i].title);
-            displayNames[i - startIdx] = display;
-            items[i - startIdx + 1].title = displayNames[i - startIdx].c_str();
-        }
-
-        int itemCount = endIdx - startIdx + 1;
-        items[itemCount].title = NULL;
-        items[itemCount].icon = NULL;
-
-        char title[64];
-        snprintf(title, sizeof(title), "歌单(%d/%d)", page, totalPages);
-
-        selected = GUI::menu(title, items, 8, 8, selected);
-
-        if (selected == 0)
-        {
-            end = true;
-        }
-        else if (selected >= 1 && selected <= (endIdx - startIdx))
-        {
-            currentSongIndex = startIdx + selected - 1;
-            playSong(currentSongIndex);
-            end = true;
-        }
-        else if (selected == (endIdx - startIdx + 1))
-        {
-            if (page < totalPages) page++;
-            else GUI::info_msgbox("提示", "已经是最后一页");
-        }
-        else if (selected == (endIdx - startIdx + 2) && totalPages > 1)
-        {
-            if (page > 1) page--;
-            else GUI::info_msgbox("提示", "已经是第一页");
-        }
+        if (songs[i].author && strlen(songs[i].author) > 0)
+            displayNames[i] = String(songs[i].title) + " - " + String(songs[i].author);
+        else
+            displayNames[i] = String(songs[i].title);
+        items[i + 1].icon = NULL;
+        items[i + 1].title = displayNames[i].c_str();
     }
+    items[onlineSongCount + 1].title = NULL;
+    items[onlineSongCount + 1].icon = NULL;
+
+    // 默认选中当前歌曲
+    int selected = currentSongIndex + 1;
+    if (selected < 0) selected = 0;
+    if (selected > onlineSongCount) selected = onlineSongCount;
+    (void)page; // GUI::menu 自带滚动，不再需要手动分页
+
+    char title[64];
+    snprintf(title, sizeof(title), "歌单(%d首)", onlineSongCount);
+
+    int res = GUI::menu(title, items, 8, 8, selected);
+
+    if (res > 0 && res <= onlineSongCount)
+    {
+        currentSongIndex = res - 1;
+        playSong(currentSongIndex);
+    }
+
+    delete[] displayNames;
+    free(items);
 }
 
 // ==================== 主显示界面 ====================

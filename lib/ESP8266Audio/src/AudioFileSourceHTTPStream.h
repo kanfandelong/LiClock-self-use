@@ -29,6 +29,12 @@
 #endif
 #include "AudioFileSource.h"
 
+// 自定义请求头容器
+struct HTTPHeaderPair {
+  const char *name;
+  const char *value;
+};
+
 class AudioFileSourceHTTPStream : public AudioFileSource
 {
   friend class AudioFileSourceICYStream;
@@ -49,12 +55,18 @@ class AudioFileSourceHTTPStream : public AudioFileSource
     bool SetReconnect(int tries, int delayms) { reconnectTries = tries; reconnectDelayMs = delayms; return true; }
     void useHTTP10 () { http.useHTTP10(true); }
 
+    // 添加自定义 HTTP 请求头 (需在 open() 前调用)
+    void addCustomHeader(const char *name, const char *value);
+
     enum { STATUS_HTTPFAIL=2, STATUS_DISCONNECTED, STATUS_RECONNECTING, STATUS_RECONNECTED, STATUS_NODATA };
 
   private:
     virtual uint32_t readInternal(void *data, uint32_t len, bool nonBlock);
+    void applyCustomHeaders();
+
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
     NetworkClient client;
+    NetworkClientSecure _client;
 #else
     WiFiClient client;
     WiFiClientSecure _client;
@@ -64,7 +76,11 @@ class AudioFileSourceHTTPStream : public AudioFileSource
     int size;
     int reconnectTries;
     int reconnectDelayMs;
-    char saveURL[128];
+    char saveURL[256];
+    
+    // 自定义请求头存储 (最多 4 个)
+    HTTPHeaderPair customHeaders[4];
+    int customHeaderCount;
 };
 
 

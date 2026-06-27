@@ -1,0 +1,32 @@
+{
+  "name": "metingproxy",
+  "version": "1.0.0",
+  "description": "Meting API proxy service for ESP32 music player - resolves redirects and streams audio",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop metingproxy",
+    "pm2:restart": "pm2 restart metingproxy",
+    "pm2:delete": "pm2 delete metingproxy",
+    "pm2:logs": "pm2 logs metingproxy",
+    "pm2:monit": "pm2 monit",
+    "pm2:setup": "pm2 install pm2-logrotate && pm2 set pm2-logrotate:max_size 20M && pm2 set pm2-logrotate:retain 5 && pm2 set pm2-logrotate:compress true && pm2 save",
+    "postinstall": "npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "express": "^4.21.0",
+    "js-yaml": "^4.1.0",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

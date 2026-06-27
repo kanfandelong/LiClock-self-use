@@ -1,0 +1,38 @@
+# ==================== Meting Proxy 配置文件 ====================
+
+# ---- 服务器监听配置 ----
+server:
+  host: "0.0.0.0"
+  port: 5190
+
+# ---- 认证配置 ----
+# enabled: true 时，所有 /api/* 请求需要携带认证头
+auth:
+  enabled: false
+  header_name: "X-Auth-Key"
+  secret: ""
+
+# ---- Meting API 上游地址 ----
+meting:
+  base_url: "https://meting.xcnahida.cn/meting/api"
+
+# ---- 歌单缓存 ----
+cache:
+  ttl_minutes: 30
+
+# ---- 日志配置 ----
+logging:
+  # 日志级别: debug / info / warn / error
+  level: "info"
+  file:
+    enabled: true
+    # 日志文件存放目录 (相对于项目根目录)
+    path: "./logs"
+    # 单个日志文件最大大小 (MB)，超过自动滚动
+    max_size_mb: 20
+    # 保留的旧日志文件数量 (超出自动删除)
+    max_files: 5
+  console:
+    enabled: true
+    # 终端格式: simple(简洁) / detailed(详细，含时间戳+模块名)
+    format: "detailed"
