@@ -1229,10 +1229,87 @@ const char* get_exc_cause_name(uint32_t exc_cause) {
     }
 }
 
+#include "protected/my_coredump.h"
+
+esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
+    if (!summary) return ESP_ERR_INVALID_ARG;
+
+    // 1. 查找分区
+    const esp_partition_t *core_part = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, NULL);
+    if (!core_part) {
+        log_e("Core dump partition not found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    // 2. 在 PSRAM 中分配缓冲区（如果 PSRAM 不可用，则降级到内部 RAM）
+    size_t buf_size = core_part->size;          // 你的分区是 64 KB，注意实际可用大小
+    uint8_t *buf = (uint8_t *)heap_caps_malloc(buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); // MALLOC_CAP_SPIRAM
+    if (!buf) {
+        // 如果 PSRAM 分配失败，尝试内部 RAM（但可能不够）
+        buf = (uint8_t *)malloc(buf_size);
+        if (!buf) {
+            log_e("Failed to allocate memory for core dump");
+            return ESP_ERR_NO_MEM;
+        }
+    }
+
+    // 3. 将分区内容全部读入缓冲区
+    esp_err_t err = esp_partition_read(core_part, 0, buf, buf_size);
+    if (err != ESP_OK) {
+        log_e("Failed to read core dump partition");
+        free(buf);
+        return err;
+    }
+
+    uint8_t *ptr = buf + 24;
+
+    elf_note_content_t target_notes[2] = {
+        [0] = { .n_type = ELF_ESP_CORE_DUMP_EXTRA_INFO_TYPE, .n_ptr = NULL },
+        [1] = { .n_type = ELF_ESP_CORE_DUMP_INFO_TYPE, .n_ptr = NULL }
+    };
+
+    app_core_dump_parse_note_section(ptr, target_notes, sizeof(target_notes) / sizeof(target_notes[0]));
+    if (target_notes[0].n_ptr) {
+        app_core_dump_summary_parse_extra_info(summary, target_notes[0].n_ptr);
+    }
+    if (target_notes[1].n_ptr) {
+        elf_parse_version_info(summary, target_notes[1].n_ptr);
+    }
+
+    /* Following code assumes that task stack segment follows the TCB segment for the respective task.
+     * In general ELF does not impose any restrictions on segments' order so this can be changed without impacting core dump version.
+     * More universal and flexible way would be to retrieve stack start address from crashed task TCB segment and then look for the stack segment with that address.
+     */
+    elfhdr *eh = (elfhdr *)ptr;
+    elf_phdr *phdr = (elf_phdr *)(ptr + eh->e_phoff);
+    int flag = 0;
+    for (unsigned int i = 0; i < eh->e_phnum; i++) {
+        const elf_phdr *ph = &phdr[i];
+        if (ph->p_type == PT_LOAD) {
+            if (flag) {
+                app_core_dump_summary_parse_exc_regs(summary, (void *)(ptr + ph->p_offset));
+                app_core_dump_summary_parse_backtrace_info(&summary->exc_bt_info, (void *)ph->p_vaddr,
+                                                           (void *)(ptr + ph->p_offset), ph->p_memsz);
+                break;
+            }
+            if (ph->p_vaddr == summary->exc_tcb) {
+                app_elf_parse_exc_task_name(summary, (void *)(ptr + ph->p_offset));
+                flag = 1;
+            }
+        }
+    }
+
+    free(buf);
+
+    log_i("Core dump summary parsed from PSRAM buffer");
+    return ESP_OK;
+}
+
 void show_check_info() {
     // 获取核心转储摘要
     esp_core_dump_summary_t summary;
-    esp_core_dump_get_summary(&summary);
+    app_core_dump_get_summary(&summary);
 
     // 1. 清屏并设置为白色背景
     display.setDrawWindow();
@@ -1339,8 +1416,10 @@ void HAL::coredump_file()
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
+        {    
             GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
             // show_check_info();
+        }
         else
             GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
     }

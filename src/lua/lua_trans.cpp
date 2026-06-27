@@ -239,7 +239,63 @@ void lua_execute(const char *filename, int argc, const char **argv)
 
 // 兼容旧调用：无参数版本
 void lua_execute(const char *filename) {
-    lua_execute(filename, 0, NULL);
+    // 1. 加载文件（与 luaL_dofile 一致）
+    if (luaL_loadfile(L, filename) != LUA_OK) {
+        const char *err = lua_tostring(L, -1);
+        if (!err) err = "(unknown load error)";
+        lua_printf("加载文件失败: %s", err);
+        lua_pop(L, 1);
+        return;
+    }
+
+    // 2. 执行（无错误处理函数，与 luaL_dofile 相同）
+    int status = lua_pcall(L, 0, 0, 0);
+
+    // 3. 如果执行失败，安全地处理错误
+    if (status != LUA_OK) {
+        // 获取原始错误信息
+        const char *err = lua_tostring(L, -1);
+        if (!err) {
+            // 如果栈顶不是字符串，显示类型
+            lua_printf("(E): 未知错误 (类型: %s)", lua_typename(L, lua_type(L, -1)));
+            lua_pop(L, 1);
+            return;
+        }
+
+        // 尝试获取带堆栈的详细错误（如果 debug 库可用）
+        const char *trace = NULL;
+        lua_getglobal(L, "debug");
+        if (lua_istable(L, -1)) {
+            lua_getfield(L, -1, "traceback");
+            if (lua_isfunction(L, -1)) {
+                // 调用 debug.traceback(err, 2)
+                lua_pushstring(L, err);
+                lua_pushinteger(L, 2);
+                if (lua_pcall(L, 2, 1, 0) == LUA_OK) {
+                    trace = lua_tostring(L, -1);
+                    // 如果成功获取堆栈，则用堆栈信息替换原始错误
+                    if (trace && trace[0] != '\0') {
+                        err = trace;
+                    } else {
+                        // 堆栈为空，忽略，保留原始错误
+                    }
+                }
+                // 注意：如果 lua_pcall 失败，trace 仍为 NULL，会保留原始错误
+            }
+            lua_pop(L, 1); // 弹出 debug 表（如果没取到 traceback，也弹出 debug）
+        } else {
+            // debug 库不可用，仅保留原始错误
+        }
+
+        // 现在 err 必定非空（原始错误已存在）
+        // 打印错误（包含堆栈，如果有的话）
+        lua_printf("(E): %s", err);
+
+        // 如果 trace 有效，我们可能还需要弹出 trace 字符串，但注意：
+        // 如果 trace 指向栈顶，我们将在下面 lua_pop 弹出它。
+        // 如果 trace 为空，栈顶是原始错误，也会被弹出。
+        lua_pop(L, 1); // 弹出错误信息（无论是原始还是 trace）
+    }
 }
 
 void closeLua()
