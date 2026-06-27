@@ -90,21 +90,23 @@ static void onSpkData(void *data, uint16_t len)
 {
     if (app.uac)
     {
-        app.uac->applyVolume(data, len);
         int16_t *buffer = (int16_t *)data;
         int32_t sample[2];
         int sample_count = len / sizeof(int16_t); // 总样本数
         for (int i = 0; i < sample_count; i += 2) // 每次取两个样本（左右各一）
         {
-            sample[0] = (int32_t)buffer[i] << 16;
-            sample[1] = (int32_t)buffer[i + 1] << 16;
-
             float left = (float)buffer[i];
             float right = (float)buffer[i + 1];
             // 混合
             float mono = (left + right) * 0.5f;
             app.ring_buffer[app.write_index] = mono;
-            app.write_index = (app.write_index + 1) & (app.RING_BUFFER_SIZE - 1); // 快速取模
+            app.write_index = (app.write_index + 1) & (app.RING_BUFFER_SIZE - 1);
+        }
+        app.uac->applyVolume(data, len);
+        for (int i = 0; i < sample_count; i += 2) // 每次取两个样本（左右各一）
+        {
+            sample[0] = (int32_t)buffer[i] << 16;
+            sample[1] = (int32_t)buffer[i + 1] << 16;
 
             app.i2s_output->ConsumeSample(sample);
         }
@@ -163,11 +165,11 @@ float USBAudioSpeakerApp::calculateAutoGain(float *spectrum, int len)
     // 可配置参数
     const float TARGET_SATURATION = 0.04f; // 目标饱和比例（4%）
     const float GAIN_MIN = 0.1f;           // 最小增益
-    const float GAIN_MAX = 15.0f;           // 最大增益
+    const float GAIN_MAX = 8.0f;          // 最大增益
     const float GAIN_UP_STEP = 1.03f;      // 增益上调系数（3%）
     const float GAIN_DOWN_STEP = 0.94f;    // 增益下调系数（6%）
-    const float SATURATION_THRESH = 60.0f; // 饱和判定阈值（与限幅值一致）
-    const float LOW_ENERGY_THRESH = 20.0f; // 整体偏低阈值
+    const float SATURATION_THRESH = 84.0f; // 饱和判定阈值（与限幅值一致）
+    const float LOW_ENERGY_THRESH = 30.0f; // 整体偏低阈值
     const int VOTE_NEEDED = 4;             // 需连续符合判定阈值的次数
     const int ADJUST_INTERVAL = 20;        // 调整间隔帧数
 
@@ -300,8 +302,8 @@ void USBAudioSpeakerApp::show_display_fft()
     for (int i = 0; i < SAMPLES / 2; i++)
     {
         // 限幅处理
-        if (vReal[i] > 168.0f)
-            vReal[i] = 168.0f;
+        if (vReal[i] > 84.0f)
+            vReal[i] = 84.0f;
         if (vReal[i] < 0.0f)
             vReal[i] = 0.0f;
         // 保存数据用于显示和平滑
@@ -343,12 +345,15 @@ void USBAudioSpeakerApp::show_display_fft()
         for (int i = 0; i < NUM_BARS; i++)
         {
             int barHeight = (int)(barSpectrum[i]);
-            if (barHeight > 168)
-                barHeight = 168;
+            if (barHeight > 83)
+                barHeight = 83;
             if (barHeight < 0)
                 barHeight = 0;
-            display.drawFastVLine(i * 3 + 1, 167 - barHeight, barHeight + 1, TFT_BLACK);
-            display.drawFastVLine(i * 3 + 2, 167 - barHeight, barHeight + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 1, 84 - barHeight, barHeight + 1, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 2, 84 - barHeight, barHeight + 1, TFT_BLACK);
+
+            display.drawFastVLine(i * 3 + 1, 85, barHeight, TFT_BLACK);
+            display.drawFastVLine(i * 3 + 2, 85, barHeight, TFT_BLACK);
         }
     }
     // -------------------------------------------------------------
@@ -376,14 +381,17 @@ void USBAudioSpeakerApp::show_display_fft()
                 mag = previousSpectrum[idx];
 
             int barHeight = (int)mag;
-            if (barHeight > 168)
-                barHeight = 168;
+            if (barHeight > 83)
+                barHeight = 83;
             if (barHeight < 0)
                 barHeight = 0;
             rawMag[x] = (uint8_t)barHeight;
         }
         for (int x = 0; x < DISPLAY_WIDTH; x++)
-            display.drawFastVLine(x, 167 - rawMag[x], rawMag[x] + 1, TFT_BLACK);
+        {
+            display.drawFastVLine(x, 84 - rawMag[x], rawMag[x] + 1, TFT_BLACK);
+            display.drawFastVLine(x, 85, rawMag[x], TFT_BLACK);
+        }
     }
     display.display();
 }
@@ -403,7 +411,7 @@ void USBAudioSpeakerApp::setup()
 
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
     smoothingFactor = hal.pref.getFloat("fft_smooth_val", 0.7f);
-    fft_gain = 6;
+    fft_gain = 2;
     vReal = new float[SAMPLES];
     // vImag = new float[SAMPLES];
     curveScaling = new float[SAMPLES / 2];
