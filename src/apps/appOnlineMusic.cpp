@@ -671,8 +671,9 @@ void AppOnlineMusic::deletePlaytask()
         xSemaphoreGive(audio_control_sem);
     }
 
-    if (mp3 && mp3->isRunning())
+    if (mp3 && mp3->isRunning()){
         mp3->stop();
+    }
 
     stop_requested = false;
 }
@@ -1481,79 +1482,85 @@ static String getSongIdFromUrl(const String &url)
     return url.substring(idPos + 3, endPos);
 }
 
+// JSON 字符串反转义：将 \" 转为 "，\\ 转为 \，\n 转为换行，\t 转为制表等
+static String unescapeJsonString(const String &s) {
+    String result;
+    result.reserve(s.length());
+    for (size_t i = 0; i < s.length(); ++i) {
+        if (s[i] == '\\' && i + 1 < s.length()) {
+            switch (s[i + 1]) {
+                case '"':  result += '"';  ++i; break;
+                case '\\': result += '\\'; ++i; break;
+                case '/':  result += '/';  ++i; break;
+                case 'n':  result += '\n'; ++i; break;
+                case 't':  result += '\t'; ++i; break;
+                case 'r':  result += '\r'; ++i; break;
+                default:
+                    result += s[i]; // 保持原字符
+                    break;
+            }
+        } else {
+            result += s[i];
+        }
+    }
+    return result;
+}
+
 static void fetchAndSaveLyrics(const String &songId, const String &savePath)
 {
     if (songId.isEmpty()) return;
     String lyricUrl = METING_PROXY_BASE "/api/lyric?id=" + songId;
 
     HTTPClient http;
-    bool isHttps2 = (lyricUrl.startsWith("https://"));
-    if (isHttps2) {
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
-        NetworkClientSecure sslClient2;
-#else
-        WiFiClientSecure sslClient2;
-#endif
-        sslClient2.setInsecure();
-        http.begin(sslClient2, lyricUrl);
-    } else {
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
-        NetworkClient plainClient2;
-#else
-        WiFiClient plainClient2;
-#endif
-        http.begin(plainClient2, lyricUrl);
-    }
     http.setTimeout(10000);
+
+    if (!http.begin(lyricUrl)) {
+        log_e("HTTP begin failed for %s", lyricUrl.c_str());
+        return;
+    }
+
+    http.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+    http.addHeader("Accept", "*/*");
     http.addHeader(PROXY_AUTH_HEADER, PROXY_AUTH_SECRET);
+
     int code = http.GET();
-    if (code != HTTP_CODE_OK)
-    {
+    if (code != HTTP_CODE_OK) {
         http.end();
         return;
     }
 
-    WiFiClient *client = http.getStreamPtr();
-    String response;
-    while (client->available())
-        response += (char)client->read();
-    http.end();
+    String response = http.getString();
+    http.end();  // 释放连接资源
 
-    DynamicJsonDocument doc(32768);
-    DeserializationError err = deserializeJson(doc, response);
-    if (err) return;
+    // 去掉首尾字符串引号
+    String lrcRaw;
+    if (response.length() >= 2 && response.startsWith("\"") && response.endsWith("\"")) {
+        lrcRaw = response.substring(1, response.length() - 1);
+    } else {
+        lrcRaw = response;
+    }
 
-    String lrcText;
-    if (doc.containsKey("lrc") && doc["lrc"].containsKey("lyric"))
-        lrcText = doc["lrc"]["lyric"].as<String>();
-    else if (doc.containsKey("tlyric") && doc["tlyric"].containsKey("lyric"))
-        lrcText = doc["tlyric"]["lyric"].as<String>();
-    else if (doc.containsKey("lyric"))
-        lrcText = doc["lyric"].as<String>();
+    // 反转义
+    String lrcText = unescapeJsonString(lrcRaw);
 
-    doc.clear();
-
-    if (lrcText.length() > 0)
-    {
+    if (lrcText.length() > 0) {
         // 确保目录存在
         int slashPos = savePath.lastIndexOf('/');
-        if (slashPos != -1)
-        {
+        if (slashPos != -1) {
             String dir = savePath.substring(0, slashPos);
             if (!hal.exists(dir))
                 hal.mkdir(dir);
         }
         File f = hal.open(savePath, "w");
-        if (f)
-        {
+        if (f) {
             f.print(lrcText);
             f.close();
             log_i("歌词已保存: %s (%d 字节)", savePath.c_str(), lrcText.length());
-        }
-        else
-        {
+        } else {
             log_w("歌词文件写入失败: %s", savePath.c_str());
         }
+    } else {
+        log_w("获取到的歌词为空");
     }
 }
 
@@ -1564,7 +1571,7 @@ void AppOnlineMusic::playSong(int index)
     if (index < 0 || index >= onlineSongCount) return;
 
     stopSong();
-    deletePlaytask();
+    // deletePlaytask();
     delay(200);
 
     currentSongIndex = index;
@@ -1648,7 +1655,7 @@ void AppOnlineMusic::stopSong()
 
     if (mp3)
     {
-        mp3->stop();
+        // mp3->stop();
         delete mp3;
         mp3 = nullptr;
     }
@@ -1664,7 +1671,7 @@ void AppOnlineMusic::stopSong()
     }
     if (httpStream)
     {
-        httpStream->close();
+        // httpStream->close();
         delete httpStream;
         httpStream = nullptr;
     }

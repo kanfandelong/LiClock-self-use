@@ -1774,10 +1774,10 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
             else
                 return false;
         }
-        if (esp_wifi_set_max_tx_power(hal.pref.getUChar("wifitxpower", 78)) != ESP_OK)
-            log_e("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+        if (esp_wifi_set_max_tx_power(hal.pref.getInt("wifitxpower", 84)) != ESP_OK)
+            log_e("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getInt("wifitxpower", 84) * 0.25);
         else
-            log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+            log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getInt("wifitxpower", 84) * 0.25);
     }
     // if (!WiFi.isConnected())
     // {

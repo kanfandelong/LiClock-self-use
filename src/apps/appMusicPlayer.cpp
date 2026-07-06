@@ -3819,25 +3819,16 @@ void AppMusicPlayer::show_display_fft()
         uint32_t current_write = write_index;
         // 计算最新SAMPLES个样本的起始索引
         int start = (current_write - SAMPLES + RING_BUFFER_SIZE) % RING_BUFFER_SIZE;
-        for (int i = 0; i < SAMPLES; i++)
-        {
-            vReal[i] = ring_buffer[(start + i) % RING_BUFFER_SIZE];
-            // vImag[i] = 0.0f;
-        }
-
-        // // 1. 采样数据加窗（汉明窗）
-        // FFT.windowing(vReal, SAMPLES, FFT_WIN_TYP_HANN, FFT_FORWARD);
-
-        // // 2. FFT计算
-        // FFT.compute(vReal, vImag, SAMPLES, FFT_FORWARD);
-
-        // // 3. 复数转幅度
-        // FFT.complexToMagnitude(vReal, vImag, SAMPLES);
+        // for (int i = 0; i < SAMPLES; i++)
+        // {
+        //     vReal[i] = ring_buffer[(start + i) % RING_BUFFER_SIZE];
+        //     // vImag[i] = 0.0f;
+        // }
 
         // 2. 加窗，填充复数交叠数组
         for (int i = 0; i < SAMPLES; i++)
         {
-            fft_data[2 * i] = vReal[i] * wind[i];
+            fft_data[2 * i] = ring_buffer[(start + i) % RING_BUFFER_SIZE] * wind[i];
             fft_data[2 * i + 1] = 0.0f; // 虚部置零
         }
 
@@ -4068,14 +4059,19 @@ void AppMusicPlayer::show_display_fft()
         uint32_t remainder = samples_per_frame % cols_per_frame; // 余数，前 remainder 列多加1个
 
         // 静态变量：列缓冲和滚动索引（跨帧保持）
-        static uint8_t min_vals[384];
-        static uint8_t max_vals[384];
+        static uint8_t *min_vals = nullptr;
+        static uint8_t *max_vals = nullptr;
         static int start_col = 0;
         static bool first_frame = true;
 
         // 第一帧初始化所有列为基线（屏幕中间 y=45）
         if (first_frame)
         {
+            min_vals = (uint8_t *)heap_caps_malloc(sizeof(uint8_t[384]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            max_vals = (uint8_t *)heap_caps_malloc(sizeof(uint8_t[384]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if (min_vals == nullptr || max_vals == nullptr){
+                log_e("内存分配失败");
+                return;}
             for (int i = 0; i < 384; i++)
             {
                 min_vals[i] = 45;
@@ -4589,7 +4585,7 @@ void AppMusicPlayer::setup()
     digitalWrite(PIN_DAC_XSMT, 1);
 
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
-    vReal = new float[SAMPLES];
+    vReal = new float[SAMPLES / 2];
     // vImag = new float[SAMPLES];
     curveScaling = new float[SAMPLES / 2];
     previousSpectrum = new float[SAMPLES / 2];

@@ -176,6 +176,7 @@ bool AudioFileSourceHTTPStream::seek(int32_t pos, int dir)
 bool AudioFileSourceHTTPStream::close()
 {
   http.end();
+  http.~HTTPClient();
   return true;
 }
 

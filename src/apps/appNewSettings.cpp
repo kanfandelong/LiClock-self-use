@@ -591,7 +591,9 @@ void AppSettings::menu_network()
         {
             static const menu_item wifi_power[] = {
                 {NULL, "< 返回"},
-                {NULL, "自定义"},
+                {NULL, "21dbm"},
+                {NULL, "20.5dbm"},
+                {NULL, "20dbm"},
                 {NULL, "19.5dbm"},
                 {NULL, "19dbm"},
                 {NULL, "18.5dbm"},
@@ -603,6 +605,7 @@ void AppSettings::menu_network()
                 {NULL, "7dbm"},
                 {NULL, "5dbm"},
                 {NULL, "2dbm"},
+                {NULL, "-1dbm"},
                 {NULL, NULL}};
             int res = 0;
             bool end = false;
@@ -614,59 +617,29 @@ void AppSettings::menu_network()
                 case 0:
                     end = true;
                     break;
-                case 1:
+                default:
                 {
-                    uint wifitxpower = GUI::msgbox_number("[8,84],0.25dbm", 2, hal.pref.getUChar("wifitxpower", 78));
-                    hal.pref.putUChar("wifitxpower", wifitxpower);
+                    int16_t table[] = {
+                        84, // 21dBm
+                        82, // 20.5dBm
+                        80, // 20dBm
+                        78, // 19.5dBm
+                        76, // 19dBm
+                        74, // 18.5dBm
+                        68, // 17dBm
+                        60, // 15dBm
+                        52, // 13dBm
+                        44, // 11dBm
+                        34, // 8.5dBm
+                        28, // 7dBm
+                        20, // 5dBm
+                        8,  // 2dBm
+                        -4  // -1dBm
+                    };
+                    hal.pref.putInt("wifitxpower", table[res - 1]);
                     show_wifi_power_set();
                 }
                 break;
-                case 2:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_19_5dBm);
-                    show_wifi_power_set();
-                    break;
-                case 3:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_19dBm);
-                    show_wifi_power_set();
-                    break;
-                case 4:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_18_5dBm);
-                    show_wifi_power_set();
-                    break;
-                case 5:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_17dBm);
-                    show_wifi_power_set();
-                    break;
-                case 6:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_15dBm);
-                    show_wifi_power_set();
-                    break;
-                case 7:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_13dBm);
-                    show_wifi_power_set();
-                    break;
-                case 9:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_11dBm);
-                    show_wifi_power_set();
-                    break;
-                case 10:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_8_5dBm);
-                    show_wifi_power_set();
-                    break;
-                case 11:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_7dBm);
-                    show_wifi_power_set();
-                    break;
-                case 12:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_5dBm);
-                    show_wifi_power_set();
-                    break;
-                case 13:
-                    hal.pref.putUChar("wifitxpower", WIFI_POWER_2dBm);
-                    show_wifi_power_set();
-                    break;
-                default:
-                    break;
                 }
             }
         }
