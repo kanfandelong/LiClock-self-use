@@ -828,21 +828,25 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     if (freq < _freq || (setfreq && (freq != _freq)))
     {
         bool cpuset = setCpuFrequencyMhz(_freq);
-        uart->end();
-        uart->setRxBufferSize(4096);
-        uart->begin(pref.getUInt("uart_baud", 115200));
-        uart->setDebugOutput(true);
-        reinstall_putc2();
-        reinstall_ws_putc2();
-        cmd.SetCallback();
-        log_i("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
+        if (_freq < 80)
+        {
+            log_i("APB频率改变,正在重新初始化串口...");
+            unsigned long baud = uart->baudRate();
+            uart->end();
+            uart->setRxBufferSize(4096);
+            uart->begin(baud);
+            uart->setDebugOutput(true);
+            reinstall_putc2();
+            reinstall_ws_putc2();
+            cmd.SetCallback();
+        }
         if (cpuset)
         {
-            log_i("已调节CPU频率至目标频率");
+            log_i("CpuFreq: %dMHZ ===> %dMHZ", freq, _freq);
         }
         else
         {
-            log_e("CPU频率调节失败");
+            log_e("CpuFreq: %dMHZ =x=> %dMHZ", freq, _freq);
         }
     }
 }
@@ -1183,72 +1187,109 @@ void HAL::wait_input(uint32_t sleeptime)
     }
 }
 
-const char* get_exc_cause_name(uint32_t exc_cause) {
-    switch (exc_cause) {
-        case 0: return "IllegalInstructionCause";
-        case 1: return "SyscallCause";
-        case 2: return "InstructionFetchErrorCause";
-        case 3: return "LoadStoreErrorCause";
-        case 4: return "Level1InterruptCause";
-        case 5: return "AllocaCause";
-        case 6: return "IntegerDivideByZeroCause";
-        case 7: return "Reserved for Tensilica";
-        case 8: return "PrivilegedCause";
-        case 9: return "LoadStoreAlignmentCause";
-        case 10:
-        case 11: return "Reserved for Tensilica";
-        case 12: return "InstrPIFDataErrorCause";
-        case 13: return "LoadStorePIFDataErrorCause";
-        case 14: return "InstrPIFAddrErrorCause";
-        case 15: return "LoadStorePIFAddrErrorCause";
-        case 16: return "InstTLBMissCause";
-        case 17: return "InstTLBMultiHitCause";
-        case 18: return "InstFetchPrivilegeCause";
-        case 19: return "Reserved for Tensilica";
-        case 20: return "InstFetchProhibitedCause";
-        case 21:
-        case 22:
-        case 23: return "Reserved for Tensilica";
-        case 24: return "LoadStoreTLBMissCause";
-        case 25: return "LoadStoreTLBMultiHitCause";
-        case 26: return "LoadStorePrivilegeCause";
-        case 27: return "Reserved for Tensilica";
-        case 28: return "LoadProhibitedCause";
-        case 29: return "StoreProhibitedCause";
-        case 30:
-        case 31: return "Reserved for Tensilica";
-        case 32:
-        case 33:
-        case 34:
-        case 35:
-        case 36:
-        case 37:
-        case 38:
-        case 39: return "CoprocessornDisabled";
-        default: return "Reserved";
+const char *get_exc_cause_name(uint32_t exc_cause)
+{
+    switch (exc_cause)
+    {
+    case 0:
+        return "IllegalInstructionCause";
+    case 1:
+        return "SyscallCause";
+    case 2:
+        return "InstructionFetchErrorCause";
+    case 3:
+        return "LoadStoreErrorCause";
+    case 4:
+        return "Level1InterruptCause";
+    case 5:
+        return "AllocaCause";
+    case 6:
+        return "IntegerDivideByZeroCause";
+    case 7:
+        return "Reserved for Tensilica";
+    case 8:
+        return "PrivilegedCause";
+    case 9:
+        return "LoadStoreAlignmentCause";
+    case 10:
+    case 11:
+        return "Reserved for Tensilica";
+    case 12:
+        return "InstrPIFDataErrorCause";
+    case 13:
+        return "LoadStorePIFDataErrorCause";
+    case 14:
+        return "InstrPIFAddrErrorCause";
+    case 15:
+        return "LoadStorePIFAddrErrorCause";
+    case 16:
+        return "InstTLBMissCause";
+    case 17:
+        return "InstTLBMultiHitCause";
+    case 18:
+        return "InstFetchPrivilegeCause";
+    case 19:
+        return "Reserved for Tensilica";
+    case 20:
+        return "InstFetchProhibitedCause";
+    case 21:
+    case 22:
+    case 23:
+        return "Reserved for Tensilica";
+    case 24:
+        return "LoadStoreTLBMissCause";
+    case 25:
+        return "LoadStoreTLBMultiHitCause";
+    case 26:
+        return "LoadStorePrivilegeCause";
+    case 27:
+        return "Reserved for Tensilica";
+    case 28:
+        return "LoadProhibitedCause";
+    case 29:
+        return "StoreProhibitedCause";
+    case 30:
+    case 31:
+        return "Reserved for Tensilica";
+    case 32:
+    case 33:
+    case 34:
+    case 35:
+    case 36:
+    case 37:
+    case 38:
+    case 39:
+        return "CoprocessornDisabled";
+    default:
+        return "Reserved";
     }
 }
 
 #include "protected/my_coredump.h"
 
-esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
-    if (!summary) return ESP_ERR_INVALID_ARG;
+esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary)
+{
+    if (!summary)
+        return ESP_ERR_INVALID_ARG;
 
     // 1. 查找分区
     const esp_partition_t *core_part = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, NULL);
-    if (!core_part) {
+    if (!core_part)
+    {
         log_e("Core dump partition not found");
         return ESP_ERR_NOT_FOUND;
     }
 
     // 2. 在 PSRAM 中分配缓冲区（如果 PSRAM 不可用，则降级到内部 RAM）
-    size_t buf_size = core_part->size;          // 你的分区是 64 KB，注意实际可用大小
+    size_t buf_size = core_part->size;                                                           // 你的分区是 64 KB，注意实际可用大小
     uint8_t *buf = (uint8_t *)heap_caps_malloc(buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); // MALLOC_CAP_SPIRAM
-    if (!buf) {
+    if (!buf)
+    {
         // 如果 PSRAM 分配失败，尝试内部 RAM（但可能不够）
         buf = (uint8_t *)malloc(buf_size);
-        if (!buf) {
+        if (!buf)
+        {
             log_e("Failed to allocate memory for core dump");
             return ESP_ERR_NO_MEM;
         }
@@ -1256,7 +1297,8 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
 
     // 3. 将分区内容全部读入缓冲区
     esp_err_t err = esp_partition_read(core_part, 0, buf, buf_size);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         log_e("Failed to read core dump partition");
         free(buf);
         return err;
@@ -1265,15 +1307,16 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
     uint8_t *ptr = buf + 24;
 
     elf_note_content_t target_notes[2] = {
-        [0] = { .n_type = ELF_ESP_CORE_DUMP_EXTRA_INFO_TYPE, .n_ptr = NULL },
-        [1] = { .n_type = ELF_ESP_CORE_DUMP_INFO_TYPE, .n_ptr = NULL }
-    };
+        [0] = {.n_type = ELF_ESP_CORE_DUMP_EXTRA_INFO_TYPE, .n_ptr = NULL},
+        [1] = {.n_type = ELF_ESP_CORE_DUMP_INFO_TYPE, .n_ptr = NULL}};
 
     app_core_dump_parse_note_section(ptr, target_notes, sizeof(target_notes) / sizeof(target_notes[0]));
-    if (target_notes[0].n_ptr) {
+    if (target_notes[0].n_ptr)
+    {
         app_core_dump_summary_parse_extra_info(summary, target_notes[0].n_ptr);
     }
-    if (target_notes[1].n_ptr) {
+    if (target_notes[1].n_ptr)
+    {
         elf_parse_version_info(summary, target_notes[1].n_ptr);
     }
 
@@ -1284,16 +1327,20 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
     elfhdr *eh = (elfhdr *)ptr;
     elf_phdr *phdr = (elf_phdr *)(ptr + eh->e_phoff);
     int flag = 0;
-    for (unsigned int i = 0; i < eh->e_phnum; i++) {
+    for (unsigned int i = 0; i < eh->e_phnum; i++)
+    {
         const elf_phdr *ph = &phdr[i];
-        if (ph->p_type == PT_LOAD) {
-            if (flag) {
+        if (ph->p_type == PT_LOAD)
+        {
+            if (flag)
+            {
                 app_core_dump_summary_parse_exc_regs(summary, (void *)(ptr + ph->p_offset));
                 app_core_dump_summary_parse_backtrace_info(&summary->exc_bt_info, (void *)ph->p_vaddr,
                                                            (void *)(ptr + ph->p_offset), ph->p_memsz);
                 break;
             }
-            if (ph->p_vaddr == summary->exc_tcb) {
+            if (ph->p_vaddr == summary->exc_tcb)
+            {
                 app_elf_parse_exc_task_name(summary, (void *)(ptr + ph->p_offset));
                 flag = 1;
             }
@@ -1306,7 +1353,8 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
     return ESP_OK;
 }
 
-void show_check_info() {
+void show_check_info()
+{
     // 获取核心转储摘要
     esp_core_dump_summary_t summary;
     app_core_dump_get_summary(&summary);
@@ -1319,15 +1367,15 @@ void show_check_info() {
     display.fillRect(0, 0, 384, 24, TFT_BLACK);
     u8g2Fonts.setForegroundColor(TFT_WHITE);
     u8g2Fonts.setBackgroundColor(TFT_BLACK);
-    u8g2Fonts.setFont(u8g2_font_logisoso22_tf);  // 大标题字体
-    u8g2Fonts.setCursor(10, 20);                 // 左对齐，垂直居中
+    u8g2Fonts.setFont(u8g2_font_logisoso22_tf); // 大标题字体
+    u8g2Fonts.setCursor(10, 20);                // 左对齐，垂直居中
     u8g2Fonts.print("Liclock CRASH!");
 
     // 3. 切换回默认字体（12x12 等效字体），黑色文字白色背景
     // u8g2Fonts.setFont(u8g2_font_6x12_tf);       // 宽6高12，接近12x12点阵
     u8g2Fonts.setForegroundColor(TFT_BLACK);
     u8g2Fonts.setBackgroundColor(TFT_WHITE);
-    u8g2Fonts.setCursor(4, 34);                 // 标题栏下方留白
+    u8g2Fonts.setCursor(4, 34); // 标题栏下方留白
 
     // 4. 打印详细信息
     u8g2Fonts.println("INFO:");
@@ -1339,13 +1387,16 @@ void show_check_info() {
     u8g2Fonts.setCursor(u8g2Fonts.getCursorX(), u8g2Fonts.getCursorY() + 6);
 
     // 5. 打印回溯信息
-    if (summary.exc_bt_info.depth > 0) {
+    if (summary.exc_bt_info.depth > 0)
+    {
         u8g2Fonts.println("Backtrace:");
-        int addr_per_line = 8;                 // 每行显示8个地址
-        for (int i = 0; i < summary.exc_bt_info.depth; i++) {
+        int addr_per_line = 8; // 每行显示8个地址
+        for (int i = 0; i < summary.exc_bt_info.depth; i++)
+        {
             u8g2Fonts.printf("0x%08lX ", summary.exc_bt_info.bt[i]);
-            if ((i + 1) % addr_per_line == 0 || i == summary.exc_bt_info.depth - 1) {
-                u8g2Fonts.println();           // 换行
+            if ((i + 1) % addr_per_line == 0 || i == summary.exc_bt_info.depth - 1)
+            {
+                u8g2Fonts.println(); // 换行
             }
         }
     }
@@ -1416,7 +1467,7 @@ void HAL::coredump_file()
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
-        {    
+        {
             GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
             // show_check_info();
         }
@@ -1426,7 +1477,8 @@ void HAL::coredump_file()
 }
 
 // 定义关机处理函数
-static void shutdown_handler(void) {
+static void shutdown_handler(void)
+{
     log_i("正在终止应用程序...");
     log_system_deinit();
     peripherals.sleep();
@@ -1434,7 +1486,7 @@ static void shutdown_handler(void) {
     hal.pref.end();
     ledcDetach(PIN_BUZZER);
     pinMode(PIN_BUZZER, OUTPUT);
-    digitalWrite(PIN_BUZZER, 0);  
+    digitalWrite(PIN_BUZZER, 0);
 }
 
 static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
@@ -1685,7 +1737,7 @@ bool HAL::init()
     }
     else
     {
-        log_i("由定时器唤醒，不加载串口工具和按键音");
+        log_i("由定时器唤醒，不加载串口工具和按键提示音");
     }
     // if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3)
     // {
@@ -1790,8 +1842,8 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     //     }
     // }
     log_i("成功连接:%s", WiFi.SSID().c_str());
-    log_i("IP:%s", WiFi.localIP().toString().c_str());
-    log_i("MAC:%s", WiFi.macAddress().c_str());
+    log_i("IP:     %s", WiFi.localIP().toString().c_str());
+    log_i("MAC:    %s", WiFi.macAddress().c_str());
     log_i("信号强度:%d", WiFi.RSSI());
     esp_sntp_stop();
     return true;

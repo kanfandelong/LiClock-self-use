@@ -3,8 +3,8 @@
 #include "DS3231.h"
 #include "RDA5807.h"
 
-#define SDA_1 26
-#define SCL_1 25
+#define SDA_1 19
+#define SCL_1 20
 
 DS3231 Srtc;
 

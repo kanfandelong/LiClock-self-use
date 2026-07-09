@@ -586,17 +586,7 @@ static int cmd_cpufreq(int argc, char **argv)
         {
             return 1;
         }
-        if (setCpuFrequencyMhz(freq))
-        {
-            SUCCESS_COLOR;
-            PRINT_INFO("CPU frequency set to %d MHz", freq);
-            RESET_COLOR;
-        }
-        else
-        {
-            PRINT_ERROR("Failed to set CPU frequency");
-            return 2;
-        }
+        hal.cheak_freq(freq);
         return 0;
     }
     else
@@ -882,31 +872,31 @@ static int cmd_heapdump(int argc, char **argv)
 static int cmd_chipinfo(int argc, char **argv)
 {
     PRINT_INFO("CHIP INFORMATION:");
-    PRINT_INFO("  Model:       %s", ESP.getChipModel());
-    PRINT_INFO("  Revision:    %u", ESP.getChipRevision());
-    PRINT_INFO("  Cores:       %u", ESP.getChipCores());
+    PRINT_INFO("  Model:             %s", ESP.getChipModel());
+    PRINT_INFO("  Revision:          %u", ESP.getChipRevision());
+    PRINT_INFO("  Cores:             %u", ESP.getChipCores());
     uint64_t chipmacid = ESP.getEfuseMac();
     uint8_t *mac = (uint8_t *)&chipmacid;
     char macStr[18];
     snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    PRINT_INFO("  MAC:         %s", macStr);
+    PRINT_INFO("  MAC:               %s", macStr);
     uint64_t unique_id[2];
     esp_efuse_read_field_blob(ESP_EFUSE_OPTIONAL_UNIQUE_ID, unique_id, 128);
     uint8_t *chip_uid[2];
     chip_uid[0] = (uint8_t *)&unique_id[0];
     chip_uid[1] = (uint8_t *)&unique_id[1];
-    PRINT_INFO("  Unique ID:   %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+    PRINT_INFO("  Unique ID:         %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                chip_uid[0][0], chip_uid[0][1], chip_uid[0][2], chip_uid[0][3],
                chip_uid[0][4], chip_uid[0][5], chip_uid[0][6], chip_uid[0][7],
                chip_uid[1][0], chip_uid[1][1], chip_uid[1][2], chip_uid[1][3],
                chip_uid[1][4], chip_uid[1][5], chip_uid[1][6], chip_uid[1][7]);
-    PRINT_INFO("  Flash size:  %d MB", ESP.getFlashChipSize() / 1048576);
+    PRINT_INFO("  Flash size:        %d MB", ESP.getFlashChipSize() / 1048576);
     uint32_t flash_id;
     uint64_t flash_unique_id;
     esp_flash_read_id(esp_flash_default_chip, &flash_id);
     esp_flash_read_unique_chip_id(esp_flash_default_chip, &flash_unique_id);
-    PRINT_INFO("  Flash ID:    %04x", flash_id);
+    PRINT_INFO("  Flash ID:          %04x", flash_id);
     uint8_t *fuid = (uint8_t *)&flash_unique_id;
     PRINT_INFO("  Unique ID (Flash): %02x%02x%02x%02x%02x%02x%02x%02x",
                fuid[0], fuid[1], fuid[2], fuid[3],
@@ -3629,151 +3619,24 @@ static int cmd_about(int argc, char **argv)
     return 0;
 }
 
-static int cmd_uart_bandset(int argc, char **argv)
+static int cmd_uart_baudset(int argc, char **argv)
 {
     if (argc < 2)
     {
         return 1; // 返回 1 触发帮助信息
     }
-    uint32_t band;
-    parseUnsigned(argv[1], band);
-    uart->end();
-    uart->setRxBufferSize(4096);
-    uart->begin(band);
-    uart->setDebugOutput(true);
-    cmd.SetCallback();
-    reinstall_putc2();
-    reinstall_ws_putc2();
-    return 0;
-}
-
-
-/* 命令行函数：i2c_rw <i2c_num> <addr> [-w <byte...>] [-r <len>]
- * 示例：
- *   i2c_rw 0 0x50 -r 8          // 从地址0x50读取8字节
- *   i2c_rw 1 0x3c -w 0x00 0x01  // 向地址0x3c写入两个字节
- *   i2c_rw 0 0x68 -w 0x10 -r 2  // 先写0x10，再读取2字节（写读组合）
- */
-static int cmd_i2c_rw(int argc, char **argv)
-{
-    // ---------- 参数数量检查 ----------
-    if (argc < 4) {
-        PRINT_ERROR("Usage: %s <i2c_num> <addr> [-w byte1 [byte2...]] [-r len]", argv[0]);
-        PRINT_ERROR("  addr: hexadecimal (0x) or decimal");
-        PRINT_ERROR("  -w: write bytes (0-255)");
-        PRINT_ERROR("  -r: read length (bytes)");
-        return 1;   // 参数错误，框架会打印帮助信息
-    }
-
-    // ---------- 解析固定参数 ----------
-    int i2c_num = atoi(argv[1]);
-    if (i2c_num < 0 || i2c_num > 1) {
-        PRINT_ERROR("i2c_num must be 0 or 1");
-        return 1;
-    }
-
-    uint16_t addr = (uint16_t)strtol(argv[2], NULL, 0);
-    if (addr == 0 && argv[2][0] != '0') {
-        PRINT_ERROR("invalid address format");
-        return 1;
-    }
-
-    // ---------- 解析选项 -w 和 -r ----------
-    uint8_t wbuf[256];
-    int wlen = 0;
-    int rlen = 0;
-    bool has_w = false, has_r = false;
-
-    for (int i = 3; i < argc; i++) {
-        if (strcmp(argv[i], "-w") == 0) {
-            has_w = true;
-            while (i + 1 < argc && argv[i + 1][0] != '-') {
-                i++;
-                int val = atoi(argv[i]);
-                if (val < 0 || val > 255) {
-                    PRINT_ERROR("byte value must be 0-255");
-                    return 1;
-                }
-                if (wlen >= (int)sizeof(wbuf)) {
-                    PRINT_ERROR("write buffer overflow (max %d bytes)", (int)sizeof(wbuf));
-                    return 1;
-                }
-                wbuf[wlen++] = (uint8_t)val;
-            }
-        } else if (strcmp(argv[i], "-r") == 0) {
-            has_r = true;
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                rlen = atoi(argv[++i]);
-                if (rlen <= 0) {
-                    PRINT_ERROR("read length must be positive");
-                    return 1;
-                }
-            } else {
-                PRINT_ERROR("-r requires a length argument");
-                return 1;
-            }
-        } else {
-            PRINT_ERROR("unknown option '%s'", argv[i]);
-            return 1;
-        }
-    }
-
-    if (!has_w && !has_r) {
-        PRINT_ERROR("must specify -w and/or -r");
-        return 1;
-    }
-
-    // ---------- 检查 I2C 是否已初始化 ----------
-    if (!i2cIsInit((uint8_t)i2c_num)) {
-        PRINT_ERROR("I2C%d is not initialized", i2c_num);
-        return 2;
-    }
-
-    // ---------- 执行 I2C 操作 ----------
-    esp_err_t err;
-    const uint32_t timeout_ms = 1000;   // 可根据需要调整
-
-    if (has_w && has_r) {
-        // 写读组合（非停止）
-        uint8_t rbuf[rlen];
-        size_t read_count = 0;
-        err = i2cWriteReadNonStop((uint8_t)i2c_num, addr, wbuf, (size_t)wlen,
-                                  rbuf, (size_t)rlen, timeout_ms, &read_count);
-        if (err == ESP_OK) {
-            PRINT_SUCCESS("Write %d bytes + Read %d bytes succeeded", wlen, (int)read_count);
-            log_printf("Data: ");
-            for (size_t i = 0; i < read_count; i++) {
-                log_printf("%02X ", rbuf[i]);
-            }
-            log_printf("\n");
-        }
-    } else if (has_w) {
-        // 仅写入
-        err = i2cWrite((uint8_t)i2c_num, addr, wbuf, (size_t)wlen, timeout_ms);
-        if (err == ESP_OK) {
-            PRINT_SUCCESS("Write %d bytes succeeded", wlen);
-        }
-    } else { // has_r only
-        // 仅读取
-        uint8_t rbuf[rlen];
-        size_t read_count = 0;
-        err = i2cRead((uint8_t)i2c_num, addr, rbuf, (size_t)rlen, timeout_ms, &read_count);
-        if (err == ESP_OK) {
-            PRINT_SUCCESS("Read %d bytes succeeded", (int)read_count);
-            log_printf("Data: ");
-            for (size_t i = 0; i < read_count; i++) {
-                log_printf("%02X ", rbuf[i]);
-            }
-            log_printf("\n");
-        }
-    }
-
-    // ---------- 处理错误 ----------
-    if (err != ESP_OK) {
-        PRINT_ERROR("I2C operation failed: %s", esp_err_to_name(err));
-        return 2;
-    }
-
+    uint32_t baud,last_baud;
+    parseUnsigned(argv[1], baud);
+    last_baud = uart->baudRate();
+    uart->updateBaudRate(baud);
+    log_i("UART baud rate changed %lu -> %lu", last_baud, baud);
+    // uart->end();
+    // uart->setRxBufferSize(4096);
+    // uart->begin(band);
+    // uart->setDebugOutput(true);
+    // cmd.SetCallback();
+    // reinstall_putc2();
+    // reinstall_ws_putc2();
     return 0;
 }
 
@@ -3852,7 +3715,7 @@ static const esp_console_cmd_t cmds[] = {
      .argtable = NULL},
     {.command = "applist", .help = "显示所有已注册的app", .hint = no_info, .func = &cmd_applist, .argtable = NULL},
     {.command = "about", .help = "中断当前的运行", .hint = no_info, .func = &cmd_about, .argtable = NULL},
-    {.command = "setbaud", .help = "重置串口波特率", .hint = "Usage: setbaud [cmd]", .func = &cmd_uart_bandset, .argtable = NULL},
+    {.command = "setbaud", .help = "重置串口波特率", .hint = "Usage: setbaud [cmd]", .func = &cmd_uart_baudset, .argtable = NULL},
     {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
 
 // Custom helper to retrieve the hint string for a given command name.

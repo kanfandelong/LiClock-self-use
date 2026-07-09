@@ -2994,9 +2994,9 @@ void AppMusicPlayer::show_display_vlbm()
         display.drawbitmap(0, 0, img, w, h, TFT_BLACK);
         updateVolumeUI();
 
+        static uint32_t last_update_time = 0;
         if (display_debug_mode)
         {
-            static uint32_t last_update_time = 0;
             uint32_t now = millis();
             static char _buf[64];
             static int x, w;
@@ -3015,6 +3015,16 @@ void AppMusicPlayer::show_display_vlbm()
             display.fillRect(x, 166 - 10, w, 10, TFT_WHITE);
             u8g2Fonts.setCursor(x, 166);
             u8g2Fonts.print(_buf);
+        }
+        else
+        {
+            uint32_t now = millis();
+            if (now - last_update_time > 100)
+            { // 200ms更新一次
+                last_update_time = now;
+                float all = (float)(d_time.start - last_time.start) / 1000.0;
+                fps = 1000.0 / all;
+            }
         }
         display.drawFastHLine(0, 167, 384, TFT_WHITE);
         display.drawFastHLine(0, 166, 384, TFT_WHITE);
@@ -3304,15 +3314,15 @@ void AppMusicPlayer::show_display_debug()
         last_update_time = millis();
     }
 
+    static uint32_t _last_update_time = 0;
     if (display_debug_mode)
     {
-        static uint32_t last_update_time = 0;
         uint32_t now = millis();
         static char _buf[64];
         static int x;
-        if (now - last_update_time > 200)
+        if (now - _last_update_time > 200)
         { // 200ms更新一次
-            last_update_time = now;
+            _last_update_time = now;
             float all = (float)(d_time.start - last_time.start) / 1000.0;
             fps = 1000.0 / all;
             float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
@@ -3323,6 +3333,16 @@ void AppMusicPlayer::show_display_debug()
         }
         u8g2Fonts.setCursor(x, 165);
         u8g2Fonts.print(_buf);
+    }
+    else
+    {
+        uint32_t now = millis();
+        if (now - _last_update_time > 100)
+        { // 200ms更新一次
+            _last_update_time = now;
+            float all = (float)(d_time.start - last_time.start) / 1000.0;
+            fps = 1000.0 / all;
+        }
     }
 
     d_time.display_start = micros();
@@ -4069,9 +4089,11 @@ void AppMusicPlayer::show_display_fft()
         {
             min_vals = (uint8_t *)heap_caps_malloc(sizeof(uint8_t[384]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
             max_vals = (uint8_t *)heap_caps_malloc(sizeof(uint8_t[384]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-            if (min_vals == nullptr || max_vals == nullptr){
+            if (min_vals == nullptr || max_vals == nullptr)
+            {
                 log_e("内存分配失败");
-                return;}
+                return;
+            }
             for (int i = 0; i < 384; i++)
             {
                 min_vals[i] = 45;
@@ -4186,15 +4208,15 @@ void AppMusicPlayer::show_display_fft()
         last_update_time = millis();
     }
 
+    static uint32_t  _last_update_time = 0;
     if (display_debug_mode)
     {
-        static uint32_t last_update_time = 0;
         uint32_t now = millis();
         static char _buf[64];
         static int x;
-        if (now - last_update_time > 200)
+        if (now - _last_update_time > 200)
         { // 200ms更新一次
-            last_update_time = now;
+            _last_update_time = now;
             float all = (float)(d_time.start - last_time.start) / 1000.0;
             fps = 1000.0 / all;
             float fft_time = (float)(last_time.fft_end - last_time.fft_start) / 1000.0;
@@ -4205,6 +4227,16 @@ void AppMusicPlayer::show_display_fft()
         }
         u8g2Fonts.setCursor(x, 165);
         u8g2Fonts.print(_buf);
+    }
+    else
+    {
+        uint32_t now = millis();
+        if (now - _last_update_time > 100)
+        { // 200ms更新一次
+            _last_update_time = now;
+            float all = (float)(d_time.start - last_time.start) / 1000.0;
+            fps = 1000.0 / all;
+        }
     }
 
     d_time.display_start = micros();
