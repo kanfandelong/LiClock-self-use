@@ -1,6 +1,8 @@
 #include "hal.h"
 #include <LittleFS.h>
 #include "git_info.h"
+#include "ulp_riscv.h"
+#include "esp_wake_stub.h"
 
 // 统一的文件系统接口，支持SD卡和LittleFS，路径以"/sd/"或"/littlefs/"开头来区分
 // {
@@ -244,49 +246,32 @@ void task_bat_info(void *)
 
 void task_hal_update(void *)
 {
+    const TickType_t xFrequency = pdMS_TO_TICKS(5);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    const uint32_t UPDATE_STEPS = 100; // 100 * 5ms = 500ms
+    uint32_t tickCounter = 0;
+
     while (1)
     {
-        if (hal._hookButton)
+        xTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        hal.btnr.tick();
+        hal.btnl.tick();
+        hal.btnc.tick();
+
+        tickCounter++;
+        if (tickCounter >= UPDATE_STEPS)
         {
-            while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
+            tickCounter = 0;
+
+            if (!hal.SleepUpdateMutex)
             {
-                hal.btnr.tick();
-                hal.btnl.tick();
-                hal.btnc.tick();
-                delay(20);
-            }
-            hal.btnr.tick();
-            hal.btnl.tick();
-            hal.btnc.tick();
-            while (hal._hookButton)
-            {
-                while (hal.SleepUpdateMutex)
-                    delay(10);
+                hal.SleepUpdateMutex = true;
                 hal.update();
-                delay(20);
-            }
-            while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
-            {
-                delay(20);
+                hal.SleepUpdateMutex = false;
             }
         }
-        while (hal.SleepUpdateMutex)
-            delay(10);
-        hal.SleepUpdateMutex = true;
-        hal.btnr.tick();
-        hal.btnl.tick();
-        hal.btnc.tick();
-        hal.SleepUpdateMutex = false;
-        delay(20);
-        while (hal.SleepUpdateMutex)
-            delay(10);
-        hal.SleepUpdateMutex = true;
-        hal.btnr.tick();
-        hal.btnl.tick();
-        hal.btnc.tick();
-        hal.update();
-        hal.SleepUpdateMutex = false;
-        delay(20);
     }
 }
 /**
@@ -518,6 +503,12 @@ void HAL::getTime()
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !dis_DS3231)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        Wire.beginTransmission(0x68);
+        if (Wire.endTransmission() != 0)
+        {
+            xSemaphoreGive(peripherals.i2cMutex);
+            goto ESP_RTC;
+        }
         struct tm utc_tm;
         /*utc_tm.tm_year = peripherals.rtc.getYear() + 100;   // 假设 getYear 返回 0-99
         utc_tm.tm_mon  = peripherals.rtc.getMonth() - 1;
@@ -548,6 +539,7 @@ void HAL::getTime()
     }
     else
     {
+    ESP_RTC:
         time(&now);
         if (delta != 0 && lastsync < now)
         {
@@ -1145,9 +1137,10 @@ void HAL::ReqWiFiConfig()
 } */
 #include "driver/uart.h"
 #include "driver/uart_wakeup.h"
+extern RTC_DATA_ATTR bool ebook_run;
 void HAL::wait_input(uint32_t sleeptime)
 {
-    if (hal.can_light_sleep)
+/*     if (hal.can_light_sleep)
     {
         if (sleeptime == 0)
             esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
@@ -1156,35 +1149,60 @@ void HAL::wait_input(uint32_t sleeptime)
         uart_wakeup_cfg_t uart_wakeup_cfg = {};
         uart_wakeup_cfg.wakeup_mode = UART_WK_MODE_ACTIVE_THRESH;
         uart_wakeup_cfg.rx_edge_threshold = 3;
-        uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg);
-        esp_sleep_enable_uart_wakeup(UART_NUM_0);
+        log_err(uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg));
+
+        log_err(esp_sleep_enable_uart_wakeup(UART_NUM_0));
+
+        // gpio_config_t config = {
+        //     .pin_bit_mask = BIT64(PIN_BUTTONC | PIN_BUTTONL | PIN_BUTTONR),
+        //     .mode = GPIO_MODE_INPUT,
+        //     .pull_up_en = GPIO_PULLUP_DISABLE,
+        //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        //     .intr_type = GPIO_INTR_DISABLE};
+        // gpio_config(&config);
         if (hal.btn_activelow)
         {
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_LOW_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_LOW_LEVEL);
+            rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
+            rtc_gpio_init((gpio_num_t)PIN_BUTTONL);
+            rtc_gpio_init((gpio_num_t)PIN_BUTTONR);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONC);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONL);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONR);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONC);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONL);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONR);
+            log_err(esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0));
+            (esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW));
         }
         else
         {
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL);
+            if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true && ebook_run == true)
+            {
+                (esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1));
+                log_err(esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH));
+            }
+            else
+            {
+                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL));
+                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL));
+                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL));
+                log_err(esp_sleep_enable_gpio_wakeup());
+            }
         }
-        esp_sleep_enable_gpio_wakeup();
         log_i("进入lightsleep");
-        esp_light_sleep_start();
+        log_err(esp_light_sleep_start());
     }
     else
-    {
-        while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing()))
+    { */
+        while (!hal.btnc.isPressing() && !hal.btnl.isPressing() && !hal.btnr.isPressing())
         {
-            delay(100);
+            delay(50);
         }
-    }
+/*     }
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UART)
     {
         log_i("uart唤醒");
-    }
+    } */
 }
 
 const char *get_exc_cause_name(uint32_t exc_cause)
@@ -1489,11 +1507,21 @@ static void shutdown_handler(void)
     digitalWrite(PIN_BUZZER, 0);
 }
 
-static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
-static const char esp_sleep_str[13][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
+RTC_FAST_ATTR void deepsleepstub()
+{
+    ulp_riscv_timer_stop();
+    ulp_riscv_halt();
+    ESP_RTC_LOGI("stop ULP");
+    esp_default_wake_deep_sleep();
+    return;
+}
+
+static const char esp_rst_str[][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO", "USB", "JTAG", "EFUSE", "PWR_GLITCH", "CPU_LOCKUP"};
+static const char esp_sleep_str[][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_UART1", "WAKEUP_UART2", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT", "WAKEUP_VAD", "WAKEUP_VBAT_UNDER_VOLT"};
 
 bool HAL::init()
 {
+    esp_log_level_set("*", ESP_LOG_DEBUG);
     int16_t total_gnd = 0;
     bool timeerr = false;
     bool initial = true;
@@ -1524,6 +1552,7 @@ bool HAL::init()
     setenv("TZ", _tz, 1); // 设置时区为东八区
     tzset();
     esp_register_shutdown_handler(shutdown_handler);
+    esp_set_deep_sleep_wake_stub(&deepsleepstub);
     // 读取时钟偏移
 
     if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 1 || pref.getBool("switch_btn"))
@@ -1538,17 +1567,20 @@ bool HAL::init()
     }
     lpt = pref.getInt("lpt", 25);
     uint32_t longPress = lpt * 10;
-    hal.btnl.setLongPressIntervalMs(longPress);
-    hal.btnc.setLongPressIntervalMs(longPress);
-    hal.btnr.setLongPressIntervalMs(longPress);
+    hal.btnl.setLongPressIntervalMs(20);
+    hal.btnl.setPressMs(longPress);
+    hal.btnc.setLongPressIntervalMs(20);
+    hal.btnc.setPressMs(longPress);
+    hal.btnr.setLongPressIntervalMs(20);
+    hal.btnr.setPressMs(longPress);
 
     int freq = pref.getInt("CpuFreq", 80);
     cheak_freq(freq);
 
     log_i("nvs分区可用空闲条目数量:%d", (int)pref.freeEntries());
-    pinMode(PIN_BUTTONR, INPUT);
-    pinMode(PIN_BUTTONL, INPUT);
-    pinMode(PIN_BUTTONC, INPUT);
+    pinMode(PIN_BUTTONR, INPUT | PULLDOWN);
+    pinMode(PIN_BUTTONL, INPUT | PULLDOWN);
+    pinMode(PIN_BUTTONC, INPUT | PULLDOWN);
     total_gnd += digitalRead(PIN_BUTTONR);
     total_gnd += digitalRead(PIN_BUTTONL);
     total_gnd += digitalRead(PIN_BUTTONC);
@@ -1728,7 +1760,7 @@ bool HAL::init()
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
     ttf.setFramebuffer(296, 128, 1);
-    xTaskCreate(task_hal_update, "hal_update", 3072, NULL, 10, NULL);
+    xTaskCreate(task_hal_update, "hal_update", 2560, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
         if (hal.pref.getBool(get_char_sha_key("按键音"), false))
@@ -1750,7 +1782,7 @@ bool HAL::init()
     //     hal.btnl = OneButton(PIN_BUTTONR);
     // }
     if (peripherals.peripherals_current & PERIPHERALS_BQ27441_BIT)
-        xTaskCreate(task_bat_info, "bat_info_update", 3072, NULL, 2, NULL);
+        xTaskCreate(task_bat_info, "bat_info_update", 2560, NULL, 2, NULL);
     else
         log_e("未安装BQ27441电量计，无法运行电池信息更新任务");
     getTime();
@@ -1865,7 +1897,6 @@ void HAL::searchWiFi()
     }
 }
 
-extern RTC_DATA_ATTR bool ebook_run;
 void HAL::set_sleep_set_gpio_interrupt()
 {
     rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
@@ -1947,6 +1978,7 @@ void printDisplayVertical()
     }
 }
 #include "driver/ledc.h"
+extern bool en_ulp_wakeup;
 static void pre_sleep()
 {
     if (!hal.can_sleep)
@@ -1965,6 +1997,52 @@ static void pre_sleep()
     cmd.end();
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
+
+    if (hal.exists("/littlefs/System/ulp-riscv.bin"))
+    {
+        File ulp_file = hal.open("/littlefs/System/ulp-riscv.bin", "r");
+        size_t ulp_size = ulp_file.size();
+        if (ulp_size > 0)
+        {
+            uint8_t *ulp_buffer = (uint8_t *)malloc(ulp_size);
+            if (ulp_buffer)
+            {
+                ulp_file.read(ulp_buffer, ulp_size);
+                ulp_file.close();
+                esp_err_t err = ulp_riscv_load_binary(ulp_buffer, ulp_size);
+                free(ulp_buffer);
+                // ulp_set_wakeup_period(0, 1000000);
+                if (err == ESP_OK)
+                {
+                    log_i("ULP-RISCV加载成功，大小: %d 字节", ulp_size);
+                    ulp_riscv_reset();
+                    // 启动ULP-RISCV
+                    err = ulp_riscv_run();
+                    if (err != ESP_OK)
+                    {
+                        log_e("启动ULP-RISCV失败: %s", esp_err_to_name(err));
+                    }
+                    else
+                    {
+                        en_ulp_wakeup = true;
+                    }
+                }
+                else
+                {
+                    log_e("加载ULP-RISCV失败: %s", esp_err_to_name(err));
+                }
+            }
+            else
+            {
+                log_e("内存分配失败，无法加载ULP-RISCV");
+            }
+        }
+        else
+        {
+            log_w("ULP-RISCV文件为空，未加载");
+        }
+    }
+
     display.setPowerMode(POWER_MODE_LPM);
     buzzer.waitForSleep();
     log_system_deinit();

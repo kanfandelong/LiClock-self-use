@@ -338,6 +338,16 @@ public:
     static void onBtnR_LongPressStart(void *param);
     static void onBtnL_Click(void *param);
     static void onBtnL_LongPressStart(void *param);
+    void attach_cb();
+    void clean_flag()
+    {
+        flag_btnc_click = false;
+        flag_btnc_long = false;
+        flag_btnr_click = false;
+        flag_btnr_long = false;
+        flag_btnl_click = false;
+        flag_btnl_long = false;
+    }
 };
 static AppMusicPlayer app; // 创建App对象
 
@@ -607,11 +617,12 @@ void MDCallback(void *cbData, const char *type, bool isUnicode, const char *stri
             {
                 app.loadLyrics(music_file);
             }
-            app.backup_buff_updata = true;
-            return;
         }
         else
+        {
             log_i("歌词文件已存在: %s", lyricPath.c_str());
+            return;
+        }
     }
 
     log_i("%s callback for: %s = '%s'", cbData, type, outputString.c_str());
@@ -694,10 +705,13 @@ static void player_exit()
         delete[] app.fileList;
     }
 
-    delete[] app.curveScaling;
-    delete[] app.vReal;
-    delete[] app.vImag;
-    delete[] app.previousSpectrum;
+    // delete[] app.curveScaling;
+    free(app.curveScaling);
+    // delete[] app.vReal;
+    free(app.vReal);
+    // delete[] app.vImag;
+    // delete[] app.previousSpectrum;
+    free(app.previousSpectrum);
     free(app.ring_buffer);
     free(app.fft_data);
     free(app.wind);
@@ -798,7 +812,7 @@ static void player_loop(void *parameter)
                 xSemaphoreGive(self->audio_control_sem); // 确保释放信号量
                 // log_w("释放信号量");
             }
-            delay(5);
+            delay(1);
         }
     }
     // 退出前清理（如果尚未停止）
@@ -870,6 +884,8 @@ void AppMusicPlayer::loadPlayCounts()
 
     uint32_t num = f.size() / sizeof(SongPlayCount);
 
+    playCountNum = num;
+    
     if (num == 0)
         num == 16;
 
@@ -892,7 +908,6 @@ void AppMusicPlayer::loadPlayCounts()
         return;
     }
 
-    playCountNum = num;
     playCountCapacity = num;
     f.close();
     log_i("Loaded %u play count records", num);
@@ -957,7 +972,7 @@ void AppMusicPlayer::increasePlayCount(const char *path)
 void AppMusicPlayer::set()
 {
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
-    log_i("APP %s,版本:%s  构建日期:%s %s", name, "0.1.6", __DATE__, __TIME__);
+    log_i("APP %s,版本:%s  构建日期:%s %s", name, "0.2.3", __DATE__, __TIME__);
 }
 /**
  * @brief 字符串截断函数，添加省略号
@@ -1871,6 +1886,7 @@ void AppMusicPlayer::select_file(bool user)
         }
         // file_in(music_file);
     }
+    attach_cb();
     sprintf(buf, "%s", music_file); // 复制歌曲路径到缓冲区
     music_file = buf;               // 将歌曲路径指向缓冲器
     // 解析目录
@@ -1924,7 +1940,10 @@ bool AppMusicPlayer::file_in(const char *path)
         file_sd = true;
         sprintf(char_buf, "%s", remove_path_prefix(path, "/sd"));
         _path = char_buf;
-        in = new AudioFileSourceSD(_path);
+        if (hal.pref.getBool("POSIX_read", true))
+            in = new AudioFileSourcePOSIX(path);
+        else
+            in = new AudioFileSourceSD(_path);
         in_littlefs = false;
     }
     else if (strncmp(path, "/littlefs/", 10) == 0)
@@ -1932,7 +1951,10 @@ bool AppMusicPlayer::file_in(const char *path)
         file_sd = false;
         sprintf(char_buf, "%s", remove_path_prefix(path, "/littlefs"));
         _path = char_buf;
-        in = new AudioFileSourceLittleFS(_path);
+        if (hal.pref.getBool("POSIX_read", true))
+            in = new AudioFileSourcePOSIX(path);
+        else
+            in = new AudioFileSourceLittleFS(_path);
         in_littlefs = true;
     }
     pathStr = _path;
@@ -2372,6 +2394,7 @@ bool AppMusicPlayer::music_list_menu(bool play)
     if (!filelist_ok)
         bulid_music_list();
     int res = GUI::menu("音乐列表", fileList, 8, 8, currentSongIndex + 1);
+    attach_cb();
     switch (res)
     {
     case 0:
@@ -2729,6 +2752,7 @@ void AppMusicPlayer::show_display_vlbm()
     static uint32_t current_frame = 0;
     static bool eof_reached = false;
     static bool has_frame = false;
+    char *buffer = NULL;
 
     uint32_t play_time;
     if (output != nullptr)
@@ -2832,6 +2856,11 @@ void AppMusicPlayer::show_display_vlbm()
             free(img);
             img = nullptr;
         }
+        if (buffer != NULL)
+        {
+            heap_caps_free(buffer);
+            buffer = NULL;
+        }
 
         String vlbm_path = getVlbmPach(music_file);
         fp = fopen(vlbm_path.c_str(), "rb");
@@ -2844,6 +2873,10 @@ void AppMusicPlayer::show_display_vlbm()
             last_time = d_time;
             return;
         }
+        if (buffer != NULL)
+            buffer = (char *)heap_caps_aligned_alloc(32, 1024 * 32, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+        if (buffer)
+            setvbuf(fp, buffer, _IOFBF, 1024 * 32);
 
         LBM_V_HEAD header;
         if (fread(&header, sizeof(header), 1, fp) != 1)
@@ -2923,6 +2956,11 @@ void AppMusicPlayer::show_display_vlbm()
         {
             free(img);
             img = nullptr;
+        }
+        if (buffer != NULL)
+        {
+            heap_caps_free(buffer);
+            buffer = NULL;
         }
         vlbm_initialized = false;
         has_frame = false;
@@ -4208,7 +4246,7 @@ void AppMusicPlayer::show_display_fft()
         last_update_time = millis();
     }
 
-    static uint32_t  _last_update_time = 0;
+    static uint32_t _last_update_time = 0;
     if (display_debug_mode)
     {
         uint32_t now = millis();
@@ -4605,6 +4643,18 @@ void AppMusicPlayer::onBtnL_LongPressStart(void *param)
     self->flag_btnl_long = true;
 }
 
+void AppMusicPlayer::attach_cb()
+{
+    hal.btnc.attachClick(onBtnC_Click, this);
+    hal.btnc.attachLongPressStart(onBtnC_LongPressStart, this);
+
+    hal.btnr.attachClick(onBtnR_Click, this);
+    hal.btnr.attachLongPressStart(onBtnR_LongPressStart, this);
+
+    hal.btnl.attachClick(onBtnL_Click, this);
+    hal.btnl.attachLongPressStart(onBtnL_LongPressStart, this);
+}
+
 /**
  * @brief 音乐播放器主函数
  * @note 初始化播放器硬件和软件环境，启动播放任务，处理用户交互事件
@@ -4617,10 +4667,10 @@ void AppMusicPlayer::setup()
     digitalWrite(PIN_DAC_XSMT, 1);
 
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
-    vReal = new float[SAMPLES / 2];
+    vReal = (float *)heap_caps_malloc(sizeof(float[SAMPLES / 2]), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
     // vImag = new float[SAMPLES];
-    curveScaling = new float[SAMPLES / 2];
-    previousSpectrum = new float[SAMPLES / 2];
+    curveScaling = (float *)heap_caps_malloc(sizeof(float[SAMPLES / 2]), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
+    previousSpectrum = (float *)heap_caps_malloc(sizeof(float[SAMPLES / 2]), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
     memset(previousSpectrum, 0, sizeof(float[SAMPLES / 2]));
     wind = (float *)heap_caps_aligned_alloc(16, SAMPLES * sizeof(float), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
     fft_data = (float *)heap_caps_aligned_alloc(16, 2 * SAMPLES * sizeof(float), MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL);
@@ -4653,14 +4703,7 @@ void AppMusicPlayer::setup()
     loadPlayCounts();
 
     // 注册按钮回调
-    hal.btnc.attachClick(onBtnC_Click, this);
-    hal.btnc.attachLongPressStart(onBtnC_LongPressStart, this);
-
-    hal.btnr.attachClick(onBtnR_Click, this);
-    hal.btnr.attachLongPressStart(onBtnR_LongPressStart, this);
-
-    hal.btnl.attachClick(onBtnL_Click, this);
-    hal.btnl.attachLongPressStart(onBtnL_LongPressStart, this);
+    attach_cb();
 
     exit = player_exit;
     deepsleep = player_deepsleep;
@@ -4704,7 +4747,6 @@ void AppMusicPlayer::setup()
             return;
         if (flag_btnc_click)
         {
-            flag_btnc_click = false;
             // 短按逻辑
             if (filelist_ok)
             {
@@ -4735,16 +4777,17 @@ void AppMusicPlayer::setup()
             }
             backup_buff_updata = true;
             show_display();
+            clean_flag();
         }
         if (flag_btnc_long)
         {
-            flag_btnc_long = false;
             player_menu(); // 长按进入菜单
             show_display();
+            delay(30);
+            clean_flag();
         }
         if (flag_btnr_click)
         {
-            flag_btnr_click = false;
             backup_buff_updata = true;
             volume_percent += VOLUME_STEP_PERCENT;
             float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
@@ -4752,17 +4795,17 @@ void AppMusicPlayer::setup()
             if (output)
                 output->SetGain(gain);
             show_display();
+            clean_flag();
         }
         if (flag_btnr_long)
         {
-            flag_btnr_long = false;
             next_song(true, true);
             backup_buff_updata = true;
             show_display();
+            clean_flag();
         }
         if (flag_btnl_click)
         {
-            flag_btnl_click = false;
             backup_buff_updata = true;
             volume_percent -= VOLUME_STEP_PERCENT;
             float db = VOLUME_DB_MIN + (VOLUME_DB_MAX - VOLUME_DB_MIN) * (volume_percent / 100.0f);
@@ -4770,13 +4813,14 @@ void AppMusicPlayer::setup()
             if (output)
                 output->SetGain(gain);
             show_display();
+            clean_flag();
         }
         if (flag_btnl_long)
         {
-            flag_btnl_long = false;
             next_song(false, true);
             backup_buff_updata = true;
             show_display();
+            clean_flag();
         }
         if ((_count > 0 && play_count > _count && _play_end) || need_deep_sleep)
         {
@@ -4794,14 +4838,16 @@ void AppMusicPlayer::setup()
         else
             wait_time = millis();
         show_display();
-        if ((millis() - wait_time > 30000) && _play_end)
+        if ((millis() - wait_time > 5000) && _play_end)
         {
             digitalWrite(PIN_DAC_XSMT, 0);
             display.setPowerMode(POWER_MODE_LPM);
             digitalWrite(PIN_DAC_EN, 0);
+            hal.cheak_freq(80, true);
 
             hal.wait_input();
 
+            hal.cheak_freq(240);
             digitalWrite(PIN_DAC_EN, 1);
             display.setPowerMode(POWER_MODE_HPM);
             digitalWrite(PIN_DAC_XSMT, 1);

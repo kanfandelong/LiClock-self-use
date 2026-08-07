@@ -13,6 +13,8 @@ Import("env")
 
 print("[钩子脚本] extra_script.py 已加载")
 
+env.Replace(COMPILATIONDB_PATH=os.path.join("$BUILD_DIR", "compile_commands.json"))
+
 # ===== 配置区域 =====
 WINDOWS_BASE_DIR = "/mnt/IDCN823/LiClock-dev_multithread-ST7305"
 PROJECT_DIR = env.subst("$PROJECT_DIR")

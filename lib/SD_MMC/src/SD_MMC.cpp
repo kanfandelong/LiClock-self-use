@@ -122,6 +122,10 @@ bool SDMMCFS::begin(const char * mountpoint, bool mode1bit, bool format_if_mount
     host.flags = SDMMC_HOST_FLAG_4BIT;
     host.slot = SDMMC_HOST_SLOT_0;
     host.max_freq_khz = sdmmc_frequency;
+    // 预分配满足 DMA 要求的 buffer（大小为扇区大小的整数倍）
+    // uint8_t *dma_buf = (uint8_t *)heap_caps_malloc(512 * 2, MALLOC_CAP_DMA);
+    // host.dma_aligned_buffer = dma_buf;
+    // host.unaligned_multi_block_rw_max_chunk_size = 16;
 #ifdef BOARD_HAS_1BIT_SDMMC
     mode1bit = true;
 #endif
@@ -151,13 +155,14 @@ bool SDMMCFS::begin(const char * mountpoint, bool mode1bit, bool format_if_mount
         return false;
     }
     _impl->mountpoint(mountpoint);
+    sdmmc_card_print_info(stdout, _card);
     return true;
 }
 
 void SDMMCFS::end()
 {
     if(_card) {
-        esp_vfs_fat_sdmmc_unmount();
+        esp_vfs_fat_sdcard_unmount(_impl->mountpoint(), _card);
         _impl->mountpoint(NULL);
         _card = NULL;
     }

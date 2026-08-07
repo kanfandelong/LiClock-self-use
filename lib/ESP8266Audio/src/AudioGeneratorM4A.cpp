@@ -360,7 +360,10 @@ bool AudioGeneratorM4A::FillBufferForSample(uint32_t sampleIdx)
     }
 
     // Seek to the raw AAC data in the file
-    if (!SeekTo(se.offset)) return false;
+    uint32_t currentPos = file->getPos();
+    if (currentPos != se.offset) {
+        if (!SeekTo(se.offset)) return false;
+    }
 
     // Read the raw AAC frame
     uint32_t bytesRead = file->read(buff + 7, rawSize);

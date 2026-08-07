@@ -18,7 +18,8 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 
-extern "C" {
+extern "C"
+{
 #include <dirent.h>
 #include <driver/rtc_io.h>
 #include <esp_sntp.h>
@@ -33,7 +34,7 @@ extern "C" {
 
 // #include <ESP32-targz.h>
 
-#define code_version "2.1.1.6" // 代码版本号
+#define code_version "2.1.19" // 代码版本号
 
 #define DMA
 
@@ -43,8 +44,8 @@ extern "C" {
 #include <ST7305_DMA.h>
 #endif
 
-#define TFT_BLACK     0x0000
-#define TFT_WHITE     0xFFFF
+#define TFT_BLACK 0x0000
+#define TFT_WHITE 0xFFFF
 
 #define SCREEN_WIDTH 384
 #define SCREEN_HEIGHT 168
@@ -187,3 +188,5 @@ extern void log_system_deinit();
 extern void reinstall_putc2();
 
 extern const uint8_t u8g2_font_wqy12_t_gb2312_self[] U8G2_FONT_SECTION("u8g2_font_wqy12_t_gb2312_self");
+extern void _log_err(esp_err_t err, const char *filename, uint16_t line, const char *func);
+#define log_err(err) _log_err(err, pathToFileName(__FILE__), __LINE__, __FUNCTION__)

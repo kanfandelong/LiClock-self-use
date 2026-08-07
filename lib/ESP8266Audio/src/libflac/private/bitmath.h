@@ -1,6 +1,6 @@
 /* libFLAC - Free Lossless Audio Codec library
  * Copyright (C) 2001-2009  Josh Coalson
- * Copyright (C) 2011-2016  Xiph.Org Foundation
+ * Copyright (C) 2011-2025  Xiph.Org Foundation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,8 +33,6 @@
 #ifndef FLAC__PRIVATE__BITMATH_H
 #define FLAC__PRIVATE__BITMATH_H
 
-#include <pgmspace.h>
-
 #include "../FLAC/ordinals.h"
 #include "../FLAC/assert.h"
 
@@ -47,7 +45,7 @@
 /* Will never be emitted for MSVC, GCC, Intel compilers */
 static inline uint32_t FLAC__clz_soft_uint32(FLAC__uint32 word)
 {
-	static const uint8_t byte_to_unary_table[] PROGMEM = {
+	static const uint8_t byte_to_unary_table[] = {
 	8, 7, 6, 6, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4,
 	3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 	2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
@@ -66,10 +64,10 @@ static inline uint32_t FLAC__clz_soft_uint32(FLAC__uint32 word)
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 	};
 
-	return word > 0xffffff ? pgm_read_byte(&byte_to_unary_table[word >> 24]) :
-		word > 0xffff ? pgm_read_byte(&byte_to_unary_table[word >> 16]) + 8 :
-		word > 0xff ? pgm_read_byte(&byte_to_unary_table[word >> 8]) + 16 :
-		pgm_read_byte(&byte_to_unary_table[word]) + 24;
+	return word > 0xffffff ? byte_to_unary_table[word >> 24] :
+		word > 0xffff ? byte_to_unary_table[word >> 16] + 8 :
+		word > 0xff ? byte_to_unary_table[word >> 8] + 16 :
+		byte_to_unary_table[word] + 24;
 }
 
 static inline uint32_t FLAC__clz_uint32(FLAC__uint32 v)
@@ -84,7 +82,7 @@ static inline uint32_t FLAC__clz_uint32(FLAC__uint32 v)
 	return __builtin_clz(v);
 #elif defined(_MSC_VER)
 	{
-		uint32_t idx;
+		unsigned long idx;
 		_BitScanReverse(&idx, v);
 		return idx ^ 31U;
 	}
@@ -108,7 +106,7 @@ static inline uint32_t FLAC__clz_uint64(FLAC__uint64 v)
 	return __builtin_clzll(v);
 #elif (defined(__INTEL_COMPILER) || defined(_MSC_VER)) && (defined(_M_IA64) || defined(_M_X64))
 	{
-		uint32_t idx;
+		unsigned long idx;
 		_BitScanReverse64(&idx, v);
 		return idx ^ 63U;
 	}
@@ -162,7 +160,7 @@ static inline uint32_t FLAC__bitmath_ilog2(FLAC__uint32 v)
 	return _bit_scan_reverse(v);
 #elif defined(_MSC_VER)
 	{
-		uint32_t idx;
+		unsigned long idx;
 		_BitScanReverse(&idx, v);
 		return idx;
 	}
@@ -179,7 +177,7 @@ static inline uint32_t FLAC__bitmath_ilog2_wide(FLAC__uint64 v)
 /* Sorry, only supported in x64/Itanium.. and both have fast FPU which makes integer-only encoder pointless */
 #elif (defined(__INTEL_COMPILER) || defined(_MSC_VER)) && (defined(_M_IA64) || defined(_M_X64))
 	{
-		uint32_t idx;
+		unsigned long idx;
 		_BitScanReverse64(&idx, v);
 		return idx;
 	}
@@ -208,5 +206,6 @@ static inline uint32_t FLAC__bitmath_ilog2_wide(FLAC__uint64 v)
 }
 
 uint32_t FLAC__bitmath_silog2(FLAC__int64 v);
+uint32_t FLAC__bitmath_extra_mulbits_unsigned(FLAC__uint32 v);
 
 #endif

@@ -1,6 +1,6 @@
 #include "AudioOutputI2S.h"
 
-static const int DMA_FRAME_NUM = 512;
+static const int DMA_FRAME_NUM = 256;
 
 AudioOutputI2S::AudioOutputI2S(int port, int dma_buf_count)
     : portNo(port), dma_buf_count(dma_buf_count)
@@ -276,7 +276,7 @@ bool AudioOutputI2S::begin()
 
     // 时钟配置
     std_cfg.clk_cfg.sample_rate_hz = (uint32_t)AdjustI2SRate(hertz);
-    std_cfg.clk_cfg.clk_src        = I2S_CLK_SRC_DEFAULT;
+    std_cfg.clk_cfg.clk_src        = I2S_CLK_SRC_PLL_240M;
     std_cfg.clk_cfg.mclk_multiple  = I2S_MCLK_MULTIPLE_256;
 
     // GPIO 配置

@@ -22,6 +22,7 @@
 
 AudioFileSourceSD::AudioFileSourceSD()
 {
+  buffer = NULL;
 }
 
 AudioFileSourceSD::AudioFileSourceSD(const char *filename)
@@ -34,7 +35,10 @@ bool AudioFileSourceSD::open(const char *filename)
   f = SD_MMC.open(filename, FILE_READ);
   if (f)
   {
-    f.setBufferSize(8192);
+    // f.setBufferSize(8192);
+    buffer = (char *)heap_caps_aligned_alloc(32, 1024 * 32, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    if (buffer)
+      f.setBuffer(buffer, 1024 * 32);
   }
   return f;
 }
@@ -42,6 +46,7 @@ bool AudioFileSourceSD::open(const char *filename)
 AudioFileSourceSD::~AudioFileSourceSD()
 {
   if (f) f.close();
+  if (buffer != NULL) heap_caps_free(buffer);
 }
 
 uint32_t AudioFileSourceSD::read(void *data, uint32_t len)
@@ -61,6 +66,7 @@ bool AudioFileSourceSD::seek(int32_t pos, int dir)
 bool AudioFileSourceSD::close()
 {
   f.close();
+  if (buffer != NULL) heap_caps_free(buffer);
   return true;
 }
 

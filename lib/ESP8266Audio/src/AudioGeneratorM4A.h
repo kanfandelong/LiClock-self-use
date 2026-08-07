@@ -51,7 +51,7 @@ class AudioGeneratorM4A : public AudioGenerator
     HAACDecoder hAACDecoder;
 
     // --- Input buffer (one raw AAC frame + room for ADTS header) ---
-    static const int INPUT_BUF_SIZE = 1600;
+    static const int INPUT_BUF_SIZE = 4096;
     uint8_t *buff;
     int buffValid;
 

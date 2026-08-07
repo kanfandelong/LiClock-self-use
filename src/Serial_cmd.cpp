@@ -1,6 +1,7 @@
 #include "Serial_cmd.h"
 #include <nvs_flash.h>
 #include "my_chip-debug-report.h"
+#include "ulp_riscv.h"
 #include <cstring>
 
 // Forward declaration for custom hint lookup
@@ -62,6 +63,10 @@ static void console_task(void *pvParameters)
                 }
                 else if (err == ESP_OK)
                 {
+                    if (ret == 0)
+                    {
+                        log_printf("\x04\x04");
+                    }
                     if (ret == 1)
                     {
                         PRINT_ERROR("参数错误");
@@ -586,7 +591,7 @@ static int cmd_cpufreq(int argc, char **argv)
         {
             return 1;
         }
-        hal.cheak_freq(freq);
+        hal.cheak_freq(freq, true);
         return 0;
     }
     else
@@ -2507,8 +2512,10 @@ static uint64_t du_dir(const char *path, bool human, bool summarize)
 // 处理转义序列：将 src 中的 \n, \t, \\, \" 等替换为实际字符，结果存入 dst，dst_size 为缓冲区大小
 static void expand_escapes(const char *src, char *dst, size_t dst_size)
 {
-    if (src == NULL || dst == NULL || dst_size == 0) {
-        if (dst && dst_size > 0) {
+    if (src == NULL || dst == NULL || dst_size == 0)
+    {
+        if (dst && dst_size > 0)
+        {
             dst[0] = '\0';
         }
         return;
@@ -2588,7 +2595,8 @@ static int cmd_ls(int argc, char **argv)
 //   echo [text ...] >> <file>            - 追加写入
 static int cmd_echo(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         log_printf("\n");
         return 0;
     }
@@ -2596,19 +2604,24 @@ static int cmd_echo(int argc, char **argv)
     // --- 1. 解析选项和重定向 ---
     bool enable_escapes = false;
     int text_start = 1;
-    if (strcmp(argv[1], "-e") == 0) {
+    if (strcmp(argv[1], "-e") == 0)
+    {
         enable_escapes = true;
         text_start = 2;
     }
 
     int redir_idx = -1;
     const char *mode = NULL;
-    for (int i = text_start; i < argc; i++) {
-        if (strcmp(argv[i], ">") == 0) {
+    for (int i = text_start; i < argc; i++)
+    {
+        if (strcmp(argv[i], ">") == 0)
+        {
             redir_idx = i;
             mode = "w";
             break;
-        } else if (strcmp(argv[i], ">>") == 0) {
+        }
+        else if (strcmp(argv[i], ">>") == 0)
+        {
             redir_idx = i;
             mode = "a";
             break;
@@ -2618,14 +2631,17 @@ static int cmd_echo(int argc, char **argv)
     // --- 2. 计算 raw_text 所需总长度（不含终止符） ---
     size_t raw_len = 0;
     int text_end = (redir_idx > 0) ? redir_idx : argc;
-    for (int i = text_start; i < text_end; i++) {
-        if (i > text_start) raw_len++;          // 空格
+    for (int i = text_start; i < text_end; i++)
+    {
+        if (i > text_start)
+            raw_len++; // 空格
         raw_len += strlen(argv[i]);
     }
 
     // 动态分配 raw_text
     char *raw_text = (char *)malloc(raw_len + 1);
-    if (!raw_text) {
+    if (!raw_text)
+    {
         PRINT_ERROR("Out of memory for raw_text");
         return 1;
     }
@@ -2633,13 +2649,16 @@ static int cmd_echo(int argc, char **argv)
     // 安全拼接
     raw_text[0] = '\0';
     size_t pos = 0;
-    for (int i = text_start; i < text_end; i++) {
-        if (i > text_start) {
+    for (int i = text_start; i < text_end; i++)
+    {
+        if (i > text_start)
+        {
             raw_text[pos++] = ' ';
             raw_text[pos] = '\0';
         }
         size_t arg_len = strlen(argv[i]);
-        if (pos + arg_len > raw_len) { // 理论不会，但保险
+        if (pos + arg_len > raw_len)
+        { // 理论不会，但保险
             PRINT_ERROR("Internal buffer overrun");
             free(raw_text);
             return 1;
@@ -2651,34 +2670,44 @@ static int cmd_echo(int argc, char **argv)
     // --- 3. 处理转义 ---
     // 转义展开后长度只会减小（两个字符→一个字符），所以 final_text 分配与 raw_text 相同大小即可
     char *final_text = (char *)malloc(raw_len + 1);
-    if (!final_text) {
+    if (!final_text)
+    {
         PRINT_ERROR("Out of memory for final_text");
         free(raw_text);
         return 1;
     }
 
-    if (enable_escapes) {
+    if (enable_escapes)
+    {
         expand_escapes(raw_text, final_text, raw_len + 1);
-    } else {
+    }
+    else
+    {
         // 直接复制（raw_text 必定以 '\0' 结尾）
         memcpy(final_text, raw_text, raw_len + 1);
     }
 
     // --- 4. 添加换行符（除非重定向，通常也加，但按 Linux 习惯 echo 默认换行）---
     size_t final_len = strlen(final_text);
-    if (final_len + 2 <= raw_len + 1) {
+    if (final_len + 2 <= raw_len + 1)
+    {
         final_text[final_len] = '\n';
         final_text[final_len + 1] = '\0';
-    } else {
+    }
+    else
+    {
         // 空间不够，放弃换行（或截断），这里直接不追加
         // 但更好是重新分配更大的缓冲区，但为了简单，我们可以在末尾加换行前检查
         // 如果不够，就重新分配
         char *new_final = (char *)realloc(final_text, final_len + 2);
-        if (new_final) {
+        if (new_final)
+        {
             final_text = new_final;
             final_text[final_len] = '\n';
             final_text[final_len + 1] = '\0';
-        } else {
+        }
+        else
+        {
             // 无法扩展，就保持原样，但会丢失换行
             PRINT_ERROR("Can't append newline, output may be incomplete");
         }
@@ -2686,8 +2715,10 @@ static int cmd_echo(int argc, char **argv)
 
     // --- 5. 输出 ---
     int ret = 0;
-    if (redir_idx > 0) {
-        if (redir_idx + 1 >= argc) {
+    if (redir_idx > 0)
+    {
+        if (redir_idx + 1 >= argc)
+        {
             PRINT_ERROR("Missing file operand after '%s'", argv[redir_idx]);
             ret = 1;
             goto cleanup;
@@ -2695,7 +2726,8 @@ static int cmd_echo(int argc, char **argv)
         const char *file_path = argv[redir_idx + 1];
         // 处理路径（复制到临时缓冲区，因为 strip_trailing_slash 需要可修改）
         char *file_buf = (char *)malloc(strlen(file_path) + 1);
-        if (!file_buf) {
+        if (!file_buf)
+        {
             PRINT_ERROR("Out of memory for file path");
             ret = 1;
             goto cleanup;
@@ -2704,7 +2736,8 @@ static int cmd_echo(int argc, char **argv)
         strip_trailing_slash(file_buf);
 
         FILE *f = fopen(file_buf, mode);
-        if (!f) {
+        if (!f)
+        {
             PRINT_ERROR("Failed to open file: %s", file_buf);
             free(file_buf);
             ret = 2;
@@ -2713,13 +2746,16 @@ static int cmd_echo(int argc, char **argv)
         int written = fprintf(f, "%s", final_text);
         fclose(f);
         free(file_buf);
-        if (written < 0 || (size_t)written != strlen(final_text)) {
+        if (written < 0 || (size_t)written != strlen(final_text))
+        {
             PRINT_ERROR("Write error to file: %s", file_buf);
             ret = 2;
             goto cleanup;
         }
         PRINT_SUCCESS("Written %u bytes to %s", written, file_buf);
-    } else {
+    }
+    else
+    {
         // 输出到控制台
         log_printf("%s", final_text);
     }
@@ -2739,25 +2775,34 @@ static int cmd_cat(int argc, char **argv)
         return 1;
     }
 
-    const size_t buf_size = 512;
+    const size_t buf_size = 4096; // 增大缓冲区，减少系统调用
     uint8_t buffer[buf_size];
+
+    // 可选：禁用 stdio 缓冲，让输出立即发送（对实时性要求高时可启用）
+    // setbuf(stdout, NULL);
 
     for (int i = 1; i < argc; i++)
     {
         strip_trailing_slash(argv[i]);
         const char *path = argv[i];
-        FILE *f = fopen(path, "r");
+
+        FILE *f = fopen(path, "rb"); // 二进制模式，避免 CR/LF 转换
         if (!f)
         {
             PRINT_ERROR("Cannot open file: %s", path);
-            continue; // 继续处理下一个文件
+            continue;
         }
 
         size_t total = 0;
         size_t len;
         while ((len = fread(buffer, 1, buf_size, f)) > 0)
         {
-            log_printf("%.*s", len, buffer);
+            size_t written = fwrite(buffer, 1, len, stdout);
+            if (written != len)
+            {
+                PRINT_ERROR("Write error while reading %s", path);
+                break;
+            }
             total += len;
         }
         fclose(f);
@@ -2767,6 +2812,9 @@ static int cmd_cat(int argc, char **argv)
             PRINT_WARNING("File is empty: %s", path);
         }
     }
+
+    // 确保所有数据已发送（通常 fclose(stdout) 不会被调用，这里显式刷新）
+    fflush(stdout);
     return 0;
 }
 
@@ -3625,7 +3673,7 @@ static int cmd_uart_baudset(int argc, char **argv)
     {
         return 1; // 返回 1 触发帮助信息
     }
-    uint32_t baud,last_baud;
+    uint32_t baud, last_baud;
     parseUnsigned(argv[1], baud);
     last_baud = uart->baudRate();
     uart->updateBaudRate(baud);
@@ -3637,6 +3685,436 @@ static int cmd_uart_baudset(int argc, char **argv)
     // cmd.SetCallback();
     // reinstall_putc2();
     // reinstall_ws_putc2();
+    return 0;
+}
+
+// ESP32-S3 RTC SLOW Memory 地址范围（ULP 所用）
+#define RTC_SLOW_MEM_START 0x50000000
+#define RTC_SLOW_MEM_END 0x50001FFF // 8KB
+#define RTC_SLOW_MEM_SIZE (8 * 1024)
+
+/**
+ * 检查地址是否在 RTC SLOW Memory 范围内
+ */
+static bool is_rtc_slow_addr(uint32_t addr)
+{
+    return (addr >= RTC_SLOW_MEM_START && addr <= RTC_SLOW_MEM_END);
+}
+
+/**
+ * 以 hex 形式打印 RTC SLOW 内存区域
+ */
+static void dump_rtc_slow_memory(uint32_t start_addr, size_t length)
+{
+    const uint8_t *base = (const uint8_t *)start_addr;
+    size_t offset = 0;
+
+    while (offset < length)
+    {
+        // 地址列
+        log_printf("%s0x%08X:%s ", INFO_COLOR, start_addr + offset, RESET_COLOR);
+
+        // 打印 16 个 hex 字节
+        for (int i = 0; i < 16; i++)
+        {
+            if (offset + i < length)
+            {
+                log_printf("%02X ", base[offset + i]);
+            }
+            else
+            {
+                log_printf("   "); // 不足时补空格
+            }
+            if (i == 7)
+            {
+                log_printf(" "); // 中间分隔
+            }
+        }
+
+        // ASCII 表示
+        log_printf(" ");
+        for (int i = 0; i < 16 && offset + i < length; i++)
+        {
+            uint8_t c = base[offset + i];
+            log_printf("%c", (c >= 0x20 && c <= 0x7E) ? c : '.');
+        }
+        log_printf("\n");
+        offset += 16;
+    }
+}
+
+/**
+ * ULP dump 子命令处理
+ * 用法: ulp dump <address> <length>
+ *   address : RTC SLOW Memory 地址（十六进制，如 0x50000100）
+ *   length  : 要 dump 的字节数（十进制）
+ * 返回值: 0-成功, 1-参数错误, 2-执行失败
+ */
+static int cmd_ulp_dump(int argc, char **argv)
+{
+    if (argc < 3)
+    {
+        PRINT_ERROR("Missing arguments. Usage: ulp dump <address> <length>");
+        return 1;
+    }
+
+    // 解析 address
+    char *endptr;
+    uint32_t start_addr = strtoul(argv[2], &endptr, 0);
+    if (*endptr != '\0')
+    {
+        PRINT_ERROR("Invalid address: %s", argv[2]);
+        return 1;
+    }
+
+    // 解析 length（十进制）
+    size_t length = strtoul(argv[3], &endptr, 10);
+    if (*endptr != '\0')
+    {
+        PRINT_ERROR("Invalid length: %s", argv[3]);
+        return 1;
+    }
+
+    if (length == 0)
+    {
+        PRINT_ERROR("Length must be > 0");
+        return 1;
+    }
+
+    // 地址有效性检查
+    if (!is_rtc_slow_addr(start_addr))
+    {
+        PRINT_ERROR("Address 0x%08X is outside RTC SLOW Memory (0x%08X - 0x%08X)",
+                    start_addr, RTC_SLOW_MEM_START, RTC_SLOW_MEM_END);
+        return 2;
+    }
+
+    // 长度边界检查（不能超出 RTC SLOW 末尾）
+    if (start_addr + length - 1 > RTC_SLOW_MEM_END)
+    {
+        PRINT_ERROR("Requested range 0x%08X + %zu bytes exceeds RTC SLOW Memory (size %d KB)",
+                    start_addr, length, RTC_SLOW_MEM_SIZE / 1024);
+        return 2;
+    }
+
+    // 执行 dump
+    PRINT_INFO("Dumping RTC SLOW Memory from 0x%08X, %zu bytes:", start_addr, length);
+    dump_rtc_slow_memory(start_addr, length);
+    return 0;
+}
+
+/**
+ * ULP 命令处理函数（主命令）
+ * 用法: ulp run | stop | reset | halt | load <filepath>
+ * 返回值:
+ *   0 - 成功
+ *   1 - 参数错误
+ *   2 - 执行失败
+ */
+int ulp_cmd(int argc, char **argv)
+{
+    // 检查是否至少有一个子命令参数
+    if (argc < 2)
+    {
+        PRINT_ERROR("Missing subcommand. Usage: ulp run|stop|reset|halt|load <filepath>");
+        return 1;
+    }
+
+    const char *sub = argv[1];
+    esp_err_t err;
+
+    // ---------- run ----------
+    if (strcmp(sub, "run") == 0)
+    {
+        err = ulp_riscv_run();
+        if (err != ESP_OK)
+        {
+            PRINT_ERROR("ulp_riscv_run failed: %s", esp_err_to_name(err));
+            return 2;
+        }
+        PRINT_SUCCESS("ULP RISC-V started");
+        return 0;
+    }
+
+    // ---------- stop ----------
+    if (strcmp(sub, "stop") == 0)
+    {
+        ulp_riscv_timer_stop();
+        PRINT_INFO("ULP timer stopped");
+        return 0;
+    }
+
+    // ---------- reset ----------
+    if (strcmp(sub, "reset") == 0)
+    {
+        ulp_riscv_reset();
+        PRINT_INFO("ULP reset");
+        return 0;
+    }
+
+    // ---------- halt ----------
+    if (strcmp(sub, "halt") == 0)
+    {
+        ulp_riscv_halt();
+        PRINT_INFO("ULP halted");
+        return 0;
+    }
+
+    // ---------- dump ----------
+    if (strcmp(sub, "dump") == 0)
+    {
+        return cmd_ulp_dump(argc, argv); // 注意：传入完整 argc/argv
+    }
+
+    // ---------- load ----------
+    if (strcmp(sub, "load") == 0)
+    {
+        // 检查是否提供了文件路径
+        if (argc < 3)
+        {
+            PRINT_ERROR("Missing filepath for load subcommand");
+            return 1;
+        }
+        const char *filepath = argv[2];
+
+        // 打开文件
+        int fd = open(filepath, O_RDONLY);
+        if (fd < 0)
+        {
+            PRINT_ERROR("Cannot open file: %s", filepath);
+            return 2;
+        }
+
+        // 获取文件大小
+        struct stat st;
+        if (fstat(fd, &st) != 0)
+        {
+            PRINT_ERROR("fstat failed for %s", filepath);
+            close(fd);
+            return 2;
+        }
+        size_t size = st.st_size;
+        if (size == 0)
+        {
+            PRINT_ERROR("File is empty: %s", filepath);
+            close(fd);
+            return 2;
+        }
+
+        // 分配内存读取文件
+        uint8_t *buffer = (uint8_t *)malloc(size);
+        if (!buffer)
+        {
+            PRINT_ERROR("Out of memory (size %zu)", size);
+            close(fd);
+            return 2;
+        }
+
+        ssize_t read_bytes = read(fd, buffer, size);
+        close(fd);
+        if (read_bytes != (ssize_t)size)
+        {
+            PRINT_ERROR("Read error: only %ld of %zu bytes read from %s", read_bytes, size, filepath);
+            free(buffer);
+            return 2;
+        }
+
+        // 加载二进制到 ULP
+        err = ulp_riscv_load_binary(buffer, size);
+        free(buffer);
+        if (err != ESP_OK)
+        {
+            PRINT_ERROR("ulp_riscv_load_binary failed: %s", esp_err_to_name(err));
+            return 2;
+        }
+
+        PRINT_SUCCESS("ULP binary loaded from %s (%zu bytes)", filepath, size);
+        return 0;
+    }
+
+    // ---------- 未知子命令 ----------
+    PRINT_ERROR("Unknown subcommand: '%s'. Valid: run, stop, reset, halt, load", sub);
+    return 1;
+}
+
+/**
+ * @brief hexdump 命令实现
+ * 用法: hexdump <file_path> [-o offset] [-n length]
+ *   - file_path : 文件路径（必需）
+ *   - -o offset : 起始偏移（可选，默认 0，支持十进制或十六进制如 0x100）
+ *   - -n length : 要打印的字节数（可选，默认打印到文件末尾）
+ *
+ * 示例:
+ *   hexdump file.bin               # 打印整个文件
+ *   hexdump file.bin -o 0x100      # 从 0x100 开始打印到末尾
+ *   hexdump file.bin -n 256        # 从 0 开始打印 256 字节
+ *   hexdump file.bin -o 0x100 -n 128 # 从 0x100 开始打印 128 字节
+ */
+static int cmd_hexdump(int argc, char **argv)
+{
+    if (argc < 2) {
+        PRINT_ERROR("Missing file path");
+        return 1;
+    }
+
+    const char *filepath = NULL;
+    size_t offset = 0;
+    size_t length = 0;           // 0 表示打印到文件末尾
+    bool has_length = false;     // 是否明确指定了长度
+
+    // 手动解析命令行选项（支持 -o 和 -n）
+    for (int i = 1; i < argc; i++) {
+        char *arg = argv[i];
+        if (strcmp(arg, "-o") == 0) {
+            if (++i >= argc) {
+                PRINT_ERROR("Missing offset after -o");
+                return 1;
+            }
+            char *endptr;
+            offset = strtoul(argv[i], &endptr, 0);
+            if (*endptr != '\0') {
+                PRINT_ERROR("Invalid offset: %s", argv[i]);
+                return 1;
+            }
+        } else if (strcmp(arg, "-n") == 0) {
+            if (++i >= argc) {
+                PRINT_ERROR("Missing length after -n");
+                return 1;
+            }
+            char *endptr;
+            length = strtoul(argv[i], &endptr, 0);
+            if (*endptr != '\0' || length == 0) {
+                PRINT_ERROR("Invalid length (must be > 0): %s", argv[i]);
+                return 1;
+            }
+            has_length = true;
+        } else {
+            // 非选项参数视为文件路径（只允许一个）
+            if (filepath == NULL) {
+                filepath = arg;
+            } else {
+                PRINT_ERROR("Unexpected extra argument: %s", arg);
+                return 1;
+            }
+        }
+    }
+
+    if (filepath == NULL) {
+        PRINT_ERROR("File path not specified");
+        return 1;
+    }
+
+    // 打开文件
+    FILE *f = fopen(filepath, "rb");
+    if (f == NULL) {
+        PRINT_ERROR("Failed to open file '%s': %s", filepath, strerror(errno));
+        return 2;
+    }
+
+    // 分配大缓冲区（使用 SPIRAM 和 DMA 能力）
+    char *buffer = NULL;
+    buffer = (char *)heap_caps_aligned_alloc(32, 1024 * 8, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    if (buffer) {
+        setvbuf(f, buffer, _IOFBF, 1024 * 8);
+    }
+
+    // 获取文件大小
+    if (fseek(f, 0, SEEK_END) != 0) {
+        PRINT_ERROR("Failed to seek to end: %s", strerror(errno));
+        fclose(f);
+        if (buffer) heap_caps_free(buffer);
+        return 2;
+    }
+    long file_size = ftell(f);
+    if (file_size < 0) {
+        PRINT_ERROR("Failed to get file size");
+        fclose(f);
+        if (buffer) heap_caps_free(buffer);
+        return 2;
+    }
+    rewind(f);
+
+    // 检查偏移是否超出文件大小
+    if (offset > (size_t)file_size) {
+        PRINT_ERROR("Offset 0x%08zx exceeds file size 0x%08lx", offset, file_size);
+        fclose(f);
+        if (buffer) heap_caps_free(buffer);
+        return 2;
+    }
+
+    // 如果未指定长度，则打印到文件末尾
+    if (!has_length) {
+        length = (size_t)(file_size - offset);
+    } else {
+        // 限制长度不超过文件剩余部分（避免无效读取）
+        size_t remaining = (size_t)(file_size - offset);
+        if (length > remaining) {
+            length = remaining;
+        }
+    }
+
+    // 跳转到偏移
+    if (fseek(f, offset, SEEK_SET) != 0) {
+        PRINT_ERROR("Failed to seek to offset 0x%08zx: %s", offset, strerror(errno));
+        fclose(f);
+        if (buffer) heap_caps_free(buffer);
+        return 2;
+    }
+
+    // 逐行读取并打印（每次最多 16 字节）
+    size_t remaining = length;
+    size_t addr = offset;
+    uint8_t buf[16];
+
+    while (remaining > 0) {
+        size_t read_len = (remaining > 16) ? 16 : remaining;
+        size_t actual = fread(buf, 1, read_len, f);
+        if (actual == 0) {
+            if (feof(f)) {
+                break; // 文件结束
+            } else {
+                PRINT_ERROR("Read error at offset 0x%08zx", addr);
+                fclose(f);
+                if (buffer) heap_caps_free(buffer);
+                return 2;
+            }
+        }
+
+        // 打印地址列
+        log_printf("%s0x%08X:%s ", INFO_COLOR, (uint32_t)addr, RESET_COLOR);
+
+        // 打印 16 个 hex 字节
+        for (int i = 0; i < 16; i++) {
+            if (i < actual) {
+                log_printf("%02X ", buf[i]);
+            } else {
+                log_printf("   "); // 不足补空格
+            }
+            if (i == 7) {
+                log_printf(" "); // 中间分隔
+            }
+        }
+
+        // 打印 ASCII 表示
+        log_printf(" ");
+        for (size_t i = 0; i < actual; i++) {
+            uint8_t c = buf[i];
+            log_printf("%c", (c >= 0x20 && c <= 0x7E) ? c : '.');
+        }
+        log_printf("\n");
+
+        // 更新计数
+        remaining -= actual;
+        addr += actual;
+
+        // 如果读取的字节少于请求的（文件提前结束），退出循环
+        if (actual < read_len) {
+            break;
+        }
+    }
+
+    fclose(f);
+    if (buffer) heap_caps_free(buffer);
     return 0;
 }
 
@@ -3716,7 +4194,22 @@ static const esp_console_cmd_t cmds[] = {
     {.command = "applist", .help = "显示所有已注册的app", .hint = no_info, .func = &cmd_applist, .argtable = NULL},
     {.command = "about", .help = "中断当前的运行", .hint = no_info, .func = &cmd_about, .argtable = NULL},
     {.command = "setbaud", .help = "重置串口波特率", .hint = "Usage: setbaud [cmd]", .func = &cmd_uart_baudset, .argtable = NULL},
-    {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL}};
+    {.command = "setcpuperiod", .help = "修改SYSTEM_CPUPERIOD_SEL的值", .hint = no_info, .func = &cmd_cpufreq_reg, .argtable = NULL},
+    {
+        .command = "ulp",
+        .help = "ULP RISC-V control commands",
+        .hint = "run | stop | reset | halt | load <filepath>",
+        .func = ulp_cmd,
+    },
+    {
+        .command = "hexdump",
+        .help = "Hexdump a file",
+        .hint = "Usage: hexdump <file_path> [offset] [length]\n"
+                "  file_path: path to the file\n"
+                "  offset   : starting offset (optional, default 0)\n"
+                "  length   : number of bytes to dump (optional, default 256)",
+        .func = cmd_hexdump,
+    }};
 
 // Custom helper to retrieve the hint string for a given command name.
 // Returns the hint pointer from the cmds array, or nullptr if not found.

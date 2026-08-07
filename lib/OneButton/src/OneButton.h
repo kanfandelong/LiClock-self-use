@@ -171,7 +171,7 @@ private:
   int _pin = -1;                  // hardware pin number.
   unsigned int _debounce_ms = 30; // number of msecs for debounce times.
   unsigned int _click_ms = 10;   // number of msecs before a click is detected.
-  unsigned int _press_ms = 600;   // number of msecs before a long button press is detected
+  unsigned int _press_ms = 500;   // number of msecs before a long button press is detected
 
 
   // These variables will hold functions acting as event source.

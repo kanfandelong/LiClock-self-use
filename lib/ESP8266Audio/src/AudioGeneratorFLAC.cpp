@@ -138,7 +138,14 @@ bool AudioGeneratorFLAC::loop()
       if (!ret)
       {
         FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(flac);
-        log_e("FLAC Stream Decoder state: %d", state);
+        if (state == FLAC__STREAM_DECODER_END_OF_STREAM)
+        {
+          log_i("FLAC stream ended normally.");
+        }
+        else
+        {
+          log_e("FLAC fatal error, decoder state: %s", FLAC__StreamDecoderStateString[state]);
+        }
         running = false;
         goto done;
       }
@@ -421,8 +428,19 @@ bool AudioGeneratorFLAC::stop()
       heap_caps_free(tempBuffer);
       tempBuffer = NULL;
     }
+    // 1. 设置停止标志，让 fillTask 主动退出
+    fillStopFlag = true;
+
+    // 2. 等待 fillTask 完全退出（最多等待 2 秒）
+    uint32_t waitMs = 0;
+    while (filltaskhandle != NULL && waitMs < 2000)
+    {
+      vTaskDelay(10 / portTICK_PERIOD_MS);
+      waitMs += 10;
+    }
     if (filltaskhandle != NULL)
     {
+      log_w("fillTask 未响应，强制删除");
       vTaskDelete(filltaskhandle);
       filltaskhandle = NULL;
     }
@@ -440,8 +458,11 @@ bool AudioGeneratorFLAC::isRunning()
 void AudioGeneratorFLAC::fillTask(void *param)
 {
   AudioGeneratorFLAC *self = reinterpret_cast<AudioGeneratorFLAC *>(param);
+  uint8_t try_count = 0;
   while (1)
   {
+    if (self->fillStopFlag)
+      break;
     // 从文件源读取一块数据
     if (self->tempBuffer == NULL)
     {
@@ -453,15 +474,26 @@ void AudioGeneratorFLAC::fillTask(void *param)
       break;
     }
 
+  try_RingbufferSend:
+
     if (self->ringBuf == NULL)
     {
       break;
     }
-    BaseType_t ret = xRingbufferSend(self->ringBuf, self->tempBuffer, bytesRead, 30000);
-    if (ret != pdTRUE)
+    BaseType_t ret = xRingbufferSend(self->ringBuf, self->tempBuffer, bytesRead, 1000);
+    if (ret != pdTRUE && !self->fillStopFlag)
     {
-      log_e("后台缓冲区填充失败");
-      break;
+      try_count++;
+      if (try_count > 3)
+        goto try_RingbufferSend;
+      else
+      {
+        log_w("环形缓冲区满，等待重试");
+        self->file->seek(self->file->getPos() - bytesRead, 0); // 回退文件指针
+        try_count = 0;
+        vTaskDelay(5 / portTICK_PERIOD_MS);
+        continue;
+      }
     }
   }
   log_i("后台缓冲区填充任务终止, 当前最小剩余栈:%ld", uxTaskGetStackHighWaterMark(NULL));
@@ -508,7 +540,7 @@ void AudioGeneratorFLAC::start_fillTask()
   //   core = 1;
   // else
   //   core = 0;
-  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 4096, this, 4, &filltaskhandle, 1);
+  xTaskCreatePinnedToCore(&fillTask, "fillTsak", 2560, this, 4, &filltaskhandle, 1);
   delay(100);
 }
 
@@ -729,10 +761,8 @@ void AudioGeneratorFLAC::metadata_cb(const FLAC__StreamDecoder *decoder, const F
     break;
   }
 }
-char AudioGeneratorFLAC::error_cb_str[64];
 void AudioGeneratorFLAC::error_cb(const FLAC__StreamDecoder *decoder, FLAC__StreamDecoderErrorStatus status)
 {
   (void)decoder;
-  strncpy_P(error_cb_str, FLAC__StreamDecoderErrorStatusString[status], sizeof(AudioGeneratorFLAC::error_cb_str) - 1);
-  log_e("%s", error_cb_str);
+  log_e("%s", FLAC__StreamDecoderErrorStatusString[status]);
 }

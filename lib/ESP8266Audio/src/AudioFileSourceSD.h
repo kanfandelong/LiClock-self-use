@@ -42,6 +42,7 @@ class AudioFileSourceSD : public AudioFileSource
 
   private:
     File f;
+    char *buffer;
 };
 
 

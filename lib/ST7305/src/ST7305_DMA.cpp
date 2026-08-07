@@ -44,30 +44,26 @@ bool ST7305_DMA::begin(bool reset)
 
     // 分配 4 个绘制缓冲区（仍使用 PSRAM 友好分配）
     log_i("缓冲区初始化...");
-    if (!psramFound())
+    for (uint8_t i = 0; i < MAX_BUFFERS; i++)
     {
-        _buffers[0] = (uint8_t *)malloc(BYTES_PER_BUFFER);
-        _buffers[1] = (uint8_t *)malloc(BYTES_PER_BUFFER);
-        _buffers[2] = (uint8_t *)malloc(BYTES_PER_BUFFER);
-        _buffers[3] = (uint8_t *)malloc(BYTES_PER_BUFFER);
-    }
-    else
-    {
-        _buffers[0] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
-        _buffers[1] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
-        _buffers[2] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
-        _buffers[3] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+        if (!psramFound())
+        {
+            _buffers[i] = (uint8_t *)malloc(BYTES_PER_BUFFER);
+        }
+        else
+        {
+            _buffers[i] = (uint8_t *)ps_malloc(BYTES_PER_BUFFER);
+        }
+        memset(_buffers[i], 0xFF, BYTES_PER_BUFFER);
     }
     buffer = _buffers[0];
-    memset(_buffers[0], 0xFF, BYTES_PER_BUFFER);
-    memset(_buffers[1], 0xFF, BYTES_PER_BUFFER);
-    memset(_buffers[2], 0xFF, BYTES_PER_BUFFER);
-    memset(_buffers[3], 0xFF, BYTES_PER_BUFFER);
 
     // 分配 DMA 专用缓冲区（要求内存具备 DMA 能力）
     log_i("分配 DMA 缓冲区...");
     dma_buffer[0] = (uint8_t *)heap_caps_malloc(BYTES_PER_BUFFER, MALLOC_CAP_DMA);
     dma_buffer[1] = (uint8_t *)heap_caps_malloc(BYTES_PER_BUFFER, MALLOC_CAP_DMA);
+    // dma_buffer[0] = (uint8_t *)heap_caps_aligned_alloc(32, BYTES_PER_BUFFER, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    // dma_buffer[1] = (uint8_t *)heap_caps_aligned_alloc(32, BYTES_PER_BUFFER, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
     if (!dma_buffer[0] || !dma_buffer[1])
     {
         log_e("DMA 缓冲区分配失败");
@@ -93,7 +89,7 @@ bool ST7305_DMA::begin(bool reset)
     xTaskCreatePinnedToCore(
         display_task,          // 任务函数
         "st7305_disp",         // 任务名
-        4096,                  // 栈大小（字节）
+        2048,                  // 栈大小（字节）
         this,                  // 任务参数（传递对象实例）
         6,                     // 优先级（可调）
         &_display_task_handle, // 任务句柄
@@ -220,21 +216,27 @@ void ST7305_DMA::sendData(uint8_t *data, size_t len)
     }
 }
 
-void ST7305_DMA::receiveData(uint8_t *buffer, size_t len) {
-    if (len == 0) return;
-    if (len > 4) {
+void ST7305_DMA::receiveData(uint8_t *buffer, size_t len)
+{
+    if (len == 0)
+        return;
+    if (len > 4)
+    {
         log_e("receiveData: only up to 4 bytes supported in half-duplex mode");
         return;
     }
     spi_transaction_t t = {0};
     t.flags = SPI_TRANS_USE_RXDATA;
     t.length = len * 8;
-    t.rx_buffer = NULL;  // 使用内置 rx_data
+    t.rx_buffer = NULL; // 使用内置 rx_data
     t.user = (void *)((uintptr_t)this | 1);
     esp_err_t ret = spi_device_polling_transmit(_spi_handle, &t);
-    if (ret == ESP_OK) {
+    if (ret == ESP_OK)
+    {
         memcpy(buffer, t.rx_data, len);
-    } else {
+    }
+    else
+    {
         log_e("receiveData 失败: %d", ret);
     }
 }
@@ -648,7 +650,7 @@ IRAM_ATTR void ST7305_DMA::drawPixel(int16_t x, int16_t y, uint16_t color)
  */
 IRAM_ATTR void ST7305_DMA::slideOneBlock(SlideDirection dir, uint8_t new_buffer, uint8_t step)
 {
-    if (new_buffer > 3)
+    if (new_buffer > MAX_BUFFERS - 1)
         return;
     uint8_t *_new_buffer = _buffers[new_buffer];
     const uint16_t cols = BYTES_PER_ROW; // 水平块数（192）
@@ -907,6 +909,12 @@ void ST7305_DMA::drawXBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
 
                 if (b & 0x01) // 位为 1 时绘制
                 {
+
+                    int16_t logic_x = x + i;
+                    int16_t logic_y = y + j;
+                    if (logic_x < x_min || logic_x > x_max ||
+                        logic_y < y_min || logic_y > y_max)
+                        continue;
                     int16_t new_x = x + i;
                     int16_t new_y = dstY;
 
@@ -948,6 +956,11 @@ void ST7305_DMA::drawXBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
 
                 if (b & 0x01)
                 {
+                    int16_t logic_x = x + i;
+                    int16_t logic_y = y + j;
+                    if (logic_x < x_min || logic_x > x_max ||
+                        logic_y < y_min || logic_y > y_max)
+                        continue; // 完全跳过窗口外的像素
                     int16_t new_x = physWidth - srcY - 1;
                     int16_t new_y = x + i;
 
@@ -987,6 +1000,11 @@ void ST7305_DMA::drawXBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
 
                 if (b & 0x01)
                 {
+                    int16_t logic_x = x + i;
+                    int16_t logic_y = y + j;
+                    if (logic_x < x_min || logic_x > x_max ||
+                        logic_y < y_min || logic_y > y_max)
+                        continue; // 完全跳过窗口外的像素
                     int16_t new_x = physWidth - (x + i) - 1;
                     int16_t new_y = physHeight - srcY - 1;
 
@@ -1026,6 +1044,11 @@ void ST7305_DMA::drawXBitmap(int16_t x, int16_t y, const uint8_t bitmap[],
 
                 if (b & 0x01)
                 {
+                    int16_t logic_x = x + i;
+                    int16_t logic_y = y + j;
+                    if (logic_x < x_min || logic_x > x_max ||
+                        logic_y < y_min || logic_y > y_max)
+                        continue; // 完全跳过窗口外的像素
                     int16_t new_x = srcY;
                     int16_t new_y = physHeight - (x + i) - 1;
 

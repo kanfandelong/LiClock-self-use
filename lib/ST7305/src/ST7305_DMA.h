@@ -6,6 +6,7 @@
 #include "Adafruit_GFX.h"
 #include <driver/spi_master.h>
 
+#define MAX_BUFFERS 6
 #define MAX_X 384
 #define MAX_Y 168
 #define PHYSICAL_WIDTH 384
@@ -163,7 +164,7 @@ public:
 	 */
 	void swapBuffer(uint16_t buffer_index)
 	{
-		if (buffer_index > 3)
+		if (buffer_index > MAX_BUFFERS - 1)
 			return;
 		current_buffer_idx = buffer_index;
 		buffer = _buffers[buffer_index];
@@ -180,7 +181,7 @@ public:
 	 */
 	void copyBuffer(uint16_t to, uint16_t from)
 	{
-		if (from > 3 || to > 3)
+		if (from > MAX_BUFFERS - 1 || to > MAX_BUFFERS - 1)
 			return;
 		memcpy(_buffers[to], _buffers[from], 8064);
 	};
@@ -198,7 +199,7 @@ public:
 	 */
 	bool cmpBuffer(uint16_t to, uint16_t from)
 	{
-		if (from > 3 || to > 3)
+		if (from > MAX_BUFFERS - 1 || to > MAX_BUFFERS - 1)
 			return false;
 		int value = memcmp(_buffers[to], _buffers[from], 8064);
 		if (value == 0)
@@ -237,7 +238,7 @@ public:
 	 */
 	void blendBuffers(uint16_t destIdx, uint16_t srcIdx, blendmode mode = OR)
 	{
-		if (destIdx > 3 || srcIdx > 3)
+		if (destIdx > MAX_BUFFERS - 1 || srcIdx > MAX_BUFFERS - 1)
 			return;
 		uint32_t *dst = (uint32_t *)_buffers[destIdx];
 		uint32_t *src = (uint32_t *)_buffers[srcIdx];
@@ -353,7 +354,7 @@ private:
 
 	uint8_t *buffer;
 	uint8_t *dma_buffer[2]; // 两个 DMA 安全缓冲区
-	uint8_t *_buffers[4];
+	uint8_t *_buffers[MAX_BUFFERS];
 	int8_t _active_dma_idx;	 // 当前正在被 DMA 发送的缓冲区索引（-1 表示无）
 	int8_t _pending_dma_idx; // 已填充好等待发送的缓冲区索引（-1 表示无）
 

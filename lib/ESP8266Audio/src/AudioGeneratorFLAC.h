@@ -72,6 +72,7 @@ protected:
   uint8_t *ringBufferStorage = NULL;
   uint8_t *tempBuffer = NULL;
   bool en_ringbuff = false;
+  volatile bool fillStopFlag = false;
 
   // FLAC callbacks, need static functions to bounce into c++ from c
   static FLAC__StreamDecoderReadStatus _read_cb(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes, void *client_data)

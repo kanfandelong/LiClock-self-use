@@ -1,6 +1,6 @@
 /* libFLAC - Free Lossless Audio Codec library
  * Copyright (C) 2001-2009  Josh Coalson
- * Copyright (C) 2011-2016  Xiph.Org Foundation
+ * Copyright (C) 2011-2025  Xiph.Org Foundation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,9 +30,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//#ifdef HAVE_CONFIG_H
+// #ifdef HAVE_CONFIG_H
 #  include "config.h"
-//#endif
+// #endif
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -40,9 +40,8 @@
 
 #include "private/memory.h"
 #include "FLAC/assert.h"
+#include "share/compat.h"
 #include "share/alloc.h"
-
-#pragma GCC optimize ("O3")
 
 void *FLAC__memory_alloc_aligned(size_t bytes, void **aligned_address)
 {
@@ -119,11 +118,11 @@ FLAC__bool FLAC__memory_alloc_aligned_uint32_array(size_t elements, FLAC__uint32
 	}
 }
 
-FLAC__bool FLAC__memory_alloc_aligned_uint64_array(size_t elements, FLAC__uint64 **unaligned_pointer, FLAC__uint64 **aligned_pointer)
+FLAC__bool FLAC__memory_alloc_aligned_int64_array(size_t elements, FLAC__int64 **unaligned_pointer, FLAC__int64 **aligned_pointer)
 {
-	FLAC__uint64 *pu; /* unaligned pointer */
+	FLAC__int64 *pu; /* unaligned pointer */
 	union { /* union needed to comply with C99 pointer aliasing rules */
-		FLAC__uint64 *pa; /* aligned pointer */
+		FLAC__int64 *pa; /* aligned pointer */
 		void         *pv; /* aligned pointer alias */
 	} u;
 
@@ -148,12 +147,12 @@ FLAC__bool FLAC__memory_alloc_aligned_uint64_array(size_t elements, FLAC__uint64
 	}
 }
 
-FLAC__bool FLAC__memory_alloc_aligned_unsigned_array(size_t elements, uint32_t **unaligned_pointer, uint32_t **aligned_pointer)
+FLAC__bool FLAC__memory_alloc_aligned_uint64_array(size_t elements, FLAC__uint64 **unaligned_pointer, FLAC__uint64 **aligned_pointer)
 {
-	uint32_t *pu; /* unaligned pointer */
+	FLAC__uint64 *pu; /* unaligned pointer */
 	union { /* union needed to comply with C99 pointer aliasing rules */
-		uint32_t *pa; /* aligned pointer */
-		void     *pv; /* aligned pointer alias */
+		FLAC__uint64 *pa; /* aligned pointer */
+		void         *pv; /* aligned pointer alias */
 	} u;
 
 	FLAC__ASSERT(elements > 0);
@@ -213,16 +212,8 @@ FLAC__bool FLAC__memory_alloc_aligned_real_array(size_t elements, FLAC__real **u
 void *safe_malloc_mul_2op_p(size_t size1, size_t size2)
 {
 	if(!size1 || !size2)
-		return safe_malloc_(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
+		return malloc(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
 	if(size1 > SIZE_MAX / size2)
 		return 0;
-	size_t total = size1 * size2;
-#ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
-	void *p = heap_caps_malloc(total, FLAC__ESP32_HEAP_CAPS_FLAGS);
-	if(!p)
-		p = malloc(total); /* fallback to default allocation when internal heap is exhausted */
-	return p;
-#else
-	return malloc(total);
-#endif
+	return malloc(size1*size2);
 }

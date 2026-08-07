@@ -1,6 +1,6 @@
 /* alloc - Convenience routines for safely allocating memory
  * Copyright (C) 2007-2009  Josh Coalson
- * Copyright (C) 2011-2016  Xiph.Org Foundation
+ * Copyright (C) 2011-2025  Xiph.Org Foundation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -68,11 +68,35 @@
 # define SIZE_MAX SIZE_T_MAX
 #endif
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
+extern int alloc_check_threshold, alloc_check_counter, alloc_check_keep_failing;
+
+static inline int alloc_check(void) {
+	if(alloc_check_threshold == INT32_MAX)
+		return 0;
+	else if(alloc_check_counter++ == alloc_check_threshold)
+		return 1;
+	else if(alloc_check_keep_failing && (alloc_check_counter > alloc_check_threshold))
+		return 1;
+	else {
+		return 0;
+	}
+}
+
+#endif
+
 /* avoid malloc()ing 0 bytes, see:
  * https://www.securecoding.cert.org/confluence/display/seccode/MEM04-A.+Do+not+make+assumptions+about+the+result+of+allocating+0+bytes?focusedCommentId=5407003
 */
+
 static inline void *safe_malloc_(size_t size)
 {
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	/* Fail if requested */
+	if(alloc_check())
+		return NULL;
+#endif
 	/* malloc(0) is undefined; FLAC src convention is to always allocate */
 	if(!size)
 		size++;
@@ -88,6 +112,11 @@ static inline void *safe_malloc_(size_t size)
 
 static inline void *safe_calloc_(size_t nmemb, size_t size)
 {
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	/* Fail if requested */
+	if(alloc_check())
+		return NULL;
+#endif
 	if(!nmemb || !size)
 		return safe_malloc_(1); /* malloc(0) is undefined; FLAC src convention is to always allocate */
 #ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
@@ -179,9 +208,17 @@ static inline void *safe_malloc_muladd2_(size_t size1, size_t size2, size_t size
 
 static inline void *safe_realloc_(void *ptr, size_t size)
 {
-	void *oldptr = ptr;
+	void *oldptr;
+	void *newptr;
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	/* Fail if requested */
+	if(alloc_check() && size > 0) {
+		free(ptr);
+		return NULL;
+	}
+#endif
 #ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
-	void *newptr = heap_caps_realloc(ptr, size, FLAC__ESP32_HEAP_CAPS_FLAGS);
+	newptr = heap_caps_realloc(ptr, size, FLAC__ESP32_HEAP_CAPS_FLAGS);
 	if(!newptr && size > 0) {
 		newptr = heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); /* fallback to default allocation when internal heap is exhausted */
 		if(!newptr)
@@ -190,23 +227,48 @@ static inline void *safe_realloc_(void *ptr, size_t size)
 	else if(size > 0 && newptr == 0)
 		free(oldptr);
 #else
-	void *newptr = realloc(ptr, size);
+	newptr = realloc(ptr, size);
 	if(size > 0 && newptr == 0)
 		free(oldptr);
 #endif
 	return newptr;
 }
-static inline void *safe_realloc_add_2op_(void *ptr, size_t size1, size_t size2)
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+static inline void *realloc_(void *ptr, size_t size)
+{
+	/* Fail if requested */
+	if(alloc_check())
+		return NULL;
+	return realloc(ptr, size);
+}
+#endif
+
+
+static inline void *safe_realloc_nofree_add_2op_(void *ptr, size_t size1, size_t size2)
+{
+	size2 += size1;
+	if(size2 < size1)
+		return 0;
+	return realloc(ptr, size2);
+}
+
+static inline void *safe_realloc_add_3op_(void *ptr, size_t size1, size_t size2, size_t size3)
 {
 	size2 += size1;
 	if(size2 < size1) {
 		free(ptr);
 		return 0;
 	}
-	return realloc(ptr, size2);
+	size3 += size2;
+	if(size3 < size2) {
+		free(ptr);
+		return 0;
+	}
+	return safe_realloc_(ptr, size3);
 }
 
-static inline void *safe_realloc_add_3op_(void *ptr, size_t size1, size_t size2, size_t size3)
+static inline void *safe_realloc_nofree_add_3op_(void *ptr, size_t size1, size_t size2, size_t size3)
 {
 	size2 += size1;
 	if(size2 < size1)
@@ -217,7 +279,7 @@ static inline void *safe_realloc_add_3op_(void *ptr, size_t size1, size_t size2,
 	return realloc(ptr, size3);
 }
 
-static inline void *safe_realloc_add_4op_(void *ptr, size_t size1, size_t size2, size_t size3, size_t size4)
+static inline void *safe_realloc_nofree_add_4op_(void *ptr, size_t size1, size_t size2, size_t size3, size_t size4)
 {
 	size2 += size1;
 	if(size2 < size1)
@@ -235,9 +297,20 @@ static inline void *safe_realloc_mul_2op_(void *ptr, size_t size1, size_t size2)
 {
 	if(!size1 || !size2)
 		return realloc(ptr, 0); /* preserve POSIX realloc(ptr, 0) semantics */
+	if(size1 > SIZE_MAX / size2) {
+		free(ptr);
+		return 0;
+	}
+	return safe_realloc_(ptr, size1*size2);
+}
+
+static inline void *safe_realloc_nofree_mul_2op_(void *ptr, size_t size1, size_t size2)
+{
+	if(!size1 || !size2)
+		return realloc(ptr, 0); /* preserve POSIX realloc(ptr, 0) semantics */
 	if(size1 > SIZE_MAX / size2)
 		return 0;
-	return safe_realloc_(ptr, size1*size2);
+	return realloc(ptr, size1*size2);
 }
 
 /* size1 * (size2 + size3) */
@@ -246,9 +319,22 @@ static inline void *safe_realloc_muladd2_(void *ptr, size_t size1, size_t size2,
 	if(!size1 || (!size2 && !size3))
 		return realloc(ptr, 0); /* preserve POSIX realloc(ptr, 0) semantics */
 	size2 += size3;
+	if(size2 < size3) {
+		free(ptr);
+		return 0;
+	}
+	return safe_realloc_mul_2op_(ptr, size1, size2);
+}
+
+/* size1 * (size2 + size3) */
+static inline void *safe_realloc_nofree_muladd2_(void *ptr, size_t size1, size_t size2, size_t size3)
+{
+	if(!size1 || (!size2 && !size3))
+		return realloc(ptr, 0); /* preserve POSIX realloc(ptr, 0) semantics */
+	size2 += size3;
 	if(size2 < size3)
 		return 0;
-	return safe_realloc_mul_2op_(ptr, size1, size2);
+	return safe_realloc_nofree_mul_2op_(ptr, size1, size2);
 }
 
 #endif

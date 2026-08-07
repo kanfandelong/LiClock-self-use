@@ -16,6 +16,9 @@
 #include "AudioFileSourceLittleFS.h"
 #include "AudioFileSourcePROGMEM.h"
 #include "AudioFileSourceSD.h"
+
+#include "AudioFileSourcePOSIX.h"
+
 #include "AudioFileSourceVorbis.h"
 #include "AudioFileSourceSPIFFS.h"
 #include "AudioFileSourceSPIRAMBuffer.h"

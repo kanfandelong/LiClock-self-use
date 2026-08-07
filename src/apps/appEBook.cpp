@@ -596,9 +596,9 @@ bool AppEBook::indexcode_3()
                 txtFile.seek(-1, SeekCur);
                 int8_t cz = textWidth - 5 - StringLength;
                 int8_t t_length = getCharLength(t);
-                byte a = B11100000;
+                byte a = 0b11100000;
                 byte b = t & a;
-                if (b == B11100000 || b == B11000000)
+                if (b == 0b11100000 || b == 0b11000000)
                 {
                     if (line < maxline) // ← 增加边界保护
                     {
@@ -849,10 +849,10 @@ bool AppEBook::indexcode_ttf()
 
         // 检查字符的格式 + 数据处理 + 长度计算
         boolean asciiState = 0;
-        byte a = B11100000;
+        byte a = 0b11100000;
         byte b = c & a;
 
-        if (b == B11100000) // 中文等 3个字节
+        if (b == 0b11100000) // 中文等 3个字节
         {
             ch_count++;
             c = txtFile.read();
@@ -860,7 +860,7 @@ bool AppEBook::indexcode_ttf()
             c = txtFile.read();
             txt[line] += c;
         }
-        else if (b == B11000000) // ascii扩展 2个字节
+        else if (b == 0b11000000) // ascii扩展 2个字节
         {
             en_count += 12;
             c = txtFile.read();
@@ -905,9 +905,9 @@ bool AppEBook::indexcode_ttf()
                 txtFile.seek(-1, SeekCur); // 往回移
                 int8_t cz = (mode ? 126 : 294) - StringLength;
                 int8_t t_length = getCharLength(t);
-                byte a = B11100000;
+                byte a = 0b11100000;
                 byte b = t & a;
-                if (b == B11100000 || b == B11000000) // 中文 ascii扩展
+                if (b == 0b11100000 || b == 0b11000000) // 中文 ascii扩展
                 {
                     line++;
                     en_count = 0;
@@ -1366,9 +1366,9 @@ bool AppEBook::draw_page3()
                   log_print("字符t:"); log_println(t, HEX);
                   log_print("t长度:"); log_println(t_length);
                   log_print("差值:"); log_println(cz);*/
-                byte a = B11100000;
+                byte a = 0b11100000;
                 byte b = t & a;
-                if (b == B11100000 || b == B11000000) // 中文 ascii扩展
+                if (b == 0b11100000 || b == 0b11000000) // 中文 ascii扩展
                 {
                     line++;
                     en_count = 0;
@@ -1660,10 +1660,10 @@ begin:
             txt[line] += c;
         // 检查字符的格式 + 数据处理 + 长度计算
         boolean asciiState = 0;
-        byte a = B11100000;
+        byte a = 0b11100000;
         byte b = c & a;
 
-        if (b == B11100000) // 中文等 3个字节
+        if (b == 0b11100000) // 中文等 3个字节
         {
             ch_count++;
             c = txtFile.read();
@@ -1671,7 +1671,7 @@ begin:
             c = txtFile.read();
             txt[line] += c;
         }
-        else if (b == B11000000) // ascii扩展 2个字节
+        else if (b == 0b11000000) // ascii扩展 2个字节
         {
             en_count += 12;
             c = txtFile.read();
@@ -1733,9 +1733,9 @@ begin:
                   log_print("字符t:"); log_println(t, HEX);
                   log_print("t长度:"); log_println(t_length);
                   log_print("差值:"); log_println(cz);*/
-                byte a = B11100000;
+                byte a = 0b11100000;
                 byte b = t & a;
-                if (b == B11100000 || b == B11000000) // 中文 ascii扩展
+                if (b == 0b11100000 || b == 0b11000000) // 中文 ascii扩展
                 {
                     line++;
                     en_count = 0;
