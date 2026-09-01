@@ -3,6 +3,8 @@
 #include "git_info.h"
 #include "ulp_riscv.h"
 #include "esp_wake_stub.h"
+#include <esp_app_format.h>
+#include <esp_ota_ops.h>
 
 // 统一的文件系统接口，支持SD卡和LittleFS，路径以"/sd/"或"/littlefs/"开头来区分
 // {
@@ -1053,7 +1055,7 @@ void HAL::ReqWiFiConfig()
         a = 0;
     }
 }
-#include "esp_spi_flash.h"
+#include "spi_flash_mmap.h"
 #include "esp_rom_md5.h"
 #include "esp_partition.h"
 #define PARTITION_TOTAL 4
@@ -1581,9 +1583,9 @@ bool HAL::init()
     pinMode(PIN_BUTTONR, INPUT | PULLDOWN);
     pinMode(PIN_BUTTONL, INPUT | PULLDOWN);
     pinMode(PIN_BUTTONC, INPUT | PULLDOWN);
-    total_gnd += digitalRead(PIN_BUTTONR);
-    total_gnd += digitalRead(PIN_BUTTONL);
-    total_gnd += digitalRead(PIN_BUTTONC);
+    // total_gnd += digitalRead(PIN_BUTTONR);
+    // total_gnd += digitalRead(PIN_BUTTONL);
+    // total_gnd += digitalRead(PIN_BUTTONC);
     // if (total_gnd != 3) // 神秘错误,错误识别了按键电平,
     // {
     btnl._buttonPressed = 1;
@@ -1599,6 +1601,7 @@ bool HAL::init()
     //     btnc._buttonPressed = 0;
     //     btn_activelow = true;
     // }
+    
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SCL, OUTPUT | PULLUP);

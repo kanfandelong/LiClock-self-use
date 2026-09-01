@@ -50,6 +50,7 @@
 #ifdef FLAC__USE_ESP32_HEAP_CAPS_ALLOC
 #include <esp_heap_caps.h>
 #define FLAC__ESP32_HEAP_CAPS_FLAGS (MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)
+// #define FLAC__ESP32_HEAP_CAPS_FLAGS MALLOC_CAP_SPIRAM
 #endif
 #include "compat.h"
 

@@ -1056,10 +1056,10 @@ static int cmd_taskload(int argc, char **argv)
 
     // 打印表头
     log_printf("\n--- CPU Load in last %d seconds ---\n", window_sec);
-    log_printf("%-*s %5s %5s %5s %3s %10s %10s %9s\n",
+    log_printf("%-*s %5s %5s %5s %5s %5s %10s %10s %9s\n",
                (int)maxNameLen, "Name",
-               "Core", "State", "Prio", "WDT", "Stack", "Time(us)", "Load%");
-    log_printf("%-*s ----- ----- ----- --- ---------- ---------- ---------\n",
+               "Core", "Num", "State", "Prio", "WDT", "Stack", "Time(us)", "Load%");
+    log_printf("%-*s ----- ----- ----- ----- ----- ---------- ---------- ---------\n",
                (int)maxNameLen, "----");
 
     const char state[6][2] = {"X", "R", "B", "S", "D", "?"};
@@ -1109,22 +1109,23 @@ static int cmd_taskload(int argc, char **argv)
         const char *state_str = (t2.eCurrentState < state_count) ? state[t2.eCurrentState] : "?";
 
         esp_err_t wdt_ret = esp_task_wdt_status(t2.xHandle);
-        const char *wdt_str = "  -"; // 默认：未初始化或无效
+        const char *wdt_str = "    -"; // 默认：未初始化或无效
         if (wdt_ret == ESP_OK)
         {
-            wdt_str = "  √"; // 已订阅
+            wdt_str = "    √"; // 已订阅
         }
         else if (wdt_ret == ESP_ERR_NOT_FOUND)
         {
-            wdt_str = "  ✗"; // 未订阅
+            wdt_str = "    ✗"; // 未订阅
         }
 
         int core = (t2.xCoreID == tskNO_AFFINITY) ? -1 : (int)t2.xCoreID;
 
-        log_printf("%s%-*s %5d %5s %2u/%2u %s %10lu %10lu %8.02f%%\033[0m\n",
+        log_printf("%s%-*s %5d %5lu %5s %2lu/%2lu %5s %10lu %10lu %8.02f%%\033[0m\n",
                    classColor,
                    (int)maxNameLen, t2.pcTaskName,
                    core,
+                   t2.xTaskNumber,
                    state_str,
                    t2.uxBasePriority,
                    t2.uxCurrentPriority,
@@ -4096,12 +4097,12 @@ static int cmd_hexdump(int argc, char **argv)
         }
 
         // 打印 ASCII 表示
-        log_printf(" ");
+        log_printf(" |");
         for (size_t i = 0; i < actual; i++) {
             uint8_t c = buf[i];
             log_printf("%c", (c >= 0x20 && c <= 0x7E) ? c : '.');
         }
-        log_printf("\n");
+        log_printf("|\n");
 
         // 更新计数
         remaining -= actual;

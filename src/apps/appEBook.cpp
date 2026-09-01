@@ -455,8 +455,10 @@ bool AppEBook::indexcode_3()
     {
         indexesFile = hal.open(indexesName, FILE_APPEND, true);
     }
-    indexesFile.setBufferSize(8192);
-    txtFile.setBufferSize(8192);
+    char *indexesName_temp = (char *)heap_caps_malloc(1024 * 64, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    char *txtName_temp = (char *)heap_caps_malloc(1024 * 64, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+    indexesFile.setBuffer(indexesName_temp, 1024 * 64);
+    txtFile.setBuffer(txtName_temp, 1024 * 64);
 
     while (txtFile.available())
     {
@@ -487,12 +489,12 @@ bool AppEBook::indexcode_3()
                 u8g2Fonts.printf("文件大小：%0.2fKB", float(txtTotalSize) / 1024.0);
                 u8g2Fonts.setCursor(0, 45);
                 u8g2Fonts.printf("剩余大小：%0.2fKB", float(txtFile.available()) / 1024.0);
-                u8g2Fonts.setCursor(0, 60);
-                u8g2Fonts.printf("索引进度：%0.2f%%", shengyu_float);
+                display.drawRoundRect(2, 45, 380, 12, 1, TFT_BLACK);
+                display.fillRoundRect(2, 45, (int)(380 * (shengyu_float / 100.0)), 12, 1, TFT_BLACK);
                 display.display();
                 log_i("文件名称：%s 索引进度：%0.2f%%", currentFilename, shengyu_float);
                 last = millis();
-                esp_task_wdt_reset();
+                // esp_task_wdt_reset();
             }
         }
 
@@ -638,6 +640,7 @@ bool AppEBook::indexcode_3()
     indexesFile.write((uint8_t *)&info, 4); // 写入索引时的相关信息
     indexesFile.flush();
     indexesFile.close();
+    free(indexesName_temp);
 
     indexesFile = hal.open(indexesName, "r", true);
     uint32_t indexes_size = indexesFile.size();
@@ -681,6 +684,7 @@ bool AppEBook::indexcode_3()
     // yswz_count = 0;
 
     txtFile.close();
+    free(txtName_temp);
 
     uint32_t need = millis() - begin;
 

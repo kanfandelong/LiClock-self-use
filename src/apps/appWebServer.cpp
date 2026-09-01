@@ -74,6 +74,7 @@ void AppWebserver::setup()
                 break;
             }
         }
+        appManager.goBack();
     }
     else
     {

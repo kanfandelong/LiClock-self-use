@@ -111,7 +111,7 @@ private:
     /* data */
 public:
     SemaphoreHandle_t audio_control_sem = NULL;  // 音频任务的信号量
-    TaskHandle_t player_loop_task_handle = NULL; // 音频任务句柄
+    TaskHandle_t decode_loop_task_handle = NULL; // 音频任务句柄
     AudioFileSourceVorbis *vorbis = nullptr;
     AudioFileSource *in = nullptr;     // 音频文件源
     AudioFileSourceID3 *id3 = nullptr; // ID3信息解码处理
@@ -140,7 +140,7 @@ public:
     void set();
 
     // ===== 播放控制 & 列表管理 =====
-    void begin_player_task();
+    void begin_decode_task();
     void player_menu();
     void player_set_menu();
     void bulid_music_list();
@@ -266,8 +266,6 @@ public:
     // FFT 部分
     uint16_t SAMPLES = 256;
     float smoothingFactor = 0.7f; // 平滑控制, 0~1，越大越平滑
-    float FFT_A_spectrum_smoothness = 2000.0f;
-    float FFT_A_amplitude = 40.0f;
     float fft_gain = 1.0;
     static const size_t RING_BUFFER_SIZE = 8192; // 足够容纳 96kHz 下 40ms 的数据
     float *ring_buffer = nullptr;
@@ -773,7 +771,7 @@ void delete_output()
  * @param parameter 任务参数（未使用）
  * @note 运行在独立任务中，负责音频解码循环，使用信号量保证线程安全
  */
-static void player_loop(void *parameter)
+static void decode_loop(void *parameter)
 {
     AppMusicPlayer *self = (AppMusicPlayer *)parameter;
     log_i("开始音频解码任务");
@@ -820,7 +818,7 @@ static void player_loop(void *parameter)
     {
         self->generator->stop();
     }
-    self->player_loop_task_handle = NULL;
+    self->decode_loop_task_handle = NULL;
     log_i("解码器任务栈的历史剩余最小值：%ld", uxTaskGetStackHighWaterMark(NULL));
     vTaskDelete(NULL);
 }
@@ -885,7 +883,7 @@ void AppMusicPlayer::loadPlayCounts()
     uint32_t num = f.size() / sizeof(SongPlayCount);
 
     playCountNum = num;
-    
+
     if (num == 0)
         num == 16;
 
@@ -2011,7 +2009,7 @@ void AppMusicPlayer::next_song(bool next, bool btn)
         file_in(music_file);
         if (player_set())
         {
-            begin_player_task();
+            begin_decode_task();
             return;
         }
         else
@@ -2072,7 +2070,7 @@ void AppMusicPlayer::next_song(bool next, bool btn)
     {
         if (player_set())
         {
-            begin_player_task();
+            begin_decode_task();
         }
         else
             _play_end = true;
@@ -2100,7 +2098,7 @@ void AppMusicPlayer::sem()
  */
 void AppMusicPlayer::delete_playtask()
 {
-    if (_play_end || player_loop_task_handle == NULL)
+    if (_play_end || decode_loop_task_handle == NULL)
         return;
 
     if (i2s_output != nullptr)
@@ -2110,17 +2108,17 @@ void AppMusicPlayer::delete_playtask()
 
     // 等待任务自然结束（超时机制防止死等）
     TickType_t start = xTaskGetTickCount();
-    while (player_loop_task_handle != NULL && (xTaskGetTickCount() - start) < pdMS_TO_TICKS(5000))
+    while (decode_loop_task_handle != NULL && (xTaskGetTickCount() - start) < pdMS_TO_TICKS(5000))
     {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
     // 如果任务仍未退出，再考虑强制手段（极少发生）
-    if (player_loop_task_handle != NULL)
+    if (decode_loop_task_handle != NULL)
     {
         log_w("任务未响应，强制删除");
-        vTaskDelete(player_loop_task_handle);
-        player_loop_task_handle = NULL;
+        vTaskDelete(decode_loop_task_handle);
+        decode_loop_task_handle = NULL;
         if (xSemaphoreTake(audio_control_sem, 1000 / portTICK_PERIOD_MS) != pdTRUE)
             xSemaphoreGive(audio_control_sem); // 确保释放信号量
     }
@@ -2467,15 +2465,14 @@ static const menu_select menu_set_player[] =
         {true, "使用蜂鸣器输出", nullptr},
         {false, "重启间隔", nullptr},
         {false, "FFT平滑控制", nullptr},
-        {false, "FFT参数1", nullptr},
-        {false, "FFT参数2", nullptr},
         {false, "线性缩放增益", nullptr},
         {true, "自动增益调节", "AutoGain"},
         {false, "xFrequency", nullptr},
         {false, "FFT采样点数", nullptr},
         {false, "音频波形滚动速度", nullptr},
         {false, "网络歌词搜索", nullptr},
-        {true, "FFT对数缩放", "fft_log"},
+        {true, "FFT对数幅度缩放", "fft_log"},
+        {true, "FFT对数频率缩放", "log_freq"},
         {true, "显示歌词时关闭歌曲信息显示", "lrc_off_info"},
         {true, "网络歌词歌词", "netlrc"},
         {true, "显示debug界面", "display_debug"},
@@ -2485,6 +2482,7 @@ static const menu_select menu_set_player[] =
         {true, "显示音量/显示播放次数", "show_gain"},
         {true, "启用环形缓存区", "en_ringbuff"},
         {true, "启用柱状频谱", "bar_mode"},
+        {true, "任务列表", "tasklist"},
         {false, NULL, nullptr},
 }; // 音乐播放器菜单
 /**
@@ -2560,7 +2558,7 @@ void AppMusicPlayer::player_menu()
             if (player_set())
             {
                 // sem();
-                begin_player_task();
+                begin_decode_task();
             }
             else
                 _play_end = true;
@@ -2574,7 +2572,7 @@ void AppMusicPlayer::player_menu()
             if (player_set())
             {
                 // sem();
-                begin_player_task();
+                begin_decode_task();
             }
             else
                 _play_end = true;
@@ -2635,26 +2633,20 @@ void AppMusicPlayer::player_set_menu()
             hal.pref.putFloat("fft_smooth_val", smoothingFactor);
             break;
         case 6:
-            FFT_A_spectrum_smoothness = (float)GUI::msgbox_number("FFT参数1", 4, (int)(FFT_A_spectrum_smoothness));
-            break;
-        case 7:
-            FFT_A_amplitude = (float)GUI::msgbox_number("FFT参数2", 3, (int)(FFT_A_amplitude));
-            break;
-        case 8:
             fft_gain = (float)GUI::msgbox_number("线性缩放增益", 3, (int)(fft_gain * 100.0f)) / 100.0f;
             hal.pref.putFloat("fft_gain", fft_gain);
             break;
-        case 10:
+        case 8:
             xFrequency = pdMS_TO_TICKS(GUI::msgbox_number("xFrequency", 2, xFrequency));
             hal.pref.putInt("xFrequency", (int)xFrequency);
             break;
-        case 11:
+        case 9:
             hal.pref.putUInt("fft_samples", GUI::msgbox_number("FFT采样点数", 4, hal.pref.getUInt("fft_samples", 256)));
             break;
-        case 12:
+        case 11:
             hal.pref.putUChar("col_per_frame", GUI::msgbox_number("音频波形滚动速度", 1, hal.pref.getUChar("col_per_frame", 1)));
             break;
-        case 13:
+        case 12:
             GUI::info_msgbox("提示", "正在搜索网络歌词...");
             hal.autoConnectWiFi(false);
             attemptNetworkLyrics();
@@ -2673,7 +2665,7 @@ void AppMusicPlayer::player_set_menu()
  * @brief 启动音频播放任务
  * @note 创建独立任务运行音频解码循环，根据解码器类型分配不同栈空间
  */
-void AppMusicPlayer::begin_player_task()
+void AppMusicPlayer::begin_decode_task()
 {
     _play_end = false;
     play_stop_time = 0;
@@ -2685,9 +2677,9 @@ void AppMusicPlayer::begin_player_task()
     log_i("将为解码任务分配%ld字节堆栈", stack_size);
     log_i("app运行在: core%d", core);
     if (core == 0)
-        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, this, 8, &player_loop_task_handle, 1);
+        xTaskCreatePinnedToCore(decode_loop, "decode_task", stack_size, this, 8, &decode_loop_task_handle, 1);
     else
-        xTaskCreatePinnedToCore(player_loop, "play_task", stack_size, this, 8, &player_loop_task_handle, 0);
+        xTaskCreatePinnedToCore(decode_loop, "decode_task", stack_size, this, 8, &decode_loop_task_handle, 0);
 }
 
 String AppMusicPlayer::getVlbmPach(const char *musicPath)
@@ -3579,8 +3571,8 @@ float AppMusicPlayer::calculateAutoGain(float *spectrum, int len)
         return fft_gain; // 保持当前增益不变
 
     // 可配置参数
-    const float TARGET_SATURATION = 0.04f; // 目标饱和比例（4%）
-    const float GAIN_MIN = 0.1f;           // 最小增益
+    const float TARGET_SATURATION = 0.01f; // 目标饱和比例（4%）
+    const float GAIN_MIN = 0.01f;          // 最小增益
     const float GAIN_MAX = 3.0f;           // 最大增益
     const float GAIN_UP_STEP = 1.03f;      // 增益上调系数（3%）
     const float GAIN_DOWN_STEP = 0.94f;    // 增益下调系数（6%）
@@ -3898,8 +3890,18 @@ void AppMusicPlayer::show_display_fft()
         // 4. 计算幅度谱，存入 vReal 的前半段
         for (int i = 0; i < SAMPLES / 2; i++)
         {
-            float re = fft_data[2 * i];
-            float im = fft_data[2 * i + 1];
+            float re, im;
+
+            if (i == 0)
+            {
+                re = fft_data[0];
+                im = 0.0f;
+            }
+            else
+            {
+                re = fft_data[2 * i];
+                im = fft_data[2 * i + 1];
+            }
             vReal[i] = sqrtf(re * re + im * im); // 与 ArduinoFFT 行为一致，无额外缩放
         }
 
@@ -3917,12 +3919,15 @@ void AppMusicPlayer::show_display_fft()
         {
             // 缩放
             if (use_log)
-                vReal[i] = FFT_A_amplitude * log10f(1.0f + vReal[i] / FFT_A_spectrum_smoothness);
+            {
+                vReal[i] = vReal[i] * curveScaling[i] * fft_gain;
+                vReal[i] = 8.6858f * logf(vReal[i] + 0.001f); // 对数缩放
+            } //     vReal[i] = FFT_A_amplitude * log10f(1.0f + vReal[i] / FFT_A_spectrum_smoothness);
             else
+            {
                 vReal[i] = vReal[i] * curveScaling[i];
-
-            vReal[i] = vReal[i] * fft_gain; // FFT增益控制
-
+                vReal[i] = vReal[i] * fft_gain;
+            }
             // 平滑处理
             vReal[i] = smoothingFactor * previousSpectrum[i] + (1 - smoothingFactor) * vReal[i];
         }
@@ -4252,6 +4257,202 @@ void AppMusicPlayer::show_display_fft()
         uint32_t now = millis();
         static char _buf[64];
         static int x;
+        if (hal.pref.getBool("tasklist", false))
+        {
+            static char buf[9][128];  // 缓存最多9行（标题+8个任务）
+            static int lineCount = 0; // 实际缓存的行数
+            static TaskStatus_t *last_snap = nullptr;
+            static uint32_t last_snap_count, now_snap_count;
+            static UBaseType_t last_task_count = 0;
+            static uint32_t lastUpdateTime = 0;  // 上次更新时间戳（毫秒）
+            const uint32_t updateInterval = 500; // 更新间隔（可调，例如1000ms）
+
+            // 获取当前时间戳（根据平台调整）
+            uint32_t currentTime = millis(); // 或者 xTaskGetTickCount() * portTICK_PERIOD_MS
+
+            // 分配快照内存并获取系统状态
+            UBaseType_t taskCount = uxTaskGetNumberOfTasks();
+            TaskStatus_t *now_snap = (TaskStatus_t *)malloc(taskCount * sizeof(TaskStatus_t));
+            UBaseType_t count1 = uxTaskGetSystemState(now_snap, taskCount, &now_snap_count);
+
+            // 判断是否需要更新：必须已有上次快照且时间间隔达到
+            bool needUpdate = (last_snap != nullptr) && ((currentTime - lastUpdateTime) >= updateInterval);
+
+            if (!needUpdate && last_snap != nullptr)
+            {
+                // ---------- 直接显示缓存 ----------
+                /*                 u8g2Fonts.setFont(u8g2_font_micro_mr);
+                                int y = 24;
+                                int screenWidth = display.width();
+                                for (int i = 0; i < lineCount; i++)
+                                {
+                                    int w = u8g2Fonts.getUTF8Width(buf[i]);
+                                    u8g2Fonts.drawStr(screenWidth - w, y, buf[i]);
+                                    y += 8;
+                                }
+                                // 恢复大字体（如果有）
+                                if (hal.pref.getString("system_font", "default") == "default")
+                                    u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+                                else
+                                    u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str()); */
+
+                display.blendBuffers(display.current_buffer_idx, 5, XOR);
+                free(now_snap); // 释放本次快照，避免泄漏
+                goto show_down; // 结束本次调用
+            }
+
+            // ---------- 需要更新（或首次） ----------
+            // 首次调用（last_snap == nullptr）只能保存快照，无法计算
+            if (last_snap == nullptr)
+            {
+                last_snap = now_snap;
+                last_snap_count = now_snap_count;
+                last_task_count = count1;
+                lastUpdateTime = currentTime;
+                lineCount = 0; // 无有效缓存
+                // 不显示任何内容（或可显示“Loading...”），直接返回
+                goto show_down;
+            }
+
+            // ---------- 正常计算（已有两次快照） ----------
+            // 计算总时间差
+            uint32_t totalTicks = now_snap_count - last_snap_count;
+            if (totalTicks == 0)
+                totalTicks = 1;
+
+            // 收集任务信息
+            struct TaskInfo
+            {
+                char name[configMAX_TASK_NAME_LEN];
+                UBaseType_t core;
+                float cpu;
+                UBaseType_t stack;
+            };
+            TaskInfo *infos = (TaskInfo *)malloc(count1 * sizeof(TaskInfo));
+            int infoCount = 0;
+            float idleSum = 0.0f;
+            int idleCnt = 0;
+
+            for (int i = 0; i < count1; i++)
+            {
+                TaskStatus_t *now = &now_snap[i];
+                // 在 last_snap 中查找相同句柄
+                uint32_t oldRun = 0;
+                bool found = false;
+                for (int j = 0; j < last_task_count; j++)
+                {
+                    if (now->xHandle == last_snap[j].xHandle)
+                    {
+                        oldRun = last_snap[j].ulRunTimeCounter;
+                        found = true;
+                        break;
+                    }
+                }
+                float util = 0.0f;
+                if (found)
+                {
+                    util = (now->ulRunTimeCounter - oldRun) * 100.0f / totalTicks;
+                    if (util < 0)
+                        util = 0;
+                    if (util > 100)
+                        util = 100;
+                }
+                // 识别空闲任务
+                if (strstr(now->pcTaskName, "IDLE"))
+                {
+                    idleSum += util;
+                    idleCnt++;
+                }
+                // 保存信息
+                strncpy(infos[infoCount].name, now->pcTaskName, configMAX_TASK_NAME_LEN - 1);
+                infos[infoCount].name[configMAX_TASK_NAME_LEN - 1] = '\0';
+                infos[infoCount].core = now->xCoreID; // 确保有此成员
+                infos[infoCount].cpu = util;
+                infos[infoCount].stack = now->usStackHighWaterMark;
+                infoCount++;
+            }
+
+            // 总 CPU 利用率
+            float totalCpu = 99.9f;
+            if (idleCnt > 0)
+            {
+                totalCpu = 100.0f - (idleSum / idleCnt);
+                if (totalCpu >= 99.9f)
+                    totalCpu = 99.9f;
+            }
+            else
+            {
+                totalCpu = 99.9f;
+            }
+
+            // 清空缓存（准备填充）
+            lineCount = 0;
+
+            // 第一行：CPU 利用率
+            multi_heap_info_t info;
+            size_t total = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
+            heap_caps_get_info(&info, MALLOC_CAP_INTERNAL);
+            snprintf(buf[lineCount], sizeof(buf[lineCount]), "CPU: %.1f%% MEM: %.1f%%", totalCpu, (float)info.total_allocated_bytes / (float)total * 100.0);
+            lineCount++;
+
+            // 按 CPU 利用率降序排序（冒泡）
+            for (int i = 0; i < infoCount - 1; i++)
+            {
+                for (int j = i + 1; j < infoCount; j++)
+                {
+                    if (infos[j].cpu > infos[i].cpu)
+                    {
+                        TaskInfo tmp = infos[i];
+                        infos[i] = infos[j];
+                        infos[j] = tmp;
+                    }
+                }
+            }
+
+            // 添加任务列表（最多8个）
+            int maxShow = (infoCount < 8) ? infoCount : 8;
+            for (int i = 0; i < maxShow; i++)
+            {
+                TaskInfo *t = &infos[i];
+                if (strstr(t->name, "IDLE"))
+                    continue; // 跳过空闲任务
+                int core = (t->core == tskNO_AFFINITY) ? -1 : (int)t->core;
+                snprintf(buf[lineCount], sizeof(buf[lineCount]), "%s %1d %4.1f%% %5d",
+                         t->name, core, t->cpu, t->stack);
+                lineCount++;
+            }
+
+            free(infos);
+
+            // ---------- 绘制当前更新的内容 ----------
+            uint8_t current_buffer = display.current_buffer_idx;
+            display.swapBuffer(5);
+            display.clearScreen();
+            u8g2Fonts.setFont(u8g2_font_micro_mr);
+            int y = 24;
+            int screenWidth = display.width();
+            for (int i = 0; i < lineCount; i++)
+            {
+                int w = u8g2Fonts.getUTF8Width(buf[i]);
+                u8g2Fonts.drawStr(screenWidth - w, y, buf[i]);
+                y += 8;
+            }
+            display.swapBuffer(current_buffer);
+            display.blendBuffers(current_buffer, 5, XOR);
+            // 恢复系统字体（大字体）
+            if (hal.pref.getString("system_font", "default") == "default")
+                u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312_self, 209899L);
+            else
+                u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
+
+            // 更新上次快照和缓存时间戳
+            free(last_snap);
+            last_snap = now_snap;
+            last_snap_count = now_snap_count;
+            last_task_count = count1;
+            lastUpdateTime = currentTime;
+        }
+    show_down:
         if (now - _last_update_time > 200)
         { // 200ms更新一次
             _last_update_time = now;
@@ -4568,11 +4769,11 @@ bool AppMusicPlayer::player_set()
 // 初始化曲线缩放数组
 static void initCurveScaling()
 {
-    const int lowFreqCount = hal.pref.getInt("low_freq_count", 5);   // 低频点数量
-    const int transitionCount = hal.pref.getInt("trans_cnt", 70);    // 过渡区数量
-    const float lowScale = hal.pref.getFloat("low_scale", 0.00011);  // 低频压缩值
-    const float highScale = hal.pref.getFloat("high_scale", 0.0009); // 高频压缩值
-    const float hf_boost = hal.pref.getFloat("hf_boost", 0.0012f);   // 高频提升值
+    const int lowFreqCount = hal.pref.getInt("low_freq_count", 5);    // 低频点数量
+    const int transitionCount = hal.pref.getInt("trans_cnt", 70);     // 过渡区数量
+    const float lowScale =   hal.pref.getFloat("low_scale", 0.00001f);  // 低频压缩值
+    const float highScale = hal.pref.getFloat("high_scale", 0.0009f); // 高频压缩值
+    const float hf_boost =    hal.pref.getFloat("hf_boost", 0.0015f);    // 高频提升值
 
     for (int i = 0; i < app.SAMPLES / 2; i++)
     {
@@ -4668,7 +4869,7 @@ void AppMusicPlayer::setup()
 
     SAMPLES = hal.pref.getUInt("fft_samples", 256);
     vReal = (float *)heap_caps_malloc(sizeof(float[SAMPLES / 2]), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
-    // vImag = new float[SAMPLES];
+    // vImag = new float[SAMPLES]; // fft改用dsp库,此数组弃用
     curveScaling = (float *)heap_caps_malloc(sizeof(float[SAMPLES / 2]), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
     previousSpectrum = (float *)heap_caps_malloc(sizeof(float[SAMPLES / 2]), MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM);
     memset(previousSpectrum, 0, sizeof(float[SAMPLES / 2]));
@@ -4680,6 +4881,7 @@ void AppMusicPlayer::setup()
         memset(ring_buffer, 0, sizeof(float) * RING_BUFFER_SIZE);
     _count = hal.pref.getInt("rst_count", -1);
     gain = hal.pref.getFloat("gain", 0.3f);
+    use_log = hal.pref.getBool("fft_log", false);
     _lrcoffset = hal.pref.getInt("_lrcoffset", -50);
     bits_per_chan = hal.pref.getBool("bits_per_chan", true);
     display_debug_mode = hal.pref.getBool("music_debug", true);
@@ -4730,7 +4932,7 @@ void AppMusicPlayer::setup()
     select_file();
 
     if (player_set())
-        begin_player_task();
+        begin_decode_task();
     else
     {
         _play_end = true;
@@ -4761,7 +4963,7 @@ void AppMusicPlayer::setup()
                     play_time_total = 0;
                     file_in(music_file);
                     if (player_set())
-                        begin_player_task();
+                        begin_decode_task();
                     else
                         _play_end = true;
                 }
@@ -4771,7 +4973,7 @@ void AppMusicPlayer::setup()
                 delete_playtask();
                 music_list_menu();
                 if (player_set())
-                    begin_player_task();
+                    begin_decode_task();
                 else
                     _play_end = true;
             }

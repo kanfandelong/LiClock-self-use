@@ -182,7 +182,8 @@ void appclock_wakeup()
 {
     app.setup();
 }
-void AppClock::set(){
+void AppClock::set()
+{
     _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
 }
 void AppClock::setup()
@@ -207,7 +208,7 @@ void AppClock::setup()
                 appManager.noDeepSleep = false;
                 appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
                 log_printf("Finished part\n");
-                //log_printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
+                // log_printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
                 return;
             }
         }
@@ -243,8 +244,11 @@ void AppClock::setup()
     drawLayout();
     display.display(true);
     appManager.noDeepSleep = false;
-    appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
+    if (hal.timeinfo.tm_sec == 60)
+        appManager.nextWakeup = 1;
+    else
+        appManager.nextWakeup = 59 - hal.timeinfo.tm_sec;
     // log_println("Finished full");
-    //log_printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
+    // log_printf("%d.%d.%d %d %d:%d:%d\n", hal.timeinfo.tm_year + 1900, hal.timeinfo.tm_mon + 1, hal.timeinfo.tm_mday, hal.timeinfo.tm_wday, hal.timeinfo.tm_hour, hal.timeinfo.tm_min, hal.timeinfo.tm_sec);
     return;
 }
