@@ -13,7 +13,7 @@ public:
     USBAudioSpeakerApp()
     {
         name = "usb_audio_speaker";       // 内部标识符
-        title = "USB 声卡播放器";         // 显示标题
+        title = "USB 声卡";         // 显示标题
         description = "仅播放（扬声器）"; // 简要描述
         image = NULL;
     }

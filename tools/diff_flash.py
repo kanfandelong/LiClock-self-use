@@ -38,6 +38,8 @@ def get_flash_header(port, baud):
 
     try:
         cmd = [
+            "python",
+            "-m",
             "esptool",
             "--port", port,
             "--baud", str(baud),
@@ -95,7 +97,7 @@ def find_old_firmware(db_path, short_hash):
 
 
 def flash_firmware(port, baud, old_bin_path, new_bin_path):
-    cmd = ["esptool", "--port", port, "--baud", str(baud), "write-flash"]
+    cmd = ["python", "-m", "esptool", "--port", port, "--baud", str(baud), "write-flash"]
     
     # 基础参数：地址 + 新固件
     cmd += [hex(APP0_ADDR), new_bin_path]

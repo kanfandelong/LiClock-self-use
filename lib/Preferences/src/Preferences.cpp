@@ -461,8 +461,8 @@ size_t Preferences::getString(const char* key, char* value, const size_t maxLen)
         return 0;
     }
     if(len > maxLen){
-        log_e("not enough space in value: %u < %u", maxLen, len);
-        return 0;
+        log_e("not enough space in value: %u < %u,the data might get cut off.", maxLen, len);
+        len = maxLen;
     }
     err = nvs_get_str(_handle, key, value, &len);
     if(err){
@@ -512,8 +512,8 @@ size_t Preferences::getBytes(const char* key, void * buf, size_t maxLen){
         return len;
     }
     if(len > maxLen){
-        log_e("not enough space in buffer: %u < %u", maxLen, len);
-        return 0;
+        log_e("not enough space in buffer: %u < %u,the data might get cut off.", maxLen, len);
+        len = maxLen;
     }
     esp_err_t err = nvs_get_blob(_handle, key, buf, &len);
     if(err){

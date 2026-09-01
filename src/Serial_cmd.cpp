@@ -13,7 +13,9 @@ bool stop_fileserver = false;
 extern bool serverRunning;
 CMD cmd;
 
-// ============ 新增头文件 ============
+#include "esp_debug_helpers.h"
+#include "freertos/task_snapshot.h"
+
 #include <AsyncWebSocket.h>
 #include <ESPAsyncWebServer.h>
 #include "rom/ets_sys.h" // ets_install_putc2 (如果还没包含)
@@ -54,6 +56,7 @@ static void console_task(void *pvParameters)
                 if (bufIndex == 0)
                     continue; // 忽略空行
                 cmd.cmdBuffer[bufIndex] = '\0';
+                log_printf("PS LiClock> \033[93m%s\033[0m\n", cmd.cmdBuffer);
                 // 执行命令
                 int ret;
                 esp_err_t err = esp_console_run(cmd.cmdBuffer, &ret);
@@ -3953,61 +3956,77 @@ int ulp_cmd(int argc, char **argv)
  */
 static int cmd_hexdump(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < 2)
+    {
         PRINT_ERROR("Missing file path");
         return 1;
     }
 
     const char *filepath = NULL;
     size_t offset = 0;
-    size_t length = 0;           // 0 表示打印到文件末尾
-    bool has_length = false;     // 是否明确指定了长度
+    size_t length = 0;       // 0 表示打印到文件末尾
+    bool has_length = false; // 是否明确指定了长度
 
     // 手动解析命令行选项（支持 -o 和 -n）
-    for (int i = 1; i < argc; i++) {
+    for (int i = 1; i < argc; i++)
+    {
         char *arg = argv[i];
-        if (strcmp(arg, "-o") == 0) {
-            if (++i >= argc) {
+        if (strcmp(arg, "-o") == 0)
+        {
+            if (++i >= argc)
+            {
                 PRINT_ERROR("Missing offset after -o");
                 return 1;
             }
             char *endptr;
             offset = strtoul(argv[i], &endptr, 0);
-            if (*endptr != '\0') {
+            if (*endptr != '\0')
+            {
                 PRINT_ERROR("Invalid offset: %s", argv[i]);
                 return 1;
             }
-        } else if (strcmp(arg, "-n") == 0) {
-            if (++i >= argc) {
+        }
+        else if (strcmp(arg, "-n") == 0)
+        {
+            if (++i >= argc)
+            {
                 PRINT_ERROR("Missing length after -n");
                 return 1;
             }
             char *endptr;
             length = strtoul(argv[i], &endptr, 0);
-            if (*endptr != '\0' || length == 0) {
+            if (*endptr != '\0' || length == 0)
+            {
                 PRINT_ERROR("Invalid length (must be > 0): %s", argv[i]);
                 return 1;
             }
             has_length = true;
-        } else {
+        }
+        else
+        {
             // 非选项参数视为文件路径（只允许一个）
-            if (filepath == NULL) {
+            if (filepath == NULL)
+            {
                 filepath = arg;
-            } else {
+            }
+            else
+            {
                 PRINT_ERROR("Unexpected extra argument: %s", arg);
                 return 1;
             }
         }
     }
 
-    if (filepath == NULL) {
+    if (filepath == NULL)
+    {
         PRINT_ERROR("File path not specified");
         return 1;
     }
 
     // 打开文件
     FILE *f = fopen(filepath, "rb");
-    if (f == NULL) {
+    if (f == NULL)
+    {
         PRINT_ERROR("Failed to open file '%s': %s", filepath, strerror(errno));
         return 2;
     }
@@ -4015,50 +4034,63 @@ static int cmd_hexdump(int argc, char **argv)
     // 分配大缓冲区（使用 SPIRAM 和 DMA 能力）
     char *buffer = NULL;
     buffer = (char *)heap_caps_aligned_alloc(32, 1024 * 8, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
-    if (buffer) {
+    if (buffer)
+    {
         setvbuf(f, buffer, _IOFBF, 1024 * 8);
     }
 
     // 获取文件大小
-    if (fseek(f, 0, SEEK_END) != 0) {
+    if (fseek(f, 0, SEEK_END) != 0)
+    {
         PRINT_ERROR("Failed to seek to end: %s", strerror(errno));
         fclose(f);
-        if (buffer) heap_caps_free(buffer);
+        if (buffer)
+            heap_caps_free(buffer);
         return 2;
     }
     long file_size = ftell(f);
-    if (file_size < 0) {
+    if (file_size < 0)
+    {
         PRINT_ERROR("Failed to get file size");
         fclose(f);
-        if (buffer) heap_caps_free(buffer);
+        if (buffer)
+            heap_caps_free(buffer);
         return 2;
     }
     rewind(f);
 
     // 检查偏移是否超出文件大小
-    if (offset > (size_t)file_size) {
+    if (offset > (size_t)file_size)
+    {
         PRINT_ERROR("Offset 0x%08zx exceeds file size 0x%08lx", offset, file_size);
         fclose(f);
-        if (buffer) heap_caps_free(buffer);
+        if (buffer)
+            heap_caps_free(buffer);
         return 2;
     }
 
     // 如果未指定长度，则打印到文件末尾
-    if (!has_length) {
+    if (!has_length)
+    {
         length = (size_t)(file_size - offset);
-    } else {
+    }
+    else
+    {
         // 限制长度不超过文件剩余部分（避免无效读取）
         size_t remaining = (size_t)(file_size - offset);
-        if (length > remaining) {
+        if (length > remaining)
+        {
             length = remaining;
         }
     }
 
     // 跳转到偏移
-    if (fseek(f, offset, SEEK_SET) != 0) {
+    if (fseek(f, offset, SEEK_SET) != 0)
+    {
         PRINT_ERROR("Failed to seek to offset 0x%08zx: %s", offset, strerror(errno));
         fclose(f);
-        if (buffer) heap_caps_free(buffer);
+        if (buffer)
+            heap_caps_free(buffer);
         return 2;
     }
 
@@ -4067,16 +4099,22 @@ static int cmd_hexdump(int argc, char **argv)
     size_t addr = offset;
     uint8_t buf[16];
 
-    while (remaining > 0) {
+    while (remaining > 0)
+    {
         size_t read_len = (remaining > 16) ? 16 : remaining;
         size_t actual = fread(buf, 1, read_len, f);
-        if (actual == 0) {
-            if (feof(f)) {
+        if (actual == 0)
+        {
+            if (feof(f))
+            {
                 break; // 文件结束
-            } else {
+            }
+            else
+            {
                 PRINT_ERROR("Read error at offset 0x%08zx", addr);
                 fclose(f);
-                if (buffer) heap_caps_free(buffer);
+                if (buffer)
+                    heap_caps_free(buffer);
                 return 2;
             }
         }
@@ -4085,20 +4123,26 @@ static int cmd_hexdump(int argc, char **argv)
         log_printf("%s0x%08X:%s ", INFO_COLOR, (uint32_t)addr, RESET_COLOR);
 
         // 打印 16 个 hex 字节
-        for (int i = 0; i < 16; i++) {
-            if (i < actual) {
+        for (int i = 0; i < 16; i++)
+        {
+            if (i < actual)
+            {
                 log_printf("%02X ", buf[i]);
-            } else {
+            }
+            else
+            {
                 log_printf("   "); // 不足补空格
             }
-            if (i == 7) {
+            if (i == 7)
+            {
                 log_printf(" "); // 中间分隔
             }
         }
 
         // 打印 ASCII 表示
         log_printf(" |");
-        for (size_t i = 0; i < actual; i++) {
+        for (size_t i = 0; i < actual; i++)
+        {
             uint8_t c = buf[i];
             log_printf("%c", (c >= 0x20 && c <= 0x7E) ? c : '.');
         }
@@ -4109,13 +4153,67 @@ static int cmd_hexdump(int argc, char **argv)
         addr += actual;
 
         // 如果读取的字节少于请求的（文件提前结束），退出循环
-        if (actual < read_len) {
+        if (actual < read_len)
+        {
             break;
         }
     }
 
     fclose(f);
-    if (buffer) heap_caps_free(buffer);
+    if (buffer)
+        heap_caps_free(buffer);
+    return 0;
+}
+
+static int cmd_backtrace(int argc, char **argv)
+{
+    if (argc < 2)
+    {
+        return 1;
+    }
+
+    const char *name = argv[1];
+    TaskHandle_t h = xTaskGetHandle(name);
+    if (!h)
+    {
+        PRINT_ERROR("未找到任务: %s", name);
+        return 1;
+    }
+
+    esp_backtrace_frame_t fr = {0};
+
+    if (h == xTaskGetCurrentTaskHandle())
+    {
+        esp_backtrace_get_start(&fr.pc, &fr.sp, &fr.next_pc);
+        log_printf("%s (current task)\n", name);
+        esp_backtrace_print_from_frame(50, &fr, false);
+        return 0;
+    }
+
+    TaskSnapshot_t snap;
+    vTaskSuspendAll(); /* 冻结调度 */
+    BaseType_t ok = vTaskGetSnapshot(h, &snap);
+    xTaskResumeAll();
+
+    if (ok != pdTRUE)
+    {
+        PRINT_ERROR("任务快照失败: %s", name);
+        return 2;
+    }
+
+    XtExcFrame *f = (XtExcFrame *)snap.pxTopOfStack;
+    fr.pc = f->pc;
+    fr.sp = f->a1;
+    fr.next_pc = f->a0;
+    esp_backtrace_print_from_frame(50, &fr, false);
+    return 0;
+}
+
+/* 打印所有任务的 backtrace */
+static int cmd_backtrace_all(int argc, char **argv)
+{
+    log_printf("所有任务 backtrace:\n");
+    esp_backtrace_print_all_tasks(50); /* ESP-IDF 5.3+ 可用 */
     return 0;
 }
 
@@ -4210,6 +4308,19 @@ static const esp_console_cmd_t cmds[] = {
                 "  offset   : starting offset (optional, default 0)\n"
                 "  length   : number of bytes to dump (optional, default 256)",
         .func = cmd_hexdump,
+    },
+    {
+        .command = "backtrace",
+        .help = "打印指定任务的 backtrace\n"
+                "用法: backtrace <任务名>",
+        .hint = "<task_name>",
+        .func = &cmd_backtrace,
+    },
+    {
+        .command = "backtrace_all",
+        .help = "打印所有任务的 backtrace",
+        .hint = NULL,
+        .func = &cmd_backtrace_all,
     }};
 
 // Custom helper to retrieve the hint string for a given command name.

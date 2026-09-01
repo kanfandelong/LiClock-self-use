@@ -22,7 +22,7 @@ public:
     /**
      * @brief 设置APP的隐藏状态
      */
-    virtual void set(){};
+    virtual void set();
     /**
      * @brief 初始化(App打开)
      */

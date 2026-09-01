@@ -49,6 +49,10 @@ AppBase::~AppBase()
 {
 }
 
+void AppBase::set() {
+    _showInList = hal.pref.getBool(hal.get_char_sha_key(title), true);
+}
+
 AppBase *AppManager::getPtrByName(const char *appName)
 {
     for (int16_t i = 0; i < tail; i++)
