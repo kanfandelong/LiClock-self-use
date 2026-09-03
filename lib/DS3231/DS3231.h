@@ -57,6 +57,7 @@ class RTClib {
   public:
 		// Get date and time snapshot
     static DateTime now();
+	static void adjust(time_t uinx_time);
 };
 
 // Eric's original code is everything below this line

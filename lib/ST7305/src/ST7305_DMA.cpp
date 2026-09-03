@@ -1513,6 +1513,11 @@ void ST7305_DMA::setPowerMode(PowerMode mode)
     spi_unlock();
 }
 
+/**
+ * @brief 控制显示器的显示开关
+ * @param enabled true表示打开显示，false表示关闭显示
+ */
+
 void ST7305_DMA::display_on(bool enabled)
 {
     spi_lock();
@@ -1526,6 +1531,12 @@ void ST7305_DMA::display_on(bool enabled)
     }
     spi_unlock();
 }
+
+/**
+ * @brief 控制显示器进入或退出睡眠模式
+ * @param enabled true表示进入睡眠模式，false表示退出睡眠模式
+ * @note 睡眠模式下屏幕将会维持在最低功耗，此时将不会响应任何命令，且不会显示内容，但仍然保持RAM数据
+ */
 
 void ST7305_DMA::display_sleep(bool enabled)
 {
@@ -1549,6 +1560,11 @@ void ST7305_DMA::display_sleep(bool enabled)
     }
     spi_unlock();
 }
+
+/**
+ * @brief 控制显示器的显示反转模式
+ * @param enabled true表示启用显示反转，false表示禁用显示反转
+ */
 
 void ST7305_DMA::display_Inversion(bool enabled)
 {

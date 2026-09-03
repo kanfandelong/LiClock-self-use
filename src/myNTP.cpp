@@ -73,7 +73,7 @@ void NTPSync()
             u8g2Fonts.print("NTP同步失败");
             display.display();
             delay(100);
-            hal.powerOff(false);
+            // hal.powerOff(false);
             return;
         }
     }
@@ -86,42 +86,49 @@ void NTPSync()
     settimeofday(&tv, NULL);
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !hal.dis_DS3231)
     {
-        tm t_utc;
-        gmtime_r(&timenow, &t_utc);   // 分解为 UTC 时间
+        xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        DateTime rtc_dt = RTClib::now();
+        time_t rtc_unix = rtc_dt.unixtime();
+        xSemaphoreGive(peripherals.i2cMutex);
 
-        // 读取 RTC 当前值（假设 RTC 里存的也是 UTC）
-        int rtc_sec  = peripherals.rtc.getSecond();
-        int rtc_min  = peripherals.rtc.getMinute();
-        int rtc_hour = peripherals.rtc.getHour();
-        int rtc_offset = (rtc_hour * 3600 + rtc_min * 60 + rtc_sec)
-                     - (t_utc.tm_hour * 3600 + t_utc.tm_min * 60 + t_utc.tm_sec);
+        const time_t RTC_INVALID_THRESHOLD = 1609459200; // 2021-01-01 00:00:00 UTC
 
-        log_i("rtc_offset:%d", rtc_offset);
-        if (abs(rtc_offset) > 2)
-        {    
-            hal.pref.putLong("rtc_sync", timenow);
-            hal.pref.putInt("rtc_offset", rtc_offset);
+        if (rtc_unix < RTC_INVALID_THRESHOLD) // 初始化同步RTC时间
+        {
+            log_i("RTC 未初始化，正在同步时间...");
+
             xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
-
-            // 将 UTC 时间写入 RTC
-            peripherals.rtc.setSecond(t_utc.tm_sec);
-            peripherals.rtc.setMinute(t_utc.tm_min);
-            peripherals.rtc.setHour(t_utc.tm_hour);
-            peripherals.rtc.setDate(t_utc.tm_mday);
-            peripherals.rtc.setMonth(t_utc.tm_mon + 1);
-            peripherals.rtc.setYear(t_utc.tm_year - 100);  // tm_year 是从 1900 起的年数
-            if (t_utc.tm_wday == 0)
-                peripherals.rtc.setDoW(7);
-            else
-                peripherals.rtc.setDoW(t_utc.tm_wday);
-
+            RTClib::adjust(timenow);
             xSemaphoreGive(peripherals.i2cMutex);
-            hal.rtc_offset();   // 调整 RTC 老化补偿寄存器
-            log_i("DS3231 已同步至 UTC，偏移秒数:%d，更新后的偏移寄存器值:%d\n", 
-                 hal.pref.getInt("rtc_offset", 0), peripherals.rtc.readOffset());
-        }    
+
+            hal.pref.putLong("rtc_sync", timenow);
+        }
+        else // 更新RTC时间并更新老化寄存器
+        {
+            int rtc_offset = (int)(rtc_unix - timenow);
+            log_i("rtc_offset:%d", rtc_offset);
+
+            if (abs(rtc_offset) > 2)
+            {
+                log_i("RTC 误差超过2秒，写入新时间并更新老化寄存器");
+
+                hal.pref.putLong("rtc_sync", timenow);
+                hal.pref.putInt("rtc_offset", rtc_offset);
+
+                xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+                RTClib::adjust(timenow);
+                xSemaphoreGive(peripherals.i2cMutex);
+
+                hal.rtc_offset();
+                log_i("DS3231 已同步，老化寄存器已更新，偏移秒数:%d", rtc_offset);
+            }
+            else
+            {
+                log_i("RTC 误差在(<=2秒)，等待误差更大再同步");
+            }
+        }
     }
-    // 用原数据计算误差
+    // 用原数据计算误差（ESP32的RTC修正和校准）
     {
         int64_t tmp;
         time_t now1 = now;
