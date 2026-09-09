@@ -487,6 +487,7 @@ static int16_t u8g2_font_draw_glyph(u8g2_font_t *u8g2, int16_t x, int16_t y, uin
   }
   else
   {
+    log_d("Glyph not found for encoding: %d (0x%04X)", encoding, encoding);
     // === 缺失字符处理：绘制 □ ===
     const uint16_t QUESTION_MARK = 0x25A1; // Unicode字符 □
     const uint8_t *fallback_glyph_data = u8g2_font_get_glyph_data(u8g2, QUESTION_MARK);
@@ -495,6 +496,10 @@ static int16_t u8g2_font_draw_glyph(u8g2_font_t *u8g2, int16_t x, int16_t y, uin
     {
       dx = u8g2_font_decode_glyph(u8g2, fallback_glyph_data);
       return dx;
+    }
+    else
+    {
+      log_w("Fallback glyph not found for encoding: %d (0x%04X)", QUESTION_MARK, QUESTION_MARK);
     }
   }
   return dx;
@@ -525,12 +530,19 @@ int8_t u8g2_GetGlyphWidth(u8g2_font_t *u8g2, uint16_t requested_encoding)
     /* glyph width is here: u8g2->font_decode.glyph_width */
 
     return u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_delta_x);
-  }
-  else
-  {                                                 // === 缺失字符处理：获取 □ 的宽度===
-    const uint16_t QUESTION_MARK = 0x25A1;          // Unicode字符 □
-    return u8g2_GetGlyphWidth(u8g2, QUESTION_MARK); // 返回回退字符的宽度
-  }
+  } else {
+        // 回退处理：直接返回回退字符宽度，若回退字符也不存在则返回固定值
+        const uint16_t FALLBACK = 0x25A1;
+        const uint8_t *fallback_data = u8g2_font_get_glyph_data(u8g2, FALLBACK);
+        if (fallback_data != NULL) {
+            u8g2_font_setup_decode(u8g2, fallback_data);
+            u8g2->glyph_x_offset = u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_char_x);
+            u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_char_y);
+            return u8g2_font_decode_get_signed_bits(&(u8g2->font_decode), u8g2->font_info.bits_per_delta_x);
+        } else {
+            return 0;
+        }
+    }
 }
 
 void u8g2_SetFontMode(u8g2_font_t *u8g2, uint8_t is_transparent)

@@ -111,5 +111,8 @@ void AppClockOnly::setup()
     display.display(true);
 
     appManager.noDeepSleep = false;
-    appManager.nextWakeup = 61 - hal.timeinfo.tm_sec;
+    if (hal.timeinfo.tm_sec == 60)
+        appManager.nextWakeup = 1;
+    else
+        appManager.nextWakeup = 59 - hal.timeinfo.tm_sec;
 }

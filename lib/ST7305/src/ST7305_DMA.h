@@ -6,6 +6,7 @@
 #include "Adafruit_GFX.h"
 #include <driver/spi_master.h>
 
+#define MAX_BUFFERS 6
 #define MAX_X 384
 #define MAX_Y 168
 #define PHYSICAL_WIDTH 384
@@ -14,6 +15,10 @@
 #define TOTAL_ROWS 42								  // 总行数
 #define BYTES_PER_ROW 192							  // 每行的字节数
 #define BYTES_PER_BUFFER (TOTAL_ROWS * BYTES_PER_ROW) // 每个缓冲区的字节数
+
+#ifndef PIXE_INVERTED
+#define PIXE_INVERTED true
+#endif
 
 typedef enum
 {
@@ -35,7 +40,9 @@ enum blendmode
 {
 	OR,
 	AND,
-	XOR
+	XOR,
+	XNOR,
+	OVERWRITE
 };
 
 // 滑动方向枚举
@@ -163,7 +170,7 @@ public:
 	 */
 	void swapBuffer(uint16_t buffer_index)
 	{
-		if (buffer_index > 3)
+		if (buffer_index > MAX_BUFFERS - 1)
 			return;
 		current_buffer_idx = buffer_index;
 		buffer = _buffers[buffer_index];
@@ -180,7 +187,7 @@ public:
 	 */
 	void copyBuffer(uint16_t to, uint16_t from)
 	{
-		if (from > 3 || to > 3)
+		if (from > MAX_BUFFERS - 1 || to > MAX_BUFFERS - 1)
 			return;
 		memcpy(_buffers[to], _buffers[from], 8064);
 	};
@@ -198,7 +205,7 @@ public:
 	 */
 	bool cmpBuffer(uint16_t to, uint16_t from)
 	{
-		if (from > 3 || to > 3)
+		if (from > MAX_BUFFERS - 1 || to > MAX_BUFFERS - 1)
 			return false;
 		int value = memcmp(_buffers[to], _buffers[from], 8064);
 		if (value == 0)
@@ -218,6 +225,7 @@ public:
 	{
 		return buffer;
 	}
+
 	/**
 	 * @brief 将两个缓冲区进行混合（图层合成）
 	 *
@@ -225,8 +233,8 @@ public:
 	 * 的每个字节，根据 `mode` 进行位运算后写回目标缓冲区。
 	 *
 	 * 按位 OR（常用于叠加两层）
-	 * 按位 AND
-	 * 按位 XOR
+	 * 按位 AND (裁切出重叠区域 保留交集)
+	 * 按位 XOR (重叠处反白/反黑)
 	 * 直接覆盖（dst = src）
 	 *
 	 * 索引超出范围（>3）时函数直接返回，不会修改任何缓冲区。
@@ -237,17 +245,17 @@ public:
 	 */
 	void blendBuffers(uint16_t destIdx, uint16_t srcIdx, blendmode mode = OR)
 	{
-		if (destIdx > 3 || srcIdx > 3)
+		if (destIdx > MAX_BUFFERS - 1 || srcIdx > MAX_BUFFERS - 1)
 			return;
+
 		uint32_t *dst = (uint32_t *)_buffers[destIdx];
 		uint32_t *src = (uint32_t *)_buffers[srcIdx];
 
 		// 如果屏幕像素逻辑相反，需要将 mode 映射为等效操作
 		// 假设有一个全局变量或类成员指示屏幕是否反相
-		const bool pixelInverted = true; // 请根据实际情况设置
 
 		blendmode actualMode = mode;
-		if (pixelInverted)
+		if (PIXE_INVERTED)
 		{
 			switch (mode)
 			{
@@ -258,8 +266,11 @@ public:
 				actualMode = OR;
 				break; // 反相屏上 AND 等效于正常逻辑的 OR
 			case XOR:
+				actualMode = XNOR;
+				break; // 新增：物理反相时，XOR 变 XNOR
+			case XNOR:
 				actualMode = XOR;
-				break; // XOR 保持不变
+				break; // 新增：物理反相时，XNOR 变 XOR
 			default:
 				actualMode = mode;
 				break; // OVERWRITE 不变
@@ -282,6 +293,9 @@ public:
 				break;
 			case XOR:
 				result = d ^ s;
+				break;
+			case XNOR:
+				result = ~(d ^ s);
 				break;
 			default: // OVERWRITE
 				result = s;
@@ -328,7 +342,7 @@ private:
 	// 同步对象
 	SemaphoreHandle_t _te_semaphore;   // TE 信号量（由 ISR 释放）
 	SemaphoreHandle_t _dma_mutex;	   // 保护共享数据的互斥量
-	SemaphoreHandle_t _spi_mutex;      // 保护SPI设备访问的互斥量
+	SemaphoreHandle_t _spi_mutex;	   // 保护SPI设备访问的互斥量
 	TaskHandle_t _display_task_handle; // 后台刷新任务句柄
 
 	// TE 中断服务例程（静态）
@@ -353,7 +367,7 @@ private:
 
 	uint8_t *buffer;
 	uint8_t *dma_buffer[2]; // 两个 DMA 安全缓冲区
-	uint8_t *_buffers[4];
+	uint8_t *_buffers[MAX_BUFFERS];
 	int8_t _active_dma_idx;	 // 当前正在被 DMA 发送的缓冲区索引（-1 表示无）
 	int8_t _pending_dma_idx; // 已填充好等待发送的缓冲区索引（-1 表示无）
 

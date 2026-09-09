@@ -198,6 +198,20 @@ DateTime RTClib::now() {
   return DateTime (y, m, d, hh, mm, ss);
 }
 
+
+void RTClib::adjust(time_t uinx_time)
+{
+	tm unix_tm;
+	gmtime_r(&uinx_time, &unix_tm);
+	DS3231 rtc;
+	rtc.setSecond(unix_tm.tm_sec);
+	rtc.setMinute(unix_tm.tm_min);
+	rtc.setHour(unix_tm.tm_hour);
+	rtc.setDate(unix_tm.tm_mday);
+	rtc.setMonth(unix_tm.tm_mon + 1);
+	rtc.setYear(unix_tm.tm_year - 100);
+}
+
 ///// ERIC'S ORIGINAL CODE FOLLOWS /////
 
 byte DS3231::getSecond() {

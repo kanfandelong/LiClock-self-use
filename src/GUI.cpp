@@ -373,203 +373,354 @@ namespace GUI
         constexpr int item_height = 16;
         constexpr int start_x = (MAX_X - w) / 2;
         constexpr int start_y = (MAX_Y - max_h) / 2;
-        constexpr int item_width = w - 5 - 5 - 5;        // 右侧滚动条
-        constexpr int number_of_items = h / item_height; // 每页显示的项目数
+        constexpr int number_of_items = h / item_height;        // 8
+        constexpr int fixed_center = (number_of_items - 1) / 2; // 3
+
+        constexpr int view_x = start_x + 5;
+        constexpr int view_y = start_y + 15;
+        constexpr int view_w = w - 5 - 5 - 6;
+        constexpr int view_h = number_of_items * item_height;
+
         int total = 0;
         bool hasIcon = false;
-        bool init = false;
-
-        // 计算总项目数和检查图标
         while (options[total].title != NULL)
         {
             if (options[total].icon != NULL)
                 hasIcon = true;
             ++total;
         }
+        if (total == 0)
+            return -1;
 
-        // 确保默认选中在有效范围内
+        // ★ 循环模式：项目多于一页时首尾相连
+        const bool circular = (total > number_of_items);
+
         int selected = constrain(default_selected, 0, total - 1);
-        int prev_selected = selected; // 用于动画起始位置
-        int pageStart = 0;
+        int prev_selected = selected;
 
-        // 计算初始页面起始位置，确保默认选中项可见
-        if (total > number_of_items)
-        {
-            pageStart = constrain(selected - number_of_items / 2, 0, total - number_of_items);
-        }
+        // 滚动条仅在非循环时使用，但保留变量供旧逻辑使用（绘制跳过）
+        int barHeight = (total > number_of_items) ? (number_of_items * 96 / total) : 0;
+        int barPos = (total > 1) ? (selected * (h - barHeight) / (total - 1)) : 0;
 
-        int barHeight = number_of_items * 96 / total;
-        int barPos = 0;
         bool updated = true;
         bool waitc = false;
         unsigned long wait_time = 0;
 
-        // ---------- 双缓冲相关变量 ----------
-        const int STATIC_BUF = 1;  // 静态缓冲区索引（假设有缓冲区0和1）
-        bool static_valid = false; // 静态内容是否已绘制且有效
-        int last_pageStart = -1;   // 上次绘制静态时的pageStart
-        int last_total = -1;       // 上次绘制静态时的总项目数（防止total变化）
-        int last_hasIcon = -1;     // 上次是否有图标（防止布局变化）
-        // ---------------------------------
+        const int STATIC_BUF = 1;
+        bool static_valid = false;
 
-        hal.hookButton(true);
+        int anim_target = selected;
+        int anim_start = selected;
+        bool animating = false;
+        int anim_dir = 0;
+        bool anim_is_continuation = false;
+
+        bool long_scrolling = false;
+        int long_dir = 0;
+
+        const int fixed_rect_y = view_y + fixed_center * item_height;
+
+        hal.btnc.reset();
+        hal.btnl.reset();
+        hal.btnr.reset();
+        hal.btn_callback();
+        hal.clean_btn_flag();
+        while (hal.btnl.isPressing() || hal.btnr.isPressing() || hal.btnc.isPressing())
+        {
+            delay(50);
+        }
+        delay(50);
+        hal.clean_btn_flag();
+        delay(50);
+        hal.clean_btn_flag();
+
         push_buffer();
         wait_time = millis();
-        goto init_draw;
+
+        drawWindowsWithTitle(title, start_x, start_y, w, max_h);
+        // 循环模式下不绘制滚动条槽
+        if (!circular && total > number_of_items)
+        {
+            display.fillRoundRect(start_x + w - 5 + 1, view_y, 3, h, 2, 1);
+        }
+        display.copyBuffer(STATIC_BUF, display.current_buffer_idx);
+        static_valid = true;
         while (1)
         {
-            if (hal.btnl.isPressing())
+            if (!animating)
             {
-                delay(10);
-                if (hal.btnl.isPressing())
-                {
-                    if (selected == 0)
-                    {
-                        selected = total;
-                    }
-                    --selected;
-                    if (selected < 0)
-                        selected = 0;
-                    updated = true;
-                }
-                wait_time = millis();
-            }
+                bool event_handled = false;
 
-            if (hal.btnr.isPressing())
-            {
-                delay(10);
-                if (hal.btnr.isPressing())
+                // 左键（上）
+                if (hal.flags_l.click)
                 {
-                    ++selected;
-                    if (selected > total)
-                        selected = total;
-                    if (selected == total)
-                    {
-                        selected = 0;
-                    }
-                    updated = true;
+                    int new_sel;
+                    if (circular)
+                        new_sel = (selected - 1 + total) % total; // ★ 循环
+                    else
+                        new_sel = (selected - 1 < 0) ? 0 : selected - 1; // 原逻辑
+                    anim_start = selected;
+                    anim_target = new_sel;
+                    anim_dir = 1;
+                    anim_is_continuation = false;
+                    animating = true;
+                    event_handled = true;
                 }
-                wait_time = millis();
-            }
-
-            if (hal.btnc.isPressing())
-            {
-                delay(50);
-                if (hal.btnc.isPressing())
+                else if (hal.flags_l.longStart)
                 {
-                    if (waitLongPress(PIN_BUTTONC) == true)
+                    long_scrolling = true;
+                    long_dir = 1;
+                    int new_sel;
+                    if (circular)
+                        new_sel = (selected - 1 + total) % total;
+                    else
+                        new_sel = (selected - 1 < 0) ? 0 : selected - 1;
+                    anim_start = selected;
+                    anim_target = new_sel;
+                    anim_dir = 1;
+                    anim_is_continuation = false;
+                    animating = true;
+                    event_handled = true;
+                }
+
+                // 右键（下）
+                if (!event_handled && hal.flags_r.click)
+                {
+                    int new_sel;
+                    if (circular)
+                        new_sel = (selected + 1) % total;
+                    else
+                        new_sel = (selected + 1 >= total) ? total - 1 : selected + 1;
+                    anim_start = selected;
+                    anim_target = new_sel;
+                    anim_dir = -1;
+                    anim_is_continuation = false;
+                    animating = true;
+                    event_handled = true;
+                }
+                else if (!event_handled && hal.flags_r.longStart)
+                {
+                    long_scrolling = true;
+                    long_dir = -1;
+                    int new_sel;
+                    if (circular)
+                        new_sel = (selected + 1) % total;
+                    else
+                        new_sel = (selected + 1 >= total) ? total - 1 : selected + 1;
+                    anim_start = selected;
+                    anim_target = new_sel;
+                    anim_dir = -1;
+                    anim_is_continuation = false;
+                    animating = true;
+                    event_handled = true;
+                }
+
+                // 中键
+                if (!event_handled && (hal.flags_c.click || hal.flags_c.longStart))
+                {
+                    if (hal.flags_c.longStart)
                     {
                         selected = 0;
                         waitc = true;
+                        anim_start = anim_target = selected;
+                        prev_selected = selected;
+                        barPos = 0;
                         updated = true;
                     }
                     else
                     {
                         break;
                     }
+                    event_handled = true;
                 }
-                wait_time = millis();
+
+                if (event_handled)
+                {
+                    hal.clean_btn_flag();
+                    wait_time = millis();
+                }
+
+                if (updated)
+                {
+                    display.copyBuffer(display.current_buffer_idx, STATIC_BUF);
+                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
+                    for (int i = 0; i < number_of_items; ++i)
+                    {
+                        // ★ 循环模式下索引取模
+                        int item_idx = selected - fixed_center + i;
+                        if (circular)
+                            item_idx = ((item_idx % total) + total) % total;
+
+                        if (circular || (item_idx >= 0 && item_idx < total))
+                        {
+                            int y = view_y + i * item_height;
+                            if (options[item_idx].icon != NULL && ico_h <= 14)
+                            {
+                                display.drawXBitmap(view_x, y + (14 - ico_h) / 2,
+                                                    options[item_idx].icon, ico_w, ico_h, 0);
+                            }
+                            u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
+                                               y + 13, options[item_idx].title);
+                        }
+                    }
+                    display.drawRoundRect(start_x + 3, fixed_rect_y, w - 5 - 6, 15, 3, 0);
+                    // 循环模式下不绘制滚动条滑块
+                    if (!circular && total > number_of_items)
+                    {
+                        barPos = (total > 1) ? (selected * (h - barHeight) / (total - 1)) : 0;
+                        display.fillRoundRect(start_x + w - 5 + 1, view_y + barPos, 3, barHeight, 2, 0);
+                    }
+                    display.display();
+                    updated = false;
+                }
             }
 
-            if (updated)
+            // ========== 动画 ==========
+            if (animating)
             {
-            init_draw:
-                // 判断是否出界并更新页面起始位置
-                if (selected < pageStart)
-                {
-                    pageStart = selected;
-                }
-                else if (selected >= pageStart + number_of_items)
-                {
-                    pageStart = selected - number_of_items + 1;
-                }
-
-                // ---------- 如果页面内容发生变化（翻页或总项数/图标改变），重新绘制静态内容 ----------
-                if (!static_valid || pageStart != last_pageStart || total != last_total || hasIcon != last_hasIcon)
-                {
-                    // 1. 完整绘制静态内容（不含选框和滚动条滑块）
-                    drawWindowsWithTitle(title, start_x, start_y, w, max_h);
-                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
-                    int max_items = min(number_of_items, total);
-                    for (int i = 0; i < max_items; ++i)
-                    {
-                        int item_y = start_y + 15 + item_height * i;
-                        if (options[i + pageStart].icon != NULL && ico_h <= 14)
-                        {
-                            display.drawXBitmap(start_x + 5, item_y + (14 - ico_h) / 2,
-                                                options[i + pageStart].icon, ico_w, ico_h, 0);
-                        }
-                        u8g2Fonts.drawUTF8(start_x + 5 + (hasIcon ? ico_w + 2 : 0),
-                                           item_y + 13, options[i + pageStart].title);
-                    }
-                    // 滚动条轨道（只画背景，不画滑块；这里简单画一个浅色矩形作为轨道，与原风格保持一致）
-                    if (total > number_of_items)
-                    {
-                        display.fillRoundRect(start_x + w - 5 + 1, start_y + 15, 3, h, 2, 1); // 轨道背景（灰色）
-                    }
-                    display.display(); // 此时显示静态内容（用户会看到一次全刷，仅翻页时发生）
-
-                    // 2. 将当前显示内容（静态）复制到静态缓冲区 STATIC_BUF
-                    display.copyBuffer(STATIC_BUF, display.current_buffer_idx);
-
-                    // 记录当前静态内容的状态
-                    last_pageStart = pageStart;
-                    last_total = total;
-                    last_hasIcon = hasIcon;
-                    static_valid = true;
-                }
-
-                // ---------- 动画：平滑移动选框，每帧只绘制动态部分 ----------
+                const int anim_steps = anim_is_continuation ? 3 : 5;
+                const int bounce_px = 4;
                 TickType_t xLastWakeTime = xTaskGetTickCount();
-                TickType_t xFrequency = pdMS_TO_TICKS(GUI_Frequency);
-                const int steps = 6;
-                int start_y_rect = start_y + 15 + item_height * (prev_selected - pageStart);
-                int target_y_rect = start_y + 15 + item_height * (selected - pageStart);
-                for (int step = 0; step <= steps; ++step)
+                TickType_t xFrequency = pdMS_TO_TICKS(1000 / 40);
+
+                for (int step = 0; step <= anim_steps; ++step)
                 {
-                    // 计算当前选框的 Y 坐标
-                    int cur_y_rect = start_y_rect + ((target_y_rect - start_y_rect) * step) / steps;
+                    float t = (float)step / anim_steps;
+                    int dy = (anim_target != anim_start) ? (int)(item_height * t * anim_dir) : 0;
 
-                    // 从静态缓冲区恢复显示缓冲区（清除上一帧的动态元素）
-                    display.copyBuffer(display.current_buffer_idx, STATIC_BUF);
-
-                    // 设置绘制窗口（与静态内容一致）
-                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
-
-                    // 绘制选框矩形
-                    display.drawRoundRect(start_x + 3, cur_y_rect, w - 5 - 6, 15, 3, 0);
-
-                    // 绘制滚动条滑块（动态部分）
-                    if (total > number_of_items)
+                    int bounce = 0;
+                    if (!anim_is_continuation)
                     {
-                        barPos = selected * (h - barHeight) / total;
-                        display.fillRoundRect(start_x + w - 5 + 1, start_y + 15 + barPos, 3, barHeight, 2, 0);
+                        if (anim_target != anim_start)
+                        {
+                            if (step <= anim_steps / 3)
+                                bounce = (int)(-anim_dir * bounce_px * (step / (float)(anim_steps / 3)));
+                            else
+                                bounce = (int)(-anim_dir * bounce_px * (1.0f - (step - anim_steps / 3) / (float)(anim_steps - anim_steps / 3)));
+                        }
+                        else
+                        {
+                            if (step <= anim_steps / 2)
+                                bounce = (int)(-anim_dir * bounce_px * (step / (float)(anim_steps / 2)));
+                            else
+                                bounce = (int)(-anim_dir * bounce_px * (1.0f - (step - anim_steps / 2) / (float)(anim_steps / 2)));
+                        }
                     }
 
-                    // 刷新显示
+                    display.copyBuffer(display.current_buffer_idx, STATIC_BUF);
+                    display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
+
+                    int draw_center = anim_start;
+                    for (int i = -1; i < number_of_items + 1; ++i)
+                    {
+                        int item_idx = draw_center - fixed_center + i;
+                        if (circular)
+                            item_idx = ((item_idx % total) + total) % total; // ★ 循环取模
+
+                        if (circular || (item_idx >= 0 && item_idx < total))
+                        {
+                            int y = view_y + i * item_height + dy;
+                            if (options[item_idx].icon != NULL && ico_h <= 14)
+                            {
+                                display.drawXBitmap(view_x, y + (14 - ico_h) / 2,
+                                                    options[item_idx].icon, ico_w, ico_h, 0);
+                            }
+                            u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
+                                               y + 13, options[item_idx].title);
+                        }
+                    }
+
+                    // 循环模式下不绘制滚动条滑块
+                    if (!circular && total > number_of_items)
+                    {
+                        float virt_sel = anim_start + (anim_target - anim_start) * t;
+                        int cur_bar = (int)(virt_sel * (h - barHeight) / (total - 1));
+                        display.fillRoundRect(start_x + w - 5 + 1, view_y + cur_bar, 3, barHeight, 2, 0);
+                    }
+
+                    display.drawRoundRect(start_x + 3, fixed_rect_y + bounce, w - 5 - 6, 15, 3, 0);
                     display.display();
                     xTaskDelayUntil(&xLastWakeTime, xFrequency);
                 }
 
-                // 动画结束后更新 prev_selected
+                selected = anim_target;
                 prev_selected = selected;
-                updated = false;
+                barPos = (total > 1) ? (selected * (h - barHeight) / (total - 1)) : 0;
+                animating = false;
 
-                // 等待所有按钮释放（初始进入时）
-                while (!init && (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing()))
+                if (hal.flags_l.longStop)
+                    long_scrolling = false;
+                if (hal.flags_r.longStop)
+                    long_scrolling = false;
+
+                // 长按连续滚动
+                if (long_scrolling)
                 {
-                    delay(10);
+                    bool can_move = false;
+                    int new_sel = selected;
+                    if (long_dir == 1) // up
+                    {
+                        if (circular)
+                        {
+                            new_sel = (selected - 1 + total) % total;
+                            can_move = true;
+                        }
+                        else if (selected > 0)
+                        {
+                            new_sel = selected - 1;
+                            can_move = true;
+                        }
+                    }
+                    else // down
+                    {
+                        if (circular)
+                        {
+                            new_sel = (selected + 1) % total;
+                            can_move = true;
+                        }
+                        else if (selected < total - 1)
+                        {
+                            new_sel = selected + 1;
+                            can_move = true;
+                        }
+                    }
+
+                    if (can_move)
+                    {
+                        anim_start = selected;
+                        anim_target = new_sel;
+                        anim_dir = long_dir;
+                        anim_is_continuation = true;
+                        animating = true;
+                    }
+                    else
+                    {
+                        // 仅在非循环模式可能出现（到达边界），停止长按并播放边界弹跳
+                        long_scrolling = false;
+                        if (selected != anim_start)
+                        {
+                            anim_start = selected;
+                            anim_target = selected;
+                            anim_dir = long_dir;
+                            anim_is_continuation = false;
+                            animating = true;
+                        }
+                    }
                 }
-                init = true;
+
+                hal.clean_btn_flag();
+                wait_time = millis();
             }
 
-            if (waitc == true)
+            if (waitc)
             {
                 waitc = false;
-                while (hal.btnc.isPressing())
+                while (hal.flags_c.longStop)
                     delay(10);
+                hal.clean_btn_flag();
                 delay(10);
             }
+
             delay(10);
             if (millis() - wait_time > 30000)
             {
@@ -578,13 +729,16 @@ namespace GUI
             }
         }
 
-        display.setDrawWindow(); // 恢复绘制窗口
+        display.setDrawWindow();
         pop_buffer();
-        hal.unhookButton();
+        hal.clean_btn_flag();
+        hal.detachAllButtonEvents();
+        if (!appManager.currentApp->noDefaultEvent)
+            appManager.attachLocalEvent();
         return selected;
     }
 
-    //此菜单重载暂不可用
+    // 此菜单重载暂不可用
     int menu(const char *title, const menu_item_mix options[], int16_t ico_w, int16_t ico_h, int default_selected)
     {
         // 动态窗口尺寸：留边距 20px
@@ -2036,7 +2190,10 @@ namespace GUI
             log_e("File %s not found!", filename);
             return;
         }
-
+        char *buffer = NULL;
+        buffer = (char *)heap_caps_aligned_alloc(32, 1024 * 32, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
+        if (buffer)
+            setvbuf(fp, buffer, _IOFBF, 1024 * 32);
         // 读取全局文件头
         LBM_V_HEAD header;
         if (fread(&header, sizeof(LBM_V_HEAD), 1, fp) != 1)
@@ -2177,6 +2334,8 @@ namespace GUI
         fclose(fp);
         free(img);
         free(buf);
+        if (buffer != NULL)
+            heap_caps_free(buffer);
     }
     /**
      * @brief 绘制LBM格式的灰度图像

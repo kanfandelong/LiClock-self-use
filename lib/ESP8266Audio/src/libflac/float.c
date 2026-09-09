@@ -1,6 +1,6 @@
 /* libFLAC - Free Lossless Audio Codec library
  * Copyright (C) 2004-2009  Josh Coalson
- * Copyright (C) 2011-2016  Xiph.Org Foundation
+ * Copyright (C) 2011-2025  Xiph.Org Foundation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,15 +30,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-//#ifdef HAVE_CONFIG_H
+// #ifdef HAVE_CONFIG_H
 #  include "config.h"
-//#endif
+// #endif
 
 #include "FLAC/assert.h"
 #include "share/compat.h"
 #include "private/float.h"
-
-#pragma GCC optimize ("O3")
 
 #ifdef FLAC__INTEGER_ONLY_LIBRARY
 
@@ -50,7 +48,7 @@ const FLAC__fixedpoint FLAC__FP_E = 178145;
 
 /* Lookup tables for Knuth's logarithm algorithm */
 #define LOG2_LOOKUP_PRECISION 16
-static const FLAC__uint32 log2_lookup[][LOG2_LOOKUP_PRECISION] PROGMEM = {
+static const FLAC__uint32 log2_lookup[][LOG2_LOOKUP_PRECISION] = {
 	{
 		/*
 		 * 0 fraction bits

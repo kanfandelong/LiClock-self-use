@@ -1,16 +1,7 @@
-#define PGM_READ_UNALIGNED 0
-
-#ifdef DEBUG
-  #undef NDEBUG
-#else
-  #define NDEBUG
-#endif
-
-/* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
 /* Define if building universal (internal helper macro) */
-/* #undef AC_APPLE_UNIVERSAL_BUILD */
+#undef AC_APPLE_UNIVERSAL_BUILD
 
 /* Target processor is big endian. */
 #define CPU_IS_BIG_ENDIAN 0
@@ -18,8 +9,18 @@
 /* Target processor is little endian. */
 #define CPU_IS_LITTLE_ENDIAN 1
 
-/* Set FLAC__BYTES_PER_WORD to 8 (4 is the default) */
+/* Set FLAC__BYTES_PER_WORD to 8 (this is the default) */
 #define ENABLE_64_BIT_WORDS 0
+
+/* libtool defines DLL_EXPORT for windows dll builds,
+   but flac code relies on FLAC_API_EXPORTS instead. */
+#ifdef DLL_EXPORT
+#ifdef __cplusplus
+# define FLACPP_API_EXPORTS
+#else
+# define FLAC_API_EXPORTS
+#endif
+#endif
 
 /* define to align allocated memory on 32-byte boundaries */
 #define FLAC__ALIGN_MALLOC_DATA 1
@@ -28,29 +29,26 @@
 /* #undef FLAC__USE_ESP32_HEAP_CAPS_ALLOC */
 #define FLAC__USE_ESP32_HEAP_CAPS_ALLOC 1
 
+/* define if building for ARM */
+#undef FLAC__CPU_ARM64
+
 /* define if building for ia32/i386 */
-/* #undef FLAC__CPU_IA32 */
-
-/* define if building for PowerPC */
-/* #undef FLAC__CPU_PPC */
-
-/* define if building for PowerPC with SPE ABI */
-/* #undef FLAC__CPU_PPC_SPE */
-
-/* define if building for SPARC */
-/* #undef FLAC__CPU_SPARC */
+#undef FLAC__CPU_IA32
 
 /* define if building for x86_64 */
 #undef FLAC__CPU_X86_64
 
-/* define if you have docbook-to-man or docbook2man */
-#undef FLAC__HAS_DOCBOOK_TO_MAN
+/* Set to 1 if <arm_neon.h> has A64 instructions. */
+#undef FLAC__HAS_A64NEONINTRIN
 
-/* define if you are compiling for x86 and have the NASM assembler */
-#undef FLAC__HAS_NASM
+/* Set to 1 if <arm_neon.h> is available. */
+#undef FLAC__HAS_NEONINTRIN
 
 /* define if you have the ogg library */
 #define FLAC__HAS_OGG 0
+
+/* define if you have pandoc */
+#undef FLAC__HAS_PANDOC
 
 /* Set to 1 if <x86intrin.h> is available. */
 #undef FLAC__HAS_X86INTRIN
@@ -59,16 +57,25 @@
 #define FLAC__NO_ASM 1
 
 /* define if building for Darwin / MacOS X */
-/* #undef FLAC__SYS_DARWIN */
+#undef FLAC__SYS_DARWIN
 
 /* define if building for Linux */
 #undef FLAC__SYS_LINUX
 
-/* define to enable use of Altivec instructions */
-#undef FLAC__USE_ALTIVEC
-
 /* define to enable use of AVX instructions */
 #undef FLAC__USE_AVX
+
+/* "Define to the commit date of the current git HEAD" */
+#undef GIT_COMMIT_DATE
+
+/* "Define to the short hash of the current git HEAD" */
+#undef GIT_COMMIT_HASH
+
+/* "Define to the tag of the current git HEAD" */
+#undef GIT_COMMIT_TAG
+
+/* Define to 1 if you have the <arm_neon.h> header file. */
+#undef HAVE_ARM_NEON_H
 
 /* Compiler has the __builtin_bswap16 intrinsic */
 #undef HAVE_BSWAP16
@@ -85,17 +92,14 @@
 /* Define to 1 if you have the <cpuid.h> header file. */
 #undef HAVE_CPUID_H
 
-/* Define to 1 if C++ supports variable-length arrays. */
-#define HAVE_CXX_VARARRAYS 1
-
-/* Define to 1 if C supports variable-length arrays. */
-#define HAVE_C_VARARRAYS 1
-
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
 /* Define to 1 if fseeko (and presumably ftello) exists and is declared. */
 #undef HAVE_FSEEKO
+
+/* Define to 1 if you have the `getauxval' function. */
+#undef HAVE_GETAUXVAL
 
 /* Define to 1 if you have the `getopt_long' function. */
 #undef HAVE_GETOPT_LONG
@@ -104,7 +108,7 @@
 #undef HAVE_ICONV
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-#undef HAVE_INTTYPES_H
+#define HAVE_INTTYPES_H 1
 
 /* Define if you have <langinfo.h> and nl_langinfo(CODESET). */
 #define HAVE_LANGINFO_CODESET 1
@@ -112,23 +116,35 @@
 /* lround support */
 #define HAVE_LROUND 1
 
-/* Define to 1 if you have the <memory.h> header file. */
-#undef HAVE_MEMORY_H
+/* Define to 1 if you have the <minix/config.h> header file. */
+#undef HAVE_MINIX_CONFIG_H
 
-/* Define to 1 if the system has the type `socklen_t'. */
-#undef HAVE_SOCKLEN_T
+/* Define if pthread is enabled */
+#undef HAVE_PTHREAD
+
+/* Have PTHREAD_PRIO_INHERIT. */
+#undef HAVE_PTHREAD_PRIO_INHERIT
+
+/* Define to 1 if you have the <stdbool.h> header file. */
+#define HAVE_STDBOOL_H 1
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
 
+/* Define to 1 if you have the <stdio.h> header file. */
+#define HAVE_STDIO_H 1
+
 /* Define to 1 if you have the <stdlib.h> header file. */
-#undef HAVE_STDLIB_H
+#define HAVE_STDLIB_H 1
 
 /* Define to 1 if you have the <strings.h> header file. */
 #define HAVE_STRINGS_H 1
 
 /* Define to 1 if you have the <string.h> header file. */
 #define HAVE_STRING_H 1
+
+/* Define to 1 if you have the <sys/auxv.h> header file. */
+#undef HAVE_SYS_AUXV_H
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #undef HAVE_SYS_IOCTL_H
@@ -138,6 +154,9 @@
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/time.h> header file. */
+#undef HAVE_SYS_TIME_H
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
@@ -151,6 +170,9 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
+/* Define to 1 if you have the <wchar.h> header file. */
+#undef HAVE_WCHAR_H
+
 /* Define to 1 if you have the <x86intrin.h> header file. */
 #undef HAVE_X86INTRIN_H
 
@@ -158,7 +180,10 @@
 #define ICONV_CONST 
 
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
-#define LT_OBJDIR ".libs/"
+#undef LT_OBJDIR
+
+/* Define if debugging is disabled */
+#undef NDEBUG
 
 /* Name of package */
 #define PACKAGE "flac"
@@ -170,7 +195,7 @@
 #define PACKAGE_NAME "flac"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "flac 1.3.2"
+#define PACKAGE_STRING "flac 1.5.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "flac"
@@ -179,7 +204,11 @@
 #define PACKAGE_URL "https://www.xiph.org/flac/"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.3.2"
+#define PACKAGE_VERSION "1.5.0"
+
+/* Define to necessary symbol if this constant uses a non-standard name on
+   your system. */
+#undef PTHREAD_CREATE_JOINABLE
 
 /* The size of `off_t', as computed by sizeof. */
 #define SIZEOF_OFF_T 4
@@ -187,66 +216,119 @@
 /* The size of `void*', as computed by sizeof. */
 #define SIZEOF_VOIDP 4
 
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
 # define _ALL_SOURCE 1
 #endif
+/* Enable general extensions on macOS.  */
+#ifndef _DARWIN_C_SOURCE
+# undef _DARWIN_C_SOURCE
+#endif
+/* Enable general extensions on Solaris.  */
+#ifndef __EXTENSIONS__
+# undef __EXTENSIONS__
+#endif
 /* Enable GNU extensions on systems that have them.  */
 #ifndef _GNU_SOURCE
 # define _GNU_SOURCE 1
 #endif
-/* Enable threading extensions on Solaris.  */
+/* Enable X/Open compliant socket functions that do not require linking
+   with -lxnet on HP-UX 11.11.  */
+#ifndef _HPUX_ALT_XOPEN_SOCKET_API
+# undef _HPUX_ALT_XOPEN_SOCKET_API
+#endif
+/* Identify the host operating system as Minix.
+   This macro does not affect the system headers' behavior.
+   A future release of Autoconf may stop defining this macro.  */
+#ifndef _MINIX
+# undef _MINIX
+#endif
+/* Enable general extensions on NetBSD.
+   Enable NetBSD compatibility extensions on Minix.  */
+#ifndef _NETBSD_SOURCE
+# undef _NETBSD_SOURCE
+#endif
+/* Enable OpenBSD compatibility extensions on NetBSD.
+   Oddly enough, this does nothing on OpenBSD.  */
+#ifndef _OPENBSD_SOURCE
+# undef _OPENBSD_SOURCE
+#endif
+/* Define to 1 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_SOURCE
+# undef _POSIX_SOURCE
+#endif
+/* Define to 2 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_1_SOURCE
+# undef _POSIX_1_SOURCE
+#endif
+/* Enable POSIX-compatible threading on Solaris.  */
 #ifndef _POSIX_PTHREAD_SEMANTICS
 # define _POSIX_PTHREAD_SEMANTICS 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-5:2014.  */
+#ifndef __STDC_WANT_IEC_60559_ATTRIBS_EXT__
+# undef __STDC_WANT_IEC_60559_ATTRIBS_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-1:2014.  */
+#ifndef __STDC_WANT_IEC_60559_BFP_EXT__
+# undef __STDC_WANT_IEC_60559_BFP_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-2:2015.  */
+#ifndef __STDC_WANT_IEC_60559_DFP_EXT__
+# undef __STDC_WANT_IEC_60559_DFP_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-4:2015.  */
+#ifndef __STDC_WANT_IEC_60559_FUNCS_EXT__
+# undef __STDC_WANT_IEC_60559_FUNCS_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-3:2015.  */
+#ifndef __STDC_WANT_IEC_60559_TYPES_EXT__
+# undef __STDC_WANT_IEC_60559_TYPES_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TR 24731-2:2010.  */
+#ifndef __STDC_WANT_LIB_EXT2__
+# undef __STDC_WANT_LIB_EXT2__
+#endif
+/* Enable extensions specified by ISO/IEC 24747:2009.  */
+#ifndef __STDC_WANT_MATH_SPEC_FUNCS__
+# undef __STDC_WANT_MATH_SPEC_FUNCS__
 #endif
 /* Enable extensions on HP NonStop.  */
 #ifndef _TANDEM_SOURCE
 # define _TANDEM_SOURCE 1
 #endif
-/* Enable general extensions on Solaris.  */
-#ifndef __EXTENSIONS__
-# define __EXTENSIONS__ 1
+/* Enable X/Open extensions.  Define to 500 only if necessary
+   to make mbstate_t available.  */
+#ifndef _XOPEN_SOURCE
+# undef _XOPEN_SOURCE
 #endif
 
 
 /* Version number of package */
-#define VERSION "1.3.2"
+#define VERSION "1.5.0"
 
 /* Target processor is big endian. */
 #define WORDS_BIGENDIAN 0
 
-/* Enable large inode numbers on Mac OS X 10.5.  */
-#ifndef _DARWIN_USE_64_BIT_INODE
-# define _DARWIN_USE_64_BIT_INODE 1
-#endif
-
 /* Number of bits in a file offset, on hosts where this is settable. */
-/* #undef _FILE_OFFSET_BITS */
+#undef _FILE_OFFSET_BITS
 
 /* Define to 1 to make fseeko visible on some hosts (e.g. glibc 2.2). */
-/* #undef _LARGEFILE_SOURCE */
+#undef _LARGEFILE_SOURCE
 
 /* Define for large files, on AIX-style hosts. */
-/* #undef _LARGE_FILES */
-
-/* Define to 1 if on MINIX. */
-/* #undef _MINIX */
-
-/* Define to 2 if the system does not provide POSIX.1 features except with
-   this defined. */
-/* #undef _POSIX_1_SOURCE */
-
-/* Define to 1 if you need to in order for `stat' and other things to work. */
-/* #undef _POSIX_SOURCE */
+#undef _LARGE_FILES
 
 /* Define to `__inline__' or `__inline' if that's what the C compiler
    calls it, or to nothing if 'inline' is not supported under any name.  */
 #ifndef __cplusplus
-/* #undef inline */
+#undef inline
 #endif
 
 /* Define to __typeof__ if your compiler spells it that way. */
-/* #undef typeof */
+#undef typeof

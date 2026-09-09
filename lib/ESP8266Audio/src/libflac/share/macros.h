@@ -1,5 +1,5 @@
 /* libFLAC - Free Lossless Audio Codec library
- * Copyright (C) 2013-2016  Xiph.org Foundation
+ * Copyright (C) 2013-2025  Xiph.Org Foundation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,7 +35,7 @@
  * print an error message if it fails (ie returns a value < 0).
  *
  * Ideally, a library should not print anything, but this macro is only used
- * for things that extremely unlikely to fail, like `chown` to a previously
+ * for things that extremely unlikely to fail, like `chown` to a previoulsy
  * saved `uid`.
  */
 

@@ -18,6 +18,12 @@ static File             log_file;
 static TaskHandle_t     writer_task = nullptr;
 static bool             sys_log_enabled = false;
 
+void _log_err(esp_err_t err, const char *filename, uint16_t line, const char *func)                  
+{                                        
+    if (err != ESP_OK)
+        log_printf("\033[0;31m[%6u][E][%s:%u] %s():%s\033[0m\n",(unsigned long)(esp_timer_get_time() / 1000ULL), filename, line, func, esp_err_to_name(err));
+}
+
 // ===================== putc2 回调 =====================
 static void IRAM_ATTR log_putc2(char c) {
     if (!ring_buf) return;

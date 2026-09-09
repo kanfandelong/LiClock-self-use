@@ -13,6 +13,8 @@ Import("env")
 
 print("[钩子脚本] extra_script.py 已加载")
 
+env.Replace(COMPILATIONDB_PATH=os.path.join("$BUILD_DIR", "compile_commands.json"))
+
 # ===== 配置区域 =====
 WINDOWS_BASE_DIR = "/mnt/IDCN823/LiClock-dev_multithread-ST7305"
 PROJECT_DIR = env.subst("$PROJECT_DIR")
@@ -498,6 +500,11 @@ def post_build_elf_versions():
 # ===== 构建后复制产物 =====
 def copy_artifacts_to_windows(source, target, env):
     """构建完成后复制产物"""
+        # 检测当前操作系统
+    if sys.platform.startswith('win'):
+        print("\n[构建后] 检测到 Windows 环境，自动跳过复制到 Windows 目录")
+        post_build_elf_versions()
+        return
     print(f"\n{'='*60}")
     print("[构建后] 复制产物到Windows")
     

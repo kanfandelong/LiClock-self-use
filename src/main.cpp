@@ -34,7 +34,7 @@ void setup()
     hal.init();
     hal.update();
 
-    int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2800);
+    int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2900);
     char buf[128];
     if (hal.VCC < auto_sleep_mv)
     {

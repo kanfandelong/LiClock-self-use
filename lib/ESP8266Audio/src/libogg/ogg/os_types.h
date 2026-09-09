@@ -16,12 +16,20 @@
 #ifndef _OS_TYPES_H
 #define _OS_TYPES_H
 
+#include "esp_heap_caps.h"
+
 /* make it easy on the folks that want to compile the libs with a
    different malloc than stdlib */
-#define _ogg_malloc  malloc
-#define _ogg_calloc  calloc
-#define _ogg_realloc realloc
-#define _ogg_free    free
+// #define _ogg_malloc  malloc
+// #define _ogg_calloc  calloc
+// #define _ogg_realloc realloc
+// #define _ogg_free    free
+
+/* 将内存分配重定向到 heap_caps，使用默认内存能力（内部 RAM） */
+#define _ogg_malloc(size)   heap_caps_malloc(size, MALLOC_CAP_SPIRAM)
+#define _ogg_calloc(n, size) heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM)
+#define _ogg_realloc(ptr, size) heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM)
+#define _ogg_free(ptr)      heap_caps_free(ptr)
 
 #if defined(_WIN32)
 

@@ -1,6 +1,10 @@
 #include "hal.h"
 #include <LittleFS.h>
 #include "git_info.h"
+#include "ulp_riscv.h"
+#include "esp_wake_stub.h"
+#include <esp_app_format.h>
+#include <esp_ota_ops.h>
 
 // 统一的文件系统接口，支持SD卡和LittleFS，路径以"/sd/"或"/littlefs/"开头来区分
 // {
@@ -244,49 +248,32 @@ void task_bat_info(void *)
 
 void task_hal_update(void *)
 {
+    const TickType_t xFrequency = pdMS_TO_TICKS(5);
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+
+    const uint32_t UPDATE_STEPS = 100; // 100 * 5ms = 500ms
+    uint32_t tickCounter = 0;
+
     while (1)
     {
-        if (hal._hookButton)
+        xTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        hal.btnr.tick();
+        hal.btnl.tick();
+        hal.btnc.tick();
+
+        tickCounter++;
+        if (tickCounter >= UPDATE_STEPS)
         {
-            while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
+            tickCounter = 0;
+
+            if (!hal.SleepUpdateMutex)
             {
-                hal.btnr.tick();
-                hal.btnl.tick();
-                hal.btnc.tick();
-                delay(20);
-            }
-            hal.btnr.tick();
-            hal.btnl.tick();
-            hal.btnc.tick();
-            while (hal._hookButton)
-            {
-                while (hal.SleepUpdateMutex)
-                    delay(10);
+                hal.SleepUpdateMutex = true;
                 hal.update();
-                delay(20);
-            }
-            while (hal.btnr.isPressing() || hal.btnl.isPressing() || hal.btnc.isPressing())
-            {
-                delay(20);
+                hal.SleepUpdateMutex = false;
             }
         }
-        while (hal.SleepUpdateMutex)
-            delay(10);
-        hal.SleepUpdateMutex = true;
-        hal.btnr.tick();
-        hal.btnl.tick();
-        hal.btnc.tick();
-        hal.SleepUpdateMutex = false;
-        delay(20);
-        while (hal.SleepUpdateMutex)
-            delay(10);
-        hal.SleepUpdateMutex = true;
-        hal.btnr.tick();
-        hal.btnl.tick();
-        hal.btnc.tick();
-        hal.update();
-        hal.SleepUpdateMutex = false;
-        delay(20);
     }
 }
 /**
@@ -518,6 +505,12 @@ void HAL::getTime()
     if ((peripherals.peripherals_current & PERIPHERALS_DS3231_BIT) && !dis_DS3231)
     {
         xSemaphoreTake(peripherals.i2cMutex, portMAX_DELAY);
+        Wire.beginTransmission(0x68);
+        if (Wire.endTransmission() != 0)
+        {
+            xSemaphoreGive(peripherals.i2cMutex);
+            goto ESP_RTC;
+        }
         struct tm utc_tm;
         /*utc_tm.tm_year = peripherals.rtc.getYear() + 100;   // 假设 getYear 返回 0-99
         utc_tm.tm_mon  = peripherals.rtc.getMonth() - 1;
@@ -548,6 +541,7 @@ void HAL::getTime()
     }
     else
     {
+    ESP_RTC:
         time(&now);
         if (delta != 0 && lastsync < now)
         {
@@ -828,21 +822,25 @@ void HAL::cheak_freq(int _freq, bool setfreq)
     if (freq < _freq || (setfreq && (freq != _freq)))
     {
         bool cpuset = setCpuFrequencyMhz(_freq);
-        uart->end();
-        uart->setRxBufferSize(4096);
-        uart->begin(pref.getUInt("uart_baud", 115200));
-        uart->setDebugOutput(true);
-        reinstall_putc2();
-        reinstall_ws_putc2();
-        cmd.SetCallback();
-        log_i("CpuFreq: %dMHZ -> %dMHZ", freq, _freq);
+        if (_freq < 80)
+        {
+            log_i("APB频率改变,正在重新初始化串口...");
+            unsigned long baud = uart->baudRate();
+            uart->end();
+            uart->setRxBufferSize(4096);
+            uart->begin(baud);
+            uart->setDebugOutput(true);
+            reinstall_putc2();
+            reinstall_ws_putc2();
+            cmd.SetCallback();
+        }
         if (cpuset)
         {
-            log_i("已调节CPU频率至目标频率");
+            log_i("CpuFreq: %dMHZ ===> %dMHZ", freq, _freq);
         }
         else
         {
-            log_e("CPU频率调节失败");
+            log_e("CpuFreq: %dMHZ =x=> %dMHZ", freq, _freq);
         }
     }
 }
@@ -1057,7 +1055,7 @@ void HAL::ReqWiFiConfig()
         a = 0;
     }
 }
-#include "esp_spi_flash.h"
+#include "spi_flash_mmap.h"
 #include "esp_rom_md5.h"
 #include "esp_partition.h"
 #define PARTITION_TOTAL 4
@@ -1141,9 +1139,10 @@ void HAL::ReqWiFiConfig()
 } */
 #include "driver/uart.h"
 #include "driver/uart_wakeup.h"
+extern RTC_DATA_ATTR bool ebook_run;
 void HAL::wait_input(uint32_t sleeptime)
 {
-    if (hal.can_light_sleep)
+/*     if (hal.can_light_sleep)
     {
         if (sleeptime == 0)
             esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
@@ -1152,103 +1151,165 @@ void HAL::wait_input(uint32_t sleeptime)
         uart_wakeup_cfg_t uart_wakeup_cfg = {};
         uart_wakeup_cfg.wakeup_mode = UART_WK_MODE_ACTIVE_THRESH;
         uart_wakeup_cfg.rx_edge_threshold = 3;
-        uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg);
-        esp_sleep_enable_uart_wakeup(UART_NUM_0);
+        log_err(uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg));
+
+        log_err(esp_sleep_enable_uart_wakeup(UART_NUM_0));
+
+        // gpio_config_t config = {
+        //     .pin_bit_mask = BIT64(PIN_BUTTONC | PIN_BUTTONL | PIN_BUTTONR),
+        //     .mode = GPIO_MODE_INPUT,
+        //     .pull_up_en = GPIO_PULLUP_DISABLE,
+        //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        //     .intr_type = GPIO_INTR_DISABLE};
+        // gpio_config(&config);
         if (hal.btn_activelow)
         {
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_LOW_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_LOW_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_LOW_LEVEL);
+            rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
+            rtc_gpio_init((gpio_num_t)PIN_BUTTONL);
+            rtc_gpio_init((gpio_num_t)PIN_BUTTONR);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONC);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONL);
+            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONR);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONC);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONL);
+            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONR);
+            log_err(esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0));
+            (esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW));
         }
         else
         {
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL);
-            gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL);
+            if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true && ebook_run == true)
+            {
+                (esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1));
+                log_err(esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH));
+            }
+            else
+            {
+                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL));
+                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL));
+                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL));
+                log_err(esp_sleep_enable_gpio_wakeup());
+            }
         }
-        esp_sleep_enable_gpio_wakeup();
         log_i("进入lightsleep");
-        esp_light_sleep_start();
+        log_err(esp_light_sleep_start());
     }
     else
-    {
-        while (!(hal.btnc.isPressing() || hal.btnl.isPressing() || hal.btnr.isPressing()))
+    { */
+        while (!hal.btnc.isPressing() && !hal.btnl.isPressing() && !hal.btnr.isPressing())
         {
-            delay(100);
+            delay(50);
         }
-    }
+/*     }
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UART)
     {
         log_i("uart唤醒");
-    }
+    } */
 }
 
-const char* get_exc_cause_name(uint32_t exc_cause) {
-    switch (exc_cause) {
-        case 0: return "IllegalInstructionCause";
-        case 1: return "SyscallCause";
-        case 2: return "InstructionFetchErrorCause";
-        case 3: return "LoadStoreErrorCause";
-        case 4: return "Level1InterruptCause";
-        case 5: return "AllocaCause";
-        case 6: return "IntegerDivideByZeroCause";
-        case 7: return "Reserved for Tensilica";
-        case 8: return "PrivilegedCause";
-        case 9: return "LoadStoreAlignmentCause";
-        case 10:
-        case 11: return "Reserved for Tensilica";
-        case 12: return "InstrPIFDataErrorCause";
-        case 13: return "LoadStorePIFDataErrorCause";
-        case 14: return "InstrPIFAddrErrorCause";
-        case 15: return "LoadStorePIFAddrErrorCause";
-        case 16: return "InstTLBMissCause";
-        case 17: return "InstTLBMultiHitCause";
-        case 18: return "InstFetchPrivilegeCause";
-        case 19: return "Reserved for Tensilica";
-        case 20: return "InstFetchProhibitedCause";
-        case 21:
-        case 22:
-        case 23: return "Reserved for Tensilica";
-        case 24: return "LoadStoreTLBMissCause";
-        case 25: return "LoadStoreTLBMultiHitCause";
-        case 26: return "LoadStorePrivilegeCause";
-        case 27: return "Reserved for Tensilica";
-        case 28: return "LoadProhibitedCause";
-        case 29: return "StoreProhibitedCause";
-        case 30:
-        case 31: return "Reserved for Tensilica";
-        case 32:
-        case 33:
-        case 34:
-        case 35:
-        case 36:
-        case 37:
-        case 38:
-        case 39: return "CoprocessornDisabled";
-        default: return "Reserved";
+const char *get_exc_cause_name(uint32_t exc_cause)
+{
+    switch (exc_cause)
+    {
+    case 0:
+        return "IllegalInstructionCause";
+    case 1:
+        return "SyscallCause";
+    case 2:
+        return "InstructionFetchErrorCause";
+    case 3:
+        return "LoadStoreErrorCause";
+    case 4:
+        return "Level1InterruptCause";
+    case 5:
+        return "AllocaCause";
+    case 6:
+        return "IntegerDivideByZeroCause";
+    case 7:
+        return "Reserved for Tensilica";
+    case 8:
+        return "PrivilegedCause";
+    case 9:
+        return "LoadStoreAlignmentCause";
+    case 10:
+    case 11:
+        return "Reserved for Tensilica";
+    case 12:
+        return "InstrPIFDataErrorCause";
+    case 13:
+        return "LoadStorePIFDataErrorCause";
+    case 14:
+        return "InstrPIFAddrErrorCause";
+    case 15:
+        return "LoadStorePIFAddrErrorCause";
+    case 16:
+        return "InstTLBMissCause";
+    case 17:
+        return "InstTLBMultiHitCause";
+    case 18:
+        return "InstFetchPrivilegeCause";
+    case 19:
+        return "Reserved for Tensilica";
+    case 20:
+        return "InstFetchProhibitedCause";
+    case 21:
+    case 22:
+    case 23:
+        return "Reserved for Tensilica";
+    case 24:
+        return "LoadStoreTLBMissCause";
+    case 25:
+        return "LoadStoreTLBMultiHitCause";
+    case 26:
+        return "LoadStorePrivilegeCause";
+    case 27:
+        return "Reserved for Tensilica";
+    case 28:
+        return "LoadProhibitedCause";
+    case 29:
+        return "StoreProhibitedCause";
+    case 30:
+    case 31:
+        return "Reserved for Tensilica";
+    case 32:
+    case 33:
+    case 34:
+    case 35:
+    case 36:
+    case 37:
+    case 38:
+    case 39:
+        return "CoprocessornDisabled";
+    default:
+        return "Reserved";
     }
 }
 
 #include "protected/my_coredump.h"
 
-esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
-    if (!summary) return ESP_ERR_INVALID_ARG;
+esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary)
+{
+    if (!summary)
+        return ESP_ERR_INVALID_ARG;
 
     // 1. 查找分区
     const esp_partition_t *core_part = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, NULL);
-    if (!core_part) {
+    if (!core_part)
+    {
         log_e("Core dump partition not found");
         return ESP_ERR_NOT_FOUND;
     }
 
     // 2. 在 PSRAM 中分配缓冲区（如果 PSRAM 不可用，则降级到内部 RAM）
-    size_t buf_size = core_part->size;          // 你的分区是 64 KB，注意实际可用大小
+    size_t buf_size = core_part->size;                                                           // 你的分区是 64 KB，注意实际可用大小
     uint8_t *buf = (uint8_t *)heap_caps_malloc(buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT); // MALLOC_CAP_SPIRAM
-    if (!buf) {
+    if (!buf)
+    {
         // 如果 PSRAM 分配失败，尝试内部 RAM（但可能不够）
         buf = (uint8_t *)malloc(buf_size);
-        if (!buf) {
+        if (!buf)
+        {
             log_e("Failed to allocate memory for core dump");
             return ESP_ERR_NO_MEM;
         }
@@ -1256,7 +1317,8 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
 
     // 3. 将分区内容全部读入缓冲区
     esp_err_t err = esp_partition_read(core_part, 0, buf, buf_size);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         log_e("Failed to read core dump partition");
         free(buf);
         return err;
@@ -1265,15 +1327,16 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
     uint8_t *ptr = buf + 24;
 
     elf_note_content_t target_notes[2] = {
-        [0] = { .n_type = ELF_ESP_CORE_DUMP_EXTRA_INFO_TYPE, .n_ptr = NULL },
-        [1] = { .n_type = ELF_ESP_CORE_DUMP_INFO_TYPE, .n_ptr = NULL }
-    };
+        [0] = {.n_type = ELF_ESP_CORE_DUMP_EXTRA_INFO_TYPE, .n_ptr = NULL},
+        [1] = {.n_type = ELF_ESP_CORE_DUMP_INFO_TYPE, .n_ptr = NULL}};
 
     app_core_dump_parse_note_section(ptr, target_notes, sizeof(target_notes) / sizeof(target_notes[0]));
-    if (target_notes[0].n_ptr) {
+    if (target_notes[0].n_ptr)
+    {
         app_core_dump_summary_parse_extra_info(summary, target_notes[0].n_ptr);
     }
-    if (target_notes[1].n_ptr) {
+    if (target_notes[1].n_ptr)
+    {
         elf_parse_version_info(summary, target_notes[1].n_ptr);
     }
 
@@ -1284,16 +1347,20 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
     elfhdr *eh = (elfhdr *)ptr;
     elf_phdr *phdr = (elf_phdr *)(ptr + eh->e_phoff);
     int flag = 0;
-    for (unsigned int i = 0; i < eh->e_phnum; i++) {
+    for (unsigned int i = 0; i < eh->e_phnum; i++)
+    {
         const elf_phdr *ph = &phdr[i];
-        if (ph->p_type == PT_LOAD) {
-            if (flag) {
+        if (ph->p_type == PT_LOAD)
+        {
+            if (flag)
+            {
                 app_core_dump_summary_parse_exc_regs(summary, (void *)(ptr + ph->p_offset));
                 app_core_dump_summary_parse_backtrace_info(&summary->exc_bt_info, (void *)ph->p_vaddr,
                                                            (void *)(ptr + ph->p_offset), ph->p_memsz);
                 break;
             }
-            if (ph->p_vaddr == summary->exc_tcb) {
+            if (ph->p_vaddr == summary->exc_tcb)
+            {
                 app_elf_parse_exc_task_name(summary, (void *)(ptr + ph->p_offset));
                 flag = 1;
             }
@@ -1306,7 +1373,8 @@ esp_err_t app_core_dump_get_summary(esp_core_dump_summary_t *summary) {
     return ESP_OK;
 }
 
-void show_check_info() {
+void show_check_info()
+{
     // 获取核心转储摘要
     esp_core_dump_summary_t summary;
     app_core_dump_get_summary(&summary);
@@ -1319,15 +1387,15 @@ void show_check_info() {
     display.fillRect(0, 0, 384, 24, TFT_BLACK);
     u8g2Fonts.setForegroundColor(TFT_WHITE);
     u8g2Fonts.setBackgroundColor(TFT_BLACK);
-    u8g2Fonts.setFont(u8g2_font_logisoso22_tf);  // 大标题字体
-    u8g2Fonts.setCursor(10, 20);                 // 左对齐，垂直居中
+    u8g2Fonts.setFont(u8g2_font_logisoso22_tf); // 大标题字体
+    u8g2Fonts.setCursor(10, 20);                // 左对齐，垂直居中
     u8g2Fonts.print("Liclock CRASH!");
 
     // 3. 切换回默认字体（12x12 等效字体），黑色文字白色背景
     // u8g2Fonts.setFont(u8g2_font_6x12_tf);       // 宽6高12，接近12x12点阵
     u8g2Fonts.setForegroundColor(TFT_BLACK);
     u8g2Fonts.setBackgroundColor(TFT_WHITE);
-    u8g2Fonts.setCursor(4, 34);                 // 标题栏下方留白
+    u8g2Fonts.setCursor(4, 34); // 标题栏下方留白
 
     // 4. 打印详细信息
     u8g2Fonts.println("INFO:");
@@ -1339,13 +1407,16 @@ void show_check_info() {
     u8g2Fonts.setCursor(u8g2Fonts.getCursorX(), u8g2Fonts.getCursorY() + 6);
 
     // 5. 打印回溯信息
-    if (summary.exc_bt_info.depth > 0) {
+    if (summary.exc_bt_info.depth > 0)
+    {
         u8g2Fonts.println("Backtrace:");
-        int addr_per_line = 8;                 // 每行显示8个地址
-        for (int i = 0; i < summary.exc_bt_info.depth; i++) {
+        int addr_per_line = 8; // 每行显示8个地址
+        for (int i = 0; i < summary.exc_bt_info.depth; i++)
+        {
             u8g2Fonts.printf("0x%08lX ", summary.exc_bt_info.bt[i]);
-            if ((i + 1) % addr_per_line == 0 || i == summary.exc_bt_info.depth - 1) {
-                u8g2Fonts.println();           // 换行
+            if ((i + 1) % addr_per_line == 0 || i == summary.exc_bt_info.depth - 1)
+            {
+                u8g2Fonts.println(); // 换行
             }
         }
     }
@@ -1416,7 +1487,7 @@ void HAL::coredump_file()
     {
         log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
         if (esp_reset_reason() == ESP_RST_PANIC)
-        {    
+        {
             GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
             // show_check_info();
         }
@@ -1426,7 +1497,8 @@ void HAL::coredump_file()
 }
 
 // 定义关机处理函数
-static void shutdown_handler(void) {
+static void shutdown_handler(void)
+{
     log_i("正在终止应用程序...");
     log_system_deinit();
     peripherals.sleep();
@@ -1434,14 +1506,24 @@ static void shutdown_handler(void) {
     hal.pref.end();
     ledcDetach(PIN_BUZZER);
     pinMode(PIN_BUZZER, OUTPUT);
-    digitalWrite(PIN_BUZZER, 0);  
+    digitalWrite(PIN_BUZZER, 0);
 }
 
-static const char esp_rst_str[12][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO"};
-static const char esp_sleep_str[13][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT"};
+RTC_FAST_ATTR void deepsleepstub()
+{
+    ulp_riscv_timer_stop();
+    ulp_riscv_halt();
+    ESP_RTC_LOGI("stop ULP");
+    esp_default_wake_deep_sleep();
+    return;
+}
+
+static const char esp_rst_str[][32] = {"UNKNOWN", "POWERON", "EXT", "SW", "PANIC", "INT_WDT", "TASK_WDT", "WDT", "DEEPSLEEP", "BROWNOUT", "SDIO", "USB", "JTAG", "EFUSE", "PWR_GLITCH", "CPU_LOCKUP"};
+static const char esp_sleep_str[][32] = {"WAKEUP_UNDEFINED", "WAKEUP_ALL", "WAKEUP_EXT0", "WAKEUP_EXT1", "WAKEUP_TIMER", "WAKEUP_TOUCHPAD", "WAKEUP_ULP", "WAKEUP_GPIO", "WAKEUP_UART", "WAKEUP_UART1", "WAKEUP_UART2", "WAKEUP_WIFI", "WAKEUP_COCPU", "WAKEUP_COCPU_TRAP_TRIG", "WAKEUP_BT", "WAKEUP_VAD", "WAKEUP_VBAT_UNDER_VOLT"};
 
 bool HAL::init()
 {
+    esp_log_level_set("*", ESP_LOG_DEBUG);
     int16_t total_gnd = 0;
     bool timeerr = false;
     bool initial = true;
@@ -1472,6 +1554,7 @@ bool HAL::init()
     setenv("TZ", _tz, 1); // 设置时区为东八区
     tzset();
     esp_register_shutdown_handler(shutdown_handler);
+    esp_set_deep_sleep_wake_stub(&deepsleepstub);
     // 读取时钟偏移
 
     if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 1 || pref.getBool("switch_btn"))
@@ -1486,20 +1569,23 @@ bool HAL::init()
     }
     lpt = pref.getInt("lpt", 25);
     uint32_t longPress = lpt * 10;
-    hal.btnl.setLongPressIntervalMs(longPress);
-    hal.btnc.setLongPressIntervalMs(longPress);
-    hal.btnr.setLongPressIntervalMs(longPress);
+    hal.btnl.setLongPressIntervalMs(20);
+    hal.btnl.setPressMs(longPress);
+    hal.btnc.setLongPressIntervalMs(20);
+    hal.btnc.setPressMs(longPress);
+    hal.btnr.setLongPressIntervalMs(20);
+    hal.btnr.setPressMs(longPress);
 
     int freq = pref.getInt("CpuFreq", 80);
     cheak_freq(freq);
 
     log_i("nvs分区可用空闲条目数量:%d", (int)pref.freeEntries());
-    pinMode(PIN_BUTTONR, INPUT);
-    pinMode(PIN_BUTTONL, INPUT);
-    pinMode(PIN_BUTTONC, INPUT);
-    total_gnd += digitalRead(PIN_BUTTONR);
-    total_gnd += digitalRead(PIN_BUTTONL);
-    total_gnd += digitalRead(PIN_BUTTONC);
+    pinMode(PIN_BUTTONR, INPUT | PULLDOWN);
+    pinMode(PIN_BUTTONL, INPUT | PULLDOWN);
+    pinMode(PIN_BUTTONC, INPUT | PULLDOWN);
+    // total_gnd += digitalRead(PIN_BUTTONR);
+    // total_gnd += digitalRead(PIN_BUTTONL);
+    // total_gnd += digitalRead(PIN_BUTTONC);
     // if (total_gnd != 3) // 神秘错误,错误识别了按键电平,
     // {
     btnl._buttonPressed = 1;
@@ -1515,6 +1601,7 @@ bool HAL::init()
     //     btnc._buttonPressed = 0;
     //     btn_activelow = true;
     // }
+    
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SCL, OUTPUT | PULLUP);
@@ -1676,7 +1763,7 @@ bool HAL::init()
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
     ttf.setFramebuffer(296, 128, 1);
-    xTaskCreate(task_hal_update, "hal_update", 3072, NULL, 10, NULL);
+    xTaskCreate(task_hal_update, "hal_update", 2560, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
         if (hal.pref.getBool(get_char_sha_key("按键音"), false))
@@ -1685,7 +1772,7 @@ bool HAL::init()
     }
     else
     {
-        log_i("由定时器唤醒，不加载串口工具和按键音");
+        log_i("由定时器唤醒，不加载串口工具和按键提示音");
     }
     // if (pref.getUChar(SETTINGS_PARAM_SCREEN_ORIENTATION, 3) == 3)
     // {
@@ -1698,7 +1785,7 @@ bool HAL::init()
     //     hal.btnl = OneButton(PIN_BUTTONR);
     // }
     if (peripherals.peripherals_current & PERIPHERALS_BQ27441_BIT)
-        xTaskCreate(task_bat_info, "bat_info_update", 3072, NULL, 2, NULL);
+        xTaskCreate(task_bat_info, "bat_info_update", 2560, NULL, 2, NULL);
     else
         log_e("未安装BQ27441电量计，无法运行电池信息更新任务");
     getTime();
@@ -1774,10 +1861,10 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
             else
                 return false;
         }
-        if (esp_wifi_set_max_tx_power(hal.pref.getUChar("wifitxpower", 78)) != ESP_OK)
-            log_e("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+        if (esp_wifi_set_max_tx_power(hal.pref.getInt("wifitxpower", 84)) != ESP_OK)
+            log_e("Failed set wifi max tx power to %.2f dBm", (float)hal.pref.getInt("wifitxpower", 84) * 0.25);
         else
-            log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getUChar("wifitxpower", 78) * 0.25);
+            log_i("set wifi tx power to %.2f dBm", (float)hal.pref.getInt("wifitxpower", 84) * 0.25);
     }
     // if (!WiFi.isConnected())
     // {
@@ -1790,8 +1877,8 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
     //     }
     // }
     log_i("成功连接:%s", WiFi.SSID().c_str());
-    log_i("IP:%s", WiFi.localIP().toString().c_str());
-    log_i("MAC:%s", WiFi.macAddress().c_str());
+    log_i("IP:     %s", WiFi.localIP().toString().c_str());
+    log_i("MAC:    %s", WiFi.macAddress().c_str());
     log_i("信号强度:%d", WiFi.RSSI());
     esp_sntp_stop();
     return true;
@@ -1813,7 +1900,6 @@ void HAL::searchWiFi()
     }
 }
 
-extern RTC_DATA_ATTR bool ebook_run;
 void HAL::set_sleep_set_gpio_interrupt()
 {
     rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
@@ -1895,6 +1981,7 @@ void printDisplayVertical()
     }
 }
 #include "driver/ledc.h"
+extern bool en_ulp_wakeup;
 static void pre_sleep()
 {
     if (!hal.can_sleep)
@@ -1913,6 +2000,52 @@ static void pre_sleep()
     cmd.end();
     peripherals.sleep();
     hal.set_sleep_set_gpio_interrupt();
+
+    if (hal.exists("/littlefs/System/ulp-riscv.bin"))
+    {
+        File ulp_file = hal.open("/littlefs/System/ulp-riscv.bin", "r");
+        size_t ulp_size = ulp_file.size();
+        if (ulp_size > 0)
+        {
+            uint8_t *ulp_buffer = (uint8_t *)malloc(ulp_size);
+            if (ulp_buffer)
+            {
+                ulp_file.read(ulp_buffer, ulp_size);
+                ulp_file.close();
+                esp_err_t err = ulp_riscv_load_binary(ulp_buffer, ulp_size);
+                free(ulp_buffer);
+                // ulp_set_wakeup_period(0, 1000000);
+                if (err == ESP_OK)
+                {
+                    log_i("ULP-RISCV加载成功，大小: %d 字节", ulp_size);
+                    ulp_riscv_reset();
+                    // 启动ULP-RISCV
+                    err = ulp_riscv_run();
+                    if (err != ESP_OK)
+                    {
+                        log_e("启动ULP-RISCV失败: %s", esp_err_to_name(err));
+                    }
+                    else
+                    {
+                        en_ulp_wakeup = true;
+                    }
+                }
+                else
+                {
+                    log_e("加载ULP-RISCV失败: %s", esp_err_to_name(err));
+                }
+            }
+            else
+            {
+                log_e("内存分配失败，无法加载ULP-RISCV");
+            }
+        }
+        else
+        {
+            log_w("ULP-RISCV文件为空，未加载");
+        }
+    }
+
     display.setPowerMode(POWER_MODE_LPM);
     buzzer.waitForSleep();
     log_system_deinit();

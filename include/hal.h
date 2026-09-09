@@ -7,9 +7,9 @@
 
 typedef struct
 {
-    int16_t avg;       // 平均电流
-    int16_t max;       // 最大电流
-    int16_t stby;      // 待机电流
+    int16_t avg;  // 平均电流
+    int16_t max;  // 最大电流
+    int16_t stby; // 待机电流
 } _bat_current;
 
 typedef struct
@@ -25,18 +25,18 @@ typedef struct
 
 typedef struct
 {
-    bool DSG;       // 电池放电标志
-    bool FC;        // 电量充满标志
-    bool CHG;       // 快速充电允许
+    bool DSG; // 电池放电标志
+    bool FC;  // 电量充满标志
+    bool CHG; // 快速充电允许
 } _bat_flag;
 
 typedef struct
 {
-    uint8_t soc = 255;            // 电池百分比电量
+    uint8_t soc = 255;      // 电池百分比电量
     uint8_t soh;            // 电池健康度
-    float temp = 25.0;             // 温度
-    float s3_temp = 25.0;             // 温度
-    float voltage = 0.0;          // 电池电压
+    float temp = 25.0;      // 温度
+    float s3_temp = 25.0;   // 温度
+    float voltage = 0.0;    // 电池电压
     _bat_current current;   // 电池电流
     _bat_capacity capacity; // 电池容量
     int16_t power;          // 电池平均功率
@@ -44,6 +44,13 @@ typedef struct
     uint32_t update_time;   // 电池信息更新时间(毫秒),自芯片复位以来，
 } _bat_info;
 
+struct ButtonFlagSet
+{
+    bool click = false;
+    bool longStart = false;
+    bool longStop = false;
+    bool longDuring = false;
+};
 
 class HAL
 {
@@ -51,14 +58,14 @@ public:
     void cheak_sd();
     File open(const char *path, const char *mode = "r", const bool create = false);
     File open(const String &path, const char *mode = "r", const bool create = false);
-    bool exists(const char* path);
-    bool exists(const String& path);
+    bool exists(const char *path);
+    bool exists(const String &path);
 
-    bool remove(const char* path);
-    bool remove(const String& path);
+    bool remove(const char *path);
+    bool remove(const String &path);
 
-    bool rename(const char* pathFrom, const char* pathTo);
-    bool rename(const String& pathFrom, const String& pathTo);
+    bool rename(const char *pathFrom, const char *pathTo);
+    bool rename(const String &pathFrom, const String &pathTo);
 
     bool mkdir(const char *path);
     bool mkdir(const String &path);
@@ -68,14 +75,14 @@ public:
 
     void printBatteryInfo();
     // void task_bat_info_update();
-    bool connected_wifi(const char* ssid, const char* pass);
+    bool connected_wifi(const char *ssid, const char *pass);
     bool wifi_config_manger();
-    void savewifiConfig(StaticJsonDocument<2048>& wifi_config);
+    void savewifiConfig(StaticJsonDocument<2048> &wifi_config);
     void saveConfig();
     void loadConfig();
     void getTime();
-    char* get_char_sha_key(const char *str, bool mode = false);
-    String get_CAcert(const char* filePath);
+    char *get_char_sha_key(const char *str, bool mode = false);
+    String get_CAcert(const char *filePath);
     String get_yiyan(uint8_t maxlen = 17);
     IPAddress getip();
     bool cheak_firmware_update();
@@ -129,7 +136,7 @@ public:
     bool can_sleep = true;
     bool can_light_sleep = true;
     bool low_battery = false;
-    char key[16]; // 存储经过SHA-256运算后结果的前15个字符
+    char key[16];   // 存储经过SHA-256运算后结果的前15个字符
     OneButton btnr; // = OneButton(PIN_BUTTONR)
     OneButton btnl; // = OneButton(PIN_BUTTONL)
     OneButton btnc = OneButton(PIN_BUTTONC);
@@ -143,7 +150,7 @@ public:
             {
                 delay(10);
             }
-        }    
+        }
         delay(10);
         Serial.println("Hooked");
     }
@@ -155,7 +162,7 @@ public:
             {
                 delay(10);
             }
-        }  
+        }
         delay(10);
         _hookButton = false;
         Serial.println("Unhooked");
@@ -174,7 +181,7 @@ public:
         btnr.attachDuringLongPress(NULL, NULL);
         btnr.attachLongPressStop(NULL, NULL);
         btnr.attachMultiClick(NULL, NULL);
-        
+
         btnl.attachClick(NULL);
         btnl.attachDoubleClick(NULL);
         btnl.attachDuringLongPress(NULL);
@@ -200,6 +207,52 @@ public:
         btnc.attachLongPressStop(NULL, NULL);
         btnc.attachMultiClick(NULL, NULL);
     }
+
+    ButtonFlagSet flags_c; // 中心键
+    ButtonFlagSet flags_r; // 右键
+    ButtonFlagSet flags_l; // 左键
+
+    void clean_btn_flag()
+    {
+        flags_c = {0}; // 中心键
+        flags_r = {0}; // 右键
+        flags_l = {0}; // 左键
+    }
+
+    void btn_tick()
+    {
+        btnr.tick();
+        btnl.tick();
+        btnc.tick();
+    }
+
+    static void setFlag(void *param)
+    {
+        bool *flag = (bool *)param;
+        *flag = true;
+    }
+
+    void btn_callback()
+    {
+        // 中心键
+        btnc.attachClick(setFlag, &flags_c.click);
+        btnc.attachLongPressStart(setFlag, &flags_c.longStart);
+        btnc.attachDuringLongPress(setFlag, &flags_c.longDuring);
+        btnc.attachLongPressStop(setFlag, &flags_c.longStop);
+
+        // 右键
+        btnr.attachClick(setFlag, &flags_r.click);
+        btnr.attachLongPressStart(setFlag, &flags_r.longStart);
+        btnr.attachDuringLongPress(setFlag, &flags_r.longDuring);
+        btnr.attachLongPressStop(setFlag, &flags_r.longStop);
+
+        // 左键
+        btnl.attachClick(setFlag, &flags_l.click);
+        btnl.attachLongPressStart(setFlag, &flags_l.longStart);
+        btnl.attachDuringLongPress(setFlag, &flags_l.longDuring);
+        btnl.attachLongPressStop(setFlag, &flags_l.longStop);
+    }
+
     bool noDeepSleep = false;
     bool SleepUpdateMutex = false;
     bool _hookButton = false; // 不要修改这个
