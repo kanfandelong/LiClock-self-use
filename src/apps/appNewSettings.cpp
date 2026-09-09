@@ -1667,7 +1667,7 @@ void AppSettings::menu_system()
             break;
         case 22:
         {
-            const char *str = GUI::fileDialog("请选择系统全局字体文件", false, NULL, NULL);
+            const char *str = GUI::fileDialog("请选择系统全局字体文件", false, "bin", NULL);
             if (str == NULL)
             {
                 hal.pref.putString("system_font", String("default"));
@@ -1675,9 +1675,12 @@ void AppSettings::menu_system()
             }
             else
             {
-                hal.pref.putString("system_font", String(str));
                 u8g2Fonts.setFont(hal.pref.getString("system_font", "default").c_str());
-                GUI::msgbox("提示", "系统全局字体设置完成");
+                esp_task_wdt_add(hal.AppManager_TaskHandle);
+                esp_task_wdt_reset();
+                GUI::msgbox("提示", "系统全局字体设置完成");    // 弹出对话框，同时也是验证字体有效性，若字体无效，则会超时触发看门狗
+                esp_task_wdt_delete(hal.AppManager_TaskHandle); // 删除看门狗，因为此处只是临时使用看门狗确保不会因为错误字体导致变砖
+                hal.pref.putString("system_font", String(str));
             }
         }
         break;

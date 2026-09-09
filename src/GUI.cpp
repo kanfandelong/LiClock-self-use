@@ -356,6 +356,95 @@ namespace GUI
 
         return result;
     }
+
+    // 新增字符串截断函数及其辅助函数
+    /* 获取UTF-8字符的字节长度（1~4），无效返回0 */
+    static int utf8_char_len(unsigned char c)
+    {
+        if (c < 0x80)
+            return 1;
+        if ((c & 0xE0) == 0xC0)
+            return 2;
+        if ((c & 0xF0) == 0xE0)
+            return 3;
+        if ((c & 0xF8) == 0xF0)
+            return 4;
+        return 0;
+    }
+
+    /* 计算一个UTF-8字符的显示宽度：ASCII为1，其他为2 */
+    static int char_display_width(const unsigned char *s, int len)
+    {
+        if (len == 1 && s[0] < 0x80)
+            return 1;
+        return 2;
+    }
+
+    /**
+     * 截断字符串，按显示宽度不超过38，超出加“...”
+     * @param src  源字符串（UTF-8编码）
+     * @param dst  目标缓冲区（需足够大）
+     */
+    void truncate_string(const char *src, char *dst)
+    {
+        if (src == NULL)
+        {
+            dst[0] = '\0';
+            return;
+        }
+
+        const unsigned char *p = (const unsigned char *)src;
+        int total_width = 0;
+
+        /* 第一次遍历：计算总显示宽度 */
+        while (*p)
+        {
+            int len = utf8_char_len(*p);
+            if (len == 0)
+                break; // 无效UTF-8，跳过
+            total_width += char_display_width(p, len);
+            p += len;
+        }
+
+        /* 总宽度未超限，直接复制 */
+        if (total_width <= 38)
+        {
+            strcpy(dst, src);
+            return;
+        }
+
+        /* 需截断：重新遍历，保留字符直到加上“...”后不超过38 */
+        p = (const unsigned char *)src;
+        int cur_width = 0;
+        const unsigned char *cut_pos = p; // 截断位置（复制到此为止）
+
+        while (*p)
+        {
+            int len = utf8_char_len(*p);
+            if (len == 0)
+                break;
+            int w = char_display_width(p, len);
+
+            /* 判断是否还能容纳当前字符（留出“...”的3个宽度） */
+            if (cur_width + w + 3 <= 38)
+            {
+                cur_width += w;
+                cut_pos = p + len;
+                p += len;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        /* 复制保留部分，追加省略号 */
+        size_t copy_len = (size_t)(cut_pos - (const unsigned char *)src);
+        memcpy(dst, src, copy_len);
+        dst[copy_len] = '\0';
+        strcat(dst, "...");
+    }
+
     /**
      * @brief  菜单GUI
      * @param title 窗口标题
@@ -544,6 +633,7 @@ namespace GUI
                 {
                     display.copyBuffer(display.current_buffer_idx, STATIC_BUF);
                     display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
+                    char char_buf[128];
                     for (int i = 0; i < number_of_items; ++i)
                     {
                         // ★ 循环模式下索引取模
@@ -559,8 +649,9 @@ namespace GUI
                                 display.drawXBitmap(view_x, y + (14 - ico_h) / 2,
                                                     options[item_idx].icon, ico_w, ico_h, 0);
                             }
+                            truncate_string(options[item_idx].title, char_buf);
                             u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
-                                               y + 13, options[item_idx].title);
+                                               y + 13, char_buf);
                         }
                     }
                     display.drawRoundRect(start_x + 3, fixed_rect_y, w - 5 - 6, 15, 3, 0);
@@ -611,6 +702,7 @@ namespace GUI
                     display.setDrawWindow(start_x, start_y + 14, w - 2, max_h - 16);
 
                     int draw_center = anim_start;
+                    char char_buf[128];
                     for (int i = -1; i < number_of_items + 1; ++i)
                     {
                         int item_idx = draw_center - fixed_center + i;
@@ -625,8 +717,9 @@ namespace GUI
                                 display.drawXBitmap(view_x, y + (14 - ico_h) / 2,
                                                     options[item_idx].icon, ico_w, ico_h, 0);
                             }
+                            truncate_string(options[item_idx].title, char_buf);
                             u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
-                                               y + 13, options[item_idx].title);
+                                               y + 13, char_buf);
                         }
                     }
 

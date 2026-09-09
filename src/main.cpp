@@ -34,6 +34,7 @@ void setup()
     hal.init();
     hal.update();
 
+    // 休眠检测
     int auto_sleep_mv = hal.pref.getInt("auto_sleep_mv", 2900);
     char buf[128];
     if (hal.VCC < auto_sleep_mv)
@@ -43,6 +44,7 @@ void setup()
         hal.powerOff(false);
     }
 
+    // 时间同步相关
     esp_reset_reason_t reset_reason = esp_reset_reason();
     if ((reset_reason == ESP_RST_POWERON) || (reset_reason == ESP_RST_WDT))
     {
@@ -56,7 +58,7 @@ void setup()
         {
             if (peripherals.peripherals_current & PERIPHERALS_DS3231_BIT)
             {
-                GUI::info_msgbox("提示", "正在使用DS3231为ESP32对时...");
+                GUI::info_msgbox("提示", "正在同步ESP32RTC...");
                 delay(1000);
                 struct timeval tv;
                 struct tm *t;
@@ -73,7 +75,7 @@ void setup()
                 delete t;
             }
             else
-                log_w("没有DS3231，将无法在未联网的情况下校正本地时间!");
+                log_w("没有硬件RTC外设，将无法在未联网的情况下校正本地时间!");
         }
     }
 
@@ -81,7 +83,7 @@ void setup()
     alarms.check();
     log_printf("当前CPU频率：%lu\n", ESP.getCpuFreqMHz());
     log_i("启动appManager...");
-    xTaskCreatePinnedToCore(task_appManager, "appManager", 8192, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(task_appManager, "appManager", 8192, NULL, 4, &hal.AppManager_TaskHandle, 1);
     if (hal.pref.getInt("oobe", 0) <= 2)
     {
         appManager.gotoApp("oobe");

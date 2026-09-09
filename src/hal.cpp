@@ -1445,9 +1445,73 @@ void show_check_info()
     esp_restart();
 }
 
+#define BASE_DIR "/System/"
+#define COREDUMP_PREFIX "coredump_"
+#define COREDUMP_SUFFIX ".elf"
+#define KEEP_COUNT 3
+
+// 判断系统时间是否有效（可调整基准时间）
+static bool is_system_time_valid() {
+    time_t now = time(nullptr);
+    // 以 2020-01-01 00:00:00 UTC 为基准，若小于该值则认为时间未初始化
+    return (now > 1577836800);
+}
+
+// 生成带时间戳或随机数的文件名
+static String generate_coredump_filename() {
+    char filename[64];
+    if (is_system_time_valid()) {
+        struct tm timeinfo;
+        time_t now = time(nullptr);
+        localtime_r(&now, &timeinfo);
+        strftime(filename, sizeof(filename), "coredump_%Y%m%d_%H%M%S.elf", &timeinfo);
+    } else {
+        uint32_t rand_val = esp_random();
+        snprintf(filename, sizeof(filename), "coredump_%08x.elf", rand_val);
+    }
+    return String(BASE_DIR) + filename;
+}
+
+// 清理旧文件，仅保留最近 KEEP_COUNT 个
+static void clean_old_coredumps() {
+    DIR* dir = opendir("/littlefs/System");
+    if (!dir) return;
+
+    struct dirent* entry;
+    std::vector<std::pair<time_t, String>> file_list;
+
+    while ((entry = readdir(dir)) != nullptr) {
+        String name = entry->d_name;
+        // 匹配 coredump_*.elf
+        if (name.startsWith(COREDUMP_PREFIX) && name.endsWith(COREDUMP_SUFFIX)) {
+            String full_path = String(BASE_DIR) + name;
+            File f = LittleFS.open(full_path, "r");
+            if (f) {
+                time_t mtime = f.getLastWrite();  // 获取最后修改时间
+                f.close();
+                file_list.push_back({mtime, full_path});
+            }
+        }
+    }
+    closedir(dir);
+
+    // 按修改时间降序排序（最新的在前）
+    std::sort(file_list.begin(), file_list.end(),
+              [](const auto& a, const auto& b) { return a.first > b.first; });
+
+    // 删除除前 KEEP_COUNT 个以外的文件
+    for (size_t i = KEEP_COUNT; i < file_list.size(); ++i) {
+        if (LittleFS.remove(file_list[i].second)) {
+            log_i("已删除旧转储文件: %s", file_list[i].second.c_str());
+        } else {
+            log_w("删除旧文件失败: %s", file_list[i].second.c_str());
+        }
+    }
+}
+
+
 void HAL::coredump_file()
 {
-#define CoreDump_File "/System/coredump.elf"
     // 获取coredump分区信息
     const esp_partition_t *coredump_partition = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, "coredump");
@@ -1456,7 +1520,6 @@ void HAL::coredump_file()
         log_e("找不到coredump分区");
     }
     uint8_t *buffer;
-    File file;
     buffer = (uint8_t *)malloc(coredump_partition->size);
     if (!buffer)
     {
@@ -1468,31 +1531,36 @@ void HAL::coredump_file()
         log_e("读取coredump失败");
         free(buffer);
     }
-    // 写入文件
-    file = LittleFS.open(CoreDump_File, "w");
-    if (!file)
-    {
+    // 生成动态文件名
+    String filePath = generate_coredump_filename();
+
+    // 写入文件（原有写入逻辑，改为使用 filePath）
+    File file = LittleFS.open(filePath, "w");
+    if (!file) {
         GUI::info_msgbox("发生错误", "无法创建coredump文件");
         free(buffer);
+        return;
     }
     size_t written = file.write(buffer, coredump_partition->size);
     file.close();
     free(buffer);
-    if (written != coredump_partition->size)
-    {
+
+    if (written != coredump_partition->size) {
         GUI::info_msgbox("发生错误", "文件写入错误");
-        LittleFS.remove(CoreDump_File);
+        LittleFS.remove(filePath);
+        return;
     }
-    else
-    {
-        log_i("已转储coredump分区至/System/coredump.elf，大小：%d字节", written);
-        if (esp_reset_reason() == ESP_RST_PANIC)
-        {
-            GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
-            // show_check_info();
-        }
-        else
-            GUI::msgbox("调试信息", "coredump分区已转储至/System/coredump.elf", 5);
+
+    log_i("已转储coredump分区至 %s，大小：%d 字节", filePath.c_str(), written);
+
+    // 清理旧文件（保留最近两个）
+    clean_old_coredumps();
+
+    // 显示消息框
+    if (esp_reset_reason() == ESP_RST_PANIC) {
+        GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
+    } else {
+        GUI::info_msgbox("调试信息", (String("coredump分区已转储至 ") + filePath).c_str());
     }
 }
 
@@ -1743,14 +1811,19 @@ bool HAL::init()
         {
             log_i("唤醒源:ESP_SLEEP_%s", esp_sleep_str[sleep_wakeup_cause]);
         }
-        if (reset_reason == ESP_RST_PANIC)
+        else if (reset_reason == ESP_RST_PANIC)
         {
             coredump_file();
             ESP.restart();
         }
-        if (reset_reason == ESP_RST_BROWNOUT)
+        else if (reset_reason == ESP_RST_BROWNOUT)
         {
             GUI::msgbox("电源警告", "欠压检测器被触发，请检查系统电源状态", 60);
+        }
+        else if (reset_reason == ESP_RST_WDT)
+        {
+            GUI::info_msgbox("提示", "任务超时未响应看门狗，已由TWDT重启系统，这可能是bug或其他因素导致的");
+            coredump_file();
         }
     }
     loadConfig();
@@ -1762,7 +1835,7 @@ bool HAL::init()
     weather->begin();
     buzzer.init();
     TJpgDec.setCallback(GUI::epd_output);
-    ttf.setFramebuffer(296, 128, 1);
+    ttf.setFramebuffer(display.width(), display.height(), 1);
     xTaskCreate(task_hal_update, "hal_update", 2560, NULL, 10, NULL);
     if (sleep_wakeup_cause != ESP_SLEEP_WAKEUP_TIMER)
     {
@@ -1964,11 +2037,11 @@ void printDisplayVertical()
             // 检查像素值
             if (buffer[byte_index] & bit_mask)
             {
-                lineBuffer[y] = '*'; // 像素为1，打印*
+                lineBuffer[y] = '██'; // 像素为1，打印*
             }
             else
             {
-                lineBuffer[y] = ' '; // 像素为0，打印空格
+                lineBuffer[y] = '  '; // 像素为0，打印空格
             }
         }
         lineBuffer[168] = '\n'; // 每行末尾加换行
@@ -2050,8 +2123,8 @@ static void pre_sleep()
     buzzer.waitForSleep();
     log_system_deinit();
     LittleFS.end();
-    // hal.pref.end();
-    // printDisplayVertical();
+    hal.pref.end(); // 在调用end()后，如果下次begin前没有正常end，则会出现键值回退
+    // printDisplayVertical(); // 调试用，用于打印当前显示缓冲区在串口上
     delay(10);
     ledcDetach(PIN_BUZZER);
     pinMode(PIN_BUZZER, OUTPUT);
