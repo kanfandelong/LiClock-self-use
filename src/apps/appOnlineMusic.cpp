@@ -280,7 +280,7 @@ public:
     AppOnlineMusic()
     {
         name = "onlinemusic";
-        title = "在线音乐";
+        title = "网易云音乐";
         description = "在线播放歌单音乐";
         noDefaultEvent = true;
         peripherals_requested = PERIPHERALS_SD_BIT;
@@ -910,7 +910,7 @@ void AppOnlineMusic::openMenu()
             {false, "退出应用", nullptr},
             {false, NULL, nullptr}};
 
-        selected = GUI::select_menu("在线音乐", mainOpts, selected);
+        selected = GUI::select_menu("网易云音乐", mainOpts, selected);
 
         switch (selected)
         {
