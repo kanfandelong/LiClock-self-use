@@ -1893,9 +1893,11 @@ void AppMusicPlayer::select_file(bool user)
     if (lastSlash == 0)
     {
         is_root = true;
+        currentDir = "";
     }
     else
     {
+        is_root = false;
         currentDir = pathStr.substring(0, lastSlash);
     }
     filelist_ok = false;
@@ -2391,7 +2393,7 @@ bool AppMusicPlayer::music_list_menu(bool play)
     hal.can_light_sleep = false;
     if (!filelist_ok)
         bulid_music_list();
-    int res = GUI::menu("音乐列表", fileList, 8, 8, currentSongIndex + 1);
+    int res = GUI::menu("音乐列表", fileList, 8, 8, currentSongIndex + 1, true);
     attach_cb();
     switch (res)
     {

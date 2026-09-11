@@ -496,7 +496,7 @@ namespace GUI
             entries[total_entries].title = NULL;
             end_time = millis() - start_time;
             log_i(" [文件] 创建文件列表，耗时%.2fs, 共%d个列表项", (float)end_time / 1000.0, total_entries);
-            int selected = menu(truncatePath(full_cwd, u8g2Fonts).c_str(), entries, 12, 12, selectedStack[depth]);
+            int selected = menu(truncatePath(full_cwd, u8g2Fonts).c_str(), entries, 12, 12, selectedStack[depth], true);
             if (selected == 0)
             {
                 depth--;

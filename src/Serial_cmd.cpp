@@ -1668,7 +1668,6 @@ static int cmd_getnvs(int argc, char **argv)
             if (len != sizeof(float))
             {
                 PRINT_ERROR("Key '%s' is not a float (actual size %u bytes)", key, len);
-                return 1;
             }
             float val = hal.pref.getFloat(key);
             PRINT_INFO("%s (float): %f", key, val);
@@ -1679,7 +1678,6 @@ static int cmd_getnvs(int argc, char **argv)
             if (len != sizeof(double))
             {
                 PRINT_ERROR("Key '%s' is not a double (actual size %u bytes)", key, len);
-                return 1;
             }
             double val = hal.pref.getDouble(key);
             PRINT_INFO("%s (double): %lf", key, val);

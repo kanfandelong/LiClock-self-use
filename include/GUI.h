@@ -82,7 +82,7 @@ namespace GUI
     int64_t msgbox_number64(const char *title, uint16_t digits, int64_t pre_value);
     char* englishInput(const char *name = "");
     int msgbox_time(const char *title, int pre_value);
-    int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8, int default_selected = 0);
+    int menu(const char *title, const menu_item options[], int16_t ico_w = 8, int16_t ico_h = 8, int default_selected = 0, bool truncate = false);
     int menu(const char *title, const menu_item_mix options[], int16_t ico_w, int16_t ico_h, int default_selected);
     int select_menu(const char *title, const menu_select options[], int default_selected = 0);
     int rle_decompress(const uint8_t *src, uint32_t src_len, uint8_t *dst, uint32_t dst_max);

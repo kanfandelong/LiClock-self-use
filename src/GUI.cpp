@@ -454,7 +454,7 @@ namespace GUI
      * @param default_selected 默认选中的项目索引（默认为0）
      * @return int类型的选中的菜单项
      */
-    int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h, int default_selected)
+    int menu(const char *title, const menu_item options[], int16_t ico_w, int16_t ico_h, int default_selected, bool truncate)
     {
         constexpr int w = 260;
         constexpr int h = 128;
@@ -649,9 +649,17 @@ namespace GUI
                                 display.drawXBitmap(view_x, y + (14 - ico_h) / 2,
                                                     options[item_idx].icon, ico_w, ico_h, 0);
                             }
-                            truncate_string(options[item_idx].title, char_buf);
-                            u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
-                                               y + 13, char_buf);
+                            if (truncate)
+                            {
+                                truncate_string(options[item_idx].title, char_buf);
+                                u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
+                                                   y + 13, char_buf);
+                            }
+                            else
+                            {
+                                u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
+                                                   y + 13, options[item_idx].title);
+                            }
                         }
                     }
                     display.drawRoundRect(start_x + 3, fixed_rect_y, w - 5 - 6, 15, 3, 0);
@@ -717,9 +725,17 @@ namespace GUI
                                 display.drawXBitmap(view_x, y + (14 - ico_h) / 2,
                                                     options[item_idx].icon, ico_w, ico_h, 0);
                             }
-                            truncate_string(options[item_idx].title, char_buf);
-                            u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
-                                               y + 13, char_buf);
+                            if (truncate)
+                            {
+                                truncate_string(options[item_idx].title, char_buf);
+                                u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
+                                                   y + 13, char_buf);
+                            }
+                            else
+                            {
+                                u8g2Fonts.drawUTF8(view_x + (hasIcon ? ico_w + 2 : 0),
+                                                   y + 13, options[item_idx].title);
+                            }
                         }
                     }
 

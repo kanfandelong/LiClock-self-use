@@ -6,7 +6,7 @@
 
 // ===================== 配置 =====================
 #define LOG_RING_SIZE          (64 * 1024)    // 64 KB 环形缓冲区（放在 PSRAM）
-#define LOG_WRITER_PERIOD_MS   3000            // 写文件任务的轮询周期
+#define LOG_WRITER_PERIOD_MS   500            // 写文件任务的轮询周期
 #define LOG_FILE_PATH          "/System/log.txt"
 
 // ===================== 全局变量 =====================
@@ -52,9 +52,7 @@ void open_log_file() {
     } else {
         log_file = LittleFS.open(LOG_FILE_PATH, "a");
     }
-    if (log_file) {
-        log_file.setBufferSize(4096);
-    } else {
+    if (!log_file) {
         log_e("无法打开日志文件：%s", LOG_FILE_PATH);
     }
 }
@@ -186,8 +184,8 @@ void log_system_deinit() {
             wait += 10;
         }
         if (eTaskGetState(writer_task) != eDeleted) {
-            log_w("写入任务未在超时内结束，强制删除");
-            vTaskDelete(writer_task);
+            log_w("写入任务未在超时内结束");
+            // vTaskDelete(writer_task);
         }
         writer_task = nullptr;
     }

@@ -386,19 +386,19 @@ void AppSettings::menu_network()
     bool end = false;
     static const menu_select settings_menu_network[] =
         {
-            {false, "< 返回", nullptr},
-            {false, "选择默认WiFi", nullptr},
-            {false, "搜索周围的WIFI", nullptr},
-            {false, "设置WiFi发射功率", nullptr},
-            {false, "ESPTouch配网", nullptr},
-            {false, "启动HTTP服务器", nullptr},
-            {false, "启动文件服务器", nullptr},
-            {true, "启用mDNS", "en_mdns"},
-            {false, "ESPNow设备扫描", nullptr},
-            {false, "蓝牙扫描", nullptr},
-            {false, "退出Bilibili账号", nullptr},
-            {false, "分享当前配置的WiFi", nullptr},
-            {false, "配置界面和Blockly", nullptr},
+            {false, "< 返回", nullptr},// 0
+            {false, "选择默认WiFi", nullptr},// 1
+            {false, "搜索周围的WIFI", nullptr},// 2
+            {false, "设置WiFi发射功率", nullptr},// 3
+            {false, "ESPTouch配网", nullptr},// 4
+            {false, "启动HTTP服务器", nullptr},// 5
+            {false, "启动文件服务器", nullptr},// 6
+            {true, "启用mDNS", "en_mdns"},// 7
+            {false, "ESPNow设备扫描", nullptr},// 8
+            {false, "蓝牙扫描", nullptr},// 9
+            {false, "退出Bilibili账号", nullptr},// 10
+            {false, "分享当前配置的WiFi", nullptr},// 11
+            {false, "配置界面和Blockly", nullptr},// 12
             {false, NULL, nullptr},
         };
     DNSServer dnsServer;
@@ -495,6 +495,11 @@ void AppSettings::menu_network()
             WiFi.mode(WIFI_STA);
             hal.searchWiFi();
             log_printf("搜索到的个数:%d", hal.numNetworks);
+            if (hal.numNetworks == 0)
+            {
+                GUI::info_msgbox("WiFi搜索", "未搜索到WiFi，请检查WiFi是否开启");
+                break;
+            }
             char winfo[hal.numNetworks][96];
             int rssis[hal.numNetworks];
             char _ssid[hal.numNetworks][96];
@@ -712,15 +717,15 @@ void AppSettings::menu_network()
             }
         }
         break;
-        case 7:
+        case 8:
             // ESPNow设备扫描
             GUI::msgbox("提示", "ESPNow设备扫描功能未实现");
             break;
-        case 8:
+        case 9:
             // 蓝牙扫描
             GUI::msgbox("提示", "蓝牙扫描功能未实现");
             break;
-        case 9:
+        case 10:
             // 退出Bilibili账号
             if (LittleFS.exists("/blCookies.txt"))
             {
@@ -734,7 +739,7 @@ void AppSettings::menu_network()
                 break;
             }
             break;
-        case 10:
+        case 11:
         {
             String ssid = config[PARAM_SSID].as<String>();
             String pass = config[PARAM_PASS].as<String>();
@@ -764,7 +769,7 @@ void AppSettings::menu_network()
             hal.wait_input();
         }
         break;
-        case 11:
+        case 12:
         {
             String str1, str2;
             bool wifi = hal.autoConnectWiFi(false);

@@ -105,6 +105,7 @@ public:
     void rtc_offset();
     bool autoConnectWiFi(bool need_wifi_config = true);
     void searchWiFi();
+    bool is_ap_available(const char *ssid, int minRssi = -90);
     static void set_sleep_set_gpio_interrupt();
     void powerOff(bool displayMessage = true);
     void goSleep(uint32_t sec = 0);

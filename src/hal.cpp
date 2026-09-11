@@ -320,10 +320,15 @@ void task_btn_buzzer(void *)
  */
 bool HAL::connected_wifi(const char *ssid, const char *pass)
 {
+    if (!is_ap_available(ssid)) {
+        log_w("AP '%s' not in range, abort connect", ssid);
+        return false;
+    }
+
     WiFi.begin(ssid, pass);
     log_i("Connecting to %s", ssid);
     unsigned long startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < 10000)
+    while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < 2000)
     {
         delay(100);
     }
@@ -1962,15 +1967,52 @@ void HAL::searchWiFi()
     ESP_LOGI("hal", "searchWiFi");
     cheak_freq();
     WiFi.mode(WIFI_STA);
-    hal.numNetworks = WiFi.scanNetworks(false, false, false, 500);
+    hal.numNetworks = WiFi.scanNetworks();
     if (hal.numNetworks == 0)
     {
-        hal.numNetworks = WiFi.scanNetworks(false, false, false, 500);
+        hal.numNetworks = WiFi.scanNetworks();
         if (hal.numNetworks == 0)
         {
             log_w("没有搜索到WIFI");
         }
     }
+}
+
+/**
+ * @brief 扫描环境,检查指定 SSID 是否存在
+ * @param ssid 目标 AP 的 SSID
+ * @param minRssi 最低信号强度(可选,默认 -90dBm,过滤弱信号)
+ * @return true 存在且信号可用
+ */
+bool HAL::is_ap_available(const char *ssid, int minRssi)
+{
+    // 同步扫描(会阻塞约 1~3 秒)
+    int n = WiFi.scanNetworks(false /* async */, false /* show_hidden */);
+    log_i("Scan done, %d networks found", n);
+
+    if (n <= 0) {
+        WiFi.scanDelete();
+        return false;
+    }
+
+    bool found = false;
+    for (int i = 0; i < n; ++i) {
+        if (WiFi.SSID(i) == ssid) {
+            int rssi = WiFi.RSSI(i);
+            log_i("AP '%s' found, RSSI=%d, ch=%d, enc=%d",
+                  ssid, rssi, WiFi.channel(i), WiFi.encryptionType(i));
+
+            if (rssi >= minRssi) {
+                found = true;
+            } else {
+                log_w("AP '%s' signal too weak: %d", ssid, rssi);
+            }
+            break;
+        }
+    }
+
+    WiFi.scanDelete();   // 释放扫描内存(必须!)
+    return found;
 }
 
 void HAL::set_sleep_set_gpio_interrupt()
