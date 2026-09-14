@@ -24,6 +24,25 @@ struct DefaultAllocator {
   }
 };
 
+
+struct PSRAM_Allocator {
+  void* allocate(size_t size) {
+    return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    // return malloc(size);
+  }
+
+  void deallocate(void* ptr) {
+    free(ptr);
+  }
+
+  void* reallocate(void* ptr, size_t new_size) {
+    return heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    // return realloc(ptr, new_size);
+  }
+};
+
 typedef BasicJsonDocument<DefaultAllocator> DynamicJsonDocument;
+
+typedef BasicJsonDocument<PSRAM_Allocator> PSRAM_JsonDocument;
 
 }  // namespace ARDUINOJSON_NAMESPACE

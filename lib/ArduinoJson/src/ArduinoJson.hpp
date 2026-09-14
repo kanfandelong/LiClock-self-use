@@ -58,6 +58,7 @@ using ARDUINOJSON_NAMESPACE::DeserializationError;
 using ARDUINOJSON_NAMESPACE::deserializeJson;
 using ARDUINOJSON_NAMESPACE::deserializeMsgPack;
 using ARDUINOJSON_NAMESPACE::DynamicJsonDocument;
+using ARDUINOJSON_NAMESPACE::PSRAM_JsonDocument;
 using ARDUINOJSON_NAMESPACE::JsonDocument;
 using ARDUINOJSON_NAMESPACE::measureJson;
 using ARDUINOJSON_NAMESPACE::serialized;
