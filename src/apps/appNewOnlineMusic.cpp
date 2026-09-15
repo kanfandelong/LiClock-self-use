@@ -2525,8 +2525,8 @@ void AppOnlineMusic::player_menu()
             _end = true;
             hal.pref.putULong64("online_music", titles[currentSongIndex].id);
             delete_playtask();
-            delete in;
-            in = nullptr;
+            // delete in;
+            // in = nullptr;
             delete_output();
             if (id3 != nullptr)
                 delete id3;
@@ -4799,6 +4799,20 @@ void AppOnlineMusic::setup()
             save_music_list(playlistId[0]);
     }
     currentSongId = hal.pref.getULong64("online_music", 2608813264);
+
+    currentSongIndex = 0;
+    if (titles != nullptr && maxSong > 0)
+    {
+        for (int i = 0; i < maxSong; i++)
+        {
+            if (titles[i].id == currentSongId)
+            {
+                currentSongIndex = i;
+                break;
+            }
+        }
+    }
+
     file_in(currentSongId);
 
     if (player_set())
@@ -4936,8 +4950,8 @@ void AppOnlineMusic::setup()
     {
         hal.pref.putULong64("online_music", titles[currentSongId].id);
         delete_playtask();
-        delete in;
-        in = nullptr;
+        // delete in;
+        // in = nullptr;
         delete_output();
         if (id3 != nullptr)
             delete id3;
