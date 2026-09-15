@@ -128,6 +128,7 @@ public:
     AudioFileSource *in = nullptr;               // 音频文件源
     AudioFileSourceID3 *id3 = nullptr;           // ID3信息解码处理
     AudioFileSourceBuffer *bufferedStream = nullptr;
+    AudioFileSourceHTTPStream *httpStream = nullptr;
 
     AudioGenerator *generator = nullptr;
     AudioGeneratorMP3 *mp3_generator = nullptr;   // MP3解码器
@@ -720,8 +721,27 @@ static void player_exit()
     }
     if (app.fileList != nullptr)
     {
-        delete[] app.fileList;
+        free(app.fileList);
+        app.fileList == nullptr;
     }
+
+    if (app.psramBuffer)
+    {
+        free(app.psramBuffer);
+        app.psramBuffer = nullptr;
+    }
+    if (app.httpStream)
+    {
+        delete app.httpStream;
+        app.httpStream = nullptr;
+    }
+    if (app.bufferedStream)
+    {
+        delete app.bufferedStream;
+        app.bufferedStream = nullptr;
+    }
+
+    app.in = nullptr;
 
     // delete[] app.curveScaling;
     free(app.curveScaling);
@@ -1263,7 +1283,7 @@ void AppOnlineMusic::loadLyrics(uint64_t song_id)
     totalLyricLines = countLyricLines(lrcPath.c_str());
     if (totalLyricLines == -1)
     {
-        log_w("歌词文件 \"%s\" 不存在,中止加载操作,尝试拉取歌词", lrcPath.c_str());
+        log_w("歌词文件 \"%s\" 不存在,尝试拉取歌词", lrcPath.c_str());
         String lyricUrl = "http://metingproxy.ysnb.com.cn/api/lyric?id=" + String(song_id);
         HTTPClient http;
         http.setTimeout(10000);
@@ -1313,13 +1333,15 @@ void AppOnlineMusic::loadLyrics(uint64_t song_id)
             else
             {
                 log_w("歌词文件写入失败");
+                return;
             }
         }
         else
         {
             log_w("获取到的歌词为空");
+            return;
         }
-        return;
+        totalLyricLines = countLyricLines(lrcPath.c_str());
     }
     else if (totalLyricLines == 0)
     {
@@ -1901,11 +1923,22 @@ bool AppOnlineMusic::file_in(uint64_t song_id)
         free(psramBuffer);
         psramBuffer = nullptr;
     }
-    if (in != nullptr)
+    if (httpStream)
     {
-        delete in;
-        in = nullptr;
+        delete httpStream;
+        httpStream = nullptr;
     }
+    if (bufferedStream)
+    {
+        delete bufferedStream;
+        bufferedStream = nullptr;
+    }
+    in = nullptr;
+    // if (in != nullptr)
+    // {
+    //     delete in;
+    //     in = nullptr;
+    // }
     lrcisload = false;
     log_d("playing song id: %llu", song_id);
     log_d("song title: %s", titles[currentSongIndex].title);
@@ -1918,7 +1951,7 @@ bool AppOnlineMusic::file_in(uint64_t song_id)
     }
     String url = "http://metingproxy.ysnb.com.cn/api/audio?id=" + String(currentSongId);
 
-    AudioFileSourceHTTPStream *httpStream = new AudioFileSourceHTTPStream();
+    httpStream = new AudioFileSourceHTTPStream();
     httpStream->addCustomHeader(PROXY_AUTH_HEADER, PROXY_AUTH_SECRET);
     httpStream->open(url.c_str());
     httpStream->RegisterMetadataCB(MDCallback, (void *)"ICY"); // 分配 PSRAM 缓冲区并创建缓冲流，防止网络波动导致卡顿
@@ -1943,6 +1976,11 @@ bool AppOnlineMusic::file_in(uint64_t song_id)
         if (!in->isOpen())
         {
             log_e("无法打开指定的流（%s）以供播放", url.c_str());
+            if (httpStream)
+            {
+                delete httpStream;
+                httpStream = nullptr;
+            }
             if (bufferedStream)
             {
                 delete bufferedStream;
@@ -1953,8 +1991,6 @@ bool AppOnlineMusic::file_in(uint64_t song_id)
                 free(psramBuffer);
                 psramBuffer = nullptr;
             }
-            delete httpStream;
-            httpStream = nullptr;
             in = nullptr;
             need_deep_sleep = true;
             appManager.noDeepSleep = false;
