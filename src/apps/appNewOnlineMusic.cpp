@@ -92,6 +92,7 @@ typedef struct
 
 struct SongPlayCount
 {
+    uint16_t reserved[12] = {0xFFFF};
     uint64_t song_id = 0; // 文件路径的 SHA‑256 原始值
     uint32_t count = 0;   // 累计播放次数
 };
@@ -2240,7 +2241,7 @@ void AppOnlineMusic::bulid_music_list(uint64_t list_id)
         // 清理之前的资源
         if (titles != nullptr && maxSong != 0)
         {
-            delete[] titles;
+            free(titles);
             titles = nullptr;
         }
 
@@ -2265,9 +2266,9 @@ void AppOnlineMusic::bulid_music_list(uint64_t list_id)
         {
             JsonObject obj = jsonArray[i - 1];
             String songUrl = obj["url"].as<String>();
-            String songTitle = obj["name"].as<String>();
+            String songTitle = obj.containsKey("title") ? obj["title"].as<String>() : "";
             String songAuthor = obj.containsKey("author") ? obj["author"].as<String>() : "";
-            String songAlbum = obj.containsKey("title") ? obj["title"].as<String>() : "";
+            String songAlbum = obj.containsKey("album") ? obj["album"].as<String>() : "";
 
             snprintf(titles[i - 1].title, sizeof(titles[i - 1].title), "%s", songTitle.c_str());
             snprintf(titles[i - 1].performer, sizeof(titles[i - 1].performer), "%s", songAuthor.c_str());
@@ -2277,7 +2278,6 @@ void AppOnlineMusic::bulid_music_list(uint64_t list_id)
 
             fileList[i].title = titles[i - 1].title;
             fileList[i].icon = NULL;
-            i++;
         }
 
         // 设置结束标志
@@ -2305,9 +2305,39 @@ bool AppOnlineMusic::load_music_list(uint64_t list_id)
         log_w("无法打开歌单缓存文件: %s", list_file_path.c_str());
     size_t file_size = f.size();
     maxSong = file_size / sizeof(songinfo);
+    if (titles != nullptr && maxSong != 0)
+    {
+        free(titles);
+        titles = nullptr;
+    }
     titles = (songinfo *)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     f.read((uint8_t *)titles, file_size);
     f.close();
+
+    if (fileList != nullptr)
+    {
+        delete[] fileList;
+        fileList = nullptr;
+    }
+
+    // 分配数组内存
+    fileList = new menu_item[maxSong + 2];
+    // 设置返回项
+    fileList[0].title = "返回";
+    fileList[0].icon = NULL;
+
+    // 将链表数据转移到数组
+    int i = 1;
+    for (; i < maxSong + 1; i++)
+    {
+        fileList[i].title = titles[i - 1].title;
+        fileList[i].icon = NULL;
+    }
+
+    // 设置结束标志
+    fileList[i].title = NULL;
+    fileList[i].icon = NULL;
+    filelist_ok = true;
     return true;
 }
 
