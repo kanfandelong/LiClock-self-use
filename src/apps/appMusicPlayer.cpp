@@ -701,6 +701,7 @@ static void player_exit()
     if (app.fileList != nullptr)
     {
         delete[] app.fileList;
+        app.fileList = nullptr;
     }
 
     // delete[] app.curveScaling;
@@ -1259,6 +1260,7 @@ void AppMusicPlayer::loadLyrics(const char *path)
 
     // 预先分配内存
     lyricArray = (LyricLine *)heap_caps_malloc(sizeof(LyricLine[totalLyricLines]), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    memset(lyricArray, 0xfffffffff, sizeof(LyricLine[totalLyricLines]));
 
     if (lyricArray == nullptr)
     {

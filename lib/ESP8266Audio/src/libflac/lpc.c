@@ -44,6 +44,16 @@
 #include "private/lpc.h"
 #include "private/macros.h"
 
+#if defined(ESP_PLATFORM) && defined(CONFIG_IDF_TARGET_ESP32S3)
+extern int flac_lpc_restore_signal_esp32s3(const FLAC__int32*, uint32_t,
+                                            const FLAC__int32*, uint32_t,
+                                            int, FLAC__int32*);
+extern int flac_lpc_restore_signal_wide_esp32s3(const FLAC__int32*, uint32_t,
+                                                 const FLAC__int32*, uint32_t,
+                                                 int, FLAC__int32*);
+#endif
+
+
 #if !defined(NDEBUG) || defined FLAC__OVERFLOW_DETECT || defined FLAC__OVERFLOW_DETECT_VERBOSE
 #include <stdio.h>
 #endif
@@ -1260,6 +1270,12 @@ void FLAC__lpc_restore_signal(const FLAC__int32 *flac_restrict residual, uint32_
 }
 #else /* fully unrolled version for normal use */
 {
+#if defined(ESP_PLATFORM) && defined(CONFIG_IDF_TARGET_ESP32S3) && defined(EN_ESP_ASM)
+    if (flac_lpc_restore_signal_esp32s3(residual, data_len, qlp_coeff,
+                                        order, lp_quantization, data)) {
+        return;
+    }
+#endif
 	int i;
 	FLAC__int32 sum;
 
@@ -1570,6 +1586,12 @@ void FLAC__lpc_restore_signal_wide(const FLAC__int32 *flac_restrict residual, ui
 }
 #else /* fully unrolled version for normal use */
 {
+#if defined(ESP_PLATFORM) && defined(CONFIG_IDF_TARGET_ESP32S3) && defined(EN_ESP_ASM)
+    if (flac_lpc_restore_signal_wide_esp32s3(residual, data_len, qlp_coeff,
+                                             order, lp_quantization, data)) {
+        return;
+    }
+#endif
 	int i;
 	FLAC__int64 sum;
 

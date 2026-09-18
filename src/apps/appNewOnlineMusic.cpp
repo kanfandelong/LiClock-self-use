@@ -1342,6 +1342,8 @@ void AppOnlineMusic::loadLyrics(uint64_t song_id)
             return;
         }
         totalLyricLines = countLyricLines(lrcPath.c_str());
+        if (!totalLyricLines > 0)
+            return;
     }
     else if (totalLyricLines == 0)
     {
@@ -4780,7 +4782,9 @@ void AppOnlineMusic::setup()
     if (!hal.autoConnectWiFi(true))
     {
         GUI::msgbox("错误", "WIFI连接失败");
+        _end = true;
         appManager.goBack();
+        app_exit = true;
         return;
     }
     loadPlaylists();
@@ -4797,6 +4801,13 @@ void AppOnlineMusic::setup()
         bulid_music_list(playlistId[0]);
         if (maxSong > 0)
             save_music_list(playlistId[0]);
+        else
+        {
+            _end = true;
+            appManager.goBack();
+            app_exit = true;
+            return;
+        }
     }
     currentSongId = hal.pref.getULong64("online_music", 2608813264);
 
