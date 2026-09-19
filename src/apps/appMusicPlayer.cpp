@@ -886,7 +886,7 @@ void AppMusicPlayer::loadPlayCounts()
     playCountNum = num;
 
     if (num == 0)
-        num == 16;
+        num = 16;
 
     // 分配 PSRAM
     playCountRecords = (SongPlayCount *)ps_malloc(num * sizeof(SongPlayCount));

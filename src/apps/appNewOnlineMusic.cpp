@@ -911,7 +911,7 @@ void AppOnlineMusic::loadPlayCounts()
     playCountNum = num;
 
     if (num == 0)
-        num == 16;
+        num = 16;
 
     // 分配 PSRAM
     playCountRecords = (SongPlayCount *)ps_malloc(num * sizeof(SongPlayCount));
@@ -2193,7 +2193,12 @@ void AppOnlineMusic::bulid_music_list(uint64_t list_id)
         if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT)
         {
             log_e("HTTP request failed: %d", code);
-            GUI::msgbox("错误", "网络请求失败");
+            char buf[128];
+            if (http.getSize() > 0)
+                sprintf(buf, "网络请求失败\n错误代码：%ld\n%s", code, http.getString().c_str());
+            else
+                sprintf(buf, "网络请求失败\n错误代码：%ld", code);
+            GUI::msgbox("错误", buf);
             http.end();
             return;
         }
