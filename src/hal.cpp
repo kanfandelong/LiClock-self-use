@@ -320,7 +320,8 @@ void task_btn_buzzer(void *)
  */
 bool HAL::connected_wifi(const char *ssid, const char *pass)
 {
-    if (!is_ap_available(ssid)) {
+    if (!is_ap_available(ssid))
+    {
         log_w("AP '%s' not in range, abort connect", ssid);
         return false;
     }
@@ -354,7 +355,7 @@ bool HAL::connected_wifi(const char *ssid, const char *pass)
 bool HAL::wifi_config_manger()
 {
     bool isConnected = false;
-    isConnected = connected_wifi(config[PARAM_SSID].as<const char *>(), config[PARAM_PASS].as<const char *>());
+    isConnected = connected_wifi(hal.pref.getString("ssid").c_str(), hal.pref.getString("pass").c_str());
 
     if (!LittleFS.exists(wifi_config_file))
     {
@@ -382,7 +383,7 @@ bool HAL::wifi_config_manger()
 
     if (!isConnected)
     {
-        GUI::info_msgbox("错误", "默认WIFI连接失败，开始尝试保存过的可用WIFI");
+        // GUI::info_msgbox("错误", "默认WIFI连接失败，开始尝试保存过的可用WIFI");
         delay(1000);
         // 如果默认连接失败，搜索并连接已保存的WIFI
         JsonArray networks = wifi_config["networks"];
@@ -392,8 +393,7 @@ bool HAL::wifi_config_manger()
         {
             WiFi.scanDelete();
             log_w("没有找到可用的WiFi网络");
-            GUI::info_msgbox("错误", "没有找到可用的WiFi网络");
-            delay(1500);
+            GUI::msgbox("WiFi连接", "没有找到可用的WiFi网络");
             return false;
         }
         else
@@ -409,8 +409,8 @@ bool HAL::wifi_config_manger()
                         isConnected = connected_wifi(ssid, pass);
                         if (isConnected)
                         {
-                            config[PARAM_SSID] = ssid;
-                            config[PARAM_PASS] = pass;
+                            hal.pref.putString("ssid", String(ssid));
+                            hal.pref.putString("pass", String(pass));
                             saveConfig();
                             char buf[128];
                             sprintf(buf, "成功连接：%s,默认WiFi已切换至此WiFi", WiFi.SSID().c_str());
@@ -482,6 +482,9 @@ void HAL::savewifiConfig(StaticJsonDocument<2048> &wifi_config)
 
 void HAL::saveConfig()
 {
+    hal.pref.putString("ssid", config[PARAM_SSID].as<String>());
+    hal.pref.putString("pass", config[PARAM_PASS].as<String>());
+    // 同步到nvs
     File configFile = LittleFS.open("/System/config.json", "w");
     if (!configFile)
     {
@@ -500,6 +503,9 @@ void HAL::loadConfig()
         return;
     }
     deserializeJson(config, configFile);
+    // 从nvs覆盖
+    config[PARAM_SSID] = hal.pref.getString("ssid");
+    config[PARAM_PASS] = hal.pref.getString("pass");
     configFile.close();
 }
 
@@ -884,8 +890,8 @@ void HAL::WiFiConfigSmartConfig()
     if (WiFi.waitForConnectResult() == WL_CONNECTED)
     {
         log_printf("WiFi connected\n");
-        config[PARAM_SSID] = WiFi.SSID();
-        config[PARAM_PASS] = WiFi.psk();
+        hal.pref.putString("ssid", WiFi.SSID());
+        hal.pref.putString("pass", WiFi.psk());
         hal.saveConfig();
     }
 }
@@ -1147,69 +1153,73 @@ void HAL::ReqWiFiConfig()
 extern RTC_DATA_ATTR bool ebook_run;
 void HAL::wait_input(uint32_t sleeptime)
 {
-/*     if (hal.can_light_sleep)
-    {
-        if (sleeptime == 0)
-            esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-        else
-            esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
-        uart_wakeup_cfg_t uart_wakeup_cfg = {};
-        uart_wakeup_cfg.wakeup_mode = UART_WK_MODE_ACTIVE_THRESH;
-        uart_wakeup_cfg.rx_edge_threshold = 3;
-        log_err(uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg));
-
-        log_err(esp_sleep_enable_uart_wakeup(UART_NUM_0));
-
-        // gpio_config_t config = {
-        //     .pin_bit_mask = BIT64(PIN_BUTTONC | PIN_BUTTONL | PIN_BUTTONR),
-        //     .mode = GPIO_MODE_INPUT,
-        //     .pull_up_en = GPIO_PULLUP_DISABLE,
-        //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        //     .intr_type = GPIO_INTR_DISABLE};
-        // gpio_config(&config);
-        if (hal.btn_activelow)
+    /*     if (hal.can_light_sleep)
         {
-            rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
-            rtc_gpio_init((gpio_num_t)PIN_BUTTONL);
-            rtc_gpio_init((gpio_num_t)PIN_BUTTONR);
-            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONC);
-            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONL);
-            rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONR);
-            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONC);
-            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONL);
-            rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONR);
-            log_err(esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0));
-            (esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW));
-        }
-        else
-        {
-            if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true && ebook_run == true)
+            if (sleeptime == 0)
+                esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+            else
+                esp_sleep_enable_timer_wakeup(sleeptime * 1000000UL);
+            uart_wakeup_cfg_t uart_wakeup_cfg = {};
+            uart_wakeup_cfg.wakeup_mode = UART_WK_MODE_ACTIVE_THRESH;
+            uart_wakeup_cfg.rx_edge_threshold = 3;
+            log_err(uart_wakeup_setup(UART_NUM_0, &uart_wakeup_cfg));
+
+            log_err(esp_sleep_enable_uart_wakeup(UART_NUM_0));
+
+            // gpio_config_t config = {
+            //     .pin_bit_mask = BIT64(PIN_BUTTONC | PIN_BUTTONL | PIN_BUTTONR),
+            //     .mode = GPIO_MODE_INPUT,
+            //     .pull_up_en = GPIO_PULLUP_DISABLE,
+            //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            //     .intr_type = GPIO_INTR_DISABLE};
+            // gpio_config(&config);
+            if (hal.btn_activelow)
             {
-                (esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1));
-                log_err(esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH));
+                rtc_gpio_init((gpio_num_t)PIN_BUTTONC);
+                rtc_gpio_init((gpio_num_t)PIN_BUTTONL);
+                rtc_gpio_init((gpio_num_t)PIN_BUTTONR);
+                rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONC);
+                rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONL);
+                rtc_gpio_pullup_en((gpio_num_t)PIN_BUTTONR);
+                rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONC);
+                rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONL);
+                rtc_gpio_pulldown_dis((gpio_num_t)PIN_BUTTONR);
+                log_err(esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 0));
+                (esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_LOW));
             }
             else
             {
-                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL));
-                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL));
-                log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL));
-                log_err(esp_sleep_enable_gpio_wakeup());
+                if (hal.pref.getBool(hal.get_char_sha_key("根据唤醒源翻页")) == true && ebook_run == true)
+                {
+                    (esp_sleep_enable_ext0_wakeup((gpio_num_t)hal._wakeupIO[0], 1));
+                    log_err(esp_sleep_enable_ext1_wakeup((1LL << hal._wakeupIO[1]), ESP_EXT1_WAKEUP_ANY_HIGH));
+                }
+                else
+                {
+                    log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONC, GPIO_INTR_HIGH_LEVEL));
+                    log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONL, GPIO_INTR_HIGH_LEVEL));
+                    log_err(gpio_wakeup_enable((gpio_num_t)PIN_BUTTONR, GPIO_INTR_HIGH_LEVEL));
+                    log_err(esp_sleep_enable_gpio_wakeup());
+                }
             }
+            log_i("进入lightsleep");
+            log_err(esp_light_sleep_start());
         }
-        log_i("进入lightsleep");
-        log_err(esp_light_sleep_start());
-    }
-    else
-    { */
-        while (!hal.btnc.isPressing() && !hal.btnl.isPressing() && !hal.btnr.isPressing())
-        {
-            delay(50);
-        }
-/*     }
-    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UART)
+        else
+        { */
+    int freq = ESP.getCpuFreqMHz();
+    long max_time = millis() + sleeptime;
+    setCpuFrequencyMhz(80);
+    while ((!hal.btnc.isPressing() && !hal.btnl.isPressing() && !hal.btnr.isPressing()) || (millis() < max_time))
     {
-        log_i("uart唤醒");
-    } */
+        delay(50);
+    }
+    setCpuFrequencyMhz(freq);
+    /*     }
+        if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UART)
+        {
+            log_i("uart唤醒");
+        } */
 }
 
 const char *get_exc_cause_name(uint32_t exc_cause)
@@ -1456,21 +1466,26 @@ void show_check_info()
 #define KEEP_COUNT 3
 
 // 判断系统时间是否有效（可调整基准时间）
-static bool is_system_time_valid() {
+static bool is_system_time_valid()
+{
     time_t now = time(nullptr);
     // 以 2020-01-01 00:00:00 UTC 为基准，若小于该值则认为时间未初始化
     return (now > 1577836800);
 }
 
 // 生成带时间戳或随机数的文件名
-static String generate_coredump_filename() {
+static String generate_coredump_filename()
+{
     char filename[64];
-    if (is_system_time_valid()) {
+    if (is_system_time_valid())
+    {
         struct tm timeinfo;
         time_t now = time(nullptr);
         localtime_r(&now, &timeinfo);
         strftime(filename, sizeof(filename), "coredump_%Y%m%d_%H%M%S.elf", &timeinfo);
-    } else {
+    }
+    else
+    {
         uint32_t rand_val = esp_random();
         snprintf(filename, sizeof(filename), "coredump_%08x.elf", rand_val);
     }
@@ -1478,21 +1493,26 @@ static String generate_coredump_filename() {
 }
 
 // 清理旧文件，仅保留最近 KEEP_COUNT 个
-static void clean_old_coredumps() {
-    DIR* dir = opendir("/littlefs/System");
-    if (!dir) return;
+static void clean_old_coredumps()
+{
+    DIR *dir = opendir("/littlefs/System");
+    if (!dir)
+        return;
 
-    struct dirent* entry;
+    struct dirent *entry;
     std::vector<std::pair<time_t, String>> file_list;
 
-    while ((entry = readdir(dir)) != nullptr) {
+    while ((entry = readdir(dir)) != nullptr)
+    {
         String name = entry->d_name;
         // 匹配 coredump_*.elf
-        if (name.startsWith(COREDUMP_PREFIX) && name.endsWith(COREDUMP_SUFFIX)) {
+        if (name.startsWith(COREDUMP_PREFIX) && name.endsWith(COREDUMP_SUFFIX))
+        {
             String full_path = String(BASE_DIR) + name;
             File f = LittleFS.open(full_path, "r");
-            if (f) {
-                time_t mtime = f.getLastWrite();  // 获取最后修改时间
+            if (f)
+            {
+                time_t mtime = f.getLastWrite(); // 获取最后修改时间
                 f.close();
                 file_list.push_back({mtime, full_path});
             }
@@ -1502,18 +1522,22 @@ static void clean_old_coredumps() {
 
     // 按修改时间降序排序（最新的在前）
     std::sort(file_list.begin(), file_list.end(),
-              [](const auto& a, const auto& b) { return a.first > b.first; });
+              [](const auto &a, const auto &b)
+              { return a.first > b.first; });
 
     // 删除除前 KEEP_COUNT 个以外的文件
-    for (size_t i = KEEP_COUNT; i < file_list.size(); ++i) {
-        if (LittleFS.remove(file_list[i].second)) {
+    for (size_t i = KEEP_COUNT; i < file_list.size(); ++i)
+    {
+        if (LittleFS.remove(file_list[i].second))
+        {
             log_i("已删除旧转储文件: %s", file_list[i].second.c_str());
-        } else {
+        }
+        else
+        {
             log_w("删除旧文件失败: %s", file_list[i].second.c_str());
         }
     }
 }
-
 
 void HAL::coredump_file()
 {
@@ -1541,7 +1565,8 @@ void HAL::coredump_file()
 
     // 写入文件（原有写入逻辑，改为使用 filePath）
     File file = LittleFS.open(filePath, "w");
-    if (!file) {
+    if (!file)
+    {
         GUI::info_msgbox("发生错误", "无法创建coredump文件");
         free(buffer);
         return;
@@ -1550,7 +1575,8 @@ void HAL::coredump_file()
     file.close();
     free(buffer);
 
-    if (written != coredump_partition->size) {
+    if (written != coredump_partition->size)
+    {
         GUI::info_msgbox("发生错误", "文件写入错误");
         LittleFS.remove(filePath);
         return;
@@ -1562,9 +1588,12 @@ void HAL::coredump_file()
     clean_old_coredumps();
 
     // 显示消息框
-    if (esp_reset_reason() == ESP_RST_PANIC) {
+    if (esp_reset_reason() == ESP_RST_PANIC)
+    {
         GUI::msgbox("系统异常", "zako~zako~,程序崩溃了呢~", 5);
-    } else {
+    }
+    else
+    {
         GUI::info_msgbox("调试信息", (String("coredump分区已转储至 ") + filePath).c_str());
     }
 }
@@ -1674,7 +1703,7 @@ bool HAL::init()
     //     btnc._buttonPressed = 0;
     //     btn_activelow = true;
     // }
-    
+
     pinMode(PIN_CHARGING, INPUT_PULLUP);
     pinMode(PIN_SD_CARDDETECT, INPUT_PULLUP);
     pinMode(PIN_SCL, OUTPUT | PULLUP);
@@ -1923,7 +1952,7 @@ bool HAL::autoConnectWiFi(bool need_wifi_config)
         return true;
     }
     // 下面连接WiFi
-    if (config[PARAM_SSID] == "")
+    if (hal.pref.getString("ssid") == "")
     {
         ReqWiFiConfig();
     }
@@ -1987,31 +2016,38 @@ void HAL::searchWiFi()
 bool HAL::is_ap_available(const char *ssid, int minRssi)
 {
     // 同步扫描(会阻塞约 1~3 秒)
+    GUI::info_msgbox("WiFi连接", "正在扫描周边的可用WiFi...");
     int n = WiFi.scanNetworks(false /* async */, false /* show_hidden */);
     log_i("Scan done, %d networks found", n);
 
-    if (n <= 0) {
+    if (n <= 0)
+    {
         WiFi.scanDelete();
         return false;
     }
 
     bool found = false;
-    for (int i = 0; i < n; ++i) {
-        if (WiFi.SSID(i) == ssid) {
+    for (int i = 0; i < n; ++i)
+    {
+        if (WiFi.SSID(i) == ssid)
+        {
             int rssi = WiFi.RSSI(i);
             log_i("AP '%s' found, RSSI=%d, ch=%d, enc=%d",
                   ssid, rssi, WiFi.channel(i), WiFi.encryptionType(i));
 
-            if (rssi >= minRssi) {
+            if (rssi >= minRssi)
+            {
                 found = true;
-            } else {
+            }
+            else
+            {
                 log_w("AP '%s' signal too weak: %d", ssid, rssi);
             }
             break;
         }
     }
 
-    WiFi.scanDelete();   // 释放扫描内存(必须!)
+    WiFi.scanDelete(); // 释放扫描内存(必须!)
     return found;
 }
 

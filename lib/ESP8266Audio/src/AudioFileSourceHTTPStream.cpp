@@ -67,8 +67,10 @@ bool AudioFileSourceHTTPStream::open(const char *url)
   int code = http.GET();
   if (code != HTTP_CODE_OK)
   {
-    http.end();
     log_e("Can't open HTTP request");
+    if (http.getSize() > 0)
+      log_e("%s", http.getString().c_str());
+    http.end();
     return false;
   }
   size = http.getSize();

@@ -102,7 +102,7 @@ void AppSettings::setup()
             {NULL, "系统设置"},
             {NULL, "关于"},
             {NULL, NULL},
-        };
+    };
     display.display();
     while (end == false && hasToApp == false)
     {
@@ -171,7 +171,7 @@ void AppSettings::menu_time()
             {false, "设置时钟字体", nullptr},
             {false, "闹钟设置", nullptr},
             {false, NULL, nullptr},
-        };
+    };
     while (end == false && hasToApp == false)
     {
         res = GUI::select_menu("时间设置", settings_menu_time, res);
@@ -386,22 +386,20 @@ void AppSettings::menu_network()
     bool end = false;
     static const menu_select settings_menu_network[] =
         {
-            {false, "< 返回", nullptr},// 0
-            {false, "选择默认WiFi", nullptr},// 1
-            {false, "搜索周围的WIFI", nullptr},// 2
-            {false, "设置WiFi发射功率", nullptr},// 3
-            {false, "ESPTouch配网", nullptr},// 4
-            {false, "启动HTTP服务器", nullptr},// 5
-            {false, "启动文件服务器", nullptr},// 6
-            {true, "启用mDNS", "en_mdns"},// 7
-            {false, "ESPNow设备扫描", nullptr},// 8
-            {false, "蓝牙扫描", nullptr},// 9
-            {false, "退出Bilibili账号", nullptr},// 10
-            {false, "分享当前配置的WiFi", nullptr},// 11
-            {false, "配置界面和Blockly", nullptr},// 12
+            {false, "< 返回", nullptr},             // 0
+            {false, "选择默认WiFi", nullptr},       // 1
+            {false, "搜索周围的WIFI", nullptr},     // 2
+            {false, "设置WiFi发射功率", nullptr},   // 3
+            {false, "ESPTouch配网", nullptr},       // 4
+            {false, "启动HTTP服务器", nullptr},     // 5
+            {true, "启用mDNS", "en_mdns"},          // 6
+            {false, "ESPNow设备扫描", nullptr},     // 7
+            {false, "蓝牙扫描", nullptr},           // 8
+            {false, "退出Bilibili账号", nullptr},   // 9
+            {false, "分享当前配置的WiFi", nullptr}, // 10
+            {false, "配置界面和Blockly", nullptr},  // 11
             {false, NULL, nullptr},
-        };
-    DNSServer dnsServer;
+    };
     while (end == false && hasToApp == false)
     {
         res = GUI::select_menu("网络设置", settings_menu_network, res);
@@ -461,12 +459,10 @@ void AppSettings::menu_network()
                 }
                 else
                 {
-                    config[PARAM_SSID] = _wifi_list[res].title;
-                    config[PARAM_PASS] = pass[res - 1];
+                    hal.pref.putString("ssid", String(_wifi_list[res].title));
+                    hal.pref.putString("pass", String(pass[res - 1]));
                     char buf[256];
                     sprintf(buf, "已将默认WiFi配置为: \nSSID: %s\nPASS: %s\n下次连接时将使用新的配置", _wifi_list[res].title, pass[res - 1]);
-                    hal.saveConfig();
-                    hal.loadConfig();
                     delete[] _wifi_list;
                     GUI::msgbox("WiFi设置", buf);
                     break;
@@ -661,6 +657,7 @@ void AppSettings::menu_network()
             break;
         case 6:
         {
+            DNSServer dnsServer;
             bool wifi = hal.autoConnectWiFi(false);
             String passwd = String((esp_random() % 1000000000L) + 10000000L); // 生成随机密码
             String str = "WIFI:T:WPA2;S:WeatherClock;P:" + passwd + ";;", str1;
@@ -741,8 +738,8 @@ void AppSettings::menu_network()
             break;
         case 11:
         {
-            String ssid = config[PARAM_SSID].as<String>();
-            String pass = config[PARAM_PASS].as<String>();
+            String ssid = hal.pref.getString("ssid");
+            String pass = hal.pref.getString("pass");
             String str = "WIFI:T:WPA2;S:" + ssid + ";P:" + pass + ";;";
             display.fillScreen(TFT_WHITE);
             QRCode qrcode;
@@ -771,6 +768,7 @@ void AppSettings::menu_network()
         break;
         case 12:
         {
+            DNSServer dnsServer;
             String str1, str2;
             bool wifi = hal.autoConnectWiFi(false);
             bool ap = false;
@@ -865,7 +863,7 @@ void AppSettings::menu_display()
             {true, "屏幕deepsleep", "en_disp_sleep"},
             {true, "Inversion", "Inversion"},
             {false, NULL},
-        };
+    };
     while (end == false && hasToApp == false)
     {
         res = GUI::select_menu("显示与声音", settings_menu_display, res);
@@ -966,7 +964,7 @@ void AppSettings::menu_power()
             {true, "启用关机图片", "en_poff_image"},
             {false, "设置关机图片", nullptr},
             {false, NULL, nullptr},
-        };
+    };
     while (end == false && hasToApp == false)
     {
         res = GUI::select_menu("电源管理", settings_menu_display, res);
@@ -1105,7 +1103,7 @@ void AppSettings::menu_peripherals()
             {false, "清除nvs存储", nullptr},
             {false, "DS3231设置", nullptr},
             {false, NULL, nullptr},
-        };
+    };
     while (end == false && hasToApp == false)
     {
         res = GUI::select_menu("存储与外设", settings_menu_peripherals, res);
@@ -1262,7 +1260,7 @@ void AppSettings::menu_system()
             {false, "恢复出厂设置", nullptr},
             {false, "设置系统全局字体", nullptr},
             {false, NULL, nullptr},
-        };
+    };
     while (end == false && hasToApp == false)
     {
         res = GUI::select_menu("系统设置", settings_menu_system, res);
@@ -1756,7 +1754,7 @@ void AppSettings::menu_SWQ()
             {false, "频率设置", nullptr},
             {true, "1Hz方波输出", "1hz"},
             {false, NULL, nullptr},
-        };
+    };
     int res = 0;
     bool end = false;
 
@@ -1805,7 +1803,7 @@ void AppSettings::menu_DS3231()
             {NULL, "完全手动设置时间"},
             {NULL, "32.786KHZ输出使能"},
             {NULL, NULL},
-        };
+    };
     int res = 0;
     bool end = false;
     while (end == false)
@@ -1954,7 +1952,7 @@ void AppSettings::cheak_config(char *a)
 {
     if (GUI::msgbox_yn("提示写入选中WIFI", a, "确定", "取消"))
     {
-        config[PARAM_SSID] = a;
+        hal.pref.putString("ssid", String(a));
         hal.saveConfig();
     }
     else
@@ -1967,7 +1965,7 @@ void AppSettings::cheak_config(char *a)
     else
     {
         char *pwd = GUI::englishInput("输入WiFi密码");
-        config[PARAM_PASS] = pwd;
+        hal.pref.putString("pass", pwd);
         free(pwd);
         hal.saveConfig();
     }
