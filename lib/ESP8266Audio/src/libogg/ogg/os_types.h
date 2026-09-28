@@ -25,10 +25,10 @@
 // #define _ogg_realloc realloc
 // #define _ogg_free    free
 
-/* 将内存分配重定向到 heap_caps，使用默认内存能力（内部 RAM） */
-#define _ogg_malloc(size)   heap_caps_malloc(size, MALLOC_CAP_SPIRAM)
-#define _ogg_calloc(n, size) heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM)
-#define _ogg_realloc(ptr, size) heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM)
+/* 将内存分配重定向到 heap_caps */
+#define _ogg_malloc(size)   heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#define _ogg_calloc(n, size) heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
+#define _ogg_realloc(ptr, size) heap_caps_realloc(ptr, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT)
 #define _ogg_free(ptr)      heap_caps_free(ptr)
 
 #if defined(_WIN32)

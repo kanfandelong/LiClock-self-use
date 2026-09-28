@@ -90,12 +90,12 @@ int op_test(OpusHead *_head,
   ogg_sync_init(&oy);
   data=ogg_sync_buffer(&oy,(long)_initial_bytes);
   if(data!=NULL){
-    ogg_stream_state *os = (ogg_stream_state*)malloc(sizeof(ogg_stream_state));
+    ogg_stream_state os;
     ogg_page         og;
     int              ret;
     memcpy(data,_initial_data,_initial_bytes);
     ogg_sync_wrote(&oy,(long)_initial_bytes);
-    ogg_stream_init(os,-1);
+    ogg_stream_init(&os,-1);
     err=OP_FALSE;
     do{
       ogg_packet op;
@@ -104,11 +104,11 @@ int op_test(OpusHead *_head,
       if(ret<0)continue;
       /*Stop if we run out of data.*/
       if(!ret)break;
-      ogg_stream_reset_serialno(os,ogg_page_serialno(&og));
-      ogg_stream_pagein(os,&og);
+      ogg_stream_reset_serialno(&os,ogg_page_serialno(&og));
+      ogg_stream_pagein(&os,&og);
       /*Only process the first packet on this page (if it's a BOS packet,
          it's required to be the only one).*/
-      if(ogg_stream_packetout(os,&op)==1){
+      if(ogg_stream_packetout(&os,&op)==1){
         if(op.b_o_s){
           ret=opus_head_parse(_head,op.packet,op.bytes);
           /*If this didn't look like Opus, keep going.*/
@@ -122,8 +122,7 @@ int op_test(OpusHead *_head,
       }
     }
     while(err==OP_FALSE);
-    ogg_stream_clear(os);
-    free(os);
+    ogg_stream_clear(&os);
   }
   else err=OP_EFAULT;
   ogg_sync_clear(&oy);
@@ -149,6 +148,7 @@ static int op_get_data(OggOpusFile *_of,int _nbytes){
   int            nbytes;
   OP_ASSERT(_nbytes>0);
   buffer=(unsigned char *)ogg_sync_buffer(&_of->oy,_nbytes);
+  if(OP_UNLIKELY(buffer==NULL))return OP_EFAULT;
   nbytes=(int)(*_of->callbacks.read)(_of->stream,buffer,_nbytes);
   OP_ASSERT(nbytes<=_nbytes);
   if(OP_LIKELY(nbytes>0))ogg_sync_wrote(&_of->oy,nbytes);
@@ -360,7 +360,7 @@ static int op_get_prev_page_serial(OggOpusFile *_of,OpusSeekRecord *_sr,
       /*If this page is from the stream we're looking for, remember it.*/
       if(serialno==_serialno){
         preferred_found=1;
-        *&preferred_sr=*_sr;
+        preferred_sr=*_sr;
       }
       if(!op_lookup_serialno(serialno,_serialnos,_nserialnos)){
         /*We fell off the end of the link, which means we seeked back too far
@@ -381,7 +381,7 @@ static int op_get_prev_page_serial(OggOpusFile *_of,OpusSeekRecord *_sr,
     end=OP_MIN(begin+OP_PAGE_SIZE_MAX-1,original_end);
   }
   while(_offset<0);
-  if(preferred_found)*_sr=*&preferred_sr;
+  if(preferred_found)*_sr=preferred_sr;
   return 0;
 }
 
@@ -836,7 +836,7 @@ static int op_find_initial_pcm_offset(OggOpusFile *_of,
   ogg_int64_t  cur_page_gp;
   ogg_uint32_t serialno;
   opus_int32   total_duration;
-  int          *durations = (int*)malloc(255 * sizeof(int));
+  int          durations[255];
   int          cur_page_eos;
   int          op_count;
   int          pi;
@@ -853,31 +853,26 @@ static int op_find_initial_pcm_offset(OggOpusFile *_of,
       Otherwise there are no audio data packets in the whole logical stream.*/
     if(OP_UNLIKELY(page_offset<0)){
       /*Fail if there was a read error.*/
-      if(page_offset<OP_FALSE) { free(durations); return (int)page_offset; }
+      if(page_offset<OP_FALSE)return (int)page_offset;
       /*Fail if the pre-skip is non-zero, since it's asking us to skip more
          samples than exist.*/
-      if(_link->head.pre_skip>0) {free(durations); return OP_EBADTIMESTAMP;}
+      if(_link->head.pre_skip>0)return OP_EBADTIMESTAMP;
       _link->pcm_file_offset=0;
       /*Set pcm_end and end_offset so we can skip the call to
          op_find_final_pcm_offset().*/
       _link->pcm_start=_link->pcm_end=0;
       _link->end_offset=_link->data_offset;
-      free(durations);
       return 0;
     }
     /*Similarly, if we hit the next link in the chain, we've gone too far.*/
     if(OP_UNLIKELY(ogg_page_bos(_og))){
-      if(_link->head.pre_skip>0) {
-        free(durations);
-      	return OP_EBADTIMESTAMP;
-      }
+      if(_link->head.pre_skip>0)return OP_EBADTIMESTAMP;
       /*Set pcm_end and end_offset so we can skip the call to
          op_find_final_pcm_offset().*/
       _link->pcm_file_offset=0;
       _link->pcm_start=_link->pcm_end=0;
       _link->end_offset=_link->data_offset;
       /*Tell the caller we've got a buffered page for them.*/
-      free(durations);
       return 1;
     }
     /*Ignore pages from other streams (not strictly necessary, because of the
@@ -907,10 +902,7 @@ static int op_find_initial_pcm_offset(OggOpusFile *_of,
   cur_page_gp=_of->op[op_count-1].granulepos;
   /*But getting a packet without a valid granule position on the page is not
      okay.*/
-  if(cur_page_gp==-1) {
-	  free(durations);
-	  return OP_EBADTIMESTAMP;
-  }
+  if(cur_page_gp==-1)return OP_EBADTIMESTAMP;
   cur_page_eos=_of->op[op_count-1].e_o_s;
   if(OP_LIKELY(!cur_page_eos)){
     /*The EOS flag wasn't set.
@@ -919,7 +911,6 @@ static int op_find_initial_pcm_offset(OggOpusFile *_of,
     if(OP_UNLIKELY(op_granpos_add(&pcm_start,cur_page_gp,-total_duration)<0)){
       /*The starting granule position MUST not be smaller than the amount of
          audio on the first page with completed packets.*/
-      free(durations);
       return OP_EBADTIMESTAMP;
     }
   }
@@ -933,7 +924,6 @@ static int op_find_initial_pcm_offset(OggOpusFile *_of,
       /*However, the end-trimming MUST not ask us to trim more samples than
          exist after applying the pre-skip.*/
       if(OP_UNLIKELY(op_granpos_cmp(cur_page_gp,_link->head.pre_skip)<0)){
-        free(durations);
         return OP_EBADTIMESTAMP;
       }
     }
@@ -968,7 +958,6 @@ static int op_find_initial_pcm_offset(OggOpusFile *_of,
   _link->pcm_file_offset=0;
   _of->prev_packet_gp=_link->pcm_start=pcm_start;
   _of->prev_page_offset=page_offset;
-  free(durations);
   return 0;
 }
 
@@ -1069,9 +1058,11 @@ static opus_int64 op_predict_link_start(const OpusSeekRecord *_sr,int _nsr,
     ogg_uint32_t serialno1;
     opus_int64   offset1;
     /*If the granule position is negative, either it's invalid or we'd cause
-       overflow.*/
+       overflow.
+      If it is larger than OP_INT64_MAX-OP_GP_SPACING_MIN, then no positive
+       granule position would satisfy our minimum spacing requirements below.*/
     gp1=_sr[sri].gp;
-    if(gp1<0)continue;
+    if(gp1<0||gp1>OP_INT64_MAX-OP_GP_SPACING_MIN)continue;
     /*We require some minimum distance between granule positions to make an
        estimate.
       We don't actually know what granule position scheme is being used,
@@ -1079,10 +1070,7 @@ static opus_int64 op_predict_link_start(const OpusSeekRecord *_sr,int _nsr,
       Therefore we require a minimum spacing between them, with the
        expectation that while bitrates and granule position increments might
        vary locally in quite complex ways, they are globally smooth.*/
-    if(OP_UNLIKELY(op_granpos_add(&gp2_min,gp1,OP_GP_SPACING_MIN)<0)){
-      /*No granule position would satisfy us.*/
-      continue;
-    }
+    gp2_min=gp1+OP_GP_SPACING_MIN;
     offset1=_sr[sri].offset;
     serialno1=_sr[sri].serialno;
     for(srj=sri;srj-->0;){
@@ -1201,6 +1189,7 @@ static int op_bisect_forward_serialno(OggOpusFile *_of,
     /*We guard against garbage separating the last and first pages of two
        links below.*/
     while(_searched<end_searched){
+      opus_int64 boundary;
       opus_int32 next_bias;
       /*If we don't have a better estimate, use simple bisection.*/
       if(bisect==-1)bisect=_searched+(end_searched-_searched>>1);
@@ -1211,7 +1200,14 @@ static int op_bisect_forward_serialno(OggOpusFile *_of,
       else end_gp=-1;
       ret=op_seek_helper(_of,bisect);
       if(OP_UNLIKELY(ret<0))return ret;
-      last=op_get_next_page(_of,&og,_sr[nsr-1].offset);
+      /*If there is a large region of invalid data in the middle of the file,
+         avoid scanning it repeatedly.
+        Because of the bisection, doing that would only be O(n*log(n)), not
+         quadratic like op_get_last_page(), but still good to avoid.*/
+      OP_ASSERT(end_searched<=_sr[nsr-1].search_start);
+      boundary=OP_MIN(_sr[nsr-1].offset,
+       OP_ADV_OFFSET(end_searched,OP_PAGE_SIZE_MAX-1));
+      last=op_get_next_page(_of,&og,boundary);
       if(OP_UNLIKELY(last<OP_FALSE))return (int)last;
       next_bias=0;
       if(last==OP_FALSE)end_searched=bisect;
@@ -1279,6 +1275,8 @@ static int op_bisect_forward_serialno(OggOpusFile *_of,
     ret=op_fetch_headers(_of,&links[nlinks].head,&links[nlinks].tags,
      _serialnos,_nserialnos,_cserialnos,last!=next?NULL:&og);
     if(OP_UNLIKELY(ret<0))return ret;
+    /*Mark the current link count so it can be cleaned up on error.*/
+    _of->nlinks=nlinks+1;
     links[nlinks].offset=next;
     links[nlinks].data_offset=_of->offset;
     links[nlinks].serialno=_of->os.serialno;
@@ -1289,8 +1287,7 @@ static int op_bisect_forward_serialno(OggOpusFile *_of,
     if(OP_UNLIKELY(ret<0))return ret;
     links[nlinks].pcm_file_offset=total_duration;
     _searched=_of->offset;
-    /*Mark the current link count so it can be cleaned up on error.*/
-    _of->nlinks=++nlinks;
+    ++nlinks;
   }
   /*Last page is in the starting serialno list, so we've reached the last link.
     Now find the last granule position for it (if we didn't the first time we
@@ -1403,34 +1400,32 @@ static int op_open_seekable2_impl(OggOpusFile *_of){
   /*64 seek records should be enough for anybody.
     Actually, with a bisection search in a 63-bit range down to OP_CHUNK_SIZE
      granularity, much more than enough.*/
-  OpusSeekRecord *sr = (OpusSeekRecord*)malloc(64 * sizeof(OpusSeekRecord));
+  OpusSeekRecord sr[64];
   opus_int64     data_offset;
   int            ret;
   /*We can seek, so set out learning all about this file.*/
   (*_of->callbacks.seek)(_of->stream,0,SEEK_END);
   _of->offset=_of->end=(*_of->callbacks.tell)(_of->stream);
-  if(OP_UNLIKELY(_of->end<0)){free(sr); return OP_EREAD;}
+  if(OP_UNLIKELY(_of->end<0))return OP_EREAD;
   data_offset=_of->links[0].data_offset;
-  if(OP_UNLIKELY(_of->end<data_offset)){ free(sr); return OP_EBADLINK;}
+  if(OP_UNLIKELY(_of->end<data_offset))return OP_EBADLINK;
   /*Get the offset of the last page of the physical bitstream, or, if we're
      lucky, the last Opus page of the first link, as most Ogg Opus files will
      contain a single logical bitstream.*/
   ret=op_get_prev_page_serial(_of,sr,_of->end,
    _of->links[0].serialno,_of->serialnos,_of->nserialnos);
-  if(OP_UNLIKELY(ret<0)){free(sr); return ret;}
+  if(OP_UNLIKELY(ret<0))return ret;
   /*If there's any trailing junk, forget about it.*/
   _of->end=sr[0].offset+sr[0].size;
-  if(OP_UNLIKELY(_of->end<data_offset)){free(sr); return OP_EBADLINK;}
+  if(OP_UNLIKELY(_of->end<data_offset))return OP_EBADLINK;
   /*Now enumerate the bitstream structure.*/
-  ret = op_bisect_forward_serialno(_of,data_offset,sr,64,
+  return op_bisect_forward_serialno(_of,data_offset,sr,sizeof(sr)/sizeof(*sr),
    &_of->serialnos,&_of->nserialnos,&_of->cserialnos);
-  free(sr);
-  return ret;
 }
 
 static int op_open_seekable2(OggOpusFile *_of){
   ogg_sync_state    oy_start;
-  ogg_stream_state  *os_start = (ogg_stream_state*)malloc(sizeof(ogg_stream_state));
+  ogg_stream_state  os_start;
   ogg_packet       *op_start;
   opus_int64        prev_page_offset;
   opus_int64        start_offset;
@@ -1449,9 +1444,9 @@ static int op_open_seekable2(OggOpusFile *_of){
   start_op_count=_of->op_count;
   /*This is a bit too large to put on the stack unconditionally.*/
   op_start=(ogg_packet *)_ogg_malloc(sizeof(*op_start)*start_op_count);
-  if(op_start==NULL){free(os_start); return OP_EFAULT;}
-  *&oy_start=_of->oy;
-  *os_start=_of->os;
+  if(op_start==NULL)return OP_EFAULT;
+  oy_start=_of->oy;
+  os_start=_of->os;
   prev_page_offset=_of->prev_page_offset;
   start_offset=_of->offset;
   memcpy(op_start,_of->op,sizeof(*op_start)*start_op_count);
@@ -1462,8 +1457,8 @@ static int op_open_seekable2(OggOpusFile *_of){
   /*Restore the old stream state.*/
   ogg_stream_clear(&_of->os);
   ogg_sync_clear(&_of->oy);
-  *&_of->oy=*&oy_start;
-  *&_of->os=*os_start;
+  _of->oy=oy_start;
+  _of->os=os_start;
   _of->offset=start_offset;
   _of->op_count=start_op_count;
   memcpy(_of->op,op_start,sizeof(*_of->op)*start_op_count);
@@ -1471,17 +1466,16 @@ static int op_open_seekable2(OggOpusFile *_of){
   _of->prev_packet_gp=_of->links[0].pcm_start;
   _of->prev_page_offset=prev_page_offset;
   _of->cur_discard_count=_of->links[0].head.pre_skip;
-  if(OP_UNLIKELY(ret<0)){free(os_start); return ret;}
+  if(OP_UNLIKELY(ret<0))return ret;
   /*And restore the position indicator.*/
   ret=(*_of->callbacks.seek)(_of->stream,op_position(_of),SEEK_SET);
-  free(os_start);
   return OP_UNLIKELY(ret<0)?OP_EREAD:0;
 }
 
 /*Clear out the current logical bitstream decoder.*/
 static void op_decode_clear(OggOpusFile *_of){
   /*We don't actually free the decoder.
-    We might be able to reuse it for the next link.*/
+    We might be able to re-use it for the next link.*/
   _of->op_count=0;
   _of->od_buffer_size=0;
   _of->prev_packet_gp=-1;
@@ -1527,7 +1521,7 @@ static int op_open1(OggOpusFile *_of,
   if(OP_UNLIKELY(_initial_bytes>(size_t)LONG_MAX))return OP_EFAULT;
   _of->end=-1;
   _of->stream=_stream;
-  *&_of->callbacks=*_cb;
+  _of->callbacks=*_cb;
   /*At a minimum, we need to be able to read data.*/
   if(OP_UNLIKELY(_of->callbacks.read==NULL))return OP_EREAD;
   /*Initialize the framing state.*/
@@ -1542,6 +1536,7 @@ static int op_open1(OggOpusFile *_of,
   if(_initial_bytes>0){
     char *buffer;
     buffer=ogg_sync_buffer(&_of->oy,(long)_initial_bytes);
+    if(OP_UNLIKELY(buffer==NULL))return OP_EFAULT;
     memcpy(buffer,_initial_data,_initial_bytes*sizeof(*buffer));
     ogg_sync_wrote(&_of->oy,(long)_initial_bytes);
   }
@@ -1563,6 +1558,7 @@ static int op_open1(OggOpusFile *_of,
   /*Don't seek yet.
     Set up a 'single' (current) logical bitstream entry for partial open.*/
   _of->links=(OggOpusLink *)_ogg_malloc(sizeof(*_of->links));
+  if(OP_UNLIKELY(_of->links==NULL))return OP_EFAULT;
   /*The serialno gets filled in later by op_fetch_headers().*/
   ogg_stream_init(&_of->os,-1);
   pog=NULL;
@@ -1749,7 +1745,7 @@ opus_int64 op_raw_total(const OggOpusFile *_of,int _li){
 ogg_int64_t op_pcm_total(const OggOpusFile *_of,int _li){
   OggOpusLink *links;
   ogg_int64_t  pcm_total;
-  ogg_int64_t  diff = 0;
+  ogg_int64_t  diff;
   int          nlinks;
   nlinks=_of->nlinks;
   if(OP_UNLIKELY(_of->ready_state<OP_OPENED)
@@ -1768,7 +1764,7 @@ ogg_int64_t op_pcm_total(const OggOpusFile *_of,int _li){
   }
   OP_ALWAYS_TRUE(!op_granpos_diff(&diff,
    links[_li].pcm_end,links[_li].pcm_start));
-  return pcm_total+diff-links[_li].head.pre_skip;
+  return pcm_total+(diff-links[_li].head.pre_skip);
 }
 
 const OpusHead *op_head(const OggOpusFile *_of,int _li){
@@ -1892,7 +1888,7 @@ static int op_fetch_and_process_page(OggOpusFile *_of,
     OP_ASSERT(_of->ready_state>=OP_OPENED);
     /*If we were given a page to use, use it.*/
     if(_og!=NULL){
-      *&og=*_og;
+      og=*_og;
       _og=NULL;
     }
     /*Keep reading until we get a page with the correct serialno.*/
@@ -1995,7 +1991,7 @@ static int op_fetch_and_process_page(OggOpusFile *_of,
     ogg_stream_pagein(&_of->os,&og);
     if(OP_LIKELY(_of->ready_state>=OP_INITSET)){
       opus_int32 total_duration;
-      int        *durations = (int*)malloc(255 * sizeof(int));
+      int        durations[255];
       int        op_count;
       int        report_hole;
       report_hole=0;
@@ -2052,7 +2048,7 @@ static int op_fetch_and_process_page(OggOpusFile *_of,
               Proceed to the next link, rather than risk playing back some
                samples that shouldn't have been played.*/
             _of->op_count=0;
-            if(report_hole){ free(durations); return OP_HOLE; }
+            if(report_hole)return OP_HOLE;
             continue;
           }
           /*By default discard 80 ms of data after a seek, unless we seek
@@ -2160,9 +2156,9 @@ static int op_fetch_and_process_page(OggOpusFile *_of,
         _of->prev_page_offset=_page_offset;
         _of->op_count=op_count=pi;
       }
-      if(report_hole) { free(durations); return OP_HOLE; }
+      if(report_hole)return OP_HOLE;
       /*If end-trimming didn't trim all the packets, we're done.*/
-      if(op_count>0) { free(durations); return 0; }
+      if(op_count>0)return 0;
     }
   }
 }
@@ -2325,13 +2321,18 @@ static int op_pcm_seek_page(OggOpusFile *_of,
       opus_int64 offset;
       int        op_count;
       op_count=_of->op_count;
-      /*The only way the offset can be invalid _and_ we can fail the granule
+      /*The offset can be out of range if we were reading through the stream
+         and encountered a page with the granule position for another link
+         outside of the data range identified during link enumeration when we
+         were opening the file.
+        We will just ignore the current position in that case.
+        The only way the offset can be valid _and_ we can fail the granule
          position checks below is if someone changed the contents of the last
          page since we read it.
-        We'd be within our rights to just return OP_EBADLINK in that case, but
-         we'll simply ignore the current position instead.*/
+        We'd be within our rights to just return OP_EBADLINK, but instead we'll
+         simply ignore the current position in that case, too.*/
       offset=_of->offset;
-      if(op_count>0&&OP_LIKELY(offset<=end)){
+      if(op_count>0&&OP_LIKELY(begin<=offset&&offset<=end)){
         ogg_int64_t gp;
         /*Make sure the timestamp is valid.
           The granule position might be -1 if we collected the packets from a
@@ -2347,7 +2348,6 @@ static int op_pcm_seek_page(OggOpusFile *_of,
             Otherwise it appears using the whole link range to estimate the
              first seek location gives better results, on average.*/
           if(diff<0){
-            OP_ASSERT(offset>=begin);
             if(offset-begin>=end-begin>>1||diff>-OP_CUR_TIME_THRESH){
               best=begin=offset;
               best_gp=pcm_start=gp;
@@ -2373,8 +2373,19 @@ static int op_pcm_seek_page(OggOpusFile *_of,
               For very small files (with all of the data in a single page,
                generally 1 second or less), we can loop them continuously
                without seeking at all.*/
-            OP_ALWAYS_TRUE(!op_granpos_add(&prev_page_gp,_of->op[0].granulepos,
-             -op_get_packet_duration(_of->op[0].packet,_of->op[0].bytes)));
+            if(op_granpos_add(&prev_page_gp,_of->op[0].granulepos,
+             -op_get_packet_duration(_of->op[0].packet,_of->op[0].bytes))<0) {
+              /*We validate/sanitize the per-packet timestamps, so the only way
+                 we should fail to calculate a granule position for the
+                 previous page is if the first page with completed packets in
+                 the stream is also the last, and end-trimming causes the
+                 apparent granule position preceding the first sample in the
+                 first packet to underflow.
+                The starting PCM offset is then 0 by spec mandate (see also:
+                 op_find_initial_pcm_offset()).*/
+              OP_ASSERT(_of->op[0].e_o_s);
+              prev_page_gp=0;
+            }
             if(op_granpos_cmp(prev_page_gp,_target_gp)<=0){
               /*Don't call op_decode_clear(), because it will dump our
                  packets.*/
@@ -2760,9 +2771,6 @@ void op_set_dither_enabled(OggOpusFile *_of,int _enabled){
 #if !defined(OP_FIXED_POINT)
   _of->dither_disabled=!_enabled;
   if(!_enabled)_of->dither_mute=65;
-#else
-  (void) _of;
-  (void) _enabled;
 #endif
 }
 
@@ -3016,7 +3024,7 @@ static const float OP_STEREO_DOWNMIX[OP_NCHANNELS_MAX-2][OP_NCHANNELS_MAX][2]={
 #endif
 
 #if defined(OP_FIXED_POINT)
-#if 0
+
 /*Matrices for downmixing from the supported channel counts to stereo.
   The matrices with 5 or more channels are normalized to a total volume of 2.0,
    since most mixes sound too quiet if normalized to 1.0 (as there is generally
@@ -3052,7 +3060,7 @@ static const opus_int16 OP_STEREO_DOWNMIX_Q14
     {3183,5515},{4502,4502}
   }
 };
-#endif
+
 int op_read(OggOpusFile *_of,opus_int16 *_pcm,int _buf_size,int *_li){
   return op_read_native(_of,_pcm,_buf_size,_li);
 }
@@ -3070,7 +3078,6 @@ static int op_stereo_filter(OggOpusFile *_of,void *_dst,int _dst_sz,
       for(i=0;i<_nsamples;i++)dst[2*i+0]=dst[2*i+1]=_src[i];
     }
     else{
-#if 0
       for(i=0;i<_nsamples;i++){
         opus_int32 l;
         opus_int32 r;
@@ -3086,8 +3093,6 @@ static int op_stereo_filter(OggOpusFile *_of,void *_dst,int _dst_sz,
         dst[2*i+0]=(opus_int16)OP_CLAMP(-32768,l+8192>>14,32767);
         dst[2*i+1]=(opus_int16)OP_CLAMP(-32768,r+8192>>14,32767);
       }
-#endif
-      // noop, removed for RAM savings
     }
   }
   return _nsamples;

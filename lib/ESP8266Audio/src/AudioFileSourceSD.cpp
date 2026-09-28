@@ -57,9 +57,9 @@ uint32_t AudioFileSourceSD::read(void *data, uint32_t len)
 bool AudioFileSourceSD::seek(int32_t pos, int dir)
 {
   if (!f) return false;
-  if (dir==SEEK_SET) return f.seek(pos);
-  else if (dir==SEEK_CUR) return f.seek(f.position() + pos);
-  else if (dir==SEEK_END) return f.seek(f.size() + pos);
+  if (dir==SEEK_SET) return f.seek((uint32_t)pos);
+  else if (dir==SEEK_CUR) return f.seek(f.position() + (uint32_t)pos);
+  else if (dir==SEEK_END) return f.seek(f.size() + (uint32_t)pos);
   return false;
 }
 

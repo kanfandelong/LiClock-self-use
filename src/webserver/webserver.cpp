@@ -29,24 +29,18 @@ extern "C" void lua_printf(const char *format, ...)
     va_start(argptr, format);
     char str[2][1024];
     vsprintf(str[0], format, argptr);
-    if (wsRunning)
-    {
-        struct timeval tv;
-        struct tm timeinfo;
-        gettimeofday(&tv, NULL);
-        localtime_r(&tv.tv_sec, &timeinfo);
-        snprintf(str[1], sizeof(str[1]), "(%02d:%02d:%02d.%03ld) [LUA]: %s\r\n",
-                timeinfo.tm_hour,
-                timeinfo.tm_min,
-                timeinfo.tm_sec,
-                tv.tv_usec / 1000,
-                str[0]);
-        ws.textAll(str[1]);
-    }
-    else
-    {
-        log_i("%s", str[0]);
-    }
+    struct timeval tv;
+    struct tm timeinfo;
+    gettimeofday(&tv, NULL);
+    localtime_r(&tv.tv_sec, &timeinfo);
+    snprintf(str[1], sizeof(str[1]), "(%02d:%02d:%02d.%03ld) [LUA]: %s\r\n",
+             timeinfo.tm_hour,
+             timeinfo.tm_min,
+             timeinfo.tm_sec,
+             tv.tv_usec / 1000,
+             str[0]);
+    ws.textAll(str[1]);
+    log_i("%s", str[0]);
     va_end(argptr);
 }
 static void task_lua_server(void *)
